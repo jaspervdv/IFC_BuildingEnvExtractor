@@ -685,6 +685,8 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	// asign rooms
 	int roomnum = 0;
 	int temps = 0;
+
+	STEPControl_Writer writer;
 	
 	std::cout << "[INFO]Room Growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
@@ -693,9 +695,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 		{
 			std::vector<int> totalRoom = growRoom(i, roomnum);
 			if (totalRoom.size() == 0) { continue; }
-
-			outputFieldToFile();
-			return;
 
 			//std::cout.flush();
 			std::cout << "Room nr: " << roomnum + 1 << "\r";
@@ -833,7 +832,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 					IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
 					TopoDS_Shape shape;
 
-					 if (std::get<3>(lookup))
+					if (std::get<3>(lookup))
 					{
 						shape = std::get<4>(lookup);
 						qProductList.emplace_back(std::make_tuple(qProduct, shape));
@@ -843,7 +842,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 						qProductList.emplace_back(std::make_tuple(qProduct, cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), false)));
 					}
 
-					
+
 
 					int sCount = 0;
 
@@ -872,7 +871,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			aSplitter.SetRunParallel(Standard_True);
 			//aSplitter.SetFuzzyValue(0.001);
 			aSplitter.SetNonDestructive(Standard_True);
-			
+
 			aSplitter.Perform();
 
 			const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
@@ -917,45 +916,24 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			for (size_t j = 0; j < outSideIndx.size(); j++) { solids.erase(solids.begin() + outSideIndx[j]); }
 			outSideIndx.clear();
 
-			if(hasInsidePoint)
+
+			double currentvolume = 0;
+
+			for (size_t j = 0; j < solids.size(); j++)
 			{
-				for (size_t j = 0; j < solids.size(); j++)
+				BRepClass3d_SolidClassifier insideChecker;
+				insideChecker.Load(solids[j]);
+				insideChecker.Perform(inRoomPoint, 0.001);
+
+				GProp_GProps gprop;
+				BRepGProp::VolumeProperties(solids[j], gprop);
+				double volume = gprop.Mass();
+
+				if (currentvolume < volume)
 				{
-					BRepClass3d_SolidClassifier insideChecker;
-					insideChecker.Load(solids[j]);
-					insideChecker.Perform(inRoomPoint, 0.001);
-
-					if (!insideChecker.State())
-					{
-
-						BiggestRoom = j;
-						auto roomFootprint = getRoomFootprint(solids[BiggestRoom]);
-
-						double area = 0;
-						GProp_GProps gprop;
-						for (size_t j = 0; j < roomFootprint.size(); j++)
-						{
-							BRepGProp::SurfaceProperties(roomFootprint[j], gprop);
-							area += gprop.Mass();
-						}
-
-						if (area == 0)
-						{
-							roomAreaList_.emplace_back(50);
-						}
-						else
-						{
-							roomAreaList_.emplace_back(area);
-						}
-
-
-						break;
-					}
-
+					currentvolume = volume;
+					BiggestRoom = j;
 				}
-			}
-			else {
-				continue;
 			}
 
 			if (BiggestRoom == -1)
@@ -965,6 +943,8 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 			// Make a space object
 			TopoDS_Shape UnitedScaledRoom = solids[BiggestRoom];
+			writer.Transfer(UnitedScaledRoom, STEPControl_ManifoldSolidBrep);
+
 			TopoDS_Shape unscaledRoom = solids[BiggestRoom];
 			if (unitScale != 1)
 			{
@@ -997,6 +977,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 				}
 			}
 
+
 			IfcSchema::IfcLocalPlacement* relativeLoc = hierarchyHelper.addLocalPlacement(0, lowX, lowY, lowZ);
 			auto t = cluster->getHelper(roomLoc)->getSourceFile()->addEntity(relativeLoc)->as<IfcSchema::IfcLocalPlacement>();
 
@@ -1004,154 +985,19 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			gp_Trsf relativeMovement;
 			relativeMovement.SetTranslation({ 0,0,0 }, { -lowX, -lowY, -lowZ });
 			UnitedScaledRoom.Move(relativeMovement);
-
-			IfcSchema::IfcProductRepresentation* roomRep = IfcGeom::serialise(STRINGIFY(IfcSchema), UnitedScaledRoom, false)->as<IfcSchema::IfcProductRepresentation>();
-			if (roomRep == 0)
-			{
-				//std::cout << "wa" << std::endl;
-				continue;
-			}
-			// find semantic data
-			std::vector < IfcSchema::IfcSpace* > semanticDataList;
-			for (size_t j = 0; j < cSize; j++)
-			{
-				BRepClass3d_SolidClassifier insideChecker;
-				std::vector<gp_Pnt> centerPoints = cluster->getHelper(j)->getRoomCenters();
-				
-				insideChecker.Load(unscaledRoom);
-
-				for (size_t k = 0; k < centerPoints.size(); k++)
-				{
-					insideChecker.Perform(centerPoints[k], 0.01);
-
-					if (!insideChecker.State())
-					{
-						semanticDataList.emplace_back(std::get<0>(cluster->getHelper(j)->getRLookup(k)));
-					}
-				}
-				break;
-			}
-
-			std::vector<std::string> semanticData = getSemanticMatch(semanticDataList, roomnum);
-
-#ifdef USE_IFC4
-			IfcSchema::IfcSpace* room = new IfcSchema::IfcSpace(
-				IfcParse::IfcGlobalId(),														// GlobalId
-				0,																				// OwnerHistory
-				semanticData[0],																// Name
-				semanticData[2],																// Description
-				boost::none,																	// Object type
-				t,																				// Object Placement	
-				roomRep,																		// Representation
-				semanticData[1],																// Long name
-				IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT,			// Composition Type	
-				boost::none,																	// Predefined Type
-				boost::none																		// Elevation with Flooring
-			);
-#else
-			IfcSchema::IfcSpace* room = new IfcSchema::IfcSpace(
-				IfcParse::IfcGlobalId(),														// GlobalId
-				0,																				// OwnerHistory
-				semanticData[0],																// Name
-				semanticData[2],																// Description
-				boost::none,																	// Object type
-				t,																				// Object Placement
-				roomRep,																		// Representation
-				semanticData[1],																// Long name
-				IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT,			// Composition Type	
-				IfcSchema::IfcInternalOrExternalEnum::IfcInternalOrExternal_INTERNAL,			// Interior or exterior space
-				boost::none																		// Elevation with Flooring
-			);
-#endif // USE_IFC4
-
-			auto connectedObjects = checkConnection(unscaledRoom, room, qProductList);
-			std::vector<IfcSchema::IfcRelSpaceBoundary*> boundaryList = makeSpaceBoundary(room, connectedObjects);
-			cluster->getHelper(roomLoc)->getSourceFile()->addEntity(room);
-			
-			for (size_t j = 0; j < boundaryList.size(); j++)
-			{
-				cluster->getHelper(roomLoc)->getSourceFile()->addEntity(boundaryList[j]);
-			}
-
-			roomProducts.get()->push(room);
-
-			roomObject* rObject = new roomObject(room, roomObjectList_.size());
-
-			TopoDS_Shape roomShape = unscaledRoom;
-			auto roomFootprint = getRoomFootprint(roomShape);
-
-			double area = 0;
-
-			GProp_GProps gprop;
-			for (size_t j = 0; j < roomFootprint.size(); j++)
-			{
-				BRepGProp::SurfaceProperties(roomFootprint[j], gprop);
-				area += gprop.Mass();
-			}
-
-			rObject->setArea(area);
-
-			roomObjectList_.emplace_back(rObject);
-			cluster->updateConnections(unMovedUnitedScaledRoom, rObject, qBox, connectedObjects);
 			roomnum++;
-
-
 		}
 	}
 
-	outputFieldToFile();
+	writer.Write("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.stp");
+
+	//outputFieldToFile();
 
 	std::cout << std::endl;
 	std::cout << std::endl;
 
 	// go through all old space objects and remove element space 
 	// TODO keep spaces not recreated?
-
-
-
-	for (size_t i = 0; i < cSize; i++)
-	{
-		
-
-		std::vector<roomLookupValue> roomValues = cluster->getHelper(i)->getFullRLookup();
-		for (size_t j = 0; j < roomValues.size(); j++)
-		{
-			IfcSchema::IfcSpace* space = std::get<0>(roomValues[j]);
-			if (space->CompositionType() == IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT)
-			{
-				std::vector<IfcSchema::IfcRelContainedInSpatialStructure*> deleteContainers;
-				IfcSchema::IfcRelContainedInSpatialStructure::list::ptr containers = cluster->getHelper(i)->getSourceFile()->instances_by_type<IfcSchema::IfcRelContainedInSpatialStructure>();
-				
-				for (auto it = containers->begin(); it != containers->end(); ++it)
-				{
-					IfcSchema::IfcRelContainedInSpatialStructure* structure = *it;
-					if (structure->RelatingStructure()->GlobalId() == space->GlobalId())
-					{
-						deleteContainers.emplace_back(structure);
-					}
-				}
-
-				cluster->getHelper(i)->getSourceFile()->removeEntity(space);
-
-				for (size_t j = 0; j < deleteContainers.size(); j++)
-				{
-					IfcSchema::IfcRelContainedInSpatialStructure* container = deleteContainers[j];
-					cluster->getHelper(i)->getSourceFile()->removeEntity(container);
-				}
-			}
-		}
-
-		
-
-	}
-
-	if (roomObjectList_.size() == 0) { return;}
-
-	floorProcessor::sortObjects(cluster->getHelper(roomLoc), roomProducts);
-
-	// apply connectivity data to the rooms
-	cluster->updateRoomCData(roomObjectList_);
-	createGraph(cluster);
 
 }
 	
