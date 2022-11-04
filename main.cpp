@@ -457,6 +457,13 @@ void askApartmentRules(helperCluster* hCluster) {
 
 int main(int argc, char** argv) {
 
+	// some information on startup
+	std::wcout << "============================================================= \n" << std::endl;
+	std::cout << "    IFC_BuildingEnvExtractor" << std::endl;
+	std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
+	std::wcout << "=============================================================" << std::endl;
+
+
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
@@ -505,7 +512,7 @@ int main(int argc, char** argv) {
 
 	for (size_t i = 0; i < sourcePathArray.size(); i++)
 	{
-		std::cout << "Parsing file " << sourcePathArray[i] << std::endl;
+		std::cout << "[INFO] Parsing file " << sourcePathArray[i] << std::endl;
 		helper* h = new helper(sourcePathArray[i]);
 		
 		if (sourcePathArray.size() > 1) { 
@@ -528,163 +535,56 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	// evaluate the storeys
-	std::vector<double> floorElevation = floorProcessor::computeFloorElevations(hCluster->getHelpers());
-	std::vector<double> StoredFloorElevation = floorProcessor::getStoreyElevations(hCluster->getHelpers());
-
-	// allow user to select which elevations are used
-	std::vector<double> usedElevations = StoredFloorElevation;
-	bool originalStoreys = true;
-
-	if (!floorProcessor::compareElevations(StoredFloorElevation, floorElevation))
+	std::wcout << "=============================== " << std::endl;
+	std::cout << "  Building Envelope Extractor" << std::endl;
+	std::wcout << "=============================== \n" << std::endl;
+	if (sourcePathArray.size() != 1)
 	{
-		std::cout << "[INFO] Software detected different storey elevations than are stored in the IFC file \n" << std::endl;
-		std::cout << std::left << std::setw(35) << "IFC file storey elevations" << "Computed Elevations" << std::endl;
-		compareElevationsOutput(StoredFloorElevation, floorElevation);
-		std::cout << "\nUse the recalculated Storey elevations? (Y/N): ";
+		while (true)
+		{
+			bool validInput = true;
+			std::string stringNum = "";
 
-		if (yesNoQuestion()) {
-			usedElevations = floorElevation;
-			originalStoreys = false;
+			std::cout << "Please enter number of the target model where the envelope is to be stored" << std::endl;
+			for (size_t i = 0; i < fileNames.size(); i++) { std::cout << i + 1 << ": " << fileNames[i] << std::endl; }
+			std::cout << "Num: ";
+			std::cin >> stringNum;
+			std::cout << std::endl;
+
+			for (size_t i = 0; i < stringNum.size(); i++)
+			{
+				if (!std::isdigit(stringNum[i]))
+				{
+					validInput = false;
+				}
+			}
+
+			if (validInput)
+			{
+				int roomIndx = std::stoi(stringNum) - 1;
+
+				if (roomIndx >= 0) {
+					hCluster->getHelper(roomIndx)->setHasRooms();
+					break;
+				}
+			}
+			std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
 		}
 	}
 	else {
-		std::cout << "[INFO] Software detected identical storey elevations as are stored in the IFC file" << std::endl;
+		hCluster->getHelper(0)->setHasRooms();
 	}
 
-	if (originalStoreys)
-	{
-		std::cout << "\nContinue with sorting process?\nQuality of the results may vary\n(Y/N): ";
+	auto startTime = std::chrono::high_resolution_clock::now();
 
-		if (yesNoQuestion()) 
-		{ 
-			// create new storeys and sort all object into them
-			std::cout << std::endl; 
-			floorProcessor::processStoreys(hCluster->getHelpers(), usedElevations, true);
-		}
+	voxelfield* field = new voxelfield(hCluster);
 
-	}
-	else {
-		std::cout << std::endl;
-		floorProcessor::processStoreys(hCluster->getHelpers(), usedElevations, false);
-	}
+	field->makeRooms(hCluster);
 
-	std::cout << std::endl;
+	auto endTime = std::chrono::high_resolution_clock::now();
+	std::cout << "computing time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
 
-	std::cout << "Reconstruct room and apartment data? (Y/N): ";
-	if (yesNoQuestion())
-	{
-		std::cout << std::endl;
-
-		if (!hCluster->getHelper(0)->hasIndex())
-		{
-			askBoudingRules(hCluster);
-		}
-
-		std::cout << std::endl;
-
-		if (sourcePathArray.size() != 1)
-		{
-			while (true)
-			{
-				bool validInput = true;
-				std::string stringNum = "";
-
-				std::cout << "Please enter number of the target model for the spaces/rooms" << std::endl;
-				for (size_t i = 0; i < fileNames.size(); i++) { std::cout << i + 1 << ": " << fileNames[i] << std::endl; }
-				std::cout << "Num: ";
-				std::cin >> stringNum;
-				std::cout << std::endl;
-
-				for (size_t i = 0; i < stringNum.size(); i++)
-				{
-					if (!std::isdigit(stringNum[i]))
-					{
-						validInput = false;
-					}
-				}
-
-				if (validInput)
-				{
-					int roomIndx = std::stoi(stringNum) - 1;
-
-					if (roomIndx >= 0) {
-						hCluster->getHelper(roomIndx)->setHasRooms();
-						break;
-					}
-				}
-				std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-			}
-		}
-		else {
-			hCluster->getHelper(0)->setHasRooms();
-		}
-
-		askApartmentRules(hCluster);
-
-		for (int i = 0; i < hCluster->getSize(); i++)
-		{
-			hCluster->getHelper(i)->indexGeo();
-			hCluster->getHelper(i)->correctRooms();
-		}
-		auto startTime = std::chrono::high_resolution_clock::now();
-
-		voxelfield* field = new voxelfield(hCluster);
-
-		field->makeRooms(hCluster);
-
-		auto endTime = std::chrono::high_resolution_clock::now();
-		std::cout << "computing time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
-
-		field->writeGraph(graphPath + "_graph.txt");
-
-	}
-	else { // if no new room creation
-
-		std::cout << std::endl;
-		std::cout << "Reconstruct complex roomobjects present in the original model? (Y/N): ";
-		if (yesNoQuestion())
-		{
-			for (int i = 0; i < hCluster->getSize(); i++)
-			{
-				hCluster->getHelper(i)->correctRooms();
-			}
-		}
-
-		std::cout << std::endl;
-		std::cout << "Reconstruct topologic room relations? (Y/N): ";
-		if (yesNoQuestion())
-		{
-			if (!hCluster->getHelper(0)->hasIndex())
-			{
-				std::cout << std::endl;
-				askBoudingRules(hCluster);
-			}
-
-			hCluster->determineRoomBoundaries();
-		}
-
-
-		std::cout << std::endl;
-		std::cout << "Construct Graph data? (Y/N): ";
-		if (yesNoQuestion())
-		{
-			if (!hCluster->getHelper(0)->hasIndex())
-			{
-				std::cout << std::endl;
-				askBoudingRules(hCluster);
-			}
-
-			askApartmentRules(hCluster);
-
-			std::vector<roomObject*> roomobjects = hCluster->createGraphData();
-			hCluster->updateRoomCData(roomobjects);
-			roomobjects = hCluster->createGraph(roomobjects);
-			hCluster->writeGraph(graphPath + "_graph.txt", roomobjects);
-		}
-		std::cout << std::endl;
-	}
-
+	field->writeGraph(graphPath + "_graph.txt");
 
 	// write to file
 

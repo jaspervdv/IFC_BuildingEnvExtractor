@@ -510,7 +510,7 @@ helper::helper(std::string path) {
 		std::cout << "Unable to parse .ifc file" << std::endl; 
 	}
 	else { 
-		std::cout << "Valid IFC file found" << std::endl; 
+		std::cout << "- Valid IFC file found" << std::endl; 
 		std::cout << std::endl;
 		
 		file_ = sourceFile;
@@ -539,35 +539,35 @@ bool findSchema(std::string path, bool quiet) {
 		if (line.find("FILE_SCHEMA(('IFC4'))") != std::string::npos) {
 			if (!quiet)
 			{
-				std::cout << "Valid scheme found: IFC4" << std::endl;
+				std::cout << "- Valid scheme found: IFC4" << std::endl;
 			}
 			break;
 		}
 		else if (line.find("FILE_SCHEMA(('IFC2X3'))") != std::string::npos) {
 			if (!quiet)
 			{
-				std::cout << "Valid scheme found: IFC2X3" << std::endl;
+				std::cout << "- Valid scheme found: IFC2X3" << std::endl;
 			}
 			break;
 		}
 		else if (line.find("FILE_SCHEMA(('IFC4x1'))") != std::string::npos) {
 			if (!quiet)
 			{
-				std::cout << "Valid scheme found: IFC4x1" << std::endl;
+				std::cout << "- Valid scheme found: IFC4x1" << std::endl;
 			}
 			break;
 		}
 		else if (line.find("FILE_SCHEMA(('IFC4x2'))") != std::string::npos) {
 			if (!quiet)
 			{
-				std::cout << "Valid scheme found: IFC4x2" << std::endl;
+				std::cout << "- Valid scheme found: IFC4x2" << std::endl;
 			}
 			break;
 		}
 		else if (line.find("FILE_SCHEMA(('IFC4x3'))") != std::string::npos) {
 			if (!quiet)
 			{
-				std::cout << "Valid scheme found: IFC4x3" << std::endl;
+				std::cout << "- Valid scheme found: IFC4x3" << std::endl;
 			}	
 			break;
 		}
@@ -663,7 +663,7 @@ void helper::setUnits(IfcParse::IfcFile *file) {
 	}
 
 	// check if units have been found
-	std::cout << "found units:" << std::endl;
+	std::cout << "[INFO] found units:" << std::endl;
 	if (!length)
 	{
 		std::cout << "[Error] SI unit for length cannot be found!" << std::endl;
@@ -698,7 +698,7 @@ void helper::setUnits(IfcParse::IfcFile *file) {
 
 void helper::internalizeGeo()
 {
-	std::cout << "Internalizing Geometry of Construction Model\n" << std::endl;
+	std::cout << "[INFO] Internalizing Geometry of Construction Model\n" << std::endl;
 
 	// get products
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
