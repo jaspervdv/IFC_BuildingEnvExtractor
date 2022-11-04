@@ -575,6 +575,12 @@ int main(int argc, char** argv) {
 		hCluster->getHelper(0)->setHasRooms();
 	}
 
+	for (int i = 0; i < hCluster->getSize(); i++)
+	{
+		hCluster->getHelper(i)->indexGeo();
+		hCluster->getHelper(i)->correctRooms();
+	}
+
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	voxelfield* field = new voxelfield(hCluster);
