@@ -447,10 +447,23 @@ voxelfield::voxelfield(helperCluster* cluster, bool isFlat)
 
 	std::cout << std::endl;
 
+	double xySize = std::stod(stringXYSize);
+	double zSize = std::stod(stringZSize);
+
 	// compute generic voxelfield data
 	anchor_ = cluster->getLllPoint();
 	gp_Pnt urrPoints = cluster->getUrrPoint();
 
+	// resize to allow full voxel encapsulation
+	anchor_.SetX(anchor_.X() - (xySize * 2));
+	anchor_.SetY(anchor_.Y() - (xySize * 2));
+	anchor_.SetZ(anchor_.Z() - (zSize * 2));
+
+	urrPoints.SetX(urrPoints.X() + (xySize * 2));
+	urrPoints.SetY(urrPoints.Y() + (xySize * 2));
+	urrPoints.SetZ(urrPoints.Z() + (zSize * 2));
+
+	// set range
 	double xRange = urrPoints.X() - anchor_.X();
 	double yRange = urrPoints.Y() - anchor_.Y();
 	double zRange = urrPoints.Z() - anchor_.Z();
@@ -680,6 +693,9 @@ void voxelfield::makeRooms(helperCluster* cluster)
 		{
 			std::vector<int> totalRoom = growRoom(i, roomnum);
 			if (totalRoom.size() == 0) { continue; }
+
+			outputFieldToFile();
+			return;
 
 			//std::cout.flush();
 			std::cout << "Room nr: " << roomnum + 1 << "\r";
