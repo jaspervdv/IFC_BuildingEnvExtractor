@@ -681,10 +681,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			std::vector<int> totalRoom = growRoom(i, roomnum);
 			if (totalRoom.size() == 0) { continue; }
 
-			//roomnum++;
-
-			//continue; // TODO remove
-
 			//std::cout.flush();
 			std::cout << "Room nr: " << roomnum + 1 << "\r";
 
@@ -1213,7 +1209,7 @@ std::vector<int> voxelfield::growRoom(int startIndx, int roomnum)
 		buffer.clear();
 		buffer = tempBuffer;
 	}
-	if (isOutSide)
+	if (!isOutSide)
 	{
 		for (size_t k = 0; k < totalRoom.size(); k++)
 		{

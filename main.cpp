@@ -538,6 +538,7 @@ int main(int argc, char** argv) {
 	std::wcout << "=============================== " << std::endl;
 	std::cout << "  Building Envelope Extractor" << std::endl;
 	std::wcout << "=============================== \n" << std::endl;
+
 	if (sourcePathArray.size() != 1)
 	{
 		while (true)
@@ -575,10 +576,10 @@ int main(int argc, char** argv) {
 		hCluster->getHelper(0)->setHasRooms();
 	}
 
+	// indexation of geometry
 	for (int i = 0; i < hCluster->getSize(); i++)
 	{
 		hCluster->getHelper(i)->indexGeo();
-		hCluster->getHelper(i)->correctRooms();
 	}
 
 	auto startTime = std::chrono::high_resolution_clock::now();
