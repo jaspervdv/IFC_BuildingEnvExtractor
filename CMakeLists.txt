@@ -14,6 +14,15 @@ FOREACH(flag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE
 	ENDIF()
 ENDFOREACH()
 
+# nholmann
+find_package(nlohmann_json REQUIRED)
+
+# Tbb
+find_package(tbb REQUIRED NO_DEFAULT_PATH)
+
+# CJT
+find_package(CJT)
+
 # set location for Boost (regular find package fails to find lib files)
 set(BCRYPT_LIBRARIES "bcrypt.lib") # needed for boost >= 1.67 
 
@@ -28,8 +37,8 @@ set(OpenCASCADEC_LIBRARY_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_
 set(IFC_INCLUDE_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_installed-vs2019-x64/include")
 set(IFC_LIBRARY_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_installed-vs2019-x64/lib")
 
-include_directories("/usr/local/include" ${Boost_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR} ${IFC_INCLUDE_DIR})
-link_directories("/usr/local/lib" ${Boost_LIBRARY_DIR} ${OpenCASCADEC_LIBRARY_DIR}  ${IFC_LIBRARY_DIR} )
+include_directories("/usr/local/include" ${Boost_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
+link_directories("/usr/local/lib" ${Boost_LIBRARY_DIR} ${OpenCASCADEC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
 
 set(IFC_LIBRARY_NAMES 
     IfcGeom IfcGeom_ifc2x3 IfcGeom_ifc4 IfcGeom_ifc4x1 IfcGeom_ifc4x2 IfcGeom_ifc4x3_rc1 IfcGeom_ifc4x3_rc2 
@@ -65,7 +74,7 @@ foreach(LIB ${Boost_LIBRARIES})
 endforeach()
 
 
-target_link_libraries(${PROJECT_NAME} ${OCC_LIBRARIES} ${IFC_LIBRARIES} ${Boost_LIBRARIES}  ${BCRYPT_LIBRARIES} ws2_32.lib)
+target_link_libraries(${PROJECT_NAME} ${OCC_LIBRARIES} ${IFC_LIBRARIES} ${Boost_LIBRARIES}  ${BCRYPT_LIBRARIES} ws2_32.lib CJT nlohmann_json::nlohmann_json)
 
 # Adjust runtime environment
-set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_ENVIRONMENT "PATH=$<$<CONFIG:DEBUG>:${OpenCASCADE_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${OpenCASCADE_BINARY_DIR}>;%PATH%")
+set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_ENVIRONMENT "PATH=$<$<CONFIG:DEBUG>:${OpenCASCADE_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${OpenCASCADE_BINARY_DIR}>;%PATH%;$<$<CONFIG:DEBUG>:${TBB_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${TBB_BINARY_DIR}>")

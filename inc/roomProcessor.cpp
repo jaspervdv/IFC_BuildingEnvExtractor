@@ -876,116 +876,86 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 			const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
 
-			//WriteToSTEP(aResult, std::to_string(i));
-
-			// get roomshape
+			// get outside shape
 			std::vector<TopoDS_Solid> solids;
-			for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) { solids.emplace_back(TopoDS::Solid(expl.Current())); }
-			if (solids.size() <= 1) {
-				continue;
+			for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) { 
+				solids.emplace_back(TopoDS::Solid(expl.Current())); 
 			}
 
-			// get roomshape
-			int BiggestRoom = -1;
+			std::vector<gp_Pnt> bboxPoints;
+			for (expl.Init(sizedRoomShape, TopAbs_VERTEX); expl.More(); expl.Next()) {
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				bboxPoints.emplace_back(BRep_Tool::Pnt(vertex));
+			}
 
-			std::vector<int> outSideIndx;
-			outSideIndx.clear();
-
-			// eleminate very low shapes (<2m)
-			for (size_t j = 0; j < solids.size(); j++)
+			TopoDS_Shape outSideShape;
+			bool found = false;
+			for (size_t j = 0; j < solids.size(); j++) // TODO: make function
 			{
-				double shapeMaxZ = -9999;
-				double shapeMinZ = 9999;
-
 				for (expl.Init(solids[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-					gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(expl.Current()));
+					TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+					gp_Pnt p = BRep_Tool::Pnt(vertex);
 
-					if (shapeMaxZ == -9999) { shapeMaxZ = p.Z(); }
-					else if (shapeMaxZ < p.Z()) { shapeMaxZ = p.Z(); }
-
-					if (shapeMinZ == 9999) { shapeMinZ = p.Z(); }
-					else if (shapeMinZ > p.Z()) { shapeMinZ = p.Z(); }
+					for (size_t k = 0; k < bboxPoints.size(); k++)
+					{
+						if (p.IsEqual(bboxPoints[k], 0.01))
+						{
+							outSideShape = solids[j];
+							found = true;
+							break;
+						}
+					}
+					if (found)
+					{
+						break;
+					}
 				}
-
-				if (shapeMaxZ - shapeMinZ < 1)
+				if (found)
 				{
-					outSideIndx.emplace_back(j);
-				}
-			}
-			std::sort(outSideIndx.begin(), outSideIndx.end(), std::greater<int>());
-			for (size_t j = 0; j < outSideIndx.size(); j++) { solids.erase(solids.begin() + outSideIndx[j]); }
-			outSideIndx.clear();
-
-
-			double currentvolume = 0;
-
-			for (size_t j = 0; j < solids.size(); j++)
-			{
-				BRepClass3d_SolidClassifier insideChecker;
-				insideChecker.Load(solids[j]);
-				insideChecker.Perform(inRoomPoint, 0.001);
-
-				GProp_GProps gprop;
-				BRepGProp::VolumeProperties(solids[j], gprop);
-				double volume = gprop.Mass();
-
-				if (currentvolume < volume)
-				{
-					currentvolume = volume;
-					BiggestRoom = j;
+					break;
 				}
 			}
 
-			if (BiggestRoom == -1)
-			{
-				continue;
-			}
-
-			// Make a space object
-			TopoDS_Shape UnitedScaledRoom = solids[BiggestRoom];
-			writer.Transfer(UnitedScaledRoom, STEPControl_ManifoldSolidBrep);
-
-			TopoDS_Shape unscaledRoom = solids[BiggestRoom];
-			if (unitScale != 1)
+			if (unitScale != 1) // TODO: this can be smarter
 			{
 				gp_Trsf UnitScaler;
 				UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-				UnitedScaledRoom = BRepBuilderAPI_Transform(solids[BiggestRoom], UnitScaler).ModifiedShape(solids[BiggestRoom]);
+				outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
 			}
 
-			// find correct storey
-			double lowX = 9999;
-			double lowY = 9999;
-			double lowZ = 9999;
-
-			for (expl.Init(UnitedScaledRoom, TopAbs_VERTEX); expl.More(); expl.Next()) {
-				gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(expl.Current()));
-				if (p.X() < lowZ) { lowX = p.X(); }
-				if (p.Y() < lowZ) { lowY = p.Y(); }
-				if (p.Z() < lowZ) { lowZ = p.Z(); }
+			std::vector<TopoDS_Shell> shellList;
+			for (expl.Init(outSideShape, TopAbs_SHELL); expl.More(); expl.Next()) {
+				shellList.emplace_back(TopoDS::Shell(expl.Current()));
 			}
 
-			double elevDistance = 9999;
-			int storeyIndx = 0;
-			for (size_t j = 0; j < elevations.size(); j++)
+			// extract the inner shell of the shape
+			for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
 			{
-				double d = elevations[j] - lowZ;
-				if (d < elevDistance && d >= 0)
+				found = false;
+				for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
+					TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+					gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+					for (size_t k = 0; k < bboxPoints.size(); k++)
+					{
+						if (p.IsEqual(bboxPoints[k], 0.01)) {
+							
+							found = true;
+							break;
+						}
+					}
+					if (found)
+					{
+						break;
+					}
+				}
+				if (!found)
 				{
-					storeyIndx = j;
-					elevDistance = d;
+					writer.Transfer(shellList[j], STEPControl_ManifoldSolidBrep);
+					break;
 				}
 			}
-
-
-			IfcSchema::IfcLocalPlacement* relativeLoc = hierarchyHelper.addLocalPlacement(0, lowX, lowY, lowZ);
-			auto t = cluster->getHelper(roomLoc)->getSourceFile()->addEntity(relativeLoc)->as<IfcSchema::IfcLocalPlacement>();
-
-			TopoDS_Shape unMovedUnitedScaledRoom = UnitedScaledRoom;
-			gp_Trsf relativeMovement;
-			relativeMovement.SetTranslation({ 0,0,0 }, { -lowX, -lowY, -lowZ });
-			UnitedScaledRoom.Move(relativeMovement);
-			roomnum++;
+			break;
 		}
 	}
 
@@ -995,9 +965,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 	std::cout << std::endl;
 	std::cout << std::endl;
-
-	// go through all old space objects and remove element space 
-	// TODO keep spaces not recreated?
 
 }
 	

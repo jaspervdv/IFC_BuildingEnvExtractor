@@ -33,6 +33,9 @@
 #include <STEPControl_StepModelType.hxx>
 #include <IntTools_EdgeFace.hxx>
 
+#include <CJT.h>
+#include <CJToKernel.h>
+
 #include <memory>
 
 // Forward Decleration helper class
