@@ -583,10 +583,9 @@ int main(int argc, char** argv) {
 	}
 
 	auto startTime = std::chrono::high_resolution_clock::now();
-
-	voxelfield* field = new voxelfield(hCluster);
-
+	voxelfield* field = new voxelfield(hCluster); // TODO: find something smarter for this
 	field->makeRooms(hCluster);
+
 
 	auto endTime = std::chrono::high_resolution_clock::now();
 	std::cout << "computing time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;

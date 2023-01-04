@@ -687,6 +687,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	int temps = 0;
 
 	STEPControl_Writer writer;
+	TopoDS_Shape outSideShape;
 	
 	std::cout << "[INFO]Room Growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
@@ -888,7 +889,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 				bboxPoints.emplace_back(BRep_Tool::Pnt(vertex));
 			}
 
-			TopoDS_Shape outSideShape;
 			bool found = false;
 			for (size_t j = 0; j < solids.size(); j++) // TODO: make function
 			{
@@ -952,12 +952,36 @@ void voxelfield::makeRooms(helperCluster* cluster)
 				if (!found)
 				{
 					writer.Transfer(shellList[j], STEPControl_ManifoldSolidBrep);
+					outSideShape = shellList[j];
 					break;
 				}
 			}
 			break;
 		}
 	}
+
+	CJT::CityCollection* collection = new CJT::CityCollection;
+	CJT::ObjectTransformation transformation(0.001);
+	CJT::metaDataObject* metaData = new CJT::metaDataObject;
+	metaData->setTitle("env ext export");
+	collection->setTransformation(transformation);
+	collection->setMetaData(metaData);
+
+	CJT::CityObject* cityObject = new CJT::CityObject;
+	cityObject->setName("test");
+	cityObject->setType(CJT::Building_Type::Building);
+
+	CJT::Kernel kernel(collection);
+	//CJT::GeoObject* geoObject =  kernel.convertToJSON(outSideShape, "3.0");
+	//cityObject->addGeoObject(geoObject);
+	//collection->addCityObject(cityObject);
+
+	//collection->dumpJson("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.city.json");
+
+	//delete collection;
+	//delete metaData;
+	//delete cityObject;
+	
 
 	writer.Write("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.stp");
 
