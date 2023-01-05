@@ -16,6 +16,7 @@ class voxel {
 private:
 
 	bool isIntersecting_ = false;
+	bool hasEvalIntt = false;
 	std::vector<int> internalProducts;
 
 	bool isInside = true;
@@ -63,6 +64,8 @@ public:
 	void isIntersecting() { isIntersecting_ = true; }
 
 	void addInternalProduct(int prodValue) { internalProducts.emplace_back(prodValue); }
+
+	bool getHasEvalIntt() { return hasEvalIntt; }
 
 	std::vector<int> getInternalProductList() { return internalProducts; }
 
@@ -113,7 +116,7 @@ private:
 	BoostPoint3D WorldPointToRel(BoostPoint3D p);
 
 	// create a group of voxels representing a rough room
-	std::vector<int> growRoom(int startIndx, int roomnum);
+	std::vector<int> growRoom(int startIndx, int roomnum, helperCluster* cluster);
 
 	// generates the faces of the voxel that are needed to create a rough room shape
 	std::vector<TopoDS_Face> getPartialFaces(std::vector<int> roomIndx, int voxelIndx);

@@ -344,36 +344,8 @@ TopoDS_Face voxelfield::getLowestFace(TopoDS_Shape shape)
 
 void voxelfield::addVoxel(int indx, helperCluster* cluster)
 {
-	int cSize = cluster->getSize();
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSizeZ_);
-
-	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
-	auto boxelGeo = boxel->getVoxelGeo();
-	std::vector<gp_Pnt> pointList = boxel->getCornerPoints(planeRotation_);
-
-	// find potential intersecting objects
-	std::vector<Value> qResult;
-	for (int j = 0; j < cSize; j++) // TODO: this needs to be relocated!
-	{
-		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-		cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
-
-		if (qResult.size() == 0) { continue; }
-
-		for (size_t k = 0; k < qResult.size(); k++)
-		{
-			LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
-			IfcSchema::IfcProduct* product = std::get<0>(lookup);
-
-			if (!product->hasRepresentation()) { continue; }
-
-			if (boxel->checkIntersecting(lookup, pointList, cluster->getHelper(j)))
-			{
-				boxel->addInternalProduct(qResult[k].second);
-			}
-		}
-	}
 	VoxelLookup_.emplace(indx, boxel);
 }
 
@@ -639,15 +611,15 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 	// test voxel for intersection and add voxel objects to the voxelfield
 	std::cout << "[INFO] Populate Grid" << std::endl;
-	for (int i = 0; i < totalVoxels_; i++) { 
+	for (int i = 0; i < totalVoxels_; i++) {
 
-		if (i%250 == 0)
+		if (i % 250 == 0)
 		{
 			std::cout.flush();
 			std::cout << i << " of " << totalVoxels_ << "\r";
 		}
 
-		addVoxel(i, cluster); 
+		addVoxel(i, cluster);
 	}
 	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 	std::cout << std::endl;
@@ -657,292 +629,300 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	int roomnum = 0;
 	int temps = 0;
 
-	STEPControl_Writer writer;
 	TopoDS_Shape outSideShape;
-	
-	std::cout << "[INFO]Room Growing" << std::endl;
+
+	std::vector<int> totalRoom;
+	std::cout << "[INFO]Exterior Space Growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
-		if (Assignment_[i] == 0) // Find unassigned voxel
+		if (!VoxelLookup_[i]->getIsIntersecting())
 		{
-			std::vector<int> totalRoom = growRoom(i, roomnum);
-			if (totalRoom.size() == 0) { continue; }
-
-			//std::cout.flush();
-			std::cout << "Room nr: " << roomnum + 1 << "\r";
-
-			BRep_Builder brepBuilder;
-			BRepBuilderAPI_Sewing brepSewer;
-
-			TopoDS_Shell shell;
-			brepBuilder.MakeShell(shell);
-			TopoDS_Solid roughRoomShape;
-			brepBuilder.MakeSolid(roughRoomShape);
-
-			gp_Pnt inRoomPoint(99999, 99999, 99999);
-			bool hasInsidePoint = false;
-
-			std::vector<int> productLookupValues;
-
-			// create bbox around rough room shape
-			gp_Pnt lll(9999, 9999, 9999);
-			gp_Pnt urr(-9999, -9999, -9999);
-
-			gp_Pnt qlll(9999, 9999, 9999);
-			gp_Pnt qurr(-9999, -9999, -9999);
-
-			for (size_t j = 1; j < totalRoom.size(); j++)
-			{
-				voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
-				// get unique product lookup values
-				std::vector<int> internalProducts = currentBoxel->getInternalProductList();
-				for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues.emplace_back(internalProducts[k]); }
-
-				// create bbox
-				std::vector<gp_Pnt> cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
-				std::vector<gp_Pnt> cornerPointsRel = currentBoxel->getCornerPoints(0);
-				for (size_t k = 0; k < cornerPoints.size(); k++)
-				{
-					auto currentCorner = rotatePointWorld(cornerPoints[k], planeRotation_);
-					if (urr.X() < currentCorner.X()) { urr.SetX(currentCorner.X()); }
-					if (urr.Y() < currentCorner.Y()) { urr.SetY(currentCorner.Y()); }
-					if (urr.Z() < currentCorner.Z()) { urr.SetZ(currentCorner.Z()); }
-					if (lll.X() > currentCorner.X()) { lll.SetX(currentCorner.X()); }
-					if (lll.Y() > currentCorner.Y()) { lll.SetY(currentCorner.Y()); }
-					if (lll.Z() > currentCorner.Z()) { lll.SetZ(currentCorner.Z()); }
-
-					auto currentCornerRel = cornerPointsRel[k];
-					if (qurr.X() < currentCornerRel.X()) { qurr.SetX(currentCornerRel.X()); }
-					if (qurr.Y() < currentCornerRel.Y()) { qurr.SetY(currentCornerRel.Y()); }
-					if (qurr.Z() < currentCornerRel.Z()) { qurr.SetZ(currentCornerRel.Z()); }
-					if (qlll.X() > currentCornerRel.X()) { qlll.SetX(currentCornerRel.X()); }
-					if (qlll.Y() > currentCornerRel.Y()) { qlll.SetY(currentCornerRel.Y()); }
-					if (qlll.Z() > currentCornerRel.Z()) { qlll.SetZ(currentCornerRel.Z()); }
-				}
-
-				// search for inside point
-				if (!currentBoxel->getIsIntersecting() && !hasInsidePoint)
-				{
-					inRoomPoint = rotatePointWorld(cornerPoints[5], planeRotation_);
-					inRoomPoint.SetZ(inRoomPoint.Z() - currentBoxel->getZ() / 2);
-					hasInsidePoint = true;
-				}
-			}
-
-			gp_Pnt p0(rotatePointWorld(lll, -planeRotation_));
-			gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -planeRotation_);
-			gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -planeRotation_);
-			gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -planeRotation_);
-
-			gp_Pnt p4(rotatePointWorld(urr, -planeRotation_));
-			gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -planeRotation_);
-			gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()), -planeRotation_);
-			gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()), -planeRotation_);
-
-			gp_Pnt pC = rotatePointWorld(gp_Pnt(lll.X() + (urr.X() - lll.X()) / 2, lll.Y() + (urr.Y() - lll.Y()) / 2, lll.Z() + (urr.Z() - lll.Z()) / 2), -planeRotation_);
-			gp_Pnt pCR = gp_Pnt(qlll.X() + (qurr.X() - qlll.X()) / 2, qlll.Y() + (qurr.Y() - qlll.Y()) / 2, qlll.Z() + (qurr.Z() - qlll.Z()) / 2);
-
-			TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
-			TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
-			TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
-			TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
-
-			TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
-			TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
-			TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
-			TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
-
-			TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
-			TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
-			TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
-			TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
-
-			std::vector<TopoDS_Face> faceList;
-
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
-			faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
-
-			for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
-
-			brepSewer.Perform();
-			brepBuilder.Add(roughRoomShape, brepSewer.SewedShape());
-
-			gp_Trsf scaler;
-			scaler.SetScale(pC, 1.3);
-
-			// finalize rough room shape
-			TopoDS_Shape sizedRoomShape = BRepBuilderAPI_Transform(roughRoomShape, scaler).ModifiedShape(roughRoomShape);
-			p0.Transform(scaler);
-			p4.Transform(scaler);
-
-			// finalize qbox shape
-			scaler.SetScale(pCR, 1.1);
-			qlll.Transform(scaler);
-			qurr.Transform(scaler);
-			boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(Point3DOTB(qlll), Point3DOTB(qurr));
-
-			// intersect roomshape with objects 
-			BOPAlgo_Splitter aSplitter;
-			TopTools_ListOfShape aLSObjects;
-			aLSObjects.Append(sizedRoomShape);
-			TopTools_ListOfShape aLSTools;
-
-			// make unique productLookupValues
-			std::set<int> productLookupValuesSet;
-			for (unsigned i = 0; i < productLookupValues.size(); ++i) productLookupValuesSet.insert(productLookupValues[i]);
-			productLookupValues.assign(productLookupValuesSet.begin(), productLookupValuesSet.end());
-
-			TopExp_Explorer expl;
-
-			std::vector<Value> qResult;
-			std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList;
-			qResult.clear();
-
-			for (int j = 0; j < cSize; j++)
-			{
-				qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-				cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(qBox), std::back_inserter(qResult));
-
-				if (qResult.size() == 0) { continue; }
-
-				for (size_t k = 0; k < productLookupValues.size(); k++)
-				{
-					LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
-					IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
-					TopoDS_Shape shape;
-
-					if (std::get<3>(lookup))
-					{
-						shape = std::get<4>(lookup);
-						qProductList.emplace_back(std::make_tuple(qProduct, shape));
-					}
-					else {
-						shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true);
-						qProductList.emplace_back(std::make_tuple(qProduct, cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), false)));
-					}
-
-					int sCount = 0;
-
-					for (expl.Init(shape, TopAbs_SOLID); expl.More(); expl.Next()) {
-						aLSTools.Append(TopoDS::Solid(expl.Current()));
-						sCount++;
-					}
-
-					if (sCount == 0)
-					{
-						if (qProduct->data().type()->name() == "IfcSlab") // TODO: replace this statement
-						{
-							for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
-								aLSTools.Append(TopoDS::Face(expl.Current()));
-							}
-						}
-
-					}
-				}
-			}
-
-
-			aLSTools.Reverse();
-			aSplitter.SetArguments(aLSObjects);
-			aSplitter.SetTools(aLSTools);
-			aSplitter.SetRunParallel(Standard_True);
-			//aSplitter.SetFuzzyValue(0.001);
-			aSplitter.SetNonDestructive(Standard_True);
-
-			aSplitter.Perform();
-
-			const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
-
-			STEPControl_Writer writer;
-			writer.Transfer(aResult, STEPControl_AsIs);
-			writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
-
-			// get outside shape
-			std::vector<TopoDS_Solid> solids;
-			for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) { 
-				solids.emplace_back(TopoDS::Solid(expl.Current())); 
-			}
-
-			std::vector<gp_Pnt> bboxPoints;
-			for (expl.Init(sizedRoomShape, TopAbs_VERTEX); expl.More(); expl.Next()) {
-				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				bboxPoints.emplace_back(BRep_Tool::Pnt(vertex));
-			}
-
-			bool found = false;
-			for (size_t j = 0; j < solids.size(); j++) // TODO: make function
-			{
-				for (expl.Init(solids[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-					TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-					gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-					for (size_t k = 0; k < bboxPoints.size(); k++)
-					{
-						if (p.IsEqual(bboxPoints[k], 0.01))
-						{
-							outSideShape = solids[j];
-							found = true;
-							break;
-						}
-					}
-					if (found)
-					{
-						break;
-					}
-				}
-				if (found)
-				{
-					break;
-				}
-			}
-
-			if (unitScale != 1) // TODO: this can be smarter
-			{
-				gp_Trsf UnitScaler;
-				UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-				outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
-			}
-
-			std::vector<TopoDS_Shell> shellList;
-			for (expl.Init(outSideShape, TopAbs_SHELL); expl.More(); expl.Next()) {
-				shellList.emplace_back(TopoDS::Shell(expl.Current()));
-			}
-
-			// extract the inner shell of the shape
-			for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
-			{
-				found = false;
-				for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-					TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-					gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-					for (size_t k = 0; k < bboxPoints.size(); k++)
-					{
-						if (p.IsEqual(bboxPoints[k], 0.01)) {
-							
-							found = true;
-							break;
-						}
-					}
-					if (found)
-					{
-						break;
-					}
-				}
-				if (!found)
-				{
-					writer.Transfer(shellList[j], STEPControl_ManifoldSolidBrep);
-					outSideShape = shellList[j];
-					break;
-				}
-			}
+			totalRoom = growRoom(i, roomnum, cluster);
 			break;
 		}
 	}
+	std::cout << std::endl;
+	std::cout << std::endl;
+
+	if (totalRoom.size() == 0)
+	{
+		std::cout << "Unable to find exterior space" << std::endl;
+		return;
+	}
+
+	std::cout << "[INFO]Exterior space Succesfully Grown";
+
+	BRep_Builder brepBuilder;
+	BRepBuilderAPI_Sewing brepSewer;
+
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid roughRoomShape;
+	brepBuilder.MakeSolid(roughRoomShape);
+
+	gp_Pnt inRoomPoint(99999, 99999, 99999);
+	bool hasInsidePoint = false;
+
+	std::vector<int> productLookupValues;
+
+	// create bbox around rough room shape
+	gp_Pnt lll(9999, 9999, 9999);
+	gp_Pnt urr(-9999, -9999, -9999);
+
+	gp_Pnt qlll(9999, 9999, 9999);
+	gp_Pnt qurr(-9999, -9999, -9999);
+
+	for (size_t j = 1; j < totalRoom.size(); j++)
+	{
+		voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
+		// get unique product lookup values
+		std::vector<int> internalProducts = currentBoxel->getInternalProductList();
+		for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues.emplace_back(internalProducts[k]); }
+
+		// create bbox
+		std::vector<gp_Pnt> cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
+		std::vector<gp_Pnt> cornerPointsRel = currentBoxel->getCornerPoints(0);
+		for (size_t k = 0; k < cornerPoints.size(); k++)
+		{
+			auto currentCorner = rotatePointWorld(cornerPoints[k], planeRotation_);
+			if (urr.X() < currentCorner.X()) { urr.SetX(currentCorner.X()); }
+			if (urr.Y() < currentCorner.Y()) { urr.SetY(currentCorner.Y()); }
+			if (urr.Z() < currentCorner.Z()) { urr.SetZ(currentCorner.Z()); }
+			if (lll.X() > currentCorner.X()) { lll.SetX(currentCorner.X()); }
+			if (lll.Y() > currentCorner.Y()) { lll.SetY(currentCorner.Y()); }
+			if (lll.Z() > currentCorner.Z()) { lll.SetZ(currentCorner.Z()); }
+
+			auto currentCornerRel = cornerPointsRel[k];
+			if (qurr.X() < currentCornerRel.X()) { qurr.SetX(currentCornerRel.X()); }
+			if (qurr.Y() < currentCornerRel.Y()) { qurr.SetY(currentCornerRel.Y()); }
+			if (qurr.Z() < currentCornerRel.Z()) { qurr.SetZ(currentCornerRel.Z()); }
+			if (qlll.X() > currentCornerRel.X()) { qlll.SetX(currentCornerRel.X()); }
+			if (qlll.Y() > currentCornerRel.Y()) { qlll.SetY(currentCornerRel.Y()); }
+			if (qlll.Z() > currentCornerRel.Z()) { qlll.SetZ(currentCornerRel.Z()); }
+		}
+
+		// search for inside point
+		if (!currentBoxel->getIsIntersecting() && !hasInsidePoint)
+		{
+			inRoomPoint = rotatePointWorld(cornerPoints[5], planeRotation_);
+			inRoomPoint.SetZ(inRoomPoint.Z() - currentBoxel->getZ() / 2);
+			hasInsidePoint = true;
+		}
+	}
+
+	gp_Pnt p0(rotatePointWorld(lll, -planeRotation_));
+	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -planeRotation_);
+	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -planeRotation_);
+	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -planeRotation_);
+
+	gp_Pnt p4(rotatePointWorld(urr, -planeRotation_));
+	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -planeRotation_);
+	gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()), -planeRotation_);
+	gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()), -planeRotation_);
+
+	gp_Pnt pC = rotatePointWorld(gp_Pnt(lll.X() + (urr.X() - lll.X()) / 2, lll.Y() + (urr.Y() - lll.Y()) / 2, lll.Z() + (urr.Z() - lll.Z()) / 2), -planeRotation_);
+	gp_Pnt pCR = gp_Pnt(qlll.X() + (qurr.X() - qlll.X()) / 2, qlll.Y() + (qurr.Y() - qlll.Y()) / 2, qlll.Z() + (qurr.Z() - qlll.Z()) / 2);
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
+	TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
+	TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
+	TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
+
+	TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
+	TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
+	TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
+	TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
+
+	std::vector<TopoDS_Face> faceList;
+
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
+
+	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
+
+	brepSewer.Perform();
+	brepBuilder.Add(roughRoomShape, brepSewer.SewedShape());
+
+	gp_Trsf scaler;
+	scaler.SetScale(pC, 1.3);
+
+	// finalize rough room shape
+	TopoDS_Shape sizedRoomShape = BRepBuilderAPI_Transform(roughRoomShape, scaler).ModifiedShape(roughRoomShape);
+	p0.Transform(scaler);
+	p4.Transform(scaler);
+
+	// finalize qbox shape
+	scaler.SetScale(pCR, 1.1);
+	qlll.Transform(scaler);
+	qurr.Transform(scaler);
+	boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(Point3DOTB(qlll), Point3DOTB(qurr));
+
+	// intersect roomshape with objects 
+	BOPAlgo_Splitter aSplitter;
+	TopTools_ListOfShape aLSObjects;
+	aLSObjects.Append(sizedRoomShape);
+	TopTools_ListOfShape aLSTools;
+
+	// make unique productLookupValues
+	std::set<int> productLookupValuesSet;
+	for (unsigned i = 0; i < productLookupValues.size(); ++i) productLookupValuesSet.insert(productLookupValues[i]);
+	productLookupValues.assign(productLookupValuesSet.begin(), productLookupValuesSet.end());
+
+	TopExp_Explorer expl;
+
+	std::vector<Value> qResult;
+	std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList;
+	qResult.clear();
+
+	for (int j = 0; j < cSize; j++)
+	{
+		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+		cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(qBox), std::back_inserter(qResult));
+
+		if (qResult.size() == 0) { continue; }
+
+		for (size_t k = 0; k < productLookupValues.size(); k++)
+		{
+			LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
+			IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
+			TopoDS_Shape shape;
+
+			if (std::get<3>(lookup))
+			{
+				shape = std::get<4>(lookup);
+				qProductList.emplace_back(std::make_tuple(qProduct, shape));
+			}
+			else {
+				shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true);
+				qProductList.emplace_back(std::make_tuple(qProduct, cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), false)));
+			}
+
+			int sCount = 0;
+
+			for (expl.Init(shape, TopAbs_SOLID); expl.More(); expl.Next()) {
+				aLSTools.Append(TopoDS::Solid(expl.Current()));
+				sCount++;
+			}
+
+			if (sCount == 0)
+			{
+				if (qProduct->data().type()->name() == "IfcSlab") // TODO: replace this statement
+				{
+					for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
+						aLSTools.Append(TopoDS::Face(expl.Current()));
+					}
+				}
+
+			}
+		}
+	}
+
+
+	aLSTools.Reverse();
+	aSplitter.SetArguments(aLSObjects);
+	aSplitter.SetTools(aLSTools);
+	aSplitter.SetRunParallel(Standard_True);
+	//aSplitter.SetFuzzyValue(0.001);
+	aSplitter.SetNonDestructive(Standard_True);
+
+	aSplitter.Perform();
+
+	const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
+
+	STEPControl_Writer writer;
+	writer.Transfer(aResult, STEPControl_AsIs);
+	writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
+
+	// get outside shape
+	std::vector<TopoDS_Solid> solids;
+	for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) {
+		solids.emplace_back(TopoDS::Solid(expl.Current()));
+	}
+
+	std::vector<gp_Pnt> bboxPoints;
+	for (expl.Init(sizedRoomShape, TopAbs_VERTEX); expl.More(); expl.Next()) {
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		bboxPoints.emplace_back(BRep_Tool::Pnt(vertex));
+	}
+
+	bool found = false;
+	for (size_t j = 0; j < solids.size(); j++) // TODO: make function
+	{
+		for (expl.Init(solids[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+			for (size_t k = 0; k < bboxPoints.size(); k++)
+			{
+				if (p.IsEqual(bboxPoints[k], 0.01))
+				{
+					outSideShape = solids[j];
+					found = true;
+					break;
+				}
+			}
+			if (found)
+			{
+				break;
+			}
+		}
+		if (found)
+		{
+			break;
+		}
+	}
+
+	if (unitScale != 1) // TODO: this can be smarter
+	{
+		gp_Trsf UnitScaler;
+		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
+		outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
+	}
+
+	std::vector<TopoDS_Shell> shellList;
+	for (expl.Init(outSideShape, TopAbs_SHELL); expl.More(); expl.Next()) {
+		shellList.emplace_back(TopoDS::Shell(expl.Current()));
+	}
+
+	// extract the inner shell of the shape
+	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
+	{
+		found = false;
+		for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+			for (size_t k = 0; k < bboxPoints.size(); k++)
+			{
+				if (p.IsEqual(bboxPoints[k], 0.01)) {
+
+					found = true;
+					break;
+				}
+			}
+			if (found)
+			{
+				break;
+			}
+		}
+		if (!found)
+		{
+			writer.Transfer(shellList[j], STEPControl_ManifoldSolidBrep);
+			outSideShape = shellList[j];
+			break;
+		}
+	}
+
+
 
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);
@@ -976,28 +956,73 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 }
 	
-std::vector<int> voxelfield::growRoom(int startIndx, int roomnum)
+std::vector<int> voxelfield::growRoom(int startIndx, int roomnum, helperCluster* cluster)
 {
 	std::vector<int> buffer = { startIndx };
 	std::vector<int> totalRoom = { startIndx };
-
 	Assignment_[startIndx] = 1;
 
 	bool isOutSide = false;
+	int cSize = cluster->getSize();
 
 	while (buffer.size() > 0)
 	{
 		std::vector<int> tempBuffer;
 		for (size_t j = 0; j < buffer.size(); j++)
 		{
+			if (j % 250 == 0)
+			{
+				std::cout.flush();
+				std::cout << "Size: " << totalRoom.size() << "\r";
+			}
+
 			int currentIdx = buffer[j];
 			voxel* currentBoxel = VoxelLookup_[currentIdx];
-			currentBoxel->getCenterPoint();
-			currentBoxel->addRoomNumber(roomnum);
 
-			if (VoxelLookup_[currentIdx]->getIsIntersecting())
+			// find potential intersecting objects
+
+
+			if (currentBoxel->getIsIntersecting())
 			{
 				continue;
+			}
+
+			if (!currentBoxel->getHasEvalIntt())
+			{
+				currentBoxel->getCenterPoint();
+				currentBoxel->addRoomNumber(roomnum);
+				// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
+				auto boxelGeo = currentBoxel->getVoxelGeo();
+				std::vector<gp_Pnt> pointList = currentBoxel->getCornerPoints(planeRotation_);
+
+				bool intt = false;
+				std::vector<Value> qResult;
+				for (int j = 0; j < cSize; j++) // TODO: make this a function
+				{
+					qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+					cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
+
+					if (qResult.size() == 0) { continue; }
+
+					for (size_t k = 0; k < qResult.size(); k++)
+					{
+						LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
+						IfcSchema::IfcProduct* product = std::get<0>(lookup);
+
+						if (!product->hasRepresentation()) { continue; }
+
+						if (currentBoxel->checkIntersecting(lookup, pointList, cluster->getHelper(j)))
+						{
+							currentBoxel->addInternalProduct(qResult[k].second);
+							intt = true;
+						}
+					}
+				}
+
+				if (intt)
+				{
+					continue;
+				}
 			}
 
 			// find neighbours
@@ -1160,6 +1185,7 @@ std::vector<std::vector<int>> voxel::getVoxelEdges()
 
 bool voxel::checkIntersecting(LookupValue lookup, std::vector<gp_Pnt> voxelPoints, helper* h)
 {
+	hasEvalIntt = true;
 	std::vector<std::vector<int>> vets = getVoxelEdges();
 
 	IfcSchema::IfcProduct* product = std::get<0>(lookup);
