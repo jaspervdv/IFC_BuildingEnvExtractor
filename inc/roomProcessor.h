@@ -14,12 +14,16 @@
 
 class voxel {
 private:
+
 	bool isIntersecting_ = false;
+	std::vector<int> internalProducts;
+
 	bool isInside = true;
-	std::vector<int> roomnums_;
+	std::vector<int> roomnums_; 
 	BoostPoint3D center_;
-	double sizeXY_;
+	double sizeXY_; // TODO: remove redundant
 	double sizeZ_;
+
 
 public:
 
@@ -55,6 +59,12 @@ public:
 	bool linearEqIntersection(std::vector<gp_Pnt> productPoints, std::vector<gp_Pnt> voxelPoints);
 
 	bool getIsIntersecting() { return isIntersecting_; }
+
+	void isIntersecting() { isIntersecting_ = true; }
+
+	void addInternalProduct(int prodValue) { internalProducts.emplace_back(prodValue); }
+
+	std::vector<int> getInternalProductList() { return internalProducts; }
 
 	double getZ() { return sizeZ_; }
 };

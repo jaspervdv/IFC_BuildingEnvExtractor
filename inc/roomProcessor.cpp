@@ -354,7 +354,7 @@ void voxelfield::addVoxel(int indx, helperCluster* cluster)
 
 	// find potential intersecting objects
 	std::vector<Value> qResult;
-	for (int j = 0; j < cSize; j++)
+	for (int j = 0; j < cSize; j++) // TODO: this needs to be relocated!
 	{
 		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
 		cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
@@ -370,9 +370,7 @@ void voxelfield::addVoxel(int indx, helperCluster* cluster)
 
 			if (boxel->checkIntersecting(lookup, pointList, cluster->getHelper(j)))
 			{
-				Assignment_[indx] = -1;
-				VoxelLookup_.emplace(indx, boxel);
-				return;
+				boxel->addInternalProduct(qResult[k].second);
 			}
 		}
 	}
@@ -636,35 +634,8 @@ void voxelfield::makeRooms(helperCluster* cluster)
 		return;
 	}
 
-	// remove all rell space boundaries
-	for (size_t i = 0; i < cSize; i++)
-	{
-		IfcSchema::IfcRelSpaceBoundary::list::ptr rSBList = cluster->getHelper(i)->getSourceFile()->instances_by_type<IfcSchema::IfcRelSpaceBoundary>();
-
-		for (IfcSchema::IfcRelSpaceBoundary::list::it it = rSBList->begin(); it != rSBList->end(); ++it)
-		{
-			IfcSchema::IfcRelSpaceBoundary* rSB= *it;
-			cluster->getHelper(i)->getSourceFile()->removeEntity(rSB);
-		}
-	}
-
-	GProp_GProps gprop;
-	IfcSchema::IfcProduct::list::ptr roomProducts(new IfcSchema::IfcProduct::list);
-
 	// pre make hierachy helper
 	IfcHierarchyHelper<IfcSchema> hierarchyHelper;
-
-	// get storey elevations from file
-	IfcSchema::IfcBuildingStorey::list::ptr buildingStoreys = cluster->getHelper(roomLoc)->getSourceFile()->instances_by_type<IfcSchema::IfcBuildingStorey>();
-	std::vector<const IfcSchema::IfcBuildingStorey*> storeys;
-	std::vector<double> elevations;
-
-	for (IfcSchema::IfcBuildingStorey::list::it it = buildingStoreys->begin(); it != buildingStoreys->end(); ++it)
-	{
-		const IfcSchema::IfcBuildingStorey* storey = *it;
-		storeys.emplace_back(storey);
-		elevations.emplace_back(storey->Elevation() * unitScale);
-	}
 
 	// test voxel for intersection and add voxel objects to the voxelfield
 	std::cout << "[INFO] Populate Grid" << std::endl;
@@ -711,6 +682,8 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			gp_Pnt inRoomPoint(99999, 99999, 99999);
 			bool hasInsidePoint = false;
 
+			std::vector<int> productLookupValues;
+
 			// create bbox around rough room shape
 			gp_Pnt lll(9999, 9999, 9999);
 			gp_Pnt urr(-9999, -9999, -9999);
@@ -721,6 +694,11 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			for (size_t j = 1; j < totalRoom.size(); j++)
 			{
 				voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
+				// get unique product lookup values
+				std::vector<int> internalProducts = currentBoxel->getInternalProductList();
+				for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues.emplace_back(internalProducts[k]); }
+
+				// create bbox
 				std::vector<gp_Pnt> cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
 				std::vector<gp_Pnt> cornerPointsRel = currentBoxel->getCornerPoints(0);
 				for (size_t k = 0; k < cornerPoints.size(); k++)
@@ -813,6 +791,11 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			aLSObjects.Append(sizedRoomShape);
 			TopTools_ListOfShape aLSTools;
 
+			// make unique productLookupValues
+			std::set<int> productLookupValuesSet;
+			for (unsigned i = 0; i < productLookupValues.size(); ++i) productLookupValuesSet.insert(productLookupValues[i]);
+			productLookupValues.assign(productLookupValuesSet.begin(), productLookupValuesSet.end());
+
 			TopExp_Explorer expl;
 
 			std::vector<Value> qResult;
@@ -826,10 +809,9 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 				if (qResult.size() == 0) { continue; }
 
-				for (size_t k = 0; k < qResult.size(); k++)
+				for (size_t k = 0; k < productLookupValues.size(); k++)
 				{
-
-					LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
+					LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
 					IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
 					TopoDS_Shape shape;
 
@@ -843,8 +825,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 						qProductList.emplace_back(std::make_tuple(qProduct, cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), false)));
 					}
 
-
-
 					int sCount = 0;
 
 					for (expl.Init(shape, TopAbs_SOLID); expl.More(); expl.Next()) {
@@ -854,7 +834,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 					if (sCount == 0)
 					{
-						if (qProduct->data().type()->name() == "IfcSlab") // TODO replace this statement
+						if (qProduct->data().type()->name() == "IfcSlab") // TODO: replace this statement
 						{
 							for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
 								aLSTools.Append(TopoDS::Face(expl.Current()));
@@ -876,6 +856,10 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			aSplitter.Perform();
 
 			const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
+
+			STEPControl_Writer writer;
+			writer.Transfer(aResult, STEPControl_AsIs);
+			writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
 
 			// get outside shape
 			std::vector<TopoDS_Solid> solids;
@@ -972,15 +956,15 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	cityObject->setType(CJT::Building_Type::Building);
 
 	CJT::Kernel kernel(collection);
-	//CJT::GeoObject* geoObject =  kernel.convertToJSON(outSideShape, "3.0");
-	//cityObject->addGeoObject(geoObject);
-	//collection->addCityObject(cityObject);
+	CJT::GeoObject* geoObject =  kernel.convertToJSON(outSideShape, "3.0");
+	cityObject->addGeoObject(geoObject);
+	collection->addCityObject(cityObject);
 
-	//collection->dumpJson("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.city.json");
+	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.city.json");
 
-	//delete collection;
-	//delete metaData;
-	//delete cityObject;
+	delete collection;
+	delete metaData;
+	delete cityObject;
 	
 
 	writer.Write("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.stp");
@@ -1011,7 +995,7 @@ std::vector<int> voxelfield::growRoom(int startIndx, int roomnum)
 			currentBoxel->getCenterPoint();
 			currentBoxel->addRoomNumber(roomnum);
 
-			if (Assignment_[currentIdx] == -1)
+			if (VoxelLookup_[currentIdx]->getIsIntersecting())
 			{
 				continue;
 			}

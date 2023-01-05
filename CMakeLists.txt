@@ -21,24 +21,22 @@ find_package(nlohmann_json REQUIRED)
 find_package(tbb REQUIRED NO_DEFAULT_PATH)
 
 # CJT
-find_package(CJT)
+find_package(CJT REQUIRED)
 
-# set location for Boost (regular find package fails to find lib files)
-set(BCRYPT_LIBRARIES "bcrypt.lib") # needed for boost >= 1.67 
+# Boost
+set(BCRYPT_LIBRARIES "bcrypt.lib") 
+find_package(Boost REQUIRED)
 
-set(Boost_INCLUDE_DIR "C:/Program Files/Boost/boost_1_77_0")
-set(Boost_LIBRARY_DIR "C:/Program Files/Boost/boost_1_77_0/stage/x64/lib")
-
-# find OpenCASCADE
-set(OpenCASCADE_INCLUDE_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_deps-vs2019-x64-installed/opencascade-7.3.0p3/inc")
-set(OpenCASCADEC_LIBRARY_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_deps-vs2019-x64-installed/opencascade-7.3.0p3/win64/lib")
+# OpenCASCADE
+set(OpenCASCADE_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/inc")
+set(OpenCASCADEC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/win64/lib")
 
 # set location for IFCOpenShell
-set(IFC_INCLUDE_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_installed-vs2019-x64/include")
-set(IFC_LIBRARY_DIR "C:/Program Files/IfcOpenShell/IfcOpenShell-0.6.0/_installed-vs2019-x64/lib")
+set(IFC_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/include")
+set(IFC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/lib")
 
-include_directories("/usr/local/include" ${Boost_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
-link_directories("/usr/local/lib" ${Boost_LIBRARY_DIR} ${OpenCASCADEC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
+include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OpenCASCADE_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
+link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OpenCASCADEC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
 
 set(IFC_LIBRARY_NAMES 
     IfcGeom IfcGeom_ifc2x3 IfcGeom_ifc4 IfcGeom_ifc4x1 IfcGeom_ifc4x2 IfcGeom_ifc4x3_rc1 IfcGeom_ifc4x3_rc2 
@@ -57,7 +55,6 @@ string(REGEX REPLACE "([^;]+)" "${OpenCASCADEC_LIBRARY_DIR}/\\1.lib" OCC_LIBRARI
 add_executable(${PROJECT_NAME} 
 main.cpp
 inc/helper.cpp
-inc/floorProcessor.cpp
 inc/roomProcessor.cpp
 )
 
