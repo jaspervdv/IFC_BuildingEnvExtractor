@@ -881,19 +881,13 @@ void voxelfield::makeRooms(helperCluster* cluster)
 		}
 	}
 
-	if (unitScale != 1) // TODO: this can be smarter
-	{
-		gp_Trsf UnitScaler;
-		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-		outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
-	}
-
 	std::vector<TopoDS_Shell> shellList;
 	for (expl.Init(outSideShape, TopAbs_SHELL); expl.More(); expl.Next()) {
 		shellList.emplace_back(TopoDS::Shell(expl.Current()));
 	}
 
 	// extract the inner shell of the shape
+	double score = 0;
 	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
 	{
 		found = false;
@@ -904,7 +898,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 			for (size_t k = 0; k < bboxPoints.size(); k++)
 			{
 				if (p.IsEqual(bboxPoints[k], 0.01)) {
-
 					found = true;
 					break;
 				}
@@ -916,13 +909,23 @@ void voxelfield::makeRooms(helperCluster* cluster)
 		}
 		if (!found)
 		{
-			writer.Transfer(shellList[j], STEPControl_ManifoldSolidBrep);
-			outSideShape = shellList[j];
-			break;
+			GProp_GProps gprop;
+			BRepGProp::VolumeProperties(shellList[j], gprop);
+			double mass = abs(gprop.Mass());
+			if (score < mass)
+			{
+				outSideShape = shellList[j];
+				score = mass;
+			}
 		}
 	}
 
-
+	if (unitScale != 1) // TODO: this can be smarter
+	{
+		gp_Trsf UnitScaler;
+		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
+		outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
+	}
 
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);
@@ -930,6 +933,7 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	metaData->setTitle("env ext export");
 	collection->setTransformation(transformation);
 	collection->setMetaData(metaData);
+	collection->setVersion("1.1");
 
 	CJT::CityObject* cityObject = new CJT::CityObject;
 	cityObject->setName("test");
@@ -945,9 +949,6 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	delete collection;
 	delete metaData;
 	delete cityObject;
-	
-
-	writer.Write("D:/Documents/Zakelijk/Building Envelope Detection/exports/test.stp");
 
 	//outputFieldToFile();
 

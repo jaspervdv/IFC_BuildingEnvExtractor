@@ -1,5 +1,4 @@
 #include "inc/helper.h"
-#include "inc/floorProcessor.h"
 #include "inc/roomProcessor.h"
 
 // basic includes
@@ -38,44 +37,13 @@ std::vector<std::string> GetSources() {
 
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
-	//"D:/Documents/Uni/Thesis/sources/Models/apartment_tests/large-hallway-1room.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/apartment_tests/large-hallway-2room.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/apartment_tests/large-smallhallway-1room.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/apartment_tests/large-smallhallway-2room.ifc"
 
-	//"D:/Documents/Uni/Thesis/sources/Models/simple_models/BIM_Projekt_Golden_Nugget-Architektur_und_Ingenieurbau.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/simple_models/SampleProject_Villa_2_7_animatedTrees.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/simple_models/covex_concave.ifc"
+	 
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
+	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 	
-	//"D:/Documents/Uni/Thesis/sources/Models/On4/Stramien hoogte 2.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/On4/Stramien hoogte-2019-5.ifc"
-	 
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/RAC_basic_sample_project_rooms.ifc"
-	
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/FM_ARC_DigitalHub.ifc",
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/FM_HZG_DigitalHub.ifc",
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/FM_LFT_DigitalHub.ifc",
-	//"D:/Documents/Uni/Thesis/sources/Models/Revit_Example_Models/FM_SAN_DigitalHub.ifc"
-	 
-	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/AC-20-Smiley-West-10-Bldg.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/AC20-Institute-Var-2.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/AC20-FZK-Haus.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/examples/AC20-FZK-Haus.ifc"
-
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/Rabarberstraat144.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/CUVO_Ockenburghstraat_KOW.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/Savigliano.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/P120_SubZero_TOB_2017-10-23.ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/Witte_de_Withstraat_(20150508).ifc"
-	//"D:/Documents/Uni/Thesis/sources/Models/Ken_models/Myran_modified_Benchmark.ifc"
-
-	//"D:/Documents/Uni/Thesis/sources/Models/exports/Exported_AC-20-Smiley-West-10-Bldg.ifc"
-	 
-	//"D:/Documents/Uni/Thesis/sources/Models/Rotterdam/9252_VRI_Boompjes_constructie.ifc",
-	//"D:/Documents/Uni/Thesis/sources/Models/Rotterdam/160035-Boompjes_TVA_gebouw_rv19_p.v.ifc",
-	//"D:/Documents/Uni/Thesis/sources/Models/Rotterdam/160035-Boompjes_TVA_gevel_rv19_p.v.ifc"
 	};
 
 	// if no override is found use normal interface

@@ -550,6 +550,13 @@ bool findSchema(std::string path, bool quiet) {
 			}
 			break;
 		}
+		else if (line.find("FILE_SCHEMA (('IFC2X3'))") != std::string::npos) {
+			if (!quiet)
+			{
+				std::cout << "- Valid scheme found: IFC2X3" << std::endl;
+			}
+			break;
+		}
 		else if (line.find("FILE_SCHEMA(('IFC4x1'))") != std::string::npos) {
 			if (!quiet)
 			{
