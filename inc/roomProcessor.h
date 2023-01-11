@@ -4,6 +4,13 @@
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <gce_MakeLin.hxx>
+#include <HLRBRep_Algo.hxx>
+#include <HLRBRep_HLRToShape.hxx>
+
+#include <GeomLProp_SLProps.hxx>
+#include <GeomLib_IsPlanarSurface.hxx>
+#include <BOPAlgo_BuilderFace.hxx>
+
 
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
@@ -106,7 +113,7 @@ private:
 	std::vector<double> roomAreaList_;
 	bool hasGraphData_;
 	
-	std::vector<int> getNeighbours(int voxelIndx);
+	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
 
 	// transform coordinates 
 	template<typename T>
@@ -132,6 +139,15 @@ private:
 
 	// returns vector with: semanticName, semanticLongName, semanticDescription
 	std::vector<std::string> getSemanticMatch(std::vector< IfcSchema::IfcSpace*> semanticSources, int roomNum);
+	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
+
+	CJT::GeoObject* makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject* makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+
+	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+
+	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 public:
 

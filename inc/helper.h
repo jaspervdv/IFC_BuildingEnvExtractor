@@ -62,6 +62,7 @@ void WriteToSTEP(TopoDS_Solid shape, std::string addition);
 void WriteToSTEP(TopoDS_Shape shape, std::string addition);
 
 void printPoint(gp_Pnt p);
+void printPoint(gp_Pnt2d p);
 void printPoint(BoostPoint3D p);
 
 void printFaces(TopoDS_Shape shape);

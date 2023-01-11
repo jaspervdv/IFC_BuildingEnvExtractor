@@ -33,6 +33,10 @@ void printPoint(gp_Pnt p) {
 	std::cout << p.X() << ", " << p.Y() << ", " << p.Z() << ", " << std::endl;
 }
 
+void printPoint(gp_Pnt2d p) {
+	std::cout << p.X() << ", " << p.Y() << ", " << std::endl;
+}
+
 void printPoint(BoostPoint3D p) {
 	std::cout << bg::get<0>(p) << ", " << bg::get<1>(p) << ", " << bg::get<2>(p) << ", " << std::endl;
 }
@@ -1620,7 +1624,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	// filter with lookup
 	if (product->data().type()->name() != "IfcWall" &&
 		product->data().type()->name() != "IfcWallStandardCase" &&
-		product->data().type()->name() != "IfcRoof")
+		product->data().type()->name() != "IfcRoof" &&
+		product->data().type()->name() != "IfcSlab" )
 	{
 		adjusted = false;
 	}
@@ -1685,7 +1690,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 	if (product->data().type()->name() == "IfcWall" ||
 		product->data().type()->name() == "IfcWallStandardCase" ||
-		product->data().type()->name() == "IfcRoof") {
+		product->data().type()->name() == "IfcRoof" ||
+		product->data().type()->name() == "IfcSlab") {
 		hasHoles = true;
 	}
 	if (product->data().type()->name() == "IfcSlab") { isFloor = true; }
@@ -1721,7 +1727,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 
 	IfcGeom::IteratorSettings settings;
-	if (isFloor) { settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true); }
+	// TODO: monitor the effect of doing this
+	//if (isFloor) { settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true); }
 
 	if (!ifc_representation)
 	{
