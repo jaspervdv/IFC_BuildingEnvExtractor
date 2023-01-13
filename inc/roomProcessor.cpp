@@ -176,8 +176,8 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			gp_Pnt otherStartPoint = std::get<0>(otherPoints);
 			gp_Pnt otherEndPoint = std::get<1>(otherPoints);
 
-			if (startPoint.IsEqual(otherStartPoint, 0.01) && endPoint.IsEqual(otherEndPoint, 0.01) ||
-				endPoint.IsEqual(otherStartPoint, 0.01) && startPoint.IsEqual(otherEndPoint, 0.01))
+			if (startPoint.IsEqual(otherStartPoint, 0.0001) && endPoint.IsEqual(otherEndPoint, 0.0001) ||
+				endPoint.IsEqual(otherStartPoint, 0.0001) && startPoint.IsEqual(otherEndPoint, 0.0001))
 			{
 				dub = true;
 			}
@@ -211,7 +211,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 
 		std::vector<gp_Pnt> mergeList;
 
-		for (size_t j = 0; j < edgeList.size(); j++)
+		for (size_t j = i; j < edgeList.size(); j++)
 		{
 			if (i == j) { continue; }
 			if (evalList[j] == 1) { continue; }
@@ -223,19 +223,27 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			gp_Vec2d otherDir(gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()), gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y()));
 			otherDir.Normalize();
 			
-			if (!dir.IsParallel(otherDir, 0.01) && !dir.IsParallel(otherDir.Reversed(), 0.01))
+			if (!dir.IsParallel(otherDir, 0.0001) && !dir.IsParallel(otherDir.Reversed(), 0.0001))
 			{
 				continue;
 			}
 
-			gp_Lin2d otherLine = gce_MakeLin2d(
-				gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()),
-				gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y())
-			).Value();
-
-			if (line.Distance(otherLine) > 0.01)
+			if (!startPoint.IsEqual(otherStartPoint, 0.0001))
 			{
-				continue;
+				if (!dir.IsParallel(
+					gp_Vec2d(
+						gp_Pnt2d(
+							startPoint.X(), startPoint.Y()
+						),
+						gp_Pnt2d(
+							otherStartPoint.X(), otherStartPoint.Y()
+						)
+					),
+					0.0001
+				))
+				{
+					continue;
+				}
 			}
 
 			evalList[j] = 1;
@@ -246,6 +254,8 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		if (mergeList.size() == 0)
 		{
 			cleanedEdgeList.emplace_back(edgeList[i]);
+			printPoint(startPoint);
+			printPoint(endPoint);
 			continue;
 		}
 
@@ -271,6 +281,8 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			}
 		}
 		TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(edgeStartPoint, edgeEndPoint);
+		printPoint(edgeStartPoint);
+		printPoint(edgeEndPoint);
 		cleanedEdgeList.emplace_back(edge);
 	}
 
@@ -284,6 +296,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(cleanedEdgeList[i]);
 		gp_Pnt startPoint = std::get<0>(points);
 		gp_Pnt endPoint = std::get<1>(points);
+
 		gp_Lin2d line = gce_MakeLin2d(
 			gp_Pnt2d(startPoint.X(), startPoint.Y()),
 			gp_Pnt2d(endPoint.X(), endPoint.Y())
