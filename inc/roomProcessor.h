@@ -7,6 +7,9 @@
 #include <HLRBRep_Algo.hxx>
 #include <HLRBRep_HLRToShape.hxx>
 
+#include <gce_MakeLin2d.hxx>
+#include <IntAna2d_AnaIntersection.hxx>
+
 #include <GeomLProp_SLProps.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
 #include <BOPAlgo_BuilderFace.hxx>
