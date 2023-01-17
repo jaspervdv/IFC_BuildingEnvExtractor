@@ -43,6 +43,76 @@ std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge) {
 }
 
 
+gp_Pnt* linearLineIntersection(TopoDS_Edge edge1, TopoDS_Edge edge2) {
+	std::tuple<gp_Pnt, gp_Pnt> points1 = getPointsEdge(edge1);
+	std::tuple<gp_Pnt, gp_Pnt> points2 = getPointsEdge(edge2);
+
+	gp_Pnt sP1 = std::get<0>(points1);
+	gp_Pnt eP1 = std::get<1>(points1);
+	gp_Pnt sP2 = std::get<0>(points2);
+	gp_Pnt eP2 = std::get<1>(points2);
+
+	gp_Vec v1(sP1, eP1);
+	v1.Normalize();
+	gp_Vec v2(sP2, eP2);
+	v2.Normalize();
+
+	if (v1.IsEqual(v2, 0.001, 0.001))
+	{
+		return nullptr;
+	}
+
+	double x1 = sP1.X();
+	double x2 = eP1.X();;
+	double x3 = sP2.X();;
+	double x4 = eP2.X();;
+
+	double y1 = sP1.Y();
+	double y2 = eP1.Y();
+	double y3 = sP2.Y();
+	double y4 = eP2.Y();
+
+	double dom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+
+	if (abs(dom) == 0)
+	{
+		return nullptr;
+	}
+
+	double xI = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / (dom);
+	double yI = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / (dom);
+	double buffer = 0.01;
+	
+	if (x1 == xI && y1 == yI ||
+		x2 == xI && y2 == yI ||
+		x3 == xI && y3 == yI ||
+		x3 == xI && y4 == yI
+		)
+	{
+		return nullptr;
+	}
+
+	if (x1 - buffer <= xI && xI <= x2 + buffer ||
+		x1 + buffer >= xI && xI >= x2 - buffer)
+	{
+		if (y1 - buffer <= yI && yI <= y2 + buffer ||
+			y1 + buffer >= yI && yI >= y2 - buffer)
+		{
+			if (x3 - buffer <= xI && xI <= x4 + buffer ||
+				x3 + buffer >= xI && xI >= x4 - buffer)
+			{
+				if (y3 - buffer <= yI && yI <= y4 + buffer ||
+					y3 + buffer >= yI && yI >= y4 - buffer)
+				{
+					return new gp_Pnt(xI, yI, 0);
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+
 TopoDS_Face getFlatFace(TopoDS_Face face) {
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_MakeFace faceBuilder;
@@ -187,7 +257,6 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			edgeList.emplace_back(currentEdge);
 		}
 	}
-
 	// merge lines that are on the same plane
 	IntAna2d_AnaIntersection intersector;
 
@@ -223,7 +292,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			gp_Vec2d otherDir(gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()), gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y()));
 			otherDir.Normalize();
 			
-			if (!dir.IsParallel(otherDir, 0.0001) && !dir.IsParallel(otherDir.Reversed(), 0.0001))
+			if (!dir.IsParallel(otherDir, 0.0001) && !dir.IsParallel(otherDir.Reversed(), 0.0001)) // TODO: dont split if not connected somehow
 			{
 				continue;
 			}
@@ -254,8 +323,6 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		if (mergeList.size() == 0)
 		{
 			cleanedEdgeList.emplace_back(edgeList[i]);
-			printPoint(startPoint);
-			printPoint(endPoint);
 			continue;
 		}
 
@@ -281,105 +348,36 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			}
 		}
 		TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(edgeStartPoint, edgeEndPoint);
-		printPoint(edgeStartPoint);
-		printPoint(edgeEndPoint);
 		cleanedEdgeList.emplace_back(edge);
 	}
 
 	edgeList = cleanedEdgeList;
-	double buffer = 0.10;
+	double buffer = 0.01; //TODO: have it scale with units
 
 	for (size_t i = 0; i < edgeList.size(); i++)
 	{
-		std::vector<gp_Pnt> intPoints;
-
-		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(cleanedEdgeList[i]);
+		std::vector<gp_Pnt*> intPoints;
+		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(edgeList[i]);
 		gp_Pnt startPoint = std::get<0>(points);
 		gp_Pnt endPoint = std::get<1>(points);
 
-		gp_Lin2d line = gce_MakeLin2d(
-			gp_Pnt2d(startPoint.X(), startPoint.Y()),
-			gp_Pnt2d(endPoint.X(), endPoint.Y())
-		).Value();
-
-		Standard_Real xS = startPoint.X();
-		Standard_Real yS = startPoint.Y();
-		Standard_Real xE = endPoint.X();
-		Standard_Real yE = endPoint.Y();
-
 		for (size_t j = 0; j < edgeList.size(); j++)
 		{
-			if (i == j) { continue; }
+			if (i == j){ continue; }
+			gp_Pnt* intersection = linearLineIntersection(edgeList[i], edgeList[j]);
 
-			std::tuple<gp_Pnt, gp_Pnt> otherPoints = getPointsEdge(edgeList[j]);
-			gp_Pnt otherStartPoint = std::get<0>(otherPoints);
-			gp_Pnt otherEndPoint = std::get<1>(otherPoints);
-			gp_Lin2d otherLine = gce_MakeLin2d(
-				gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()),
-				gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y())
-			).Value();
+			if (intersection == nullptr) { continue; }
 
-			Standard_Real xSO = otherStartPoint.X();
-			Standard_Real ySO = otherStartPoint.Y();
-			Standard_Real xEO = otherEndPoint.X();
-			Standard_Real yEO = otherEndPoint.Y();
-
-			intersector.Perform(line, otherLine);
-			if (intersector.IsEmpty())
-			{
-				continue;
-			}
-
-			for (size_t k = 0; k < intersector.NbPoints(); k++)
-			{
-				gp_Pnt2d intersection = intersector.Point(k + 1).Value();
-				Standard_Real xC = intersection.X();
-				Standard_Real yC = intersection.Y();
-
-				if (xS == xC && yS == yC ||
-					xE == xC && yE == yC ||
-					xSO == xC && ySO == yC ||
-					xEO == xC && yEO == yC
-					)
-				{
-					continue;
-				}
-
-				if (xS - buffer <= xC && xC <= xE + buffer ||
-					xS + buffer >= xC && xC >= xE - buffer)
-				{
-					if (yS - buffer <= yC && yC <= yE + buffer ||
-						yS + buffer >= yC && yC >= yE - buffer)
-					{
-						if (xSO - buffer <= xC && xC <= xEO + buffer ||
-							xSO + buffer >= xC && xC >= xEO - buffer)
-						{
-							if (ySO - buffer <= yC && yC <= yEO + buffer ||
-								ySO + buffer >= yC && yC >= yEO - buffer)
-							{							
-								intPoints.emplace_back(
-									gp_Pnt(intersection.X(), intersection.Y(), 0)
-								);
-							}
-						}
-					}
-				}
-			}
+			intPoints.emplace_back(intersection);
 		}
-
-		if (intPoints.size() == 0)
-		{
-			splitEdgeList.emplace_back(edgeList[i]);
-			continue;
-		}
-
-		std::vector<gp_Pnt> cleanedPoints;
+		
+		std::vector<gp_Pnt*> cleanedPoints;
 		for (size_t j = 0; j < intPoints.size(); j++)
 		{
 			bool dub = false;
 			for (size_t k = 0; k < cleanedPoints.size(); k++)
 			{
-				if (intPoints[j].IsEqual(cleanedPoints[j], 0.001))
+				if (intPoints[j]->IsEqual(*cleanedPoints[k], 0.001))
 				{
 					dub = true;
 					break;
@@ -390,7 +388,6 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 				cleanedPoints.emplace_back(intPoints[j]);
 			}
 		}
-
 
 		std::vector<int> evaluated(cleanedPoints.size());
 		gp_Pnt currentPoint = startPoint;
@@ -406,7 +403,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 					continue;
 				}
 
-				double distance = currentPoint.Distance(cleanedPoints[i]);
+				double distance = currentPoint.Distance(*cleanedPoints[i]);
 				if (distance < smallestDistance)
 				{
 					smallestDistance = distance;
@@ -418,18 +415,29 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			if (found)
 			{
 				evaluated[nextPoint] = 1;
-				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, cleanedPoints[nextPoint]);
+
+				if (currentPoint.IsEqual(*cleanedPoints[nextPoint], 0.001))
+				{
+					currentPoint = *cleanedPoints[nextPoint];
+					continue;
+				}
+				
+				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, *cleanedPoints[nextPoint]);
 				splitEdgeList.emplace_back(edge);
-				currentPoint = cleanedPoints[nextPoint];
+				currentPoint = *cleanedPoints[nextPoint];
+
 			}
 			else {
+				if (currentPoint.IsEqual(endPoint, 0.001))
+				{
+					break;
+				}
 				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, endPoint);
 				splitEdgeList.emplace_back(edge);
 				break;
 			}
 		}
 	}
-
 	return splitEdgeList;
 }
 
@@ -462,14 +470,12 @@ std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, 
 			gp_Pnt2d(endPoint.X(), endPoint.Y())
 			);
 		lineVec.Normalize();
-		double div = 50;
+		double div = 100;
 		gp_Pnt2d evalPoint1 = middlePoint.Translated(gp_Vec2d(lineVec.Y() * -1 / div, lineVec.X() / div));
 		gp_Pnt2d evalPoint2 = middlePoint.Translated(gp_Vec2d(lineVec.Y() / div, lineVec.X() * -1 / div));
 
 		bool hasEval1 = false;
 		bool hasEval2 = false;
-		bool ignore = false;
-
 		for (size_t i = 0; i < flatFaceList.size(); i++)
 		{
 			TopoDS_Face evalFace = flatFaceList[i];
@@ -488,7 +494,7 @@ std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, 
 				distanceCalc.Perform();
 				double distance = distanceCalc.Value();
 
-				if (distance == 0)
+				if (distance < 0.0001)
 				{
 					hasEval1 = true;
 				}
@@ -509,7 +515,7 @@ std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, 
 				distanceCalc.Perform();
 				double distance = distanceCalc.Value();
 
-				if (distance == 0)
+				if (distance < 0.0001)
 				{
 					hasEval2 = true;
 				}
@@ -517,12 +523,11 @@ std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, 
 
 			if (hasEval1 && hasEval2)
 			{
-				ignore = true;
 				break;
 			}
 		}
 
-		if (!ignore || !hasEval1 && !hasEval2)
+		if (hasEval1 && !hasEval2 || !hasEval1 && hasEval2)
 		{
 			outerEdgeList.emplace_back(currentEdge);
 		}
@@ -1042,6 +1047,7 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 	{
 		auto sourceFile = cluster->getHelper(i)->getSourceFile();
 		IfcSchema::IfcSlab::list::ptr slabList = sourceFile->instances_by_type<IfcSchema::IfcSlab>();
+		//IfcSchema::IfcWall::list::ptr wallList = sourceFile->instances_by_type<IfcSchema::IfcWall>();
 		
 		for (auto it = slabList->begin(); it != slabList->end(); ++it) {
 			IfcSchema::IfcProduct* product = *it;
@@ -1054,9 +1060,22 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 				shapeList.emplace_back(objectFaces[i]);
 			}
 		}
+
+		/*for (auto it = wallList->begin(); it != wallList->end(); ++it) {
+			IfcSchema::IfcProduct* product = *it;
+			TopoDS_Shape wallShape = cluster->getHelper(i)->getObjectShape(product, false); //TODO: add walls
+
+			std::vector<TopoDS_Face> objectFaces = getXYFaces(wallShape);
+
+			for (size_t i = 0; i < objectFaces.size(); i++)
+			{
+				shapeList.emplace_back(objectFaces[i]);
+			}
+		}*/
 	}
 	// project to 2D
 	std::vector<TopoDS_Face> flatFaceList;
+	TopExp_Explorer expl;
 	for (size_t i = 0; i < shapeList.size(); i++)
 	{
 		TopoDS_Face face = getFlatFace(shapeList[i]);
@@ -1106,16 +1125,13 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 		}
 	}
 
-	TopExp_Explorer expl;
+
 	for (expl.Init(faceWire, TopAbs_EDGE); expl.More(); expl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(currentEdge);
 		gp_Pnt startPoint = std::get<0>(points);
 		gp_Pnt endPoint = std::get<1>(points);
-
-		//printPoint(startPoint);
-		//printPoint(endPoint);
 	}
 
 	gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
