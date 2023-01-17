@@ -7,9 +7,6 @@
 #include <HLRBRep_Algo.hxx>
 #include <HLRBRep_HLRToShape.hxx>
 
-#include <gce_MakeLin2d.hxx>
-#include <IntAna2d_AnaIntersection.hxx>
-
 #include <GeomLProp_SLProps.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
 #include <BOPAlgo_BuilderFace.hxx>
@@ -115,6 +112,9 @@ private:
 	std::vector<roomObject*> roomObjectList_;
 	std::vector<double> roomAreaList_;
 	bool hasGraphData_;
+
+	std::vector<TopoDS_Face> footPrintList_;
+	bool hasFootPrint_ = false;
 	
 	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
 
@@ -149,6 +149,7 @@ private:
 	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject* makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 

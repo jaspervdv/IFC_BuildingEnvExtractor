@@ -38,6 +38,8 @@
 
 #include <memory>
 
+#include <gce_MakeLin2d.hxx>
+
 // Forward Decleration helper class
 class helper;
 struct roomObject;

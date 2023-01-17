@@ -258,8 +258,6 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		}
 	}
 	// merge lines that are on the same plane
-	IntAna2d_AnaIntersection intersector;
-
 	std::vector<TopoDS_Edge> cleanedEdgeList;
 	std::vector<int> evalList(edgeList.size());
 	for (size_t i = 0; i < edgeList.size(); i++)
@@ -1047,7 +1045,7 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 	{
 		auto sourceFile = cluster->getHelper(i)->getSourceFile();
 		IfcSchema::IfcSlab::list::ptr slabList = sourceFile->instances_by_type<IfcSchema::IfcSlab>();
-		//IfcSchema::IfcWall::list::ptr wallList = sourceFile->instances_by_type<IfcSchema::IfcWall>();
+		IfcSchema::IfcWall::list::ptr wallList = sourceFile->instances_by_type<IfcSchema::IfcWall>();
 		
 		for (auto it = slabList->begin(); it != slabList->end(); ++it) {
 			IfcSchema::IfcProduct* product = *it;
@@ -1061,7 +1059,7 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 			}
 		}
 
-		/*for (auto it = wallList->begin(); it != wallList->end(); ++it) {
+		for (auto it = wallList->begin(); it != wallList->end(); ++it) {
 			IfcSchema::IfcProduct* product = *it;
 			TopoDS_Shape wallShape = cluster->getHelper(i)->getObjectShape(product, false); //TODO: add walls
 
@@ -1071,7 +1069,7 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 			{
 				shapeList.emplace_back(objectFaces[i]);
 			}
-		}*/
+		}
 	}
 	// project to 2D
 	std::vector<TopoDS_Face> flatFaceList;
@@ -1125,7 +1123,6 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 		}
 	}
 
-
 	for (expl.Init(faceWire, TopAbs_EDGE); expl.More(); expl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
@@ -1137,6 +1134,9 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 	gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
 
 	faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), faceWire);
+	footPrintList_.emplace_back(faceBuilder);
+	hasFootPrint_ = true;
+
 	CJT::GeoObject* geoObject = kernel->convertToJSON(faceBuilder.Shape(), "0.2");
 	return geoObject;
 }
@@ -1204,6 +1204,68 @@ CJT::GeoObject* voxelfield::makeLoD10(helperCluster* cluster, CJT::CityCollectio
 	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
 
 	return geoObject;
+}
+
+CJT::GeoObject* voxelfield::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+{
+	if (!hasFootPrint_)
+	{
+		makeLoD02(cluster, cjCollection, kernel, unitScale);
+	}
+
+	double height = cluster->getUrrPoint().Z();
+	
+	for (size_t i = 0; i < footPrintList_.size(); i++)
+	{
+		TopoDS_Face currentFootprint = footPrintList_[i];
+		int counter = 0;
+		gp_Pnt lastPoint;
+
+		BRep_Builder brepBuilder;
+		BRepBuilderAPI_Sewing brepSewer;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid solidShape;
+		brepBuilder.MakeSolid(solidShape);
+
+		BRepBuilderAPI_MakeWire topWireMaker;
+
+		TopExp_Explorer expl;
+		for (expl.Init(currentFootprint, TopAbs_VERTEX); expl.More(); expl.Next()) {
+			counter++;
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			if (counter % 2 != 0)
+			{
+				lastPoint = point;
+				continue;
+			}
+
+			gp_Pnt hPoint = gp_Pnt(point.X(), point.Y(), height);
+			gp_Pnt hLastPoint = gp_Pnt(lastPoint.X(), lastPoint.Y(), height);
+
+			// create side face
+			TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(point, hPoint);
+			TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(hPoint, hLastPoint);
+			TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(hLastPoint, lastPoint);
+			TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(lastPoint, point);
+			brepSewer.Add(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
+
+			topWireMaker.Add(BRepBuilderAPI_MakeEdge(hLastPoint, hPoint));
+		}
+
+		topWireMaker.Build();
+		brepSewer.Add(BRepBuilderAPI_MakeFace(topWireMaker.Wire()));
+		brepSewer.Add(currentFootprint);
+
+		brepSewer.Perform();
+		brepBuilder.Add(solidShape, brepSewer.SewedShape());
+
+		CJT::GeoObject* geoObject = kernel->convertToJSON(solidShape, "1.2");
+		return geoObject;
+	}
+
 }
 
 CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
@@ -1774,6 +1836,8 @@ void voxelfield::makeRooms(helperCluster* cluster)
 	cityObject->addGeoObject(geo02);
 	CJT::GeoObject* geo10 = makeLoD10(cluster, collection, kernel, unitScale);
 	cityObject->addGeoObject(geo10);
+	CJT::GeoObject* geo12 = makeLoD12(cluster, collection, kernel, unitScale);
+	cityObject->addGeoObject(geo12);
 	//CJT::GeoObject* geo32 = makeLoD32(cluster, collection, kernel, unitScale);
 	//cityObject->addGeoObject(geo32);
 
