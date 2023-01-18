@@ -1024,19 +1024,12 @@ CJT::GeoObject* voxelfield::makeLoD00(helperCluster* cluster, CJT::CityCollectio
 
 	TopoDS_Shape floorProjection = BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
 
-	if (unitScale != 1)
-	{
-		gp_Trsf UnitScaler;
-		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-		floorProjection = BRepBuilderAPI_Transform(floorProjection, UnitScaler).ModifiedShape(floorProjection);
-	}
-
 	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
 
 	return geoObject;
 }
 
-CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	// get slabs and walls
 	std::vector<TopoDS_Face> shapeList;
@@ -1099,46 +1092,61 @@ CJT::GeoObject* voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollectio
 
 	gp_Pnt connectionPoint = std::get<1>(getPointsEdge(edgeList[0]));
 
-	for (size_t i = 0; i < edgeList.size(); i++)
+	std::vector< CJT::GeoObject*> geoObjectList;
+
+	bool con = true;
+	while (con)
 	{
-		if (evaluated[i] == 1)
+		con = false;
+		for (size_t i = 0; i < edgeList.size(); i++)
 		{
-			continue;
+			if (evaluated[i] == 1)
+			{
+				continue;
+			}
+
+			std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edgeList[i]);
+			if (connectionPoint.IsEqual(std::get<0>(pp), 0.001))
+			{
+				faceWire = BRepBuilderAPI_MakeWire(faceWire, edgeList[i]);
+				connectionPoint = std::get<1>(pp);
+				evaluated[i] = 1;
+				i = 0;
+			}
+			else if (connectionPoint.IsEqual(std::get<1>(pp), 0.001))
+			{
+				faceWire = BRepBuilderAPI_MakeWire(faceWire, BRepBuilderAPI_MakeEdge(std::get<1>(pp), std::get<0>(pp)));
+				connectionPoint = std::get<0>(pp);
+				evaluated[i] = 1;
+				i = 0;
+			}
 		}
 
-		std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edgeList[i]);
-		if (connectionPoint.IsEqual(std::get<0>(pp), 0.001))
+		if (!faceWire.IsNull())
 		{
-			faceWire = BRepBuilderAPI_MakeWire(faceWire, edgeList[i]);
-			connectionPoint = std::get<1>(pp);
-			evaluated[i] = 1;
-			i = 0;
+			faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), faceWire);
+			if (faceBuilder.Error() == BRepBuilderAPI_FaceDone)
+			{
+				footPrintList_.emplace_back(faceBuilder);
+				hasFootPrint_ = true;
+				geoObjectList.emplace_back(kernel->convertToJSON(faceBuilder.Shape(), "0.2"));
+			}
 		}
-		else if (connectionPoint.IsEqual(std::get<1>(pp), 0.001))
+
+		for (size_t i = 0; i < edgeList.size(); i++)
 		{
-			faceWire = BRepBuilderAPI_MakeWire(faceWire, BRepBuilderAPI_MakeEdge(std::get<1>(pp), std::get<0>(pp)));
-			connectionPoint = std::get<0>(pp);
-			evaluated[i] = 1;
-			i = 0;
+			if (evaluated[i] == 0)
+			{
+				faceWire.Nullify();
+				faceWire = BRepBuilderAPI_MakeWire(edgeList[i]);
+				connectionPoint = std::get<1>(getPointsEdge(edgeList[i]));
+				con = true;
+				evaluated[i] = 1;
+				break;
+			}
 		}
 	}
-
-	for (expl.Init(faceWire, TopAbs_EDGE); expl.More(); expl.Next())
-	{
-		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(currentEdge);
-		gp_Pnt startPoint = std::get<0>(points);
-		gp_Pnt endPoint = std::get<1>(points);
-	}
-
-	gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1));
-
-	faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), faceWire);
-	footPrintList_.emplace_back(faceBuilder);
-	hasFootPrint_ = true;
-
-	CJT::GeoObject* geoObject = kernel->convertToJSON(faceBuilder.Shape(), "0.2");
-	return geoObject;
+	return geoObjectList;
 }
 
 CJT::GeoObject* voxelfield::makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
@@ -1193,26 +1201,19 @@ CJT::GeoObject* voxelfield::makeLoD10(helperCluster* cluster, CJT::CityCollectio
 	brepSewer.Perform();
 	brepBuilder.Add(bbox, brepSewer.SewedShape());
 
-	if (unitScale != 1)
-	{
-		gp_Trsf UnitScaler;
-		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-		CJT::GeoObject* geoObject = kernel->convertToJSON(BRepBuilderAPI_Transform(bbox, UnitScaler).ModifiedShape(bbox), "1.0");
-		return geoObject;
-	}
-
 	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
 
 	return geoObject;
 }
 
-CJT::GeoObject* voxelfield::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> voxelfield::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	if (!hasFootPrint_)
 	{
 		makeLoD02(cluster, cjCollection, kernel, unitScale);
 	}
 
+	std::vector< CJT::GeoObject*> geoObjectList;
 	double height = cluster->getUrrPoint().Z();
 	
 	for (size_t i = 0; i < footPrintList_.size(); i++)
@@ -1256,16 +1257,16 @@ CJT::GeoObject* voxelfield::makeLoD12(helperCluster* cluster, CJT::CityCollectio
 		}
 
 		topWireMaker.Build();
-		brepSewer.Add(BRepBuilderAPI_MakeFace(topWireMaker.Wire()));
+		brepSewer.Add(BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), topWireMaker.Wire()));
 		brepSewer.Add(currentFootprint);
 
 		brepSewer.Perform();
 		brepBuilder.Add(solidShape, brepSewer.SewedShape());
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(solidShape, "1.2");
-		return geoObject;
+		geoObjectList.emplace_back(geoObject);
 	}
-
+	return geoObjectList;
 }
 
 CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
@@ -1581,13 +1582,6 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 		}
 	}
 
-	if (unitScale != 1) // TODO: this can be smarter
-	{
-		gp_Trsf UnitScaler;
-		UnitScaler.SetScale({ 0.0, 0.0, 0.0 }, unitScale);
-		outSideShape = BRepBuilderAPI_Transform(outSideShape, UnitScaler).ModifiedShape(outSideShape);
-	}
-
 	CJT::GeoObject* geoObject = kernel->convertToJSON(outSideShape, "3.0");
 	return geoObject;
 }
@@ -1832,12 +1826,12 @@ void voxelfield::makeRooms(helperCluster* cluster)
 
 	CJT::GeoObject* geo00 = makeLoD00(cluster, collection, kernel, unitScale);
 	cityObject->addGeoObject(geo00);
-	CJT::GeoObject* geo02 = makeLoD02(cluster, collection, kernel, unitScale);
-	cityObject->addGeoObject(geo02);
+	std::vector<CJT::GeoObject*> geo02 = makeLoD02(cluster, collection, kernel, unitScale);
+	for (size_t i = 0; i < geo02.size(); i++){cityObject->addGeoObject(geo02[i]);}
 	CJT::GeoObject* geo10 = makeLoD10(cluster, collection, kernel, unitScale);
 	cityObject->addGeoObject(geo10);
-	CJT::GeoObject* geo12 = makeLoD12(cluster, collection, kernel, unitScale);
-	cityObject->addGeoObject(geo12);
+	std::vector<CJT::GeoObject*> geo12 = makeLoD12(cluster, collection, kernel, unitScale);
+	for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
 	//CJT::GeoObject* geo32 = makeLoD32(cluster, collection, kernel, unitScale);
 	//cityObject->addGeoObject(geo32);
 

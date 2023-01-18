@@ -145,11 +145,11 @@ private:
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
 
 	CJT::GeoObject* makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-	CJT::GeoObject* makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-	CJT::GeoObject* makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
