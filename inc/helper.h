@@ -1,4 +1,4 @@
-#define USE_IFC4
+//#define USE_IFC4
 
 #ifdef USE_IFC4
 #define IfcSchema Ifc4
@@ -66,6 +66,8 @@ void WriteToSTEP(TopoDS_Shape shape, std::string addition);
 void printPoint(gp_Pnt p);
 void printPoint(gp_Pnt2d p);
 void printPoint(BoostPoint3D p);
+void printPoint(gp_Vec p);
+void printPoint(gp_Vec2d p);
 
 void printFaces(TopoDS_Shape shape);
 

@@ -91,9 +91,7 @@ gp_Pnt* linearLineIntersection(TopoDS_Edge edge1, TopoDS_Edge edge2) {
 	double buffer = 0.01;
 	
 	if (x1 == xI && y1 == yI ||
-		x2 == xI && y2 == yI ||
-		x3 == xI && y3 == yI ||
-		x3 == xI && y4 == yI
+		x2 == xI && y2 == yI 
 		)
 	{
 		return nullptr;
@@ -218,6 +216,8 @@ TopoDS_Face getFlatFace(TopoDS_Face face) {
 
 std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 
+	double buffer = 0.01; //TODO: have it scale with units
+
 	gp_Ax2 axis(
 		gp_Pnt(0, 0, 0), 
 		gp_Dir(0, 0, 100)
@@ -284,8 +284,10 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		dir.Normalize();
 
 		std::vector<gp_Pnt> mergeList;
+		std::vector<int> evalIndxList;
 
-		for (size_t j = i; j < edgeList.size(); j++)
+
+		for (size_t j = 0; j < edgeList.size(); j++)
 		{
 			if (i == j) { continue; }
 			if (evalList[j] == 1) { continue; }
@@ -297,7 +299,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			gp_Vec2d otherDir(gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()), gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y()));
 			otherDir.Normalize();
 			
-			if (!dir.IsParallel(otherDir, 0.0001) && !dir.IsParallel(otherDir.Reversed(), 0.0001)) // TODO: dont split if not connected somehow
+			if (!dir.IsParallel(otherDir, 0.0001) && !dir.IsParallel(otherDir.Reversed(), 0.0001))
 			{
 				continue;
 			}
@@ -319,45 +321,157 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 					continue;
 				}
 			}
-
-			evalList[j] = 1;
-			mergeList.emplace_back(otherStartPoint);
-			mergeList.emplace_back(otherEndPoint);
+			evalIndxList.emplace_back(j);
 		}
 
-		if (mergeList.size() == 0)
+		if (evalIndxList.size() == 0)
 		{
-			cleanedEdgeList.emplace_back(edgeList[i]);
+			evalList[i] = 1;
+			if (startPoint.Distance(endPoint) > 0.1) //TODO: make smarter
+			{
+				cleanedEdgeList.emplace_back(edgeList[i]);
+			}
 			continue;
 		}
 
-		mergeList.emplace_back(startPoint);
-		mergeList.emplace_back(endPoint);
-
-		gp_Pnt edgeStartPoint;
-		gp_Pnt edgeEndPoint;
-		double distance = 0;
-		for (size_t j = 0;  j < mergeList.size();  j++)
+		// flip main merging ege
+		if (abs(dir.X()) >= abs(dir.Y()))
 		{
-			gp_Pnt currentPoint = mergeList[j];
-			for (size_t k = 0; k < mergeList.size(); k++)
+			//std::cout << "X based" << std::endl;
+			if (startPoint.X() > endPoint.X())
 			{
-				gp_Pnt otherPoint = mergeList[k];
-				double tempDistance = currentPoint.Distance(otherPoint);
-				if (tempDistance > distance)
-				{
-					distance = tempDistance;
-					edgeStartPoint = currentPoint;
-					edgeEndPoint = otherPoint;
-				}
+				gp_Pnt tempPoint = startPoint;
+				startPoint = endPoint;
+				endPoint = tempPoint;
 			}
 		}
-		TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(edgeStartPoint, edgeEndPoint);
+		if (abs(dir.X()) < abs(dir.Y()))
+		{
+			if (startPoint.Y() > endPoint.Y())
+			{
+				gp_Pnt tempPoint = startPoint;
+				startPoint = endPoint;
+				endPoint = tempPoint;
+			}
+		}
+
+		while (true)
+		{
+			int grow = 0;
+			for (size_t j = 0; j < evalIndxList.size(); j++)
+			{
+				int edgeIdx = evalIndxList[j];
+
+				if (evalList[edgeIdx] == 1) { continue; }
+
+				std::tuple<gp_Pnt, gp_Pnt> otherPoints = getPointsEdge(edgeList[edgeIdx]);
+				gp_Pnt otherStartPoint = std::get<0>(otherPoints);
+				gp_Pnt otherEndPoint = std::get<1>(otherPoints);
+
+				if (abs(dir.X()) >= abs(dir.Y()))
+				{
+					if (otherStartPoint.X() > otherEndPoint.X())
+					{
+						gp_Pnt tempPoint = otherStartPoint;
+						otherStartPoint = otherEndPoint;
+						otherEndPoint = tempPoint;
+					}
+				}
+				if (abs(dir.X()) < abs(dir.Y()))
+				{
+					if (otherStartPoint.Y() > otherEndPoint.Y())
+					{
+						gp_Pnt tempPoint = otherStartPoint;
+						otherStartPoint = otherEndPoint;
+						otherEndPoint = tempPoint;
+					}
+				}
+
+				double x1 = startPoint.X();
+				double x2 = endPoint.X();
+				double x3 = otherStartPoint.X();
+				double x4 = otherEndPoint.X();
+
+				if (abs(dir.X()) < abs(dir.Y()))
+				{
+					x1 = startPoint.Y();
+					x2 = endPoint.Y();
+					x3 = otherStartPoint.Y();
+					x4 = otherEndPoint.Y();
+				}
+
+				if (!( //No overlap
+					x1 - buffer <= x3 && x3 <= x2 + buffer ||
+					x1 - buffer <= x4 && x4 <= x2 + buffer)
+					)
+				{
+					continue;
+				}
+
+				if (x1 - buffer <= x3 && x4 <= x2 + buffer)
+				{
+					evalList[edgeIdx] = 1;
+					continue;
+				}
+
+				if (x3 - buffer <= x1 && x2 <= x4 + buffer)
+				{
+					evalList[edgeIdx] = 1;
+					startPoint = otherStartPoint;
+					endPoint = otherEndPoint;
+					grow++;
+					continue;
+				}
+
+				if (x2 - buffer < x3 && x2 + buffer > x3)
+				{
+					evalList[edgeIdx] = 1;
+					endPoint = otherEndPoint;
+					grow++;
+					continue;
+				}
+
+				if (x4 - buffer < x1 && x4 + buffer > x1)
+				{
+					evalList[edgeIdx] = 1;
+					startPoint = otherStartPoint;
+					grow++;
+					continue;
+				}
+
+				if (x1 - buffer <= x3 && x3 <= x2 + buffer &&
+					x1 - buffer <= x4 && x2 <= x4 + buffer)
+				{
+					evalList[edgeIdx] = 1;
+					endPoint = otherEndPoint;
+					grow++;
+					continue;
+				}
+
+				if (x1 - buffer <= x4 && x4 <= x2 + buffer &&
+					x3 - buffer < x1 && x3 < x2 + buffer)
+				{
+					evalList[edgeIdx] = 1;
+					evalList[edgeIdx] = 1;
+					startPoint = otherStartPoint;
+					grow++;
+					continue;
+				}
+			}
+			if (grow == 0)
+			{
+				break;
+			}
+			grow = 0;
+		}
+
+		evalIndxList.clear();
+
+		TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(startPoint, endPoint);
 		cleanedEdgeList.emplace_back(edge);
 	}
 
 	edgeList = cleanedEdgeList;
-	double buffer = 0.01; //TODO: have it scale with units
 
 	for (size_t i = 0; i < edgeList.size(); i++)
 	{
@@ -365,6 +479,8 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(edgeList[i]);
 		gp_Pnt startPoint = std::get<0>(points);
 		gp_Pnt endPoint = std::get<1>(points);
+		//printPoint(startPoint);
+		//printPoint(endPoint);
 
 		for (size_t j = 0; j < edgeList.size(); j++)
 		{
@@ -374,6 +490,7 @@ std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList) {
 			if (intersection == nullptr) { continue; }
 
 			intPoints.emplace_back(intersection);
+			//printPoint(*intersection);
 		}
 		
 		std::vector<gp_Pnt*> cleanedPoints;
@@ -936,6 +1053,95 @@ void voxelfield::outputFieldToFile()
 	storageFile.close();
 }
 
+std::vector<TopoDS_Shape> voxelfield::getTopObjects(helperCluster* cluster)
+{
+	std::vector<int> boxelIdx = getTopBoxelIndx();
+	std::vector<IfcSchema::IfcProduct*> topProducts;
+	std::vector<TopoDS_Shape> topObjects;
+
+	for (size_t i = 0; i < boxelIdx.size(); i++)
+	{
+		double step = 2;
+		double downstep = 2;
+		bool found = false;
+
+		int idx = boxelIdx[i];
+		voxel* boxel = VoxelLookup_[idx];
+		std::vector<gp_Pnt> pointList = boxel->getCornerPoints(planeRotation_);
+		while (true)
+		{
+			BoostPoint3D lll(pointList[0].X(), pointList[0].Y(), pointList[0].Z() - downstep);
+			BoostPoint3D urr(pointList[4].X(), pointList[4].Y(), pointList[4].Z());
+			bg::model::box<BoostPoint3D> boostBoxel = bg::model::box<BoostPoint3D>(lll, urr);
+			std::vector<Value> qResult;
+
+			for (int j = 0; j < cluster->getSize(); j++)
+			{
+				qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+				cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(boostBoxel), std::back_inserter(qResult));
+
+				if (qResult.size() == 0) { continue; }
+				found = true;
+
+				for (size_t k = 0; k < qResult.size(); k++)
+				{
+					bool dub = false;
+
+					LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
+					IfcSchema::IfcProduct* product = std::get<0>(lookup);
+
+					if (product->data().type()->name() != "IfcSlab" &&
+						product->data().type()->name() != "IfcWallStandardCase" &&
+						product->data().type()->name() != "IfcWall" &&
+						product->data().type()->name() != "IfcRoof")
+					{
+						continue;
+					}
+
+					if (!product->hasRepresentation()) { continue; }
+
+					for (size_t l = 0; l < topProducts.size(); l++)
+					{
+						IfcSchema::IfcProduct* otherproduct = topProducts[l];
+
+						if (otherproduct == product)
+						{
+							dub = true;
+							break;
+						}
+					}
+
+					if (!dub)
+					{
+						topProducts.emplace_back(product);
+						topObjects.emplace_back(cluster->getHelper(j)->getObjectShape(product, false));
+					}
+				}
+			}
+
+			if (found) { break; }
+
+			downstep = downstep + step;
+
+			if (pointList[0].Z() - (downstep + step) < cluster->getLllPoint().Z()) { break; }
+		}
+	}
+
+	return topObjects;
+}
+
+std::vector<int> voxelfield::getTopBoxelIndx() {
+
+	std::vector<int> voxelIndx;
+
+	for (size_t i = xRelRange_ * yRelRange_ * zRelRange_ - xRelRange_ * yRelRange_; i < xRelRange_ * yRelRange_ * zRelRange_ - 1; i++)
+	{
+		voxelIndx.emplace_back(i);
+	}
+	return voxelIndx;
+
+}
+
 std::vector<TopoDS_Face> voxelfield::getXYFaces(TopoDS_Shape shape) {
 	
 	std::vector<TopoDS_Face> faceList;
@@ -1041,36 +1247,17 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 	// get slabs and walls
 	std::vector<TopoDS_Face> shapeList;
 
-	for (size_t i = 0; i < cluster->getSize(); i++)
+	std::vector<TopoDS_Shape> test = getTopObjects(cluster);
+
+	for (size_t i = 0; i < test.size(); i++)
 	{
-		auto sourceFile = cluster->getHelper(i)->getSourceFile();
-		IfcSchema::IfcSlab::list::ptr slabList = sourceFile->instances_by_type<IfcSchema::IfcSlab>();
-		IfcSchema::IfcWall::list::ptr wallList = sourceFile->instances_by_type<IfcSchema::IfcWall>();
-		
-		for (auto it = slabList->begin(); it != slabList->end(); ++it) {
-			IfcSchema::IfcProduct* product = *it;
-			TopoDS_Shape slabShape = cluster->getHelper(i)->getObjectShape(product, false); //TODO: add walls
-
-			std::vector<TopoDS_Face> objectFaces = getXYFaces(slabShape);
-
-			for (size_t i = 0; i < objectFaces.size(); i++)
-			{
-				shapeList.emplace_back(objectFaces[i]);
-			}
-		}
-
-		for (auto it = wallList->begin(); it != wallList->end(); ++it) {
-			IfcSchema::IfcProduct* product = *it;
-			TopoDS_Shape wallShape = cluster->getHelper(i)->getObjectShape(product, false); //TODO: add walls
-
-			std::vector<TopoDS_Face> objectFaces = getXYFaces(wallShape);
-
-			for (size_t i = 0; i < objectFaces.size(); i++)
-			{
-				shapeList.emplace_back(objectFaces[i]);
-			}
+		std::vector<TopoDS_Face> objectFaces = getXYFaces(test[i]);
+		for (size_t j = 0; j < objectFaces.size(); j++)
+		{
+			shapeList.emplace_back(objectFaces[j]);
 		}
 	}
+
 	// project to 2D
 	std::vector<TopoDS_Face> flatFaceList;
 	TopExp_Explorer expl;
@@ -1090,10 +1277,11 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 	for (size_t i = 0; i < edgeList.size(); i++)
 	{
 		std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edgeList[i]);
-		//printPoint(std::get<0>(pp));
-		//printPoint(std::get<1>(pp));
+		gp_Pnt startPoint = std::get<0>(pp);
+		gp_Pnt endPoint = std::get<1>(pp);
+		//printPoint(startPoint);
+		//printPoint(endPoint);
 	}
-
 
 	// TODO: find if interior ring
 	BRepBuilderAPI_MakeFace faceBuilder;
@@ -1122,14 +1310,14 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 			}
 
 			std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edgeList[i]);
-			if (connectionPoint.IsEqual(std::get<0>(pp), 0.00001))
+			if (connectionPoint.IsEqual(std::get<0>(pp), 0.0001))
 			{
 				orderedEdgeList.emplace_back(edgeList[i]);
 				connectionPoint = std::get<1>(pp);
 				evaluated[i] = 1;
 				i = 0;
 			}
-			else if (connectionPoint.IsEqual(std::get<1>(pp), 0.00001))
+			else if (connectionPoint.IsEqual(std::get<1>(pp), 0.0001))
 			{
 				orderedEdgeList.emplace_back(BRepBuilderAPI_MakeEdge(std::get<1>(pp), std::get<0>(pp)));
 				connectionPoint = std::get<0>(pp);
@@ -1140,6 +1328,25 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 
 		int count = 0;
 		std::vector<int> merged(orderedEdgeList.size());
+		gp_Vec evalVec = getDirEdge(orderedEdgeList[0]);
+		for (size_t i = 0; i < orderedEdgeList.size(); i++)
+		{
+			TopoDS_Edge currentEdge = orderedEdgeList[i];
+			gp_Vec currentVec = getDirEdge(currentEdge);
+
+			gp_Pnt startPoint = std::get<0>(getPointsEdge(currentEdge));
+			gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
+
+			/*if (!currentVec.IsParallel(evalVec, 0.01)) {
+				std::vector<TopoDS_Edge> splitToFront(orderedEdgeList.begin() + i + 1, orderedEdgeList.end());
+				std::vector<TopoDS_Edge> splitToBack(orderedEdgeList.begin(), orderedEdgeList.begin() + i);
+
+				splitToFront.insert(splitToFront.end(), splitToBack.begin(), splitToBack.end());
+				orderedEdgeList = splitToFront;
+				break;
+			}*/
+		}
+		gp_Pnt connection = std::get<0>(getPointsEdge(orderedEdgeList[0]));
 		for (size_t i = 0; i < orderedEdgeList.size(); i++)
 		{
 			if (merged[i] == 1) { continue; }
@@ -1147,11 +1354,10 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 
 			TopoDS_Edge currentEdge = orderedEdgeList[i];
 			gp_Vec currentVec = getDirEdge(currentEdge);
-
-			gp_Pnt startPoint = std::get<0>(getPointsEdge(currentEdge));
 			gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
 
-			for (size_t j = i + 1; j < orderedEdgeList.size(); j++) //TODO: add reverse search
+
+			for (size_t j = i + 1; j < orderedEdgeList.size(); j++) 
 			{
 				if (merged[j] == 1) { continue; }
 
@@ -1163,14 +1369,14 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 				merged[j] = 1;
 				endPoint = std::get<1>(getPointsEdge(otherEdge));
 			}
+			faceWire = BRepBuilderAPI_MakeWire(faceWire, BRepBuilderAPI_MakeEdge(connection, endPoint));
+			connection = endPoint;
 
-			faceWire = BRepBuilderAPI_MakeWire(faceWire, BRepBuilderAPI_MakeEdge(startPoint, endPoint));
-			//printPoint(startPoint);
-			//printPoint(endPoint);
 			count++;
 		}
 
 		orderedEdgeList.clear();
+
 		if (!faceWire.IsNull() && count >= 3)
 		{
 			faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), faceWire);
@@ -1318,22 +1524,6 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD12(helperCluster* cluster, CJT:
 
 CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
-	// test voxel for intersection and add voxel objects to the voxelfield
-	std::cout << "[INFO] Populate Grid" << std::endl;
-	for (int i = 0; i < totalVoxels_; i++) {
-
-		if (i % 250 == 0)
-		{
-			std::cout.flush();
-			std::cout << i << " of " << totalVoxels_ << "\r";
-		}
-
-		addVoxel(i, cluster);
-	}
-	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
-	std::cout << std::endl;
-
-
 	// asign rooms
 	int roomnum = 0;
 	int temps = 0;
@@ -1487,18 +1677,10 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 	productLookupValues.assign(productLookupValuesSet.begin(), productLookupValuesSet.end());
 
 	TopExp_Explorer expl;
-
-	std::vector<Value> qResult;
 	std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList;
-	qResult.clear();
 
 	for (int j = 0; j < cluster->getSize(); j++)
 	{
-		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-		cluster->getHelper(j)->getIndexPointer()->query(bgi::intersects(qBox), std::back_inserter(qResult));
-
-		if (qResult.size() == 0) { continue; }
-
 		for (size_t k = 0; k < productLookupValues.size(); k++)
 		{
 			LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
@@ -1508,11 +1690,9 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 			if (std::get<3>(lookup))
 			{
 				shape = std::get<4>(lookup);
-				qProductList.emplace_back(std::make_tuple(qProduct, shape));
 			}
 			else {
 				shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true);
-				qProductList.emplace_back(std::make_tuple(qProduct, cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), false)));
 			}
 
 			int sCount = 0;
@@ -1530,11 +1710,9 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 						aLSTools.Append(TopoDS::Face(expl.Current()));
 					}
 				}
-
 			}
 		}
 	}
-
 
 	aLSTools.Reverse();
 	aSplitter.SetArguments(aLSObjects);
@@ -1633,7 +1811,6 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 	return geoObject;
 }
 
-
 voxelfield::voxelfield(helperCluster* cluster, bool isFlat)
 {
 	// ask user for desired voxel dimensions
@@ -1728,6 +1905,22 @@ voxelfield::voxelfield(helperCluster* cluster, bool isFlat)
 	hallwayNum_ = cluster->getHallwayNum();
 	minRoom_ = cluster->getMinRoomNum();
 	minArea_ = cluster->getMinArea();
+
+	std::cout << "[INFO] Populate Grid" << std::endl;
+	for (int i = 0; i < totalVoxels_; i++) {
+
+		if (i % 250 == 0)
+		{
+			std::cout.flush();
+			std::cout << i << " of " << totalVoxels_ << "\r";
+		}
+
+		addVoxel(i, cluster);
+	}
+	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
+	std::cout << std::endl;
+
+
 }
 
 void voxelfield::writeGraph(std::string path)

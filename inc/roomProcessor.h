@@ -140,6 +140,9 @@ private:
 
 	void createGraph(helperCluster* cluster);
 
+	std::vector<TopoDS_Shape> getTopObjects(helperCluster* cluster);
+	std::vector<int> getTopBoxelIndx();
+
 	// returns vector with: semanticName, semanticLongName, semanticDescription
 	std::vector<std::string> getSemanticMatch(std::vector< IfcSchema::IfcSpace*> semanticSources, int roomNum);
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);

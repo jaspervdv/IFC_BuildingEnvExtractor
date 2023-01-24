@@ -38,8 +38,10 @@ std::vector<std::string> GetSources() {
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
-	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
-	"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
+	"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
@@ -260,8 +262,8 @@ bool checkproxy(helperCluster* cluster) {
 	if (hasLot)
 	{
 		std::cout << "[WARNING] A large amount of IfcBuildingElementProxy objects are present in the model!" << std::endl;
-		std::cout << "[INFO] Process is terminated" << std::endl;
-		return false;
+		//std::cout << "[INFO] Process is terminated" << std::endl;
+		//return false;
 	}
 
 	std::cout << "[INFO] " << proxyCount << " of " << totalCount <<  " evaluated objects are IfcBuildingElementProxy objects" << std::endl;

@@ -41,6 +41,14 @@ void printPoint(BoostPoint3D p) {
 	std::cout << bg::get<0>(p) << ", " << bg::get<1>(p) << ", " << bg::get<2>(p) << "\n";
 }
 
+void printPoint(gp_Vec p) {
+	std::cout << p.X() << ", " << p.Y() << ", " << p.Z() << "\n";
+}
+
+void printPoint(gp_Vec2d p) {
+	std::cout << p.X() << ", " << p.Y() << "\n";
+}
+
 void printFaces(TopoDS_Shape shape)
 {
 	//std::cout << "Shape:" << std::endl;
