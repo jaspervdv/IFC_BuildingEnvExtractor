@@ -131,17 +131,34 @@ private:
 	// generates the faces of the voxel that are needed to create a rough room shape
 	std::vector<TopoDS_Face> getPartialFaces(std::vector<int> roomIndx, int voxelIndx);
 
+	/// @brief get the lowest face of a shape
 	TopoDS_Face getLowestFace(TopoDS_Shape shape);
 
-	// creates and adds a voxel object + checks with which products from the cluster it intersects
+	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
 	void addVoxel(int indx, helperCluster* cluster);
 
 	void outputFieldToFile();
 
+	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(helperCluster* cluster);
+
+	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
 
+	/// @brief get the surfaces that have a projection z = 0
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
+
+	/// @brief get 2d projection of shape at z=0
+	TopoDS_Face getFlatFace(TopoDS_Face face);
+
+	/// @brief get a clean list of all the edges the projected shapes
+	std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList);
+
+	/// @brief get all the edges that enclose the projected faces
+	std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, std::vector<TopoDS_Face> flatFaceList);
+
+	/// @brief get the footprint shapes from the collection of outer edges
+	std::vector<TopoDS_Shape> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
