@@ -80,7 +80,7 @@ public:
 };
 
 
-class voxelfield {
+class CJGeoCreator {
 
 private:
 	//world space data
@@ -126,7 +126,7 @@ private:
 	BoostPoint3D WorldPointToRel(BoostPoint3D p);
 
 	// create a group of voxels representing a rough room
-	std::vector<int> growRoom(int startIndx, int roomnum, helperCluster* cluster);
+	std::vector<int> growExterior(int startIndx, int roomnum, helperCluster* cluster);
 
 	// generates the faces of the voxel that are needed to create a rough room shape
 	std::vector<TopoDS_Face> getPartialFaces(std::vector<int> roomIndx, int voxelIndx);
@@ -138,30 +138,19 @@ private:
 
 	void outputFieldToFile();
 
-	void createGraph(helperCluster* cluster);
-
 	std::vector<TopoDS_Shape> getTopObjects(helperCluster* cluster);
 	std::vector<int> getTopBoxelIndx();
 
-	// returns vector with: semanticName, semanticLongName, semanticDescription
-	std::vector<std::string> getSemanticMatch(std::vector< IfcSchema::IfcSpace*> semanticSources, int roomNum);
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
+
+public:
+	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
 
 	CJT::GeoObject* makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-
 	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-
 	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-
-public:
-
-	explicit voxelfield(helperCluster* cluster, bool isFlat = true);
-
-	void makeRooms(helperCluster* cluster);
-
-	void writeGraph(std::string path);
 
 };

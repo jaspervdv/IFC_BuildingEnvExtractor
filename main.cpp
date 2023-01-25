@@ -38,11 +38,11 @@ std::vector<std::string> GetSources() {
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
-	"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
-	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
+	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
@@ -555,8 +555,44 @@ int main(int argc, char** argv) {
 	}
 
 	auto startTime = std::chrono::high_resolution_clock::now();
-	voxelfield* field = new voxelfield(hCluster); // TODO: find something smarter for this
-	field->makeRooms(hCluster);
+	CJGeoCreator* geoCreator = new CJGeoCreator(hCluster);
+
+	CJT::CityCollection* collection = new CJT::CityCollection;
+	CJT::ObjectTransformation transformation(0.001);
+	CJT::metaDataObject* metaData = new CJT::metaDataObject;
+	metaData->setTitle("env ext export");
+	collection->setTransformation(transformation);
+	collection->setMetaData(metaData);
+	collection->setVersion("1.1");
+
+	CJT::Kernel* kernel = new CJT::Kernel(collection);
+
+	CJT::CityObject* cityObject = new CJT::CityObject;
+	cityObject->setName("test");
+	cityObject->setType(CJT::Building_Type::Building);
+
+	CJT::GeoObject* geo00 = geoCreator->makeLoD00(hCluster, collection, kernel, 1);
+	cityObject->addGeoObject(geo00);
+	std::vector<CJT::GeoObject*> geo02 = geoCreator->makeLoD02(hCluster, collection, kernel, 1);
+	for (size_t i = 0; i < geo02.size(); i++) { cityObject->addGeoObject(geo02[i]); }
+	CJT::GeoObject* geo10 = geoCreator->makeLoD10(hCluster, collection, kernel, 1);
+	cityObject->addGeoObject(geo10);
+	std::vector<CJT::GeoObject*> geo12 = geoCreator->makeLoD12(hCluster, collection, kernel, 1);
+	for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
+	//CJT::GeoObject* geo32 = makeLoD32(cluster, collection, kernel, unitScale);
+	//cityObject->addGeoObject(geo32);
+
+	collection->addCityObject(cityObject);
+	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.city.json");
+
+	delete kernel;
+	delete collection;
+	delete metaData;
+	delete cityObject;
+
+	std::cout << std::endl;
+	std::cout << std::endl;
+
 
 	auto endTime = std::chrono::high_resolution_clock::now();
 	std::cout << "computing time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;

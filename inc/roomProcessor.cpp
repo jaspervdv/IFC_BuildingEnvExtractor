@@ -658,168 +658,6 @@ std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, 
 	return outerEdgeList;
 }
 
-void voxelfield::createGraph(helperCluster* cluster) {
-	// update data to outside 
-	int cSize = cluster->getSize();
-
-	// create outside object
-	roomObject* outsideObject = new roomObject(nullptr, roomObjectList_.size());
-	outsideObject->setIsOutSide();
-
-	//roomObjectList.emplace_back(outsideObject);
-	roomObjectList_.insert(roomObjectList_.begin(), outsideObject);
-
-	for (size_t i = 0; i < cSize; i++)
-	{
-		std::vector<ConnectLookupValue> lookup =  cluster->getHelper(i)->getFullClookup();
-
-		for (size_t j = 0; j < lookup.size(); j++)
-		{
-			if (std::get<2>(lookup[j])->size() == 1)
-			{
-				std::vector<gp_Pnt> doorPointList = cluster->getHelper(i)->getObjectPoints(std::get<0>(lookup[j]));
-
-				double lowZ = 99999999999;
-				for (size_t k = 0; k < doorPointList.size(); k++)
-				{
-					double pZ = doorPointList[k].Z();
-					if (pZ < lowZ) { lowZ = pZ; }
-				}
-
-				if (lowZ < 2 && lowZ > -0.5) //TODO door height needs to be smarter
-				{
-					std::get<2>(lookup[j])[0][0]->addConnection(outsideObject);
-				}
-			}
-		}
-	}
-	 
-	// Make sections
-	int counter = 0;
-
-	std::vector<roomObject*> bufferList;
-
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		roomObject* currentRoom = roomObjectList_[i];
-
-		if (!currentRoom->isInside())
-		{
-			currentRoom->setSNum(-2);
-			continue;
-		}
-
-		if (currentRoom->getConnections().size() != 1) { continue; } // always start isolated
-		if (currentRoom->getSNum() != -1) { continue; }
-
-		bufferList.emplace_back(currentRoom);
-		currentRoom->setSNum(counter);
-
-		double totalAreaApartment = 0;
-
-		std::vector<roomObject*> waitingList;
-		std::vector<roomObject*> currentApp;
-		std::vector<roomObject*> recurseList;
-
-		// growing of an appartement
-		while (bufferList.size() > 0)
-		{
-			std::vector<roomObject*> tempBufferList;
-			tempBufferList.clear();
-
-			for (size_t j = 0; j < bufferList.size(); j++)
-			{
-				roomObject* evaluatedRoom = bufferList[j];
-				std::vector<roomObject*> connections = evaluatedRoom->getConnections();
-
-				if (evaluatedRoom->getDoorCount() >= hallwayNum_)
-				{
-					waitingList.emplace_back(evaluatedRoom);
-					continue;
-				}
-				currentApp.emplace_back(evaluatedRoom);
-
-				totalAreaApartment += evaluatedRoom->getArea();
-
-				for (size_t k = 0; k < connections.size(); k++)
-				{
-					if (connections[k]->getSNum() == -1 && connections[k]->isInside())
-					{
-						connections[k]->setSNum(counter);
-						tempBufferList.emplace_back(connections[k]);
-					}
-					else if (connections[k]->getSNum() >= 0 && connections[k]->getSNum() != counter)
-					{
-						recurseList.emplace_back(connections[k]);
-					}
-				}
-			}
-
-			if (tempBufferList.size() == 0)
-			{
-				if (totalAreaApartment < minArea_ ||
-					currentApp.size() < minRoom_)
-				{
-					for (size_t j = 0; j < waitingList.size(); j++)
-					{
-						roomObject* evaluatedRoom = waitingList[j];
-						currentApp.emplace_back(evaluatedRoom);
-						totalAreaApartment += evaluatedRoom->getArea();
-						std::vector<roomObject*> connections = evaluatedRoom->getConnections();
-
-						for (size_t k = 0; k < connections.size(); k++)
-						{
-							if (connections[k]->getSNum() == -1 && connections[k]->isInside())
-							{
-								connections[k]->setSNum(counter);
-								tempBufferList.emplace_back(connections[k]);
-							}
-							else if (connections[k]->getSNum() >= 0 && connections[k]->getSNum() != counter)
-							{
-								recurseList.emplace_back(connections[k]);
-							}
-						}
-					}
-				}
-				else if (totalAreaApartment > minArea_)
-				{
-					for (size_t j = 0; j < waitingList.size(); j++)
-					{
-						waitingList[j]->setSNum(-1);
-					}
-				}
-				waitingList.clear();
-			}
-
-			if (tempBufferList.size() == 0)
-			{
-				if (recurseList.size() != 0) {
-					for (size_t j = 0; j < currentApp.size(); j++)
-					{
-						currentApp[j]->setSNum(recurseList[0]->getSNum());
-					}
-				}
-				recurseList.clear();
-			}
-
-			bufferList.clear();
-			bufferList = tempBufferList;
-		}
-		currentApp.clear();
-		counter++;
-		totalAreaApartment = 0;
-	}
-
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		roomObject* currentRoom = roomObjectList_[i];
-		if (currentRoom->isInside())
-		{
-			currentRoom->getSelf()->setDescription(currentRoom->getSelf()->Description() + "apartment: " + std::to_string(currentRoom->getSNum()));
-		}
-	}
-}
-
 
 TopoDS_Face makeFace(std::vector<gp_Pnt> voxelPointList, std::vector<int> pointFaceIndx) {
 	gp_Pnt p0(voxelPointList[pointFaceIndx[0]]);
@@ -837,14 +675,14 @@ TopoDS_Face makeFace(std::vector<gp_Pnt> voxelPointList, std::vector<int> pointF
 }
 
 template<typename T>
-T voxelfield::linearToRelative(int i) {
+T CJGeoCreator::linearToRelative(int i) {
 	double x = i % xRelRange_;
 	double z = round(i / (xRelRange_ * yRelRange_)) - round(i / (xRelRange_ * yRelRange_) % 1);
 	double y = (i - x) / xRelRange_ - z * yRelRange_;
 
 	return T(x, y, z);
 }
-std::vector<int> voxelfield::getNeighbours(int voxelIndx, bool connect6)
+std::vector<int> CJGeoCreator::getNeighbours(int voxelIndx, bool connect6)
 {
 	std::vector<int> neightbours;
 	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
@@ -929,7 +767,7 @@ std::vector<int> voxelfield::getNeighbours(int voxelIndx, bool connect6)
 }
 
 
-BoostPoint3D voxelfield::relPointToWorld(BoostPoint3D p)
+BoostPoint3D CJGeoCreator::relPointToWorld(BoostPoint3D p)
 {
 	double xCoord = anchor_.X() + (bg::get<0>(p) * voxelSize_);
 	double yCoord = anchor_.Y() + (bg::get<1>(p) * voxelSize_);
@@ -938,7 +776,7 @@ BoostPoint3D voxelfield::relPointToWorld(BoostPoint3D p)
 	return BoostPoint3D(xCoord, yCoord, zCoord);
 }
 
-BoostPoint3D voxelfield::relPointToWorld(int px, int py, int pz)
+BoostPoint3D CJGeoCreator::relPointToWorld(int px, int py, int pz)
 {
 	double xCoord = px * voxelSize_ + voxelSize_ / 2;
 	double yCoord = py * voxelSize_ + voxelSize_ / 2;
@@ -947,7 +785,7 @@ BoostPoint3D voxelfield::relPointToWorld(int px, int py, int pz)
 	return BoostPoint3D(xCoord, yCoord, zCoord);
 }
 
-std::vector<TopoDS_Face> voxelfield::getPartialFaces(std::vector<int> roomIndx, int voxelIndx)
+std::vector<TopoDS_Face> CJGeoCreator::getPartialFaces(std::vector<int> roomIndx, int voxelIndx)
 {
 	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
 
@@ -986,7 +824,7 @@ std::vector<TopoDS_Face> voxelfield::getPartialFaces(std::vector<int> roomIndx, 
 	return faceList;
 }
 
-TopoDS_Face voxelfield::getLowestFace(TopoDS_Shape shape)
+TopoDS_Face CJGeoCreator::getLowestFace(TopoDS_Shape shape)
 {
 	TopExp_Explorer expl;
 	std::vector<TopoDS_Face> faceList;
@@ -1019,14 +857,14 @@ TopoDS_Face voxelfield::getLowestFace(TopoDS_Shape shape)
 }
 
 
-void voxelfield::addVoxel(int indx, helperCluster* cluster)
+void CJGeoCreator::addVoxel(int indx, helperCluster* cluster)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSizeZ_);
 	VoxelLookup_.emplace(indx, boxel);
 }
 
-void voxelfield::outputFieldToFile()
+void CJGeoCreator::outputFieldToFile()
 {
 	std::ofstream storageFile;
 	storageFile.open("D:/Documents/Uni/Thesis/sources/Models/exports/voxels.txt");
@@ -1053,7 +891,7 @@ void voxelfield::outputFieldToFile()
 	storageFile.close();
 }
 
-std::vector<TopoDS_Shape> voxelfield::getTopObjects(helperCluster* cluster)
+std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 {
 	std::vector<int> boxelIdx = getTopBoxelIndx();
 	std::vector<IfcSchema::IfcProduct*> topProducts;
@@ -1130,7 +968,7 @@ std::vector<TopoDS_Shape> voxelfield::getTopObjects(helperCluster* cluster)
 	return topObjects;
 }
 
-std::vector<int> voxelfield::getTopBoxelIndx() {
+std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
 	std::vector<int> voxelIndx;
 
@@ -1142,7 +980,7 @@ std::vector<int> voxelfield::getTopBoxelIndx() {
 
 }
 
-std::vector<TopoDS_Face> voxelfield::getXYFaces(TopoDS_Shape shape) {
+std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	
 	std::vector<TopoDS_Face> faceList;
 	
@@ -1218,7 +1056,7 @@ std::vector<TopoDS_Face> voxelfield::getXYFaces(TopoDS_Shape shape) {
 	return cleanedFaceList;
 }
 
-CJT::GeoObject* voxelfield::makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	gp_Pnt lll = cluster->getLllPoint();
 	gp_Pnt urr = cluster->getUrrPoint();
@@ -1242,7 +1080,7 @@ CJT::GeoObject* voxelfield::makeLoD00(helperCluster* cluster, CJT::CityCollectio
 	return geoObject;
 }
 
-std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	// get slabs and walls
 	std::vector<TopoDS_Face> shapeList;
@@ -1404,7 +1242,7 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD02(helperCluster* cluster, CJT:
 	return geoObjectList;
 }
 
-CJT::GeoObject* voxelfield::makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	gp_Pnt lll = cluster->getLllPoint();
 	gp_Pnt urr = cluster->getUrrPoint();
@@ -1459,7 +1297,7 @@ CJT::GeoObject* voxelfield::makeLoD10(helperCluster* cluster, CJT::CityCollectio
 	return geoObject;
 }
 
-std::vector< CJT::GeoObject*> voxelfield::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	if (!hasFootPrint_)
 	{
@@ -1522,7 +1360,7 @@ std::vector< CJT::GeoObject*> voxelfield::makeLoD12(helperCluster* cluster, CJT:
 	return geoObjectList;
 }
 
-CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
 	// asign rooms
 	int roomnum = 0;
@@ -1536,7 +1374,7 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 	{
 		if (!VoxelLookup_[i]->getIsIntersecting())
 		{
-			totalRoom = growRoom(i, roomnum, cluster);
+			totalRoom = growExterior(i, roomnum, cluster);
 			break;
 		}
 	}
@@ -1811,7 +1649,7 @@ CJT::GeoObject* voxelfield::makeLoD32(helperCluster* cluster, CJT::CityCollectio
 	return geoObject;
 }
 
-voxelfield::voxelfield(helperCluster* cluster, bool isFlat)
+CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
 {
 	// ask user for desired voxel dimensions
 
@@ -1922,174 +1760,8 @@ voxelfield::voxelfield(helperCluster* cluster, bool isFlat)
 
 
 }
-
-void voxelfield::writeGraph(std::string path)
-{
-	// output the graph data
-	std::string p = path;
-
-	std::ofstream storageFile;
-	storageFile.open(path);
-
-	storageFile << "_pointList_" << std::endl;
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		gp_Pnt p = roomObjectList_[i]->getPoint();
-		storageFile << p.X() << ", " << p.X() << ", " << p.Z() << std::endl;
-	}
-	storageFile << "_name_" << std::endl;
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		if (roomObjectList_[i]->isInside())
-		{
-			if (roomObjectList_[i]->getSelf()->hasLongName()) { storageFile << roomObjectList_[i]->getSelf()->LongName() << std::endl; }
-			else { storageFile << roomObjectList_[i]->getSelf()->Name() << std::endl; }
-		}
-		else
-		{
-			storageFile << "Outside" << std::endl;
-		}
-	}
-
-	storageFile << "_area_" << std::endl;
-	storageFile << 100 << std::endl;
-	for (size_t i = 0; i < roomAreaList_.size(); i++)
-	{
-		storageFile << roomAreaList_[i] << std::endl;
-	}
-
-	storageFile << "_connection_" << std::endl;
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		auto connections = roomObjectList_[i]->getConnections();
-
-		for (size_t j = 0; j < connections.size(); j++)
-		{
-			if (roomObjectList_[i]->getIdx() + 1 >= roomObjectList_.size())
-			{
-				storageFile << 0 << ", " << connections[j]->getIdx() + 1 << std::endl;
-			}
-			else if (connections[j]->getIdx() + 1 >= roomObjectList_.size())
-			{
-				storageFile << roomObjectList_[i]->getIdx() + 1 << ", " << 0 << std::endl;
-			}
-			else
-			{
-				storageFile << roomObjectList_[i]->getIdx() + 1 << ", " << connections[j]->getIdx() + 1 << std::endl;
-			}
-
-		}
-	}
-
-	storageFile << "_sections_" << std::endl;
-	for (size_t i = 0; i < roomObjectList_.size(); i++)
-	{
-		storageFile << roomObjectList_[i]->getSNum() << std::endl;
-	}
-
-}
-
-std::vector<std::string> voxelfield::getSemanticMatch(std::vector<IfcSchema::IfcSpace*> semanticSources, int roomNum)
-{
-	// unload semantic data
-	double semanticListLenght = semanticSources.size();
-
-	std::string semanticName = "Automatic Space " + std::to_string(roomNum);
-	std::string semanticLongName = "Automatic Space " + std::to_string(roomNum);
-	std::string semanticDescription = "";
-
-	if (semanticListLenght > 0)
-	{
-		IfcSchema::IfcSpace* matchingSpaceObject = semanticSources[0];
-		if (matchingSpaceObject->hasName()) { semanticName = matchingSpaceObject->Name(); }
-		if (matchingSpaceObject->hasLongName()) { semanticLongName = matchingSpaceObject->LongName(); }
-		if (matchingSpaceObject->hasDescription()) { semanticDescription = matchingSpaceObject->Description(); }
-
-		if (semanticListLenght > 1) // find solution for when multiple semantic data is found
-		{
-			IfcSchema::IfcSpace* matchingSpaceObject = semanticSources[1];
-			if (matchingSpaceObject->hasName()) { semanticName = semanticName + " (" + matchingSpaceObject->Name(); }
-			if (matchingSpaceObject->hasLongName()) { semanticLongName = semanticLongName + " (" + matchingSpaceObject->LongName(); }
-			if (matchingSpaceObject->hasDescription()) { semanticDescription = semanticDescription + " (" + matchingSpaceObject->Description(); }
-
-			for (size_t j = 2; j < semanticListLenght; j++)
-			{
-				IfcSchema::IfcSpace* matchingSpaceObject = semanticSources[j];
-				if (j == semanticListLenght - 1)
-				{
-					if (matchingSpaceObject->hasName()) { semanticName = semanticName + " & " + matchingSpaceObject->Name() + ")"; }
-					if (matchingSpaceObject->hasLongName()) { semanticLongName = semanticLongName + " & " + matchingSpaceObject->LongName() + ")"; }
-					if (matchingSpaceObject->hasDescription()) { semanticDescription = semanticDescription + " & " + matchingSpaceObject->Description() + ")"; }
-				}
-				else {
-					if (matchingSpaceObject->hasName()) { semanticName = semanticName + ", " + matchingSpaceObject->Name(); }
-					if (matchingSpaceObject->hasLongName()) { semanticLongName = semanticLongName + ", " + matchingSpaceObject->LongName(); }
-					if (matchingSpaceObject->hasDescription()) { semanticDescription = semanticDescription + ", " + matchingSpaceObject->Description(); }
-				}
-			}
-		}
-	}
-
-	return { semanticName, semanticLongName, semanticDescription } ;
-
-}
-
-void voxelfield::makeRooms(helperCluster* cluster)
-{
-	int cSize = cluster->getSize();
-	double unitScale = 1;
-
-	// find helper containing the room objects
-	for (size_t i = 0; i < cSize; i++)
-	{
-		if (cluster->getHelper(i)->getHasRoom())
-		{
-			unitScale = 1 / cluster->getHelper(i)->getLengthMultiplier();
-			break;
-		}
-	}
-
-
-	CJT::CityCollection* collection = new CJT::CityCollection;
-	CJT::ObjectTransformation transformation(0.001);
-	CJT::metaDataObject* metaData = new CJT::metaDataObject;
-	metaData->setTitle("env ext export");
-	collection->setTransformation(transformation);
-	collection->setMetaData(metaData);
-	collection->setVersion("1.1");
-
-	CJT::Kernel* kernel = new CJT::Kernel(collection);
-
-	CJT::CityObject* cityObject = new CJT::CityObject;
-	cityObject->setName("test");
-	cityObject->setType(CJT::Building_Type::Building);
-
-	CJT::GeoObject* geo00 = makeLoD00(cluster, collection, kernel, unitScale);
-	cityObject->addGeoObject(geo00);
-	std::vector<CJT::GeoObject*> geo02 = makeLoD02(cluster, collection, kernel, unitScale);
-	for (size_t i = 0; i < geo02.size(); i++){cityObject->addGeoObject(geo02[i]);}
-	CJT::GeoObject* geo10 = makeLoD10(cluster, collection, kernel, unitScale);
-	cityObject->addGeoObject(geo10);
-	std::vector<CJT::GeoObject*> geo12 = makeLoD12(cluster, collection, kernel, unitScale);
-	for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
-	//CJT::GeoObject* geo32 = makeLoD32(cluster, collection, kernel, unitScale);
-	//cityObject->addGeoObject(geo32);
-
-	collection->addCityObject(cityObject); 
-	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.city.json");
-
-	delete kernel;
-	delete collection;
-	delete metaData;
-	delete cityObject;
-
-	std::cout << std::endl;
-	std::cout << std::endl;
-
-	return;
-}
 	
-std::vector<int> voxelfield::growRoom(int startIndx, int roomnum, helperCluster* cluster)
+std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCluster* cluster)
 {
 	std::vector<int> buffer = { startIndx };
 	std::vector<int> totalRoom = { startIndx };
