@@ -50,14 +50,12 @@ gp_Vec getDirEdge(TopoDS_Edge edge) {
 }
 
 
-gp_Pnt* linearLineIntersection(TopoDS_Edge edge1, TopoDS_Edge edge2) {
-	std::tuple<gp_Pnt, gp_Pnt> points1 = getPointsEdge(edge1);
-	std::tuple<gp_Pnt, gp_Pnt> points2 = getPointsEdge(edge2);
+gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2) {
 
-	gp_Pnt sP1 = std::get<0>(points1);
-	gp_Pnt eP1 = std::get<1>(points1);
-	gp_Pnt sP2 = std::get<0>(points2);
-	gp_Pnt eP2 = std::get<1>(points2);
+	gp_Pnt sP1 = edge1->getProjectedStart();
+	gp_Pnt eP1 = edge1->getProjectedEnd();
+	gp_Pnt sP2 = edge2->getProjectedStart();
+	gp_Pnt eP2 = edge2->getProjectedEnd();
 
 	gp_Vec v1(sP1, eP1);
 	v1.Normalize();
@@ -90,8 +88,8 @@ gp_Pnt* linearLineIntersection(TopoDS_Edge edge1, TopoDS_Edge edge2) {
 	double yI = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / (dom);
 	double buffer = 0.01;
 	
-	if (x1 == xI && y1 == yI ||
-		x2 == xI && y2 == yI 
+	if (x1 - 0.001 < xI && x1 + 0.001 > xI && y1 - 0.001 < yI && y1 + 0.001 > yI ||
+		x2 - 0.001 < xI && x2 + 0.001 > xI && y2 - 0.001 < yI && y2 + 0.001 > yI
 		)
 	{
 		return nullptr;
@@ -117,10 +115,9 @@ gp_Pnt* linearLineIntersection(TopoDS_Edge edge1, TopoDS_Edge edge2) {
 	return nullptr;
 }
 
-std::vector<TopoDS_Edge> removeDubEdges(TopoDS_Shape flattenedEdges)
-{
-	std::vector<TopoDS_Edge> edgeList;
 
+void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
+{
 	TopExp_Explorer expl;
 	for (expl.Init(flattenedEdges, TopAbs_EDGE); expl.More(); expl.Next())
 	{
@@ -130,11 +127,10 @@ std::vector<TopoDS_Edge> removeDubEdges(TopoDS_Shape flattenedEdges)
 		gp_Pnt endPoint = std::get<1>(points);
 
 		bool dub = false;
-		for (size_t i = 0; i < edgeList.size(); i++)
+		for (size_t i = 0; i < edgeList_.size(); i++)
 		{
-			std::tuple<gp_Pnt, gp_Pnt> otherPoints = getPointsEdge(edgeList[i]);
-			gp_Pnt otherStartPoint = std::get<0>(otherPoints);
-			gp_Pnt otherEndPoint = std::get<1>(otherPoints);
+			gp_Pnt otherStartPoint = edgeList_[i]->getProjectedStart();
+			gp_Pnt otherEndPoint = edgeList_[i]->getProjectedEnd();
 
 			if (startPoint.IsEqual(otherStartPoint, 0.0001) && endPoint.IsEqual(otherEndPoint, 0.0001) ||
 				endPoint.IsEqual(otherStartPoint, 0.0001) && startPoint.IsEqual(otherEndPoint, 0.0001))
@@ -144,29 +140,29 @@ std::vector<TopoDS_Edge> removeDubEdges(TopoDS_Shape flattenedEdges)
 		}
 		if (!dub)
 		{
-			edgeList.emplace_back(currentEdge);
+			edgeList_.emplace_back(new Edge(currentEdge));
 		}
 	}
-
-	return edgeList;
 }
 
 
-std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList) {
+void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceList) 
+{
 	
 	double buffer = 0.01; //TODO: have it scale with units
+	std::vector<int> discardIndx;
+
 	TopExp_Explorer expl;
 	// merge lines that are on the same plane
-	std::vector<TopoDS_Edge> cleanedEdgeList;
-	std::vector<int> evalList(edgeList.size());
-	for (size_t i = 0; i < edgeList.size(); i++)
+	std::vector<Edge*> cleanedEdgeList;
+	std::vector<int> evalList(edgeList_.size());
+	for (size_t i = 0; i < edgeList_.size(); i++)
 	{
 		if (evalList[i] == 1) { continue; }
 		evalList[i] = 1;
 
-		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(edgeList[i]);
-		gp_Pnt startPoint = std::get<0>(points);
-		gp_Pnt endPoint = std::get<1>(points);
+		gp_Pnt startPoint = edgeList_[i]->getProjectedStart();
+		gp_Pnt endPoint = edgeList_[i]->getProjectedEnd();
 		gp_Lin2d line = gce_MakeLin2d(
 			gp_Pnt2d(startPoint.X(), startPoint.Y()),
 			gp_Pnt2d(endPoint.X(), endPoint.Y())
@@ -178,15 +174,13 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 		std::vector<gp_Pnt> mergeList;
 		std::vector<int> evalIndxList;
 
-
-		for (size_t j = 0; j < edgeList.size(); j++)
+		for (size_t j = 0; j < edgeList_.size(); j++)
 		{
 			if (i == j) { continue; }
 			if (evalList[j] == 1) { continue; }
 
-			std::tuple<gp_Pnt, gp_Pnt> otherPoints = getPointsEdge(edgeList[j]);
-			gp_Pnt otherStartPoint = std::get<0>(otherPoints);
-			gp_Pnt otherEndPoint = std::get<1>(otherPoints);
+			gp_Pnt otherStartPoint = edgeList_[j]->getProjectedStart();
+			gp_Pnt otherEndPoint = edgeList_[j]->getProjectedEnd();
 
 			gp_Vec2d otherDir(gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()), gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y()));
 			otherDir.Normalize();
@@ -221,10 +215,15 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 			evalList[i] = 1;
 			if (startPoint.Distance(endPoint) > 0.1) //TODO: make smarter
 			{
-				cleanedEdgeList.emplace_back(edgeList[i]);
+				//if (isOuterEdge(edgeList[i], flatFaceList))
+				//{
+					cleanedEdgeList.emplace_back(edgeList_[i]);
+				//}
 			}
 			continue;
 		}
+
+		discardIndx.emplace_back(i);
 
 		// flip main merging ege
 		if (abs(dir.X()) >= abs(dir.Y()))
@@ -256,9 +255,8 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 
 				if (evalList[edgeIdx] == 1) { continue; }
 
-				std::tuple<gp_Pnt, gp_Pnt> otherPoints = getPointsEdge(edgeList[edgeIdx]);
-				gp_Pnt otherStartPoint = std::get<0>(otherPoints);
-				gp_Pnt otherEndPoint = std::get<1>(otherPoints);
+				gp_Pnt otherStartPoint = edgeList_[edgeIdx]->getProjectedStart();
+				gp_Pnt otherEndPoint = edgeList_[edgeIdx]->getProjectedEnd();
 
 				if (abs(dir.X()) >= abs(dir.Y()))
 				{
@@ -292,6 +290,15 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 					x4 = otherEndPoint.Y();
 				}
 
+				if (x3 - buffer <= x1 && x2 <= x4 + buffer)
+				{
+					evalList[edgeIdx] = 1;
+					startPoint = otherStartPoint;
+					endPoint = otherEndPoint;
+					grow++;
+					continue;
+				}
+
 				if (!( //No overlap
 					x1 - buffer <= x3 && x3 <= x2 + buffer ||
 					x1 - buffer <= x4 && x4 <= x2 + buffer)
@@ -303,15 +310,6 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 				if (x1 - buffer <= x3 && x4 <= x2 + buffer)
 				{
 					evalList[edgeIdx] = 1;
-					continue;
-				}
-
-				if (x3 - buffer <= x1 && x2 <= x4 + buffer)
-				{
-					evalList[edgeIdx] = 1;
-					startPoint = otherStartPoint;
-					endPoint = otherEndPoint;
-					grow++;
 					continue;
 				}
 
@@ -344,7 +342,6 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 					x3 - buffer < x1 && x3 < x2 + buffer)
 				{
 					evalList[edgeIdx] = 1;
-					evalList[edgeIdx] = 1;
 					startPoint = otherStartPoint;
 					grow++;
 					continue;
@@ -360,35 +357,43 @@ std::vector<TopoDS_Edge> mergeOverlappingEdges(std::vector<TopoDS_Edge> edgeList
 		evalIndxList.clear();
 
 		TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(startPoint, endPoint);
-		cleanedEdgeList.emplace_back(edge);
+		cleanedEdgeList.emplace_back(new Edge(edge));
 	}
-	return cleanedEdgeList;
+
+	for (size_t i = 0; i < discardIndx.size(); i++) { delete edgeList_[discardIndx[i]]; }
+	edgeList_ = cleanedEdgeList;
 }
 
 
-std::vector<TopoDS_Edge> splitIntersectingEdges(std::vector<TopoDS_Edge> edgeList) {
+void CJGeoCreator::splitIntersectingEdges() {
 	
-	std::vector<TopoDS_Edge> splitEdgeList;
+	std::vector<Edge*> splitEdgeList;
+	std::vector<int> discardIndx;
 	
-	for (size_t i = 0; i < edgeList.size(); i++)
+	for (size_t i = 0; i < edgeList_.size(); i++)
 	{
 		std::vector<gp_Pnt*> intPoints;
-		std::tuple<gp_Pnt, gp_Pnt> points = getPointsEdge(edgeList[i]);
-		gp_Pnt startPoint = std::get<0>(points);
-		gp_Pnt endPoint = std::get<1>(points);
-		//printPoint(startPoint);
-		//printPoint(endPoint);
+		gp_Pnt startPoint = edgeList_[i]->getProjectedStart();
+		gp_Pnt endPoint = edgeList_[i]->getProjectedEnd();
 
-		for (size_t j = 0; j < edgeList.size(); j++)
+		for (size_t j = 0; j < edgeList_.size(); j++)
 		{
 			if (i == j) { continue; }
-			gp_Pnt* intersection = linearLineIntersection(edgeList[i], edgeList[j]);
+			gp_Pnt* intersection = linearLineIntersection(edgeList_[i], edgeList_[j]);
 
 			if (intersection == nullptr) { continue; }
+
 
 			intPoints.emplace_back(intersection);
 			//printPoint(*intersection);
 		}
+
+		if (intPoints.size() == 0) 
+		{ 
+			splitEdgeList.emplace_back(edgeList_[i]); 
+			continue;
+		}
+		discardIndx.emplace_back(i);
 
 		std::vector<gp_Pnt*> cleanedPoints;
 		for (size_t j = 0; j < intPoints.size(); j++)
@@ -396,7 +401,7 @@ std::vector<TopoDS_Edge> splitIntersectingEdges(std::vector<TopoDS_Edge> edgeLis
 			bool dub = false;
 			for (size_t k = 0; k < cleanedPoints.size(); k++)
 			{
-				if (intPoints[j]->IsEqual(*cleanedPoints[k], 0.0001))
+				if (intPoints[j]->IsEqual(*cleanedPoints[k], 0.001))
 				{
 					dub = true;
 					break;
@@ -442,7 +447,7 @@ std::vector<TopoDS_Edge> splitIntersectingEdges(std::vector<TopoDS_Edge> edgeLis
 				}
 
 				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, *cleanedPoints[nextPoint]);
-				splitEdgeList.emplace_back(edge);
+				splitEdgeList.emplace_back(new Edge(edge));
 				currentPoint = *cleanedPoints[nextPoint];
 
 			}
@@ -452,12 +457,14 @@ std::vector<TopoDS_Edge> splitIntersectingEdges(std::vector<TopoDS_Edge> edgeLis
 					break;
 				}
 				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, endPoint);
-				splitEdgeList.emplace_back(edge);
+				splitEdgeList.emplace_back(new Edge(edge));
 				break;
 			}
 		}
 	}
-	return splitEdgeList;
+	
+	for (size_t i = 0; i < discardIndx.size(); i++) { delete edgeList_[discardIndx[i]]; }
+	edgeList_ = splitEdgeList;
 }
 
 
@@ -556,7 +563,8 @@ TopoDS_Face CJGeoCreator::getFlatFace(TopoDS_Face face) {
 }
 
 
-std::vector<TopoDS_Edge> CJGeoCreator::makeJumbledGround(std::vector<TopoDS_Face> faceList) {
+void CJGeoCreator::makeJumbledGround() {
+	
 	gp_Ax2 axis(
 		gp_Pnt(0, 0, 0), 
 		gp_Dir(0, 0, 100)
@@ -564,106 +572,113 @@ std::vector<TopoDS_Edge> CJGeoCreator::makeJumbledGround(std::vector<TopoDS_Face
 	HLRBRep_Algo* Edgeprojector = new HLRBRep_Algo();
 	Edgeprojector->Projector(HLRAlgo_Projector(axis));
 	
-	for (size_t i = 0; i < faceList.size(); i++) { Edgeprojector->Add(faceList[i]); }
+	for (size_t i = 0; i < faceList_.size(); i++) { Edgeprojector->Add(*faceList_[i]); }
 
 	Edgeprojector->Update();
 	HLRBRep_HLRToShape projectToShape(Edgeprojector);
+
 	TopoDS_Shape flattenedEdges = projectToShape.CompoundOfEdges(HLRBRep_Undefined, true, false);
-	std::vector<TopoDS_Edge> edgeList = removeDubEdges(flattenedEdges);
-	edgeList = mergeOverlappingEdges(edgeList);
-	std::vector<TopoDS_Edge> splitEdgeList = splitIntersectingEdges(edgeList);
-	return splitEdgeList;
+	removeDubEdges(flattenedEdges);
+	mergeOverlappingEdges();
+	splitIntersectingEdges();
 }
 
-std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, std::vector<TopoDS_Face> flatFaceList) {
-	std::vector<TopoDS_Edge> outerEdgeList;
+bool CJGeoCreator::isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList)
+{
+	gp_Pnt startPoint = currentEdge->getProjectedStart();
+	gp_Pnt endPoint = currentEdge->getProjectedEnd();
 
-	TopExp_Explorer expl;
-	for (size_t ii = 0; ii < jumbledSurface.size(); ii++)
+	if (startPoint.IsEqual(endPoint, 0.0001))
 	{
-		TopoDS_Edge currentEdge = jumbledSurface[ii];
-		int counter = 0;
+		return false;
+	}
 
-		std::tuple<gp_Pnt, gp_Pnt> edgePoints = getPointsEdge(currentEdge);
+	gp_Pnt2d middlePoint = gp_Pnt2d(
+		(endPoint.X() + startPoint.X()) / 2,
+		(endPoint.Y() + startPoint.Y()) / 2
+	);
 
-		gp_Pnt startPoint = std::get<0>(edgePoints);
-		gp_Pnt endPoint = std::get<1>(edgePoints);
+	gp_Vec2d lineVec = gp_Vec2d(
+		gp_Pnt2d(startPoint.X(), startPoint.Y()),
+		gp_Pnt2d(endPoint.X(), endPoint.Y())
+	);
+	lineVec.Normalize();
+	double div = 1000; // TODO: get set distance working
+	gp_Pnt2d evalPoint1 = middlePoint.Translated(gp_Vec2d(lineVec.Y() * -1 / div, lineVec.X() / div));
+	gp_Pnt2d evalPoint2 = middlePoint.Translated(gp_Vec2d(lineVec.Y() / div, lineVec.X() * -1 / div));
 
-		if (startPoint.IsEqual(endPoint, 0.0001))
+	bool hasEval1 = false;
+	bool hasEval2 = false;
+	for (size_t i = 0; i < flatFaceList.size(); i++)
+	{
+		TopoDS_Face* evalFace = flatFaceList[i];
+		if (!hasEval1)
 		{
-			continue;
-		}
+			BRepExtrema_DistShapeShape distanceCalc(
+				*evalFace,
+				BRepBuilderAPI_MakeVertex(
+					gp_Pnt(
+						evalPoint1.X(),
+						evalPoint1.Y(),
+						0
+					)
+				).Vertex());
 
-		gp_Pnt2d middlePoint = gp_Pnt2d(
-			(endPoint.X() + startPoint.X()) / 2,
-			(endPoint.Y() + startPoint.Y()) / 2
-		);
+			distanceCalc.Perform();
+			double distance = distanceCalc.Value();
 
-		gp_Vec2d lineVec = gp_Vec2d(
-			gp_Pnt2d(startPoint.X(), startPoint.Y()), 
-			gp_Pnt2d(endPoint.X(), endPoint.Y())
-			);
-		lineVec.Normalize();
-		double div = 100;
-		gp_Pnt2d evalPoint1 = middlePoint.Translated(gp_Vec2d(lineVec.Y() * -1 / div, lineVec.X() / div));
-		gp_Pnt2d evalPoint2 = middlePoint.Translated(gp_Vec2d(lineVec.Y() / div, lineVec.X() * -1 / div));
-
-		bool hasEval1 = false;
-		bool hasEval2 = false;
-		for (size_t i = 0; i < flatFaceList.size(); i++)
-		{
-			TopoDS_Face evalFace = flatFaceList[i];
-			if (!hasEval1)
+			if (distance < 0.0001)
 			{
-				BRepExtrema_DistShapeShape distanceCalc(
-					evalFace,
-					BRepBuilderAPI_MakeVertex(
-						gp_Pnt(
-							evalPoint1.X(),
-							evalPoint1.Y(),
-							0
-						)
-					).Vertex());
-
-				distanceCalc.Perform();
-				double distance = distanceCalc.Value();
-
-				if (distance < 0.0001)
-				{
-					hasEval1 = true;
-				}
-			}
-
-			if (!hasEval2)
-			{
-				BRepExtrema_DistShapeShape distanceCalc(
-					evalFace,
-					BRepBuilderAPI_MakeVertex(
-						gp_Pnt(
-							evalPoint2.X(),
-							evalPoint2.Y(),
-							0
-						)
-					).Vertex());
-
-				distanceCalc.Perform();
-				double distance = distanceCalc.Value();
-
-				if (distance < 0.0001)
-				{
-					hasEval2 = true;
-				}
-			}
-
-			if (hasEval1 && hasEval2)
-			{
-				break;
+				hasEval1 = true;
 			}
 		}
 
-		if (hasEval1 && !hasEval2 || !hasEval1 && hasEval2)
+		if (!hasEval2)
 		{
-			outerEdgeList.emplace_back(currentEdge);
+			BRepExtrema_DistShapeShape distanceCalc(
+				*evalFace,
+				BRepBuilderAPI_MakeVertex(
+					gp_Pnt(
+						evalPoint2.X(),
+						evalPoint2.Y(),
+						0
+					)
+				).Vertex());
+
+			distanceCalc.Perform();
+			double distance = distanceCalc.Value();
+
+			if (distance < 0.0001)
+			{
+				hasEval2 = true;
+			}
+		}
+
+		if (hasEval1 && hasEval2)
+		{
+			break;
+		}
+	}
+
+	if (hasEval1 && !hasEval2 || !hasEval1 && hasEval2)
+	{
+		return true;
+	}
+	return false;
+}
+
+std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges() {
+	std::vector<TopoDS_Edge> outerEdgeList;
+	TopExp_Explorer expl;
+	std::cout << "outer edges:" << std::endl;
+	for (size_t i = 0; i < edgeList_.size(); i++)
+	{
+		TopoDS_Edge* currentEdge = edgeList_[i]->getEdge();
+		if (isOuterEdge(edgeList_[i], faceList_))
+		{
+			outerEdgeList.emplace_back(*currentEdge);
+			printPoint(edgeList_[i]->getProjectedStart());
+			printPoint(edgeList_[i]->getProjectedEnd());
 		}
 	}
 
@@ -679,6 +694,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 	std::vector<int> evaluated(edgeList.size());
 	evaluated[0] = 1;
 	TopoDS_Wire faceWire;
+	BRepBuilderAPI_MakeWire wireMaker;
 
 	gp_Pnt connectionPoint = std::get<1>(getPointsEdge(edgeList[0]));
 
@@ -690,6 +706,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 	bool con = true;
 	while (con)
 	{
+		bool found = true;
 		con = false;
 		for (size_t i = 0; i < edgeList.size(); i++)
 		{
@@ -736,6 +753,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 			}*/
 		}
 		gp_Pnt connection = std::get<0>(getPointsEdge(orderedEdgeList[0]));
+
 		for (size_t i = 0; i < orderedEdgeList.size(); i++)
 		{
 			if (merged[i] == 1) { continue; }
@@ -744,7 +762,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 			TopoDS_Edge currentEdge = orderedEdgeList[i];
 			gp_Vec currentVec = getDirEdge(currentEdge);
 			gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
-
 
 			for (size_t j = i + 1; j < orderedEdgeList.size(); j++)
 			{
@@ -758,10 +775,38 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 				merged[j] = 1;
 				endPoint = std::get<1>(getPointsEdge(otherEdge));
 			}
-			faceWire = BRepBuilderAPI_MakeWire(faceWire, BRepBuilderAPI_MakeEdge(connection, endPoint));
+
+			//printPoint(connection);
+			//printPoint(endPoint);
+
+			wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, endPoint));
+			if (wireMaker.Error() != BRepBuilderAPI_WireDone)
+			{
+				for (size_t j = 0; j < edgeList.size(); j++)
+				{
+					if (evaluated[j] == 0)
+					{
+						faceWire.Nullify();
+						faceWire = TopoDS_Wire();
+						connectionPoint = std::get<1>(getPointsEdge(edgeList[j]));
+						con = true;
+						evaluated[j] = 1;
+						found = false;
+						break;
+					}
+				}
+				break;
+			}
+
+			faceWire = wireMaker.Wire();
 			connection = endPoint;
 
 			count++;
+		}
+
+		if (!found)
+		{
+			continue;
 		}
 
 		orderedEdgeList.clear();
@@ -769,10 +814,10 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 		if (!faceWire.IsNull() && count >= 3)
 		{
 			faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), faceWire);
+
 			if (faceBuilder.Error() == BRepBuilderAPI_FaceDone)
 			{
 				footPrintList_.emplace_back(faceBuilder.Face());
-				hasFootPrint_ = true;
 				geoObjectList.emplace_back(faceBuilder.Shape());
 			}
 		}
@@ -790,6 +835,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 			}
 		}
 	}
+	hasFootPrint_ = true;
 	return geoObjectList;
 }
 
@@ -1232,20 +1278,21 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 	}
 
 	// project to 2D
-	std::vector<TopoDS_Face> flatFaceList;
+	std::vector<TopoDS_Face*> flatFaceList;
 	TopExp_Explorer expl;
 	for (size_t i = 0; i < shapeList.size(); i++)
 	{
-		TopoDS_Face face = getFlatFace(shapeList[i]);
+		TopoDS_Face* face = new TopoDS_Face(getFlatFace(shapeList[i]));
 
-		if (!face.IsNull())
+		if (!face->IsNull())
 		{
-			flatFaceList.emplace_back(face);
+			faceList_.emplace_back(face);
 		}		
 	}
-	std::vector<TopoDS_Edge> jumbledSurface = makeJumbledGround(flatFaceList);
+
+	makeJumbledGround();
 	// find outer edge
-	std::vector<TopoDS_Edge> edgeList = getOuterEdges(jumbledSurface, flatFaceList);
+	std::vector<TopoDS_Edge> edgeList = getOuterEdges();
 	std::vector<TopoDS_Shape> footPrintList = outerEdges2Shapes(edgeList, kernel);
 
 	std::vector< CJT::GeoObject*> geoObjectList;
@@ -1313,12 +1360,16 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	std::vector< CJT::GeoObject*> geoObjectList;
 	if (!hasFootPrint_)
 	{
 		makeLoD02(cluster, cjCollection, kernel, unitScale);
 	}
+	if (footPrintList_.size() == 0)
+	{
+		return geoObjectList;
+	}
 
-	std::vector< CJT::GeoObject*> geoObjectList;
 	double height = cluster->getUrrPoint().Z();
 	
 	for (size_t i = 0; i < footPrintList_.size(); i++)

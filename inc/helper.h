@@ -1,4 +1,4 @@
-#define USE_IFC4
+//#define USE_IFC4
 
 #ifdef USE_IFC4
 #define IfcSchema Ifc4

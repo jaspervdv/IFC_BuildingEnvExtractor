@@ -19,6 +19,52 @@
 #include <tuple>
 
 
+class Edge {
+private:
+	TopoDS_Edge* theEdge_;
+	gp_Pnt startPoint_;
+	gp_Pnt endPoint_;
+
+	bool hasEdgeEval_ = false;
+	bool isOuter_ = false;
+
+public:
+	explicit Edge(TopoDS_Edge edge)
+	{
+		theEdge_ = new TopoDS_Edge(edge);
+
+		TopExp_Explorer expl;
+
+		int counter = 0;
+		for (expl.Init(edge, TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex currentVertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+			if (counter == 0)
+			{
+				startPoint_ = currentPoint;
+				counter++;
+				continue;
+			}
+			if (counter == 1)
+			{
+				endPoint_ = currentPoint;
+				break;
+			}
+		}
+	}
+
+	TopoDS_Edge* getEdge() { return theEdge_; }
+
+	gp_Pnt getStart() { return startPoint_; }
+
+	gp_Pnt getEnd() { return endPoint_; }
+
+	gp_Pnt getProjectedStart() { return gp_Pnt(startPoint_.X(), startPoint_.Y(), 0); }
+
+	gp_Pnt getProjectedEnd() { return gp_Pnt(endPoint_.X(), endPoint_.Y(), 0); }
+};
+
+
 class voxel {
 private:
 
@@ -109,10 +155,8 @@ private:
 	std::vector<int> Assignment_;
 	std::map<int, voxel*> VoxelLookup_;
 
-	std::vector<roomObject*> roomObjectList_;
-	std::vector<double> roomAreaList_;
-	bool hasGraphData_;
-
+	std::vector<Edge*> edgeList_;
+	std::vector<TopoDS_Face*> faceList_;
 	std::vector<TopoDS_Face> footPrintList_;
 	bool hasFootPrint_ = false;
 	
@@ -148,14 +192,24 @@ private:
 	/// @brief get the surfaces that have a projection z = 0
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
 
+	void removeDubEdges(TopoDS_Shape flattenedEdges);
+
+	/// @bried merges all the overlapping edges that have the same direction
+	void mergeOverlappingEdges();
+
+	void splitIntersectingEdges();
+
 	/// @brief get 2d projection of shape at z=0
 	TopoDS_Face getFlatFace(TopoDS_Face face);
 
 	/// @brief get a clean list of all the edges the projected shapes
-	std::vector<TopoDS_Edge> makeJumbledGround(std::vector<TopoDS_Face> faceList);
+	void makeJumbledGround();
+
+	/// @brief check if edge is part of outer envelope
+	bool isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(std::vector<TopoDS_Edge> jumbledSurface, std::vector<TopoDS_Face> flatFaceList);
+	std::vector<TopoDS_Edge> getOuterEdges();
 
 	/// @brief get the footprint shapes from the collection of outer edges
 	std::vector<TopoDS_Shape> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel);
