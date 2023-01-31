@@ -743,7 +743,6 @@ void helper::internalizeGeo()
 
 	std::vector<gp_Pnt> pointList = getAllPoints(products);
 
-
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
 	double rotation = 0;
@@ -1292,10 +1291,6 @@ void helper::addObjectToIndex(T object) {
 			BRepExtrema_DistShapeShape distanceMeasurer;
 			distanceMeasurer.LoadS1(shape);
 
-
-			IfcSchema::IfcProduct* matchingUntrimmedProduct;
-			TopoDS_Shape matchingUntrimmedShape;
-
 			for (size_t i = 0; i < qResult.size(); i++)
 			{
 				LookupValue lookup = productLookup_[qResult[i].second];
@@ -1326,9 +1321,6 @@ void helper::addObjectToIndex(T object) {
 					if (distance > 0.2) { continue; }
 
 					matchFound = true;
-					matchingUntrimmedProduct = qProduct;
-					matchingUntrimmedShape = qUntrimmedShape;
-
 					break;
 				}
 			}
@@ -1336,7 +1328,7 @@ void helper::addObjectToIndex(T object) {
 			if (!matchFound)
 			{
 				// if no void was found
-			// find longest horizontal and vertical edge
+				// find longest horizontal and vertical edge
 				std::vector<gp_Pnt> pointList;
 				std::vector<gp_Pnt> horizontalMaxEdge;
 				std::vector<gp_Pnt> verticalMaxEdge;
@@ -1512,7 +1504,6 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 
 	//std::cout << product->data().toString() << std::endl;
 	if (!product->hasRepresentation()) { 
-
 		std::vector<IfcSchema::IfcProduct*> productList;
 
 #ifdef USE_IFC4
@@ -1522,7 +1513,6 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 #endif // USE_IFC4
 
 		if (decomposedProducts->size() == 0) { return { gp_Pnt(0.0, 0.0, 0.0) }; }
-
 		for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
 
 #ifdef USE_IFC4
@@ -1547,7 +1537,7 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 			{
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 				gp_Pnt p = BRep_Tool::Pnt(vertex);
-				//pointList.emplace_back(p);
+				pointList.emplace_back(p);
 			}
 		}
 	}

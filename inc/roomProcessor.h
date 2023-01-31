@@ -156,7 +156,15 @@ private:
 	std::map<int, voxel*> VoxelLookup_;
 
 	std::vector<Edge*> edgeList_;
-	std::vector<TopoDS_Face*> faceList_;
+	std::vector<TopoDS_Face*> topFaceList_;
+	bool hasTopFaces_ = false;
+
+	std::vector<TopoDS_Face*> flatTopFaceList_;
+	bool hasFlattenedFaces_ = false;
+
+	std::vector<TopoDS_Face*> projectedFaceList_;
+	bool hasPrjectedFaces_ = false;
+
 	std::vector<TopoDS_Face> footPrintList_;
 	bool hasFootPrint_ = false;
 	
@@ -189,7 +197,7 @@ private:
 	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
 
-	/// @brief get the surfaces that have a projection z = 0
+	/// @brief get the surfaces that have an area when flattened
 	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
 
 	void removeDubEdges(TopoDS_Shape flattenedEdges);

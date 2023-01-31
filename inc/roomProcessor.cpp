@@ -559,6 +559,7 @@ TopoDS_Face CJGeoCreator::getFlatFace(TopoDS_Face face) {
 	{
 		return tempFace;
 	}
+
 	return faceBuilder.Face();
 }
 
@@ -572,7 +573,7 @@ void CJGeoCreator::makeJumbledGround() {
 	HLRBRep_Algo* Edgeprojector = new HLRBRep_Algo();
 	Edgeprojector->Projector(HLRAlgo_Projector(axis));
 	
-	for (size_t i = 0; i < faceList_.size(); i++) { Edgeprojector->Add(*faceList_[i]); }
+	for (size_t i = 0; i < flatTopFaceList_.size(); i++) { Edgeprojector->Add(*flatTopFaceList_[i]); }
 
 	Edgeprojector->Update();
 	HLRBRep_HLRToShape projectToShape(Edgeprojector);
@@ -673,7 +674,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges() {
 	for (size_t i = 0; i < edgeList_.size(); i++)
 	{
 		TopoDS_Edge* currentEdge = edgeList_[i]->getEdge();
-		if (isOuterEdge(edgeList_[i], faceList_))
+		if (isOuterEdge(edgeList_[i], flatTopFaceList_))
 		{
 			outerEdgeList.emplace_back(*currentEdge);
 			//printPoint(edgeList_[i]->getProjectedStart());
@@ -974,8 +975,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 				BRepExtrema_DistShapeShape distanceCalc(clippedFace, vertex);
 				distanceCalc.Perform();
 				double distance = distanceCalc.Value();
-
-				std::cout << distance << std::endl;
 
 				if (distance < 0.001)
 				{
@@ -1332,14 +1331,17 @@ std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
 std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	
-	std::vector<TopoDS_Face> faceList;
-	
+	std::vector<TopoDS_Face> faceList;	
+	std::vector<TopoDS_Face> flatFaceList;	
+	std::vector<double> heightList;
+
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
+		
+		// ignore if the z component of normal is 0 
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 		Handle(Geom_Surface) Surface = BRep_Tool::Surface(face);
 
-		// ignore if the z component of normal is 0 
 		GeomAdaptor_Surface theGASurface(Surface);
 		if (theGASurface.GetType() != GeomAbs_Plane) {
 			continue;
@@ -1351,38 +1353,55 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 		double magnitude = direc.X() + direc.Y() + direc.Z();
 
 		if (direc.Z()/magnitude < 0.0001 && direc.Z()/magnitude > - 0.0001) { continue; }
+
 		faceList.emplace_back(face);
+		heightList.emplace_back(getAvFaceHeight(face));
+
+		TopoDS_Face flatFace = getFlatFace(face);
+		flatFaceList.emplace_back(flatFace);
 	}
 
-	// ignore lowest if identical projected points
-	std::vector<TopoDS_Face> cleanedFaceList;
-	for (size_t i = 0; i < faceList.size(); i++)
+	std::vector<int> isHiddenList(faceList.size());
+	for (size_t i = 0; i < flatFaceList.size(); i++)
 	{
-		bool isHidded = false;
-		double height = getAvFaceHeight(faceList[i]);
-		for (size_t j = 0; j < faceList.size(); j++)
+		if (flatFaceList[i].IsNull()) { isHiddenList[i] = 1; }
+	}
+
+	std::vector<TopoDS_Face> cleanedFaceList;
+
+
+	for (size_t i = 0; i < flatFaceList.size(); i++)
+	{
+		if (isHiddenList[i] == 1) { continue; }
+		// ignore lowest if identical projected points
+		double height = heightList[i];
+		int vertCount = 0;
+
+		for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) { vertCount++; }
+
+		for (size_t j = 0; j < flatFaceList.size(); j++)
 		{
 			if (i == j) { continue; }
+			if (isHiddenList[j] == 1) { continue; }
 
-			double otherHeight = getAvFaceHeight(faceList[j]);
+			double otherHeight = heightList[j];
+			if (height > otherHeight) { continue; }
 
-			if (otherHeight >  height) { continue; }
 
-			int vertCount = 0;
 			int overlapCount = 0;
 
 			TopExp_Explorer expl;
-			TopExp_Explorer expl1;
-			for (expl.Init(faceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
-				vertCount++;
+			TopExp_Explorer expl2;
+
+
+			for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 				gp_Pnt point = BRep_Tool::Pnt(vertex);
-				point = gp_Pnt(point.X(), point.Y(), 0);
 
-				for (expl1.Init(faceList[j], TopAbs_VERTEX); expl1.More(); expl1.Next()) {
-					TopoDS_Vertex otherVertex = TopoDS::Vertex(expl1.Current());
+				for (expl2.Init(flatFaceList[j], TopAbs_VERTEX); expl2.More(); expl2.Next()) {
+
+					TopoDS_Vertex otherVertex = TopoDS::Vertex(expl2.Current());
 					gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
-					otherPoint = gp_Pnt(otherPoint.X(), otherPoint.Y(), 0);
 
 					if (otherPoint.IsEqual(point, 0.0001))
 					{
@@ -1391,17 +1410,64 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 					}
 				}
 			}
-			if (vertCount == overlapCount)
-			{
-				isHidded = true;
+			if (vertCount == overlapCount) { 
+				isHiddenList[i] = 1; 
 				break;
 			}
 		}
-		if (!isHidded)
-		{
+
+		if (isHiddenList[i] == 1) { continue; }
+
+		TopExp_Explorer expl;
+		int overlapCount = 0;
+		for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			bool overlap = false;
+
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			for (size_t j = 0; j < flatFaceList.size(); j++)
+			{
+				if (j == i) { continue; }
+				if (isHiddenList[j] == 1) { continue; }
+				double otherHeight = heightList[j];
+
+				if (otherHeight < height) { continue; }
+
+				BRepExtrema_DistShapeShape distanceCalc(flatFaceList[j], vertex);
+				distanceCalc.Perform();
+
+				if (!distanceCalc.IsDone()) { continue; }
+
+				if (distanceCalc.Value() < 0.001)
+				{
+					overlap = true;
+					break;
+				}
+			}
+			
+			if (overlap) { overlapCount++; }
+		}
+
+		if (overlapCount == vertCount) { isHiddenList[i] = 1; }
+		if (isHiddenList[i] == 1) { continue; }
+
+		
+		if (isHiddenList[i] == 0)
+		{ 
 			cleanedFaceList.emplace_back(faceList[i]);
+			continue;
 		}
 	}
+	for (size_t i = 0; i < cleanedFaceList.size(); i++)
+	{
+		for (expl.Init(cleanedFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			//printPoint(point);
+		}
+	}
+
+
 
 	return cleanedFaceList;
 }
@@ -1455,7 +1521,14 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 
 		if (!face->IsNull())
 		{
-			faceList_.emplace_back(face);
+			flatTopFaceList_.emplace_back(face);
+
+			TopExp_Explorer expl;
+			for (expl.Init(*face, TopAbs_VERTEX); expl.More(); expl.Next()) {
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				//printPoint(BRep_Tool::Pnt(vertex));
+			}
+
 		}		
 	}
 
@@ -1942,7 +2015,7 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
 	std::cout << "[INFO] Populate Grid" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++) {
 
-		if (i % 250 == 0)
+		if (i % 1000 == 0)
 		{
 			std::cout.flush();
 			std::cout << i << " of " << totalVoxels_ << "\r";
@@ -1970,7 +2043,7 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 		std::vector<int> tempBuffer;
 		for (size_t j = 0; j < buffer.size(); j++)
 		{
-			if (j % 250 == 0)
+			if (j % 1000 == 0)
 			{
 				std::cout.flush();
 				std::cout << "Size: " << totalRoom.size() << "\r";
