@@ -32,6 +32,8 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 #include <IntTools_EdgeFace.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepSweep_Prism.hxx>
 
 #include <CJT.h>
 #include <CJToKernel.h>
