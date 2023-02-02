@@ -115,6 +115,17 @@ gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2) {
 	return nullptr;
 }
 
+EvaluationPoint::EvaluationPoint(gp_Pnt p)
+{
+	thePoint_ = p;
+	evalEdge_ = BRepBuilderAPI_MakeEdge(
+		p,
+		gp_Pnt(p.X(), p.Y(), p.Z() + 1000)
+	);
+	evalLin_ = gp_Lin(p, gp_Dir(0, 0, 1000));
+
+}
+
 SurfaceGroup::SurfaceGroup(TopoDS_Face aFace)
 {
 	theFace_ = aFace;
@@ -145,6 +156,24 @@ SurfaceGroup::SurfaceGroup(TopoDS_Face aFace)
 	avHeight_ = getAvFaceHeight(aFace);
 
 
+}
+
+bool SurfaceGroup::overlap(SurfaceGroup* other) {
+
+	bool inXD = false;
+	bool inYD = false;
+
+	if (llPoint_.X() <= other->llPoint_.X() && urPoint_.X() >= other->lllPoint_.X()) { inXD = true; }
+	if (other->llPoint_.X() <= llPoint_.X() && other->urrPoint_.X() > llPoint_.X()) { inXD = true; }
+	if (llPoint_.Y() <= other->llPoint_.Y() && urPoint_.Y() >= other->lllPoint_.Y()) { inYD = true; }
+	if (other->llPoint_.Y() <= llPoint_.Y() && other->urrPoint_.Y() >= llPoint_.Y()) { inYD = true; }
+
+	if (inXD && inYD)
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void SurfaceGroup::projectFace() {
@@ -281,10 +310,77 @@ void SurfaceGroup::populateGrid(double distance) {
 				+INFINITE);
 
 			if (intersector.NbPnt() == 1) { 
-				pointGrid_.emplace_back(intersector.Pnt(1)); 
+				gp_Pnt intersectionPoint = intersector.Pnt(1);
+				EvaluationPoint* evalPoint = new EvaluationPoint(intersector.Pnt(1));
+				pointGrid_.emplace_back(evalPoint);
 			}
 		}
 	}
+}
+
+bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool preFilter)
+{
+	TopoDS_Face currentFace = getFace();
+	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
+
+	for (size_t i = 0; i < otherSurfaces.size(); i++)
+	{
+		SurfaceGroup* otherGroup = otherSurfaces[i];
+
+		if (preFilter)
+		{
+			if (!overlap(otherGroup)) { continue; }
+		}
+
+
+		TopoDS_Face otherFace = otherGroup->getFace();
+
+		if (currentFace.IsEqual(otherFace)) { continue; }
+
+		IntCurvesFace_Intersector intersector(otherFace, 0.0001);
+
+		for (size_t k = 0; k < currentGrid.size(); k++)
+		{
+			EvaluationPoint* currentEvalPoint = currentGrid[k];
+
+			if (!currentEvalPoint->isVisible()) { continue; }
+
+			intersector.Perform(
+				currentEvalPoint->getEvalLine(),
+				-0,
+				+INFINITE);
+
+			if (intersector.NbPnt() > 0)
+			{
+				currentEvalPoint->setInvisible();
+				continue;
+			}
+
+			TopExp_Explorer expl;
+			for (expl.Init(otherFace, TopAbs_EDGE); expl.More(); expl.Next())
+			{
+				TopoDS_Edge otherEdge = TopoDS::Edge(expl.Current());
+				BRepExtrema_DistShapeShape distanceCalc(otherEdge, currentEvalPoint->getEvalEdge());
+
+				if (distanceCalc.Value() < 0.001)
+				{
+					currentEvalPoint->setInvisible();
+					break;
+				}
+			}
+		}
+	}
+
+	for (size_t i = 0; i < currentGrid.size(); i++)
+	{
+		if (currentGrid[i]->isVisible())
+		{
+			return true;
+		}
+	}
+
+	visibility_ = false;
+	return false;
 }
 
 void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
@@ -1500,7 +1596,7 @@ std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
 }
 
-std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
+std::vector<SurfaceGroup*> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	
 	std::vector<SurfaceGroup*> surfaceGroupList;
 	TopExp_Explorer expl;
@@ -1508,6 +1604,13 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 		
 		// ignore if the z component of normal is 0 
 		TopoDS_Face face = TopoDS::Face(expl.Current());
+
+		GProp_GProps gprops;
+		BRepGProp::SurfaceProperties(face, gprops); // Stores results in gprops
+		double area = gprops.Mass();
+
+		if (area < 0.01) { continue; }
+
 		Handle(Geom_Surface) Surface = BRep_Tool::Surface(face);
 
 		GeomAdaptor_Surface theGASurface(Surface);
@@ -1525,13 +1628,11 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 		surfaceGroupList.emplace_back(new SurfaceGroup(face));
 	}
 
-	std::vector<TopoDS_Face> cleanedFaceList;
 	std::vector<SurfaceGroup*> cleanedSurfaceGroupList;
-
 	for (size_t i = 0; i < surfaceGroupList.size(); i++)
 	{
 		SurfaceGroup* currentGroup = surfaceGroupList[i];
-		TopoDS_Face currentFace = *currentGroup->getFace();
+		TopoDS_Face currentFace = currentGroup->getFace();
 
 		if (!currentGroup->isVisible()) { continue; }
 
@@ -1544,7 +1645,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 			if (i == j) { continue; }
 
 			SurfaceGroup* otherGroup = surfaceGroupList[j];
-			TopoDS_Face otherFace = *otherGroup->getFace();
+			TopoDS_Face otherFace = otherGroup->getFace();
 
 			if (!otherGroup->isVisible()) { continue; }
 
@@ -1589,97 +1690,17 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	}
 
 	// do raycasting on itself
+	std::vector<SurfaceGroup*> filteredSurfaceGroupList;
 	for (size_t i = 0; i < cleanedSurfaceGroupList.size(); i++)
 	{
 		SurfaceGroup* currentGroup = cleanedSurfaceGroupList[i];
-		TopoDS_Face currentFace = *currentGroup->getFace();
-		std::vector<gp_Pnt> currentGrid = currentGroup->getPointGrid();
 
-		//std::cout << "- Surface" << std::endl;
-		for (expl.Init(currentFace, TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt point = BRep_Tool::Pnt(vertex);
-
-			//printPoint(point);
-		}
-
-
-		std::vector<int> hiddenList(currentGrid.size());
-		for (size_t j = 0; j < cleanedSurfaceGroupList.size(); j++)
+		if (currentGroup->testIsVisable(cleanedSurfaceGroupList))
 		{
-			if (i == j) { continue; }
-
-			SurfaceGroup* otherGroup = surfaceGroupList[j];
-			TopoDS_Face otherFace = *otherGroup->getFace();
-
-			//std::cout << "- eval face" << std::endl;
-			for (expl.Init(otherFace, TopAbs_VERTEX); expl.More(); expl.Next()) {
-				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				gp_Pnt point = BRep_Tool::Pnt(vertex);
-
-				//printPoint(point);
-			}
-
-			IntCurvesFace_Intersector intersector(otherFace, 0.0001);
-			//std::cout << "- int" << std::endl;
-			for (size_t k = 0; k < currentGrid.size(); k++)
-			{
-				if (hiddenList[k] == 1) { continue; }
-
-				intersector.Perform(
-					gp_Lin(
-						currentGrid[k],
-						gp_Dir(0, 0, 1000)),
-					-0,
-					+INFINITE);
-
-				if (intersector.NbPnt() > 0)
-				{
-					hiddenList[k] = 1;
-					continue;
-				}
-
-				BRepExtrema_DistShapeShape distanceCalc(
-					otherFace,
-					BRepBuilderAPI_MakeEdge(currentGrid[k], gp_Pnt(currentGrid[k].X(), currentGrid[k].Y(), currentGrid[k].Z() + 1000))
-				);
-
-
-				if (distanceCalc.Value() < 0.001)
-				{
-					hiddenList[k] = 1;
-					continue;
-				}
-
-			}
-		}
-
-		for (size_t j = 0; j < hiddenList.size(); j++)
-		{
-			if (hiddenList[j] == 0)
-			{
-				//std::cout << "stored" << std::endl;
-				//printPoint(currentGrid[j]);
-				cleanedFaceList.emplace_back(currentFace);
-				break;
-			}
-		}
-
-	}
-
-	for (size_t i = 0; i < cleanedFaceList.size(); i++)
-	{
-		for (expl.Init(cleanedFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt point = BRep_Tool::Pnt(vertex);
-
-			//printPoint(point);
+			filteredSurfaceGroupList.emplace_back(currentGroup);
 		}
 	}
-
-
-
-	return cleanedFaceList;
+	return filteredSurfaceGroupList;
 }
 
 CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
@@ -1712,35 +1733,26 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 	std::vector<TopoDS_Face> shapeList;
 
 	std::vector<TopoDS_Shape> test = getTopObjects(cluster);
+	std::vector<SurfaceGroup*> flatSurfaceList;
 
 	for (size_t i = 0; i < test.size(); i++)
 	{
-		std::vector<TopoDS_Face> objectFaces = getXYFaces(test[i]);
+		std::vector<SurfaceGroup*>  objectFaces = getXYFaces(test[i]);
 		for (size_t j = 0; j < objectFaces.size(); j++)
 		{
-			shapeList.emplace_back(objectFaces[j]);
+			flatSurfaceList.emplace_back(objectFaces[j]);
 		}
 	}
 
-	// project to 2D
-	std::vector<TopoDS_Face*> flatFaceList;
-	TopExp_Explorer expl;
-	for (size_t i = 0; i < shapeList.size(); i++)
+	for (size_t i = 0; i < flatSurfaceList.size(); i++)
 	{
-		TopoDS_Face* face = new TopoDS_Face(getFlatFace(shapeList[i]));
-
-		if (!face->IsNull())
+		SurfaceGroup* currentSurfaceGroup = flatSurfaceList[i];
+		if (currentSurfaceGroup->testIsVisable(flatSurfaceList, true))
 		{
-			flatTopFaceList_.emplace_back(face);
-
-			TopExp_Explorer expl;
-			for (expl.Init(*face, TopAbs_VERTEX); expl.More(); expl.Next()) {
-				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				//printPoint(BRep_Tool::Pnt(vertex));
-			}
-
-		}		
+			flatTopFaceList_.emplace_back(new TopoDS_Face(flatSurfaceList[i]->getProjectedFace()));
+		}
 	}
+
 
 	makeJumbledGround();
 	// find outer edge

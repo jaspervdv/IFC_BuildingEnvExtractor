@@ -19,6 +19,25 @@
 #include <tuple>
 
 
+class EvaluationPoint {
+private:
+	gp_Pnt thePoint_;
+	TopoDS_Edge evalEdge_;
+	gp_Lin evalLin_;
+	bool isVisible_ = true;
+
+public:
+	EvaluationPoint(gp_Pnt p);
+	bool isVisible() { return isVisible_; }
+	void setInvisible() { isVisible_ = false; }
+
+	const gp_Pnt getPoint() { return thePoint_; }
+	const TopoDS_Edge& getEvalEdge() { return evalEdge_; }
+	const gp_Lin& getEvalLine() { return evalLin_; }
+
+};
+
+
 class SurfaceGroup {
 private:
 	TopoDS_Face theFace_;
@@ -37,28 +56,28 @@ private:
 	bool isSmall_ = false;
 	int vertCount_;
 
-	std::vector<gp_Pnt> pointGrid_;
-
-
+	std::vector<EvaluationPoint*> pointGrid_;
+	bool overlap(SurfaceGroup* other);
 
 public:
 
 	SurfaceGroup(TopoDS_Face aFace);
 
-	TopoDS_Face* getFace() { return &theFace_; }
-	TopoDS_Face* getFlatFace() { return &theFlatFace_; }
-	TopoDS_Face* getProjectedFace() { return &theProjectedFace_; }
+	const TopoDS_Face& getFace() { return theFace_; }
+	const TopoDS_Face& getFlatFace() { return theFlatFace_; }
+	const TopoDS_Face& getProjectedFace() { return theProjectedFace_; }
 
-	gp_Pnt getLLLPoint() { return lllPoint_; }
-	gp_Pnt getURRPoint() { return urrPoint_; }
+	const gp_Pnt getLLLPoint() { return lllPoint_; }
+	const gp_Pnt getURRPoint() { return urrPoint_; }
 
-	gp_Pnt2d getLLPoint() { return llPoint_; }
-	gp_Pnt2d getURPoint() { return urPoint_; }
+	const gp_Pnt2d getLLPoint() { return llPoint_; }
+	const gp_Pnt2d getURPoint() { return urPoint_; }
 
 	double getAvHeight() { return avHeight_; }
 
-	std::vector<gp_Pnt> getPointGrid() { return pointGrid_; }
+	std::vector<EvaluationPoint*>& getPointGrid() { return pointGrid_; }
 	bool isVisible() { return visibility_; }
+	bool testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
 
 	void setIsHidden() { visibility_ = false; }
@@ -249,7 +268,7 @@ private:
 	std::vector<int> getTopBoxelIndx();
 
 	/// @brief get the surfaces that have an area when flattened
-	std::vector<TopoDS_Face> getXYFaces(TopoDS_Shape shape);
+	std::vector<SurfaceGroup*> getXYFaces(TopoDS_Shape shape);
 
 	void removeDubEdges(TopoDS_Shape flattenedEdges);
 
