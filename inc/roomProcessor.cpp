@@ -115,6 +115,177 @@ gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2) {
 	return nullptr;
 }
 
+SurfaceGroup::SurfaceGroup(TopoDS_Face aFace)
+{
+	theFace_ = aFace;
+	lllPoint_ = gp_Pnt(999999999,999999999,99999999);
+	urrPoint_ = gp_Pnt(-999999999, -999999999, -99999999);
+
+	int vertCount = 0;
+	TopExp_Explorer expl;
+	for (expl.Init(aFace, TopAbs_VERTEX); expl.More(); expl.Next()) 
+	{ 
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+		if (point.X() > urrPoint_.X()) { urrPoint_.SetX(point.X()); }
+		if (point.Y() > urrPoint_.Y()) { urrPoint_.SetY(point.Y()); }
+		if (point.Z() > urrPoint_.Z()) { urrPoint_.SetZ(point.Z()); }
+		if (point.X() < lllPoint_.X()) { lllPoint_.SetX(point.X()); }
+		if (point.Y() < lllPoint_.Y()) { lllPoint_.SetY(point.Y()); }
+		if (point.Z() < lllPoint_.Z()) { lllPoint_.SetZ(point.Z()); }
+
+		vertCount++; 
+	}
+	vertCount_ = vertCount;
+
+	llPoint_ = gp_Pnt2d(lllPoint_.X(), lllPoint_.Y());
+	urPoint_ = gp_Pnt2d(urrPoint_.X(), urrPoint_.Y());
+
+	avHeight_ = getAvFaceHeight(aFace);
+
+
+}
+
+void SurfaceGroup::projectFace() {
+	BRep_Builder brepBuilder;
+	BRepBuilderAPI_MakeFace faceBuilder;
+	TopExp_Explorer expl;
+	TopExp_Explorer expl2;
+
+	bool isInner = false;
+	bool invalidFace = false;
+	gp_Pnt lastPoint;
+
+	for (expl.Init(theFace_, TopAbs_WIRE); expl.More(); expl.Next()) {
+		TopTools_ListOfShape edgeList;
+		TopoDS_Wire faceWire;
+		TopoDS_Wire wire = TopoDS::Wire(expl.Current());
+
+		bool invalidEdge = false;
+		int counter = 0;
+		int surfSize = 0;
+
+		for (expl2.Init(wire, TopAbs_VERTEX); expl2.More(); expl2.Next()) {
+			counter++;
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl2.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+			point = gp_Pnt(point.X(), point.Y(), 0);
+			if (counter % 2 == 0)
+			{
+				if (point.IsEqual(lastPoint, 0.0001))
+				{
+					invalidEdge = true;
+					continue;
+				}
+				surfSize++;
+				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(lastPoint, point);
+				edgeList.Append(edge);
+			}
+
+			if (invalidEdge)
+			{
+				invalidEdge = false;
+			}
+			else {
+				lastPoint = point;
+			}
+		}
+
+		if (surfSize < 3 && !isInner)
+		{
+			invalidFace = true;
+			break;
+		}
+
+		if (surfSize < 3)
+		{
+			continue;
+		}
+
+		BRepBuilderAPI_MakeWire wireBuilder;
+		wireBuilder.Add(edgeList);
+		wireBuilder.Build();
+
+		if (wireBuilder.Error() != BRepBuilderAPI_WireDone && !isInner)
+		{
+			invalidFace = true;
+			break;
+		}
+
+		if (wireBuilder.Error() != BRepBuilderAPI_WireDone)
+		{
+			continue;
+		}
+
+		faceWire = wireBuilder.Wire();
+
+		if (!isInner)
+		{
+			faceBuilder = BRepBuilderAPI_MakeFace(faceWire);
+		}
+		else
+		{
+			faceBuilder.Add(faceWire);
+		}
+
+		isInner = true;
+	}
+
+	TopoDS_Face tempFace;
+
+	if (invalidFace)
+	{
+		theProjectedFace_ = tempFace;
+	}
+
+	theProjectedFace_ = faceBuilder.Face();
+}
+
+void SurfaceGroup::populateGrid(double distance) {
+	double xRange = urrPoint_.X() - lllPoint_.X();
+	double yRange = urrPoint_.Y() - lllPoint_.Y();
+
+	double xDistance = distance;
+	double yDistance = distance;
+
+	if (xRange < distance)
+	{
+		xDistance = xRange / 3;
+	}
+	if (yRange < distance)
+	{
+		yDistance = yRange / 3;
+	}
+
+	int xSteps = ceil(xRange / xDistance);
+	int ySteps = ceil(yRange / yDistance);
+
+	xDistance = xRange / xSteps;
+	yDistance = yRange / ySteps;
+
+	IntCurvesFace_Intersector intersector(theFace_, 0.0001);
+
+
+	for (size_t i = 0; i <= xSteps; i++)
+	{
+		for (size_t j = 0; j <= ySteps; j++)
+		{
+			gp_Pnt tempPoint = gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, 0);
+
+			intersector.Perform(
+				gp_Lin(
+					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
+					gp_Dir(0, 0, 1000)),
+				-INFINITE,
+				+INFINITE);
+
+			if (intersector.NbPnt() == 1) { 
+				pointGrid_.emplace_back(intersector.Pnt(1)); 
+			}
+		}
+	}
+}
 
 void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
 {
@@ -1331,10 +1502,7 @@ std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
 std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	
-	std::vector<TopoDS_Face> faceList;	
-	std::vector<TopoDS_Face> flatFaceList;	
-	std::vector<double> heightList;
-
+	std::vector<SurfaceGroup*> surfaceGroupList;
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
 		
@@ -1347,58 +1515,51 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 			continue;
 		}
 		GeomLProp_SLProps SLProps(Surface, 1, 0.1);
-		gp_Pnt2d P2d;
+		gp_Pnt2d P2d = gp_Pnt2d(0.5,0.5);
 		SLProps.SetParameters(P2d.X(), P2d.Y());
 		gp_Dir direc = SLProps.Normal();
 		double magnitude = direc.X() + direc.Y() + direc.Z();
 
-		if (direc.Z()/magnitude < 0.0001 && direc.Z()/magnitude > - 0.0001) { continue; }
-
-		faceList.emplace_back(face);
-		heightList.emplace_back(getAvFaceHeight(face));
-
-		TopoDS_Face flatFace = getFlatFace(face);
-		flatFaceList.emplace_back(flatFace);
-	}
-
-	std::vector<int> isHiddenList(faceList.size());
-	for (size_t i = 0; i < flatFaceList.size(); i++)
-	{
-		if (flatFaceList[i].IsNull()) { isHiddenList[i] = 1; }
+		if (direc.Z() == 0 ) { continue; }
+		if (direc.Z()/magnitude < 0.001 && direc.Z()/magnitude > - 0.001) { continue; }
+		surfaceGroupList.emplace_back(new SurfaceGroup(face));
 	}
 
 	std::vector<TopoDS_Face> cleanedFaceList;
+	std::vector<SurfaceGroup*> cleanedSurfaceGroupList;
 
-
-	for (size_t i = 0; i < flatFaceList.size(); i++)
+	for (size_t i = 0; i < surfaceGroupList.size(); i++)
 	{
-		if (isHiddenList[i] == 1) { continue; }
+		SurfaceGroup* currentGroup = surfaceGroupList[i];
+		TopoDS_Face currentFace = *currentGroup->getFace();
+
+		if (!currentGroup->isVisible()) { continue; }
+
 		// ignore lowest if identical projected points
-		double height = heightList[i];
-		int vertCount = 0;
+		double height = currentGroup->getAvHeight();
+		int vertCount = currentGroup->getVertCount();
 
-		for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) { vertCount++; }
-
-		for (size_t j = 0; j < flatFaceList.size(); j++)
+		for (size_t j = 0; j < surfaceGroupList.size(); j++)
 		{
 			if (i == j) { continue; }
-			if (isHiddenList[j] == 1) { continue; }
 
-			double otherHeight = heightList[j];
+			SurfaceGroup* otherGroup = surfaceGroupList[j];
+			TopoDS_Face otherFace = *otherGroup->getFace();
+
+			if (!otherGroup->isVisible()) { continue; }
+
+			double otherHeight = otherGroup->getAvHeight();
 			if (height > otherHeight) { continue; }
-
 
 			int overlapCount = 0;
 
 			TopExp_Explorer expl;
 			TopExp_Explorer expl2;
-
-
-			for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			for (expl.Init(currentFace, TopAbs_VERTEX); expl.More(); expl.Next()) {
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 				gp_Pnt point = BRep_Tool::Pnt(vertex);
 
-				for (expl2.Init(flatFaceList[j], TopAbs_VERTEX); expl2.More(); expl2.Next()) {
+				for (expl2.Init(otherFace, TopAbs_VERTEX); expl2.More(); expl2.Next()) {
 
 					TopoDS_Vertex otherVertex = TopoDS::Vertex(expl2.Current());
 					gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
@@ -1410,53 +1571,102 @@ std::vector<TopoDS_Face> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 					}
 				}
 			}
-			if (vertCount == overlapCount) { 
-				isHiddenList[i] = 1; 
+			if (vertCount == overlapCount) {
+				currentGroup->setIsHidden();
 				break;
 			}
 		}
 
-		if (isHiddenList[i] == 1) { continue; }
-
-		TopExp_Explorer expl;
-		int overlapCount = 0;
-		for (expl.Init(flatFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
-			bool overlap = false;
-
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			for (size_t j = 0; j < flatFaceList.size(); j++)
-			{
-				if (j == i) { continue; }
-				if (isHiddenList[j] == 1) { continue; }
-				double otherHeight = heightList[j];
-
-				if (otherHeight < height) { continue; }
-
-				BRepExtrema_DistShapeShape distanceCalc(flatFaceList[j], vertex);
-				distanceCalc.Perform();
-
-				if (!distanceCalc.IsDone()) { continue; }
-
-				if (distanceCalc.Value() < 0.001)
-				{
-					overlap = true;
-					break;
-				}
-			}
-			
-			if (overlap) { overlapCount++; }
-		}
-
-		if (overlapCount == vertCount) { isHiddenList[i] = 1; }
-		if (isHiddenList[i] == 1) { continue; }
-
+		if (!currentGroup->isVisible()) { continue; }
 		
-		if (isHiddenList[i] == 0)
+		if (currentGroup->isVisible())
 		{ 
-			cleanedFaceList.emplace_back(faceList[i]);
+			cleanedSurfaceGroupList.emplace_back(currentGroup);
+			currentGroup->projectFace();
+			currentGroup->populateGrid(0.3); //TODO: use voxel size?
 			continue;
 		}
 	}
+
+	// do raycasting on itself
+	for (size_t i = 0; i < cleanedSurfaceGroupList.size(); i++)
+	{
+		SurfaceGroup* currentGroup = cleanedSurfaceGroupList[i];
+		TopoDS_Face currentFace = *currentGroup->getFace();
+		std::vector<gp_Pnt> currentGrid = currentGroup->getPointGrid();
+
+		//std::cout << "- Surface" << std::endl;
+		for (expl.Init(currentFace, TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			//printPoint(point);
+		}
+
+
+		std::vector<int> hiddenList(currentGrid.size());
+		for (size_t j = 0; j < cleanedSurfaceGroupList.size(); j++)
+		{
+			if (i == j) { continue; }
+
+			SurfaceGroup* otherGroup = surfaceGroupList[j];
+			TopoDS_Face otherFace = *otherGroup->getFace();
+
+			//std::cout << "- eval face" << std::endl;
+			for (expl.Init(otherFace, TopAbs_VERTEX); expl.More(); expl.Next()) {
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+				//printPoint(point);
+			}
+
+			IntCurvesFace_Intersector intersector(otherFace, 0.0001);
+			//std::cout << "- int" << std::endl;
+			for (size_t k = 0; k < currentGrid.size(); k++)
+			{
+				if (hiddenList[k] == 1) { continue; }
+
+				intersector.Perform(
+					gp_Lin(
+						currentGrid[k],
+						gp_Dir(0, 0, 1000)),
+					-0,
+					+INFINITE);
+
+				if (intersector.NbPnt() > 0)
+				{
+					hiddenList[k] = 1;
+					continue;
+				}
+
+				BRepExtrema_DistShapeShape distanceCalc(
+					otherFace,
+					BRepBuilderAPI_MakeEdge(currentGrid[k], gp_Pnt(currentGrid[k].X(), currentGrid[k].Y(), currentGrid[k].Z() + 1000))
+				);
+
+
+				if (distanceCalc.Value() < 0.001)
+				{
+					hiddenList[k] = 1;
+					continue;
+				}
+
+			}
+		}
+
+		for (size_t j = 0; j < hiddenList.size(); j++)
+		{
+			if (hiddenList[j] == 0)
+			{
+				//std::cout << "stored" << std::endl;
+				//printPoint(currentGrid[j]);
+				cleanedFaceList.emplace_back(currentFace);
+				break;
+			}
+		}
+
+	}
+
 	for (size_t i = 0; i < cleanedFaceList.size(); i++)
 	{
 		for (expl.Init(cleanedFaceList[i], TopAbs_VERTEX); expl.More(); expl.Next()) {
@@ -2369,3 +2579,5 @@ bool voxel::linearEqIntersection(std::vector<gp_Pnt> productPoints, std::vector<
 	}
 	return false;
 }
+
+

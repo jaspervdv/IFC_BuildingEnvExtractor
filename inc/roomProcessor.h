@@ -19,6 +19,57 @@
 #include <tuple>
 
 
+class SurfaceGroup {
+private:
+	TopoDS_Face theFace_;
+	TopoDS_Face theFlatFace_;
+	TopoDS_Face theProjectedFace_;
+
+	gp_Pnt lllPoint_;
+	gp_Pnt urrPoint_;
+	
+	gp_Pnt2d llPoint_;
+	gp_Pnt2d urPoint_;
+
+	double avHeight_;
+
+	bool visibility_ = true;
+	bool isSmall_ = false;
+	int vertCount_;
+
+	std::vector<gp_Pnt> pointGrid_;
+
+
+
+public:
+
+	SurfaceGroup(TopoDS_Face aFace);
+
+	TopoDS_Face* getFace() { return &theFace_; }
+	TopoDS_Face* getFlatFace() { return &theFlatFace_; }
+	TopoDS_Face* getProjectedFace() { return &theProjectedFace_; }
+
+	gp_Pnt getLLLPoint() { return lllPoint_; }
+	gp_Pnt getURRPoint() { return urrPoint_; }
+
+	gp_Pnt2d getLLPoint() { return llPoint_; }
+	gp_Pnt2d getURPoint() { return urPoint_; }
+
+	double getAvHeight() { return avHeight_; }
+
+	std::vector<gp_Pnt> getPointGrid() { return pointGrid_; }
+	bool isVisible() { return visibility_; }
+	int getVertCount() { return vertCount_; }
+
+	void setIsHidden() { visibility_ = false; }
+	void computeFlatFace();
+	void projectFace();
+
+	void populateGrid(double distance);
+
+};
+
+
 class Edge {
 private:
 	TopoDS_Edge* theEdge_;

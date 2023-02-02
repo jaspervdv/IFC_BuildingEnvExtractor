@@ -34,6 +34,8 @@
 #include <IntTools_EdgeFace.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepSweep_Prism.hxx>
+#include <ShapeAnalysis_Surface.hxx>
+#include <IntCurvesFace_Intersector.hxx>
 
 #include <CJT.h>
 #include <CJToKernel.h>
