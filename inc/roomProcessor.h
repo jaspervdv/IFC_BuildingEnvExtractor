@@ -225,19 +225,19 @@ private:
 	std::vector<int> Assignment_;
 	std::map<int, voxel*> VoxelLookup_;
 
-	std::vector<Edge*> edgeList_;
-	std::vector<TopoDS_Face*> topFaceList_;
+	// higher LoD data collection
+	std::vector<SurfaceGroup*> topFaceList_;
 	bool hasTopFaces_ = false;
 
 	std::vector<TopoDS_Face*> flatTopFaceList_;
 	bool hasFlattenedFaces_ = false;
 
 	std::vector<TopoDS_Face*> projectedFaceList_;
-	bool hasPrjectedFaces_ = false;
+	bool hasProjectedFaces_ = false;
 
 	std::vector<TopoDS_Face> footPrintList_;
 	bool hasFootPrint_ = false;
-	
+
 	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
 
 	// transform coordinates 
@@ -270,27 +270,29 @@ private:
 	/// @brief get the surfaces that have an area when flattened
 	std::vector<SurfaceGroup*> getXYFaces(TopoDS_Shape shape);
 
-	void removeDubEdges(TopoDS_Shape flattenedEdges);
+	std::vector<Edge*> getUniqueEdges(TopoDS_Shape& flattenedEdges);
 
 	/// @bried merges all the overlapping edges that have the same direction
-	void mergeOverlappingEdges();
+	std::vector<Edge*> mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges);
 
-	void splitIntersectingEdges();
+	std::vector<Edge*> splitIntersectingEdges(std::vector<Edge*>& edges);
 
 	/// @brief get 2d projection of shape at z=0
 	TopoDS_Face getFlatFace(TopoDS_Face face);
 
 	/// @brief get a clean list of all the edges the projected shapes
-	void makeJumbledGround();
+	std::vector<Edge*> makeJumbledGround();
 
 	/// @brief check if edge is part of outer envelope
 	bool isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges();
+	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<TopoDS_Face*> faceList);
 
 	/// @brief get the footprint shapes from the collection of outer edges
-	std::vector<TopoDS_Shape> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel);
+	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel);
+
+	void initializeBasic(helperCluster* cluster);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
@@ -300,6 +302,7 @@ public:
 	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD22(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
 };

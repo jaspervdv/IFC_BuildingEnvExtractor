@@ -383,9 +383,11 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 	return false;
 }
 
-void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
+std::vector<Edge*> CJGeoCreator::getUniqueEdges(TopoDS_Shape& flattenedEdges)
 {
 	TopExp_Explorer expl;
+	std::vector<Edge*> UniqueEdgeList;
+
 	for (expl.Init(flattenedEdges, TopAbs_EDGE); expl.More(); expl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
@@ -394,10 +396,10 @@ void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
 		gp_Pnt endPoint = std::get<1>(points);
 
 		bool dub = false;
-		for (size_t i = 0; i < edgeList_.size(); i++)
+		for (size_t i = 0; i < UniqueEdgeList.size(); i++)
 		{
-			gp_Pnt otherStartPoint = edgeList_[i]->getProjectedStart();
-			gp_Pnt otherEndPoint = edgeList_[i]->getProjectedEnd();
+			gp_Pnt otherStartPoint = UniqueEdgeList[i]->getProjectedStart();
+			gp_Pnt otherEndPoint = UniqueEdgeList[i]->getProjectedEnd();
 
 			if (startPoint.IsEqual(otherStartPoint, 0.0001) && endPoint.IsEqual(otherEndPoint, 0.0001) ||
 				endPoint.IsEqual(otherStartPoint, 0.0001) && startPoint.IsEqual(otherEndPoint, 0.0001))
@@ -407,13 +409,14 @@ void CJGeoCreator::removeDubEdges(TopoDS_Shape flattenedEdges)
 		}
 		if (!dub)
 		{
-			edgeList_.emplace_back(new Edge(currentEdge));
+			UniqueEdgeList.emplace_back(new Edge(currentEdge));
 		}
 	}
+	return UniqueEdgeList;
 }
 
 
-void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceList) 
+std::vector<Edge*> CJGeoCreator::mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges)//, std::vector<TopoDS_Face> flatFaceList) 
 {
 	
 	double buffer = 0.01; //TODO: have it scale with units
@@ -422,14 +425,14 @@ void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceL
 	TopExp_Explorer expl;
 	// merge lines that are on the same plane
 	std::vector<Edge*> cleanedEdgeList;
-	std::vector<int> evalList(edgeList_.size());
-	for (size_t i = 0; i < edgeList_.size(); i++)
+	std::vector<int> evalList(uniqueEdges.size());
+	for (size_t i = 0; i < uniqueEdges.size(); i++)
 	{
 		if (evalList[i] == 1) { continue; }
 		evalList[i] = 1;
 
-		gp_Pnt startPoint = edgeList_[i]->getProjectedStart();
-		gp_Pnt endPoint = edgeList_[i]->getProjectedEnd();
+		gp_Pnt startPoint = uniqueEdges[i]->getProjectedStart();
+		gp_Pnt endPoint = uniqueEdges[i]->getProjectedEnd();
 		gp_Lin2d line = gce_MakeLin2d(
 			gp_Pnt2d(startPoint.X(), startPoint.Y()),
 			gp_Pnt2d(endPoint.X(), endPoint.Y())
@@ -441,13 +444,13 @@ void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceL
 		std::vector<gp_Pnt> mergeList;
 		std::vector<int> evalIndxList;
 
-		for (size_t j = 0; j < edgeList_.size(); j++)
+		for (size_t j = 0; j < uniqueEdges.size(); j++)
 		{
 			if (i == j) { continue; }
 			if (evalList[j] == 1) { continue; }
 
-			gp_Pnt otherStartPoint = edgeList_[j]->getProjectedStart();
-			gp_Pnt otherEndPoint = edgeList_[j]->getProjectedEnd();
+			gp_Pnt otherStartPoint = uniqueEdges[j]->getProjectedStart();
+			gp_Pnt otherEndPoint = uniqueEdges[j]->getProjectedEnd();
 
 			gp_Vec2d otherDir(gp_Pnt2d(otherStartPoint.X(), otherStartPoint.Y()), gp_Pnt2d(otherEndPoint.X(), otherEndPoint.Y()));
 			otherDir.Normalize();
@@ -484,7 +487,7 @@ void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceL
 			{
 				//if (isOuterEdge(edgeList[i], flatFaceList))
 				//{
-					cleanedEdgeList.emplace_back(edgeList_[i]);
+					cleanedEdgeList.emplace_back(uniqueEdges[i]);
 				//}
 			}
 			continue;
@@ -522,8 +525,8 @@ void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceL
 
 				if (evalList[edgeIdx] == 1) { continue; }
 
-				gp_Pnt otherStartPoint = edgeList_[edgeIdx]->getProjectedStart();
-				gp_Pnt otherEndPoint = edgeList_[edgeIdx]->getProjectedEnd();
+				gp_Pnt otherStartPoint = uniqueEdges[edgeIdx]->getProjectedStart();
+				gp_Pnt otherEndPoint = uniqueEdges[edgeIdx]->getProjectedEnd();
 
 				if (abs(dir.X()) >= abs(dir.Y()))
 				{
@@ -627,26 +630,26 @@ void CJGeoCreator::mergeOverlappingEdges()//, std::vector<TopoDS_Face> flatFaceL
 		cleanedEdgeList.emplace_back(new Edge(edge));
 	}
 
-	for (size_t i = 0; i < discardIndx.size(); i++) { delete edgeList_[discardIndx[i]]; }
-	edgeList_ = cleanedEdgeList;
+	for (size_t i = 0; i < discardIndx.size(); i++) { delete uniqueEdges[discardIndx[i]]; }
+	return cleanedEdgeList;
 }
 
 
-void CJGeoCreator::splitIntersectingEdges() {
+std::vector<Edge*> CJGeoCreator::splitIntersectingEdges(std::vector<Edge*>& edges) {
 	
 	std::vector<Edge*> splitEdgeList;
 	std::vector<int> discardIndx;
 	
-	for (size_t i = 0; i < edgeList_.size(); i++)
+	for (size_t i = 0; i < edges.size(); i++)
 	{
 		std::vector<gp_Pnt*> intPoints;
-		gp_Pnt startPoint = edgeList_[i]->getProjectedStart();
-		gp_Pnt endPoint = edgeList_[i]->getProjectedEnd();
+		gp_Pnt startPoint = edges[i]->getProjectedStart();
+		gp_Pnt endPoint = edges[i]->getProjectedEnd();
 
-		for (size_t j = 0; j < edgeList_.size(); j++)
+		for (size_t j = 0; j < edges.size(); j++)
 		{
 			if (i == j) { continue; }
-			gp_Pnt* intersection = linearLineIntersection(edgeList_[i], edgeList_[j]);
+			gp_Pnt* intersection = linearLineIntersection(edges[i], edges[j]);
 
 			if (intersection == nullptr) { continue; }
 
@@ -657,7 +660,7 @@ void CJGeoCreator::splitIntersectingEdges() {
 
 		if (intPoints.size() == 0) 
 		{ 
-			splitEdgeList.emplace_back(edgeList_[i]); 
+			splitEdgeList.emplace_back(edges[i]);
 			continue;
 		}
 		discardIndx.emplace_back(i);
@@ -730,8 +733,8 @@ void CJGeoCreator::splitIntersectingEdges() {
 		}
 	}
 	
-	for (size_t i = 0; i < discardIndx.size(); i++) { delete edgeList_[discardIndx[i]]; }
-	edgeList_ = splitEdgeList;
+	for (size_t i = 0; i < discardIndx.size(); i++) { delete edges[discardIndx[i]]; }
+	return splitEdgeList;
 }
 
 
@@ -831,7 +834,7 @@ TopoDS_Face CJGeoCreator::getFlatFace(TopoDS_Face face) {
 }
 
 
-void CJGeoCreator::makeJumbledGround() {
+std::vector<Edge*> CJGeoCreator::makeJumbledGround() {
 	
 	gp_Ax2 axis(
 		gp_Pnt(0, 0, 0), 
@@ -840,15 +843,18 @@ void CJGeoCreator::makeJumbledGround() {
 	HLRBRep_Algo* Edgeprojector = new HLRBRep_Algo();
 	Edgeprojector->Projector(HLRAlgo_Projector(axis));
 	
-	for (size_t i = 0; i < flatTopFaceList_.size(); i++) { Edgeprojector->Add(*flatTopFaceList_[i]); }
+	BOPAlgo_Builder aBuilder;
+	TopTools_ListOfShape aLSObjects;
 
+	for (size_t i = 0; i < projectedFaceList_.size(); i++) { Edgeprojector->Add(*projectedFaceList_[i]); }
 	Edgeprojector->Update();
 	HLRBRep_HLRToShape projectToShape(Edgeprojector);
 
 	TopoDS_Shape flattenedEdges = projectToShape.CompoundOfEdges(HLRBRep_Undefined, true, false);
-	removeDubEdges(flattenedEdges);
-	mergeOverlappingEdges();
-	splitIntersectingEdges();
+
+	std::vector<Edge*> uniqueEdges = getUniqueEdges(flattenedEdges);
+	std::vector<Edge*> cleanedEdges = mergeOverlappingEdges(uniqueEdges);
+	return splitIntersectingEdges(cleanedEdges);
 }
 
 bool CJGeoCreator::isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList)
@@ -935,25 +941,20 @@ bool CJGeoCreator::isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flat
 	return false;
 }
 
-std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges() {
+std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(std::vector<Edge*> edgeList, std::vector<TopoDS_Face*> faceList) {
 	std::vector<TopoDS_Edge> outerEdgeList;
 	TopExp_Explorer expl;
-	for (size_t i = 0; i < edgeList_.size(); i++)
+	for (size_t i = 0; i < edgeList.size(); i++)
 	{
-		TopoDS_Edge* currentEdge = edgeList_[i]->getEdge();
-		if (isOuterEdge(edgeList_[i], flatTopFaceList_))
-		{
-			outerEdgeList.emplace_back(*currentEdge);
-			//printPoint(edgeList_[i]->getProjectedStart());
-			//printPoint(edgeList_[i]->getProjectedEnd());
-		}
+		TopoDS_Edge* currentEdge = edgeList[i]->getEdge();
+		if (isOuterEdge(edgeList[i], faceList)) { outerEdgeList.emplace_back(*currentEdge); }
 	}
 
 	return outerEdgeList;
 }
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel)
+std::vector<TopoDS_Face> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel)
 {
 	BRepBuilderAPI_MakeFace faceBuilder;
 
@@ -966,7 +967,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 	std::vector<TopoDS_Edge> orderedEdgeList;
 	orderedEdgeList.emplace_back(currentEdge);
 
-	std::vector<TopoDS_Shape> geoObjectList;
+	std::vector<TopoDS_Face> geoObjectList;
 
 	bool con = true;
 	while (con)
@@ -1268,10 +1269,41 @@ std::vector<TopoDS_Shape> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edg
 		}
 
 		geoObjectList.emplace_back(clippedFace);
-		footPrintList_.emplace_back(clippedFace);
 	}
-	hasFootPrint_ = true;
 	return geoObjectList;
+}
+
+
+void CJGeoCreator::initializeBasic(helperCluster* cluster) {
+	// generate data required for most exports
+	std::vector<SurfaceGroup*> shapeList;
+	std::vector<TopoDS_Shape> filteredFaces = getTopObjects(cluster);
+
+	for (size_t i = 0; i < filteredFaces.size(); i++)
+	{
+		std::vector<SurfaceGroup*>  objectFaces = getXYFaces(filteredFaces[i]);
+		for (size_t j = 0; j < objectFaces.size(); j++)
+		{
+			shapeList.emplace_back(objectFaces[j]);
+			hasTopFaces_ = true;
+		}
+	}
+
+	for (size_t i = 0; i < shapeList.size(); i++)
+	{
+		SurfaceGroup* currentSurfaceGroup = shapeList[i];
+		if (currentSurfaceGroup->testIsVisable(shapeList, true))
+		{
+			topFaceList_.emplace_back(shapeList[i]);
+		}
+	}
+
+	for (size_t i = 0; i < topFaceList_.size(); i++)
+	{
+		SurfaceGroup* currentSurfaceGroup = topFaceList_[i];
+		projectedFaceList_.emplace_back(new TopoDS_Face(topFaceList_[i]->getProjectedFace()));
+		hasProjectedFaces_ = true;
+	}
 }
 
 
@@ -1597,7 +1629,6 @@ std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 }
 
 std::vector<SurfaceGroup*> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
-	
 	std::vector<SurfaceGroup*> surfaceGroupList;
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
@@ -1727,42 +1758,21 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollect
 	return geoObject;
 }
 
+
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
-	// get slabs and walls
-	std::vector<TopoDS_Face> shapeList;
+	if (!hasTopFaces_ || !hasProjectedFaces_) { initializeBasic(cluster); }
 
-	std::vector<TopoDS_Shape> test = getTopObjects(cluster);
-	std::vector<SurfaceGroup*> flatSurfaceList;
-
-	for (size_t i = 0; i < test.size(); i++)
-	{
-		std::vector<SurfaceGroup*>  objectFaces = getXYFaces(test[i]);
-		for (size_t j = 0; j < objectFaces.size(); j++)
-		{
-			flatSurfaceList.emplace_back(objectFaces[j]);
-		}
-	}
-
-	for (size_t i = 0; i < flatSurfaceList.size(); i++)
-	{
-		SurfaceGroup* currentSurfaceGroup = flatSurfaceList[i];
-		if (currentSurfaceGroup->testIsVisable(flatSurfaceList, true))
-		{
-			flatTopFaceList_.emplace_back(new TopoDS_Face(flatSurfaceList[i]->getProjectedFace()));
-		}
-	}
-
-
-	makeJumbledGround();
+	std::vector<Edge*> edgeList = makeJumbledGround();
 	// find outer edge
-	std::vector<TopoDS_Edge> edgeList = getOuterEdges();
-	std::vector<TopoDS_Shape> footPrintList = outerEdges2Shapes(edgeList, kernel);
+	std::vector<TopoDS_Edge> outerList = getOuterEdges(edgeList, projectedFaceList_);
+	footPrintList_ = outerEdges2Shapes(outerList, kernel);
+	hasFootPrint_ = true;
 
 	std::vector< CJT::GeoObject*> geoObjectList;
-	for (size_t i = 0; i < footPrintList.size(); i++)
+	for (size_t i = 0; i < footPrintList_.size(); i++)
 	{
-		geoObjectList.emplace_back(kernel->convertToJSON(footPrintList[i], "0.2"));
+		geoObjectList.emplace_back(kernel->convertToJSON(footPrintList_[i], "0.2"));
 	}
 	return geoObjectList;
 }
@@ -1824,6 +1834,8 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	if (!hasTopFaces_ || !hasProjectedFaces_) { initializeBasic(cluster); }
+
 	std::vector< CJT::GeoObject*> geoObjectList;
 	if (!hasFootPrint_)
 	{
@@ -1848,6 +1860,162 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJ
 		geoObjectList.emplace_back(geoObject);
 	}
 	return geoObjectList;
+}
+
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale) 
+{
+	std::vector< CJT::GeoObject*> geoObjectList;
+
+	if (!hasTopFaces_)
+	{
+		initializeBasic(cluster);
+	}
+	if (footPrintList_.size() == 0)
+	{
+		return geoObjectList;
+	}
+	
+	// make plane to cut of lower parts
+	BOPAlgo_Splitter aSplitter;
+	TopTools_ListOfShape aLSObjects;
+	TopTools_ListOfShape aLSTools;
+
+	gp_Pnt p0(-1000, -1000, 0);
+	gp_Pnt p1(-1000, 1000, 0);
+	gp_Pnt p2(1000, 1000, 0);
+	gp_Pnt p3(1000, -1000, 0);
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	aLSTools.Append(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
+	aSplitter.SetTools(aLSTools);
+	aSplitter.SetRunParallel(Standard_True);
+	aSplitter.SetNonDestructive(Standard_True);
+
+	TopTools_ListOfShape aLSFuseObjects;
+	TopExp_Explorer expl;
+	for (size_t i = 0; i < topFaceList_.size(); i++)
+	{
+		SurfaceGroup* currentRoof = topFaceList_[i];
+
+		if (currentRoof->getURRPoint().Z() == 0) //TODO: make smarter
+		{
+			continue;
+		}
+
+		BRepPrimAPI_MakePrism sweeper(currentRoof->getFace(), gp_Vec(0, 0, - currentRoof->getURRPoint().Z()), Standard_True);
+		sweeper.Build();
+		TopoDS_Shape extrudedShape = sweeper.Shape();
+		aLSObjects.Clear();
+		aLSObjects.Append(extrudedShape);
+		aSplitter.SetArguments(aLSObjects);
+		aSplitter.Perform();
+
+		const TopoDS_Shape& aResult = aSplitter.Shape();
+
+		// find top solid after the split
+		TopExp_Explorer expl2;
+		for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) {
+			bool above = false;
+			for (expl2.Init(TopoDS::Solid(expl.Current()), TopAbs_VERTEX); expl2.More(); expl2.Next()) {
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl2.Current());
+				if (BRep_Tool::Pnt(vertex).Z() > 0)
+				{
+					above = true;
+					break;
+				}
+				if (BRep_Tool::Pnt(vertex).Z() < 0)
+				{
+					break;
+				}
+			}
+
+			if (above)
+			{
+				aLSFuseObjects.Append(TopoDS::Solid(expl.Current()));
+			}
+
+		}
+	}
+
+	BOPAlgo_Builder aBuilder;
+	aBuilder.SetArguments(aLSFuseObjects);
+	aBuilder.SetRunParallel(Standard_True);
+	aBuilder.Perform();
+
+	std::vector<TopoDS_Face> ObjectFaceList;
+	for (expl.Init(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+		ObjectFaceList.emplace_back(TopoDS::Face(expl.Current()));
+	}
+
+
+	std::vector<TopoDS_Face> cleanedFaceList;
+	// check if surfaces overlap
+	for (size_t i = 0; i < ObjectFaceList.size(); i++)
+	{
+		bool dub = false;
+		for (size_t j = 0; j < ObjectFaceList.size(); j++)
+		{
+
+			if (j == i)
+			{
+				continue;
+			}
+			if (ObjectFaceList[i].IsEqual(ObjectFaceList[j]) ||
+				ObjectFaceList[i].IsEqual(ObjectFaceList[j].Reversed()))
+			{
+				dub = true;
+				break;
+			}
+		}
+
+		if (!dub)
+		{
+			cleanedFaceList.emplace_back(ObjectFaceList[i]);
+		}
+	}
+
+	BRep_Builder brepBuilder;
+	BRepBuilderAPI_Sewing brepSewer;
+
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid solidShape;
+	brepBuilder.MakeSolid(solidShape);
+
+	// check if edge has overlap
+	for (size_t i = 0; i < cleanedFaceList.size(); i++)
+	{
+		bool valid = false;
+		for (size_t j = 0; j < cleanedFaceList.size(); j++)
+		{
+			if (i == j)
+			{
+				continue;
+			}
+			double distance = BRepExtrema_DistShapeShape(cleanedFaceList[i], cleanedFaceList[j]).Value();
+			if (distance < 0.001)
+			{
+				valid = true;
+			}
+		}
+		if (valid)
+		{
+			brepSewer.Add(cleanedFaceList[i]);
+		}
+	}
+
+	brepSewer.Perform();
+	brepBuilder.Add(solidShape, brepSewer.SewedShape());
+
+	CJT::GeoObject* geoObject = kernel->convertToJSON(solidShape, "2.2");
+	geoObjectList.emplace_back(geoObject);
+
+	return geoObjectList;
+
 }
 
 CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
@@ -2247,7 +2415,6 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
 	}
 	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 	std::cout << std::endl;
-
 
 }
 	
