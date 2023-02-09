@@ -226,13 +226,15 @@ private:
 	std::map<int, voxel*> VoxelLookup_;
 
 	// higher LoD data collection
-	std::vector<SurfaceGroup*> topFaceList_;
+	bool hasSortedFaces_ = false;
+
+	std::vector<std::vector<SurfaceGroup*>> topFaceList_;
 	bool hasTopFaces_ = false;
 
-	std::vector<TopoDS_Face*> flatTopFaceList_;
+	std::vector<std::vector<TopoDS_Face*>> flatTopFaceList_;
 	bool hasFlattenedFaces_ = false;
 
-	std::vector<TopoDS_Face*> projectedFaceList_;
+	std::vector<std::vector<TopoDS_Face*>> projectedFaceList_;
 	bool hasProjectedFaces_ = false;
 
 	std::vector<TopoDS_Face> footPrintList_;
@@ -290,7 +292,7 @@ private:
 	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<TopoDS_Face*> faceList);
 
 	/// @brief get the footprint shapes from the collection of outer edges
-	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList, CJT::Kernel* kernel);
+	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList);
 
 	void initializeBasic(helperCluster* cluster);
 
