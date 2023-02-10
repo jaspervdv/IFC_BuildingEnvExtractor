@@ -1339,6 +1339,12 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	hasFootPrint_ = true;
 
 	// sort surface groups based on the footprints
+	if (footPrintList_.size() == 1)
+	{
+		hasSortedFaces_ = true;
+		return;
+	}
+
 	std::vector<SurfaceGroup*> tempSurfaceGroup = topFaceList_[0];
 	std::vector<TopoDS_Face*> tempProjectSurfaceGroup = projectedFaceList_[0];
 	topFaceList_.clear();
@@ -1379,6 +1385,7 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	}
 
 	hasSortedFaces_ = true;
+	return;
 }
 
 
@@ -1816,10 +1823,10 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollect
 	double rotationAngle = cluster->getDirection();
 
 	// LoD 0.0
-	gp_Pnt p0 = rotatePointWorld(lll, -rotationAngle);
-	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -rotationAngle);
+	gp_Pnt p0 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), -rotationAngle);
+	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
 
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
@@ -1859,10 +1866,10 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 	TopoDS_Solid bbox;
 	brepBuilder.MakeSolid(bbox);
 
-	gp_Pnt p0 = rotatePointWorld(lll, -rotationAngle);
-	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -rotationAngle);
+	gp_Pnt p0 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), -rotationAngle);
+	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
 
 	gp_Pnt p4(rotatePointWorld(urr, -rotationAngle));
 	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -rotationAngle);

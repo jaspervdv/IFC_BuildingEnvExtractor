@@ -1,4 +1,4 @@
-//#define USE_IFC4
+#define USE_IFC4
 
 #ifdef USE_IFC4
 #define IfcSchema Ifc4
@@ -309,6 +309,9 @@ public:
 
 	// corrects room classification
 	void correctRooms();
+
+	std::map<std::string, std::string> getProjectInformation();
+	std::map<std::string, std::string> getBuildingInformation();
 
 	std::list<std::string> getObjectTypes();
 

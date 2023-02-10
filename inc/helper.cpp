@@ -1195,6 +1195,68 @@ void helper::correctRooms()
 	}
 }
 
+std::map<std::string, std::string> helper::getProjectInformation()
+{
+	
+
+
+	return std::map<std::string, std::string>();
+}
+
+std::map<std::string, std::string> helper::getBuildingInformation()
+{
+	std::map<std::string, std::string> dictionary;
+
+	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+	
+	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
+		IfcSchema::IfcBuilding* building = *it;
+		
+		IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = file_->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
+
+		for (auto it = propteriesRels->begin(); it != propteriesRels->end(); ++it) {
+			IfcSchema::IfcRelDefinesByProperties* propteriesRel = *it;
+
+			auto relatedObjects = propteriesRel->RelatedObjects();
+			bool isBuilding = false;
+
+			for (auto et = relatedObjects->begin(); et != relatedObjects->end(); ++et) {
+				
+				auto* relatedObject = *et;
+				if (std::string(relatedObject->data().type()->name().c_str()) != "IfcBuilding") { break; }
+
+				isBuilding = true;
+				break;
+			}
+
+			if (isBuilding)
+			{
+				IfcSchema::IfcPropertySet* te = propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
+				if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
+				auto relAssociations = propteriesRel->RelatingPropertyDefinition()->data().getArgument(4)->operator IfcEntityList::ptr();
+				
+				for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
+					auto* relatedObject = *et;
+					IfcSchema::IfcPropertySingleValue* propertyValue = relatedObject->as<IfcSchema::IfcPropertySingleValue>();
+					if (propertyValue->NominalValue()->data().getArgument(0)->type() == 5)
+					{
+						std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
+						stringValue = stringValue.substr(1, stringValue.size() - 2);
+						if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue); }
+						continue;
+					}
+
+					if (propertyValue->NominalValue()->data().getArgument(0)->toString().size() != 0 )
+					{
+						dictionary.emplace(propertyValue->Name().c_str(), propertyValue->NominalValue()->data().getArgument(0)->toString());
+					}
+				}
+			}
+		}		
+	}
+	return dictionary;
+}
+
 std::list<std::string> helper::getObjectTypes() {
 
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
