@@ -1212,71 +1212,77 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
 		IfcSchema::IfcBuilding* building = *it;
 		
-		IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = file_->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
+		if (building->hasDescription()) { dictionary.emplace("Description", building->Description()); }
+		if (building->hasObjectType()) { dictionary.emplace("ObjectType", building->ObjectType()); }
+		if (building->hasName()) { dictionary.emplace("Name", building->Name()); }
+		if (building->hasLongName()) { dictionary.emplace("Long Name", building->LongName()); }
+	}
 
-		for (auto it = propteriesRels->begin(); it != propteriesRels->end(); ++it) {
-			IfcSchema::IfcRelDefinesByProperties* propteriesRel = *it;
+	IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = file_->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
 
-			auto relatedObjects = propteriesRel->RelatedObjects();
-			bool isBuilding = false;
+	for (auto it = propteriesRels->begin(); it != propteriesRels->end(); ++it) {
+		IfcSchema::IfcRelDefinesByProperties* propteriesRel = *it;
 
-			for (auto et = relatedObjects->begin(); et != relatedObjects->end(); ++et) {
-				
+		auto relatedObjects = propteriesRel->RelatedObjects();
+		bool isBuilding = false;
+
+		for (auto et = relatedObjects->begin(); et != relatedObjects->end(); ++et) {
+
+			auto* relatedObject = *et;
+			if (std::string(relatedObject->data().type()->name().c_str()) != "IfcBuilding") { break; }
+
+			isBuilding = true;
+			break;
+		}
+
+		if (isBuilding)
+		{
+			IfcSchema::IfcPropertySet* te = propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
+			if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
+			auto relAssociations = propteriesRel->RelatingPropertyDefinition()->data().getArgument(4)->operator IfcEntityList::ptr();
+
+			for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
 				auto* relatedObject = *et;
-				if (std::string(relatedObject->data().type()->name().c_str()) != "IfcBuilding") { break; }
+				IfcSchema::IfcPropertySingleValue* propertyValue = relatedObject->as<IfcSchema::IfcPropertySingleValue>();
 
-				isBuilding = true;
-				break;
-			}
-
-			if (isBuilding)
-			{
-				IfcSchema::IfcPropertySet* te = propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
-				if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
-				auto relAssociations = propteriesRel->RelatingPropertyDefinition()->data().getArgument(4)->operator IfcEntityList::ptr();
-				
-				for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
-					auto* relatedObject = *et;
-					IfcSchema::IfcPropertySingleValue* propertyValue = relatedObject->as<IfcSchema::IfcPropertySingleValue>();
-
-					int dataType = propertyValue->NominalValue()->data().getArgument(0)->type();
+				int dataType = propertyValue->NominalValue()->data().getArgument(0)->type();
 
 
-					if (dataType == 3) // If Bool
+				if (dataType == 3) // If Bool
+				{
+					if (propertyValue->NominalValue()->data().getArgument(0)->toString() == ".T.")
 					{
-						if (propertyValue->NominalValue()->data().getArgument(0)->toString() == ".T.")
-						{
-							dictionary.emplace(propertyValue->Name().c_str(), "True");
-						}
-						else {
-							dictionary.emplace(propertyValue->Name().c_str(), "False");
-						}
+						dictionary.emplace(propertyValue->Name().c_str(), "True");
 					}
-					else if (dataType == 4) // If Area
-					{
-						std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
-
-						if (stringValue[stringValue.size() - 1] == '.') { stringValue += "0"; }
-
-						if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue + " m^2"); } // TODO: get unit
-
-					}
-					else if (dataType == 5) // If String
-					{
-						std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
-						stringValue = stringValue.substr(1, stringValue.size() - 2);
-						if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue); }
-						continue;
-					}
-
-					if (propertyValue->NominalValue()->data().getArgument(0)->toString().size() != 0 )
-					{
-						dictionary.emplace(propertyValue->Name().c_str(), propertyValue->NominalValue()->data().getArgument(0)->toString());
+					else {
+						dictionary.emplace(propertyValue->Name().c_str(), "False");
 					}
 				}
+				else if (dataType == 4) // If Area
+				{
+					std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
+
+					if (stringValue[stringValue.size() - 1] == '.') { stringValue += "0"; }
+
+					if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue + " m^2"); } // TODO: get unit
+
+				}
+				else if (dataType == 5) // If String
+				{
+					std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
+					stringValue = stringValue.substr(1, stringValue.size() - 2);
+					if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue); }
+					continue;
+				}
+
+				if (propertyValue->NominalValue()->data().getArgument(0)->toString().size() != 0)
+				{
+					dictionary.emplace(propertyValue->Name().c_str(), propertyValue->NominalValue()->data().getArgument(0)->toString());
+				}
 			}
-		}		
+		}
 	}
+
 	return dictionary;
 }
 
@@ -1310,6 +1316,22 @@ std::string helper::getBuildingLongName()
 
 		return "";
 	}
+}
+
+std::string helper::getProjectName()
+{
+	IfcSchema::IfcProject::list::ptr projectList = file_->instances_by_type<IfcSchema::IfcProject>();
+	for (auto it = projectList->begin(); it != projectList->end(); ++it) {
+		IfcSchema::IfcProject* project = *it;
+
+		if (project->hasName())
+		{
+			return project->Name();
+		}
+		return "";
+	}
+
+
 }
 
 std::list<std::string> helper::getObjectTypes() {

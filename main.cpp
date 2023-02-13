@@ -37,14 +37,14 @@ std::vector<std::string> GetSources() {
 
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
-	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
-	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
+	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
 	};
@@ -463,6 +463,7 @@ int main(int argc, char** argv) {
 	}
 
 	int constructionIndx = -1;
+	int semanticHelper = 0;
 
 	// get construction model num from user
 	if (sourcePathArray.size() == 1)
@@ -474,7 +475,6 @@ int main(int argc, char** argv) {
 		std::cout << "Please enter number of construction model, if no constuction model enter 0." << std::endl;
 		for (size_t i = 0; i < fileNames.size(); i++) { std::cout << i + 1 << ": " << fileNames[i] << std::endl; }
 		constructionIndx = numQuestion(fileNames.size(), false);
-
 	}
 
 	std::cout << std::endl;
@@ -561,7 +561,7 @@ int main(int argc, char** argv) {
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject* metaData = new CJT::metaDataObject;
-	metaData->setTitle(hCluster->getHelper(0)->getName() +  " Auto export from IfcEnvExtractor");
+	metaData->setTitle(hCluster->getHelper(semanticHelper)->getName() +  " Auto export from IfcEnvExtractor");
 	collection->setTransformation(transformation);
 	collection->setMetaData(metaData);
 	collection->setVersion("1.1");
@@ -569,10 +569,18 @@ int main(int argc, char** argv) {
 	CJT::Kernel* kernel = new CJT::Kernel(collection);
 
 	CJT::CityObject* cityObject = new CJT::CityObject;
-	cityObject->setName(hCluster->getHelper(0)->getBuildingName());
+
+	std::string BuildingName = hCluster->getHelper(semanticHelper)->getBuildingName();
+	if (BuildingName == "")
+	{
+		BuildingName = hCluster->getHelper(semanticHelper)->getProjectName();
+	}
+	cityObject->setName(BuildingName);
+
+	
 	cityObject->setType(CJT::Building_Type::Building);
 	
-	std::map<std::string, std::string> buildingAttributes = hCluster->getHelper(0)->getBuildingInformation();
+	std::map<std::string, std::string> buildingAttributes = hCluster->getHelper(semanticHelper)->getBuildingInformation();
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject->addAttribute(iter->first, iter->second); }
 
 	CJT::GeoObject* geo00 = geoCreator->makeLoD00(hCluster, collection, kernel, 1);
@@ -583,13 +591,15 @@ int main(int argc, char** argv) {
 	cityObject->addGeoObject(geo10);
 	std::vector<CJT::GeoObject*> geo12 = geoCreator->makeLoD12(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
+	std::vector<CJT::GeoObject*> geo13 = geoCreator->makeLoD13(hCluster, collection, kernel, 1);
+	for (size_t i = 0; i < geo13.size(); i++) { cityObject->addGeoObject(geo13[i]); }
 	std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
 	//CJT::GeoObject* geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
 	//cityObject->addGeoObject(geo32);
 
 	collection->addCityObject(cityObject);
-	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + hCluster->getHelper(0)->getBuildingName()  + ".city.json");
+	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + BuildingName + ".city.json");
 
 	delete kernel;
 	delete collection;

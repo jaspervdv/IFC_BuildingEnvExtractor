@@ -50,6 +50,7 @@ private:
 	gp_Pnt2d llPoint_;
 	gp_Pnt2d urPoint_;
 
+	double topHeight_;
 	double avHeight_;
 
 	bool visibility_ = true;
@@ -66,6 +67,7 @@ public:
 	const TopoDS_Face& getFace() { return theFace_; }
 	const TopoDS_Face& getFlatFace() { return theFlatFace_; }
 	const TopoDS_Face& getProjectedFace() { return theProjectedFace_; }
+	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }
 
 	const gp_Pnt getLLLPoint() { return lllPoint_; }
 	const gp_Pnt getURRPoint() { return urrPoint_; }
@@ -74,6 +76,7 @@ public:
 	const gp_Pnt2d getURPoint() { return urPoint_; }
 
 	double getAvHeight() { return avHeight_; }
+	double getTopHeight() { return topHeight_; }
 
 	std::vector<EvaluationPoint*>& getPointGrid() { return pointGrid_; }
 	bool isVisible() { return visibility_; }
@@ -228,14 +231,8 @@ private:
 	// higher LoD data collection
 	bool hasSortedFaces_ = false;
 
-	std::vector<std::vector<SurfaceGroup*>> topFaceList_;
+	std::vector<std::vector<SurfaceGroup*>> faceList_;
 	bool hasTopFaces_ = false;
-
-	std::vector<std::vector<TopoDS_Face*>> flatTopFaceList_;
-	bool hasFlattenedFaces_ = false;
-
-	std::vector<std::vector<TopoDS_Face*>> projectedFaceList_;
-	bool hasProjectedFaces_ = false;
 
 	std::vector<TopoDS_Face> footPrintList_;
 	bool hasFootPrint_ = false;
@@ -289,12 +286,14 @@ private:
 	bool isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<TopoDS_Face*> faceList);
+	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<SurfaceGroup*> faceList);
 
 	/// @brief get the footprint shapes from the collection of outer edges
 	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList);
 
 	void initializeBasic(helperCluster* cluster);
+
+	std::vector<TopoDS_Solid> computePrisms(bool isFlat = false);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
@@ -304,6 +303,7 @@ public:
 	CJT::GeoObject* makeLoD03(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD13(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD22(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	CJT::GeoObject* makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 
