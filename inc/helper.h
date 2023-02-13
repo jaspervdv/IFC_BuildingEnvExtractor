@@ -312,6 +312,8 @@ public:
 
 	std::map<std::string, std::string> getProjectInformation();
 	std::map<std::string, std::string> getBuildingInformation();
+	std::string getBuildingName();
+	std::string getBuildingLongName();
 
 	std::list<std::string> getObjectTypes();
 

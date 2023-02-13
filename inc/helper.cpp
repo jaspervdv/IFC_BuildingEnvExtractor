@@ -1238,7 +1238,30 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 				for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
 					auto* relatedObject = *et;
 					IfcSchema::IfcPropertySingleValue* propertyValue = relatedObject->as<IfcSchema::IfcPropertySingleValue>();
-					if (propertyValue->NominalValue()->data().getArgument(0)->type() == 5)
+
+					int dataType = propertyValue->NominalValue()->data().getArgument(0)->type();
+
+
+					if (dataType == 3) // If Bool
+					{
+						if (propertyValue->NominalValue()->data().getArgument(0)->toString() == ".T.")
+						{
+							dictionary.emplace(propertyValue->Name().c_str(), "True");
+						}
+						else {
+							dictionary.emplace(propertyValue->Name().c_str(), "False");
+						}
+					}
+					else if (dataType == 4) // If Area
+					{
+						std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
+
+						if (stringValue[stringValue.size() - 1] == '.') { stringValue += "0"; }
+
+						if (stringValue.size() != 0) { dictionary.emplace(propertyValue->Name().c_str(), stringValue + " m^2"); } // TODO: get unit
+
+					}
+					else if (dataType == 5) // If String
 					{
 						std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
 						stringValue = stringValue.substr(1, stringValue.size() - 2);
@@ -1255,6 +1278,38 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 		}		
 	}
 	return dictionary;
+}
+
+std::string helper::getBuildingName()
+{
+	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+
+	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
+		IfcSchema::IfcBuilding* building = *it;
+
+		if (building->hasName())
+		{
+			return building->Name();
+		}
+
+		return "";
+	}
+
+}
+
+std::string helper::getBuildingLongName()
+{
+	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+
+	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
+		IfcSchema::IfcBuilding* building = *it;
+		if (building->hasLongName())
+		{
+			return building->LongName();
+		}
+
+		return "";
+	}
 }
 
 std::list<std::string> helper::getObjectTypes() {

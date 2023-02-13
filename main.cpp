@@ -37,9 +37,9 @@ std::vector<std::string> GetSources() {
 
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
-	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+	"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
-	"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
+	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
 	//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
@@ -561,7 +561,7 @@ int main(int argc, char** argv) {
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject* metaData = new CJT::metaDataObject;
-	metaData->setTitle("env ext export");
+	metaData->setTitle(hCluster->getHelper(0)->getName() +  " Auto export from IfcEnvExtractor");
 	collection->setTransformation(transformation);
 	collection->setMetaData(metaData);
 	collection->setVersion("1.1");
@@ -569,7 +569,7 @@ int main(int argc, char** argv) {
 	CJT::Kernel* kernel = new CJT::Kernel(collection);
 
 	CJT::CityObject* cityObject = new CJT::CityObject;
-	cityObject->setName("test");
+	cityObject->setName(hCluster->getHelper(0)->getBuildingName());
 	cityObject->setType(CJT::Building_Type::Building);
 	
 	std::map<std::string, std::string> buildingAttributes = hCluster->getHelper(0)->getBuildingInformation();
@@ -589,7 +589,7 @@ int main(int argc, char** argv) {
 	//cityObject->addGeoObject(geo32);
 
 	collection->addCityObject(cityObject);
-	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.city.json");
+	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + hCluster->getHelper(0)->getBuildingName()  + ".city.json");
 
 	delete kernel;
 	delete collection;
