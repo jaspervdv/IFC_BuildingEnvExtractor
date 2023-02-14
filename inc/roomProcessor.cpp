@@ -198,6 +198,8 @@ void SurfaceGroup::projectFace() {
 	bool invalidFace = false;
 	gp_Pnt lastPoint;
 
+	bool isFlat = true;
+	double z = 0;
 	for (expl.Init(theFace_, TopAbs_WIRE); expl.More(); expl.Next()) {
 		TopTools_ListOfShape edgeList;
 		TopoDS_Wire faceWire;
@@ -211,7 +213,18 @@ void SurfaceGroup::projectFace() {
 			counter++;
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl2.Current());
 			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			if (surfSize == 0)
+			{
+				z = point.Z();
+			}
+			else if (z != point.Z())
+			{
+				isFlat = false;
+			}
+
 			point = gp_Pnt(point.X(), point.Y(), 0);
+
 			if (counter % 2 == 0)
 			{
 				if (point.IsEqual(lastPoint, 0.0001))
@@ -279,10 +292,18 @@ void SurfaceGroup::projectFace() {
 	{
 		theProjectedFace_ = tempFace;
 		theFlatFace_ = tempFace;
+		return;
 	}
 
 	TopoDS_Face projectedFace = faceBuilder.Face();
 	theProjectedFace_ = projectedFace;
+
+	if (isFlat)
+	{
+		theFlatFace_ = theFace_;
+		return;
+	}
+
 	theFlatFace_ = projectedFace;
 
 	gp_Vec v(0, 0, getTopHeight());
@@ -1442,7 +1463,7 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 			if (!isFlat) { currentFace = currentRoof->getFace(); }
 			else { currentFace = currentRoof->getFlatFace(); }
 
-			BRepPrimAPI_MakePrism sweeper(currentFace, gp_Vec(0, 0, -currentRoof->getURRPoint().Z()), Standard_True);
+			BRepPrimAPI_MakePrism sweeper(currentFace, gp_Vec(0, 0, -currentRoof->getURRPoint().Z() - 5), Standard_True);
 			sweeper.Build();
 			TopoDS_Shape extrudedShape = sweeper.Shape();
 			aLSObjects.Clear();
@@ -1479,6 +1500,7 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 
 		BOPAlgo_Builder aBuilder;
 		aBuilder.SetArguments(aLSFuseObjects);
+		aBuilder.SetFuzzyValue(1e-7);
 		aBuilder.SetRunParallel(Standard_True);
 		aBuilder.Perform();
 
@@ -1510,6 +1532,7 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 
 			if (!dub)
 			{
+
 				cleanedFaceList.emplace_back(ObjectFaceList[i]);
 			}
 		}
@@ -1546,6 +1569,9 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 
 		brepSewer.Perform();
 		brepBuilder.Add(solidShape, brepSewer.SewedShape());
+
+		// simplification of each surface
+
 
 		prismList.emplace_back(solidShape);
 	}
@@ -2542,7 +2568,7 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
 	}
 	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 	std::cout << std::endl;
-
+	initializeBasic(cluster);
 }
 	
 std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCluster* cluster)
