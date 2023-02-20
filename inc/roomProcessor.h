@@ -294,6 +294,8 @@ private:
 	void initializeBasic(helperCluster* cluster);
 
 	std::vector<TopoDS_Solid> computePrisms(bool isFlat = false);
+	TopoDS_Solid simplefySolid(TopoDS_Solid solidShape);
+	TopoDS_Face mergeFaces(std::vector<TopoDS_Face> mergeFaces);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);

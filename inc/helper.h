@@ -37,6 +37,7 @@
 #include <ShapeAnalysis_Surface.hxx>
 #include <IntCurvesFace_Intersector.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
+#include <gp_Pln.hxx>
 
 #include <CJT.h>
 #include <CJToKernel.h>
