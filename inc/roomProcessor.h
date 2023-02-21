@@ -291,6 +291,15 @@ private:
 	/// @brief get the footprint shapes from the collection of outer edges
 	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList);
 
+	/// @brief grows wires from unordered exterior edges
+	std::vector<TopoDS_Wire> growWires(std::vector<TopoDS_Edge> edgeList);
+
+	/// @brief cleans the wires (removes redundant vertex)
+	std::vector<TopoDS_Wire> cleanWires(std::vector<TopoDS_Wire> wireList);
+	TopoDS_Wire cleanWire(TopoDS_Wire wire);
+
+	std::vector<TopoDS_Face> wireCluster2Faces(std::vector<TopoDS_Wire> wireList);
+
 	void initializeBasic(helperCluster* cluster);
 
 	std::vector<TopoDS_Solid> computePrisms(bool isFlat = false);
