@@ -1037,13 +1037,20 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(std::vector<Edge*> edgeList
 
 std::vector<TopoDS_Face> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList)
 {
+	std::cout << edgeList.size() << std::endl;
+	std::cout << "Reached" << std::endl;
+
 	std::vector<TopoDS_Wire> wireList = growWires(edgeList);
-	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+	std::cout << "Reached1" << std::endl;
+	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);	
+	std::cout << "Reached2" << std::endl;
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
+	std::cout << "Reached3" << std::endl;
 	return cleanedFaceList;
 }
 
 std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeList){
+	std::cout << edgeList.size() << std::endl;
 	std::vector<TopoDS_Wire> wireCollection;
 
 	BRepBuilderAPI_MakeWire wireMaker;
@@ -1086,7 +1093,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 				backupPoint = otherEnd;
 			}
 
-			if (connectionPoint.IsEqual(otherStart, 0.0001))
+			if (connectionPoint.IsEqual(otherStart, 1e-6))
 			{
 				wireMaker.Add(edgeList[i]);
 				connectionPoint = otherEnd;
@@ -1094,7 +1101,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 				stepped = true;
 				break;
 			}
-			else if (connectionPoint.IsEqual(otherEnd, 0.0001))
+			else if (connectionPoint.IsEqual(otherEnd, 1e-6))
 			{
 				wireMaker.Add(BRepBuilderAPI_MakeEdge(otherEnd, otherStart));
 				connectionPoint = otherStart;
@@ -1109,7 +1116,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 			continue;
 		}
 
-		if (originPoint.IsEqual(connectionPoint, 0.0001)) // if no step is taken, check if looped
+		if (originPoint.IsEqual(connectionPoint, 1e-6)) // if no step is taken, check if looped
 		{
 			loopFound = true;
 		}
@@ -1230,13 +1237,35 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 	std::vector<TopoDS_Face> faceList;
 	for (size_t i = 0; i < wireList.size(); i++)
 	{
-		faceBuilder = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), wireList[i]);
+		gp_Vec vec1;
+		gp_Vec vec2;
+		gp_Pnt originPoint;
+
+		for (TopExp_Explorer vertexExp(wireList[i], TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
+			TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
+			
+			std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+			originPoint = std::get<0>(sE);
+			vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			while (vec1.IsParallel(vec2, 0.0001))
+			{
+				vertexExp.Next();
+				edge = TopoDS::Edge(vertexExp.Current());
+				std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+				vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			}
+			break;
+		}
+		gp_Vec normal = vec1.Crossed(vec2);
+		normal.Normalize();
+		faceBuilder = BRepBuilderAPI_MakeFace(
+			gp_Pln(originPoint, normal ),
+			wireList[i]);
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
 
 	if (faceList.size() == 1) { return faceList; }
-
-
 
 	// test which surfaces are inner loops
 	std::vector<double> areaList;
@@ -1364,7 +1393,7 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 			outerList.emplace_back(subOuterList[j]);
 		}
 	}
-
+	
 	footPrintList_ = outerEdges2Shapes(outerList);
 	hasFootPrint_ = true;
 
@@ -1563,8 +1592,7 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 
 		brepSewer.Perform();
 		brepBuilder.Add(solidShape, brepSewer.SewedShape());
-
-		// simplification of each surface
+		std::cout << "reached" << std::endl;
 		TopoDS_Solid cleanedSolid = simplefySolid(solidShape);
 		prismList.emplace_back(cleanedSolid);
 	}
@@ -1719,11 +1747,72 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 			cleanList.emplace_back(edgeList[i]);
 		}
 	}
-
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
 	return cleanedFaceList[0];
+}
+
+std::vector<int> CJGeoCreator::getTypeValuesBySample(TopoDS_Solid prism, int prismNum, bool flat) {
+	std::vector<int> valueList;
+
+	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+		valueList.emplace_back(1);
+	}
+
+	std::vector<TopoDS_Face> faceList;
+	if (flat)
+	{
+		for (size_t i = 0; i < faceList_[prismNum].size(); i++)
+		{
+			faceList.emplace_back(faceList_[prismNum][i]->getFlatFace());
+		}
+	}
+	else {
+		for (size_t i = 0; i < faceList_[prismNum].size(); i++)
+		{
+			faceList.emplace_back(faceList_[prismNum][i]->getFace());
+		}
+	}
+
+	double lowestZ = std::numeric_limits<double>::max();
+	int lowestFaceIdx = 0;
+	int faceIdx = 0;
+
+	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+		std::cout << "t" << std::endl;
+		TopoDS_Face currentface = TopoDS::Face(faceExp.Current());
+		gp_Pnt evalpoint = getPointOnFace(currentface);
+		std::cout << "0" << std::endl;
+		//std::cout << "new eval" << std::endl;
+		for (size_t i = 0; i < faceList.size(); i++)
+		{
+			TopoDS_Face evalFace = faceList[i];
+
+			BRepExtrema_DistShapeShape distanceWireCalc(evalFace, BRepBuilderAPI_MakeVertex(evalpoint));
+			distanceWireCalc.Perform();
+
+			if (distanceWireCalc.Value() < 0.00001)
+			{
+				valueList[faceIdx] = 2;
+				break;
+			}
+		}
+		Bnd_Box bbox;
+		BRepBndLib::Add(currentface, bbox);
+		Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+		bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+		if (zmin < lowestZ && zmin - 0.001 < zmax && zmin + 0.001 > zmax) {
+			lowestZ = zmin;
+			lowestFaceIdx = faceIdx;
+		}
+		std::cout << "out" << std::endl;
+		faceIdx++;
+	}
+
+	valueList[lowestFaceIdx] = 0;
+
+	return valueList;
 }
 
 
@@ -2178,6 +2267,11 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollect
 
 	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
 
+	std::map<std::string, std::string> semanticData;
+	semanticData.emplace("type", "RoofSurface");
+	geoObject->appendSurfaceData(semanticData);
+	geoObject->appendSurfaceTypeValue(0);
+
 	return geoObject;
 }
 
@@ -2188,9 +2282,16 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 	if (!hasTopFaces_ || !hasFootPrint_) { initializeBasic(cluster); }
 
 	std::vector< CJT::GeoObject*> geoObjectList;
+
+	std::map<std::string, std::string> semanticData;
+	semanticData.emplace("type", "RoofSurface");
+
 	for (size_t i = 0; i < footPrintList_.size(); i++)
 	{
-		geoObjectList.emplace_back(kernel->convertToJSON(footPrintList_[i], "0.2"));
+		CJT::GeoObject* geoObject = kernel->convertToJSON(footPrintList_[i], "0.2");
+		geoObject->appendSurfaceData(semanticData);
+		geoObject->appendSurfaceTypeValue(0);
+		geoObjectList.emplace_back(geoObject);
 	}
 	return geoObjectList;
 }
@@ -2236,17 +2337,33 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 
 	std::vector<TopoDS_Face> faceList;
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
 	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
 
 	brepSewer.Perform();
 	brepBuilder.Add(bbox, brepSewer.SewedShape());
 
 	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
+	std::map<std::string, std::string> grMap;
+	grMap.emplace("type", "GroundSurface");
+	std::map<std::string, std::string> wMap;
+	wMap.emplace("type", "WallSurface");
+	std::map<std::string, std::string> rMap;
+	rMap.emplace("type", "RoofSurface");
+
+	geoObject->appendSurfaceData(grMap);
+	geoObject->appendSurfaceData(wMap);
+	geoObject->appendSurfaceData(rMap);
+	geoObject->appendSurfaceTypeValue(0);
+	geoObject->appendSurfaceTypeValue(1);
+	geoObject->appendSurfaceTypeValue(1);
+	geoObject->appendSurfaceTypeValue(1);
+	geoObject->appendSurfaceTypeValue(1);
+	geoObject->appendSurfaceTypeValue(2);
 
 	return geoObject;
 }
@@ -2273,6 +2390,24 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJ
 		TopoDS_Shape extrudedShape = sweeper.Shape();
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape, "1.2");
+		std::map<std::string, std::string> grMap;
+		grMap.emplace("type", "GroundSurface");
+		std::map<std::string, std::string> wMap;
+		wMap.emplace("type", "WallSurface");
+		std::map<std::string, std::string> rMap;
+		rMap.emplace("type", "RoofSurface");
+		geoObject->appendSurfaceData(grMap);
+		geoObject->appendSurfaceData(wMap);
+		geoObject->appendSurfaceData(rMap);
+
+		int counter = 0;
+		for (TopExp_Explorer faceExp(extrudedShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+			TopoDS_Face face = TopoDS::Face(faceExp.Current());
+			geoObject->appendSurfaceTypeValue(1);
+			counter++;
+		}
+		geoObject->setSurfaceTypeValue(counter - 2, 0);
+		geoObject->setSurfaceTypeValue(counter - 1, 2);
 		geoObjectList.emplace_back(geoObject);
 	}
 	return geoObjectList;
@@ -2297,6 +2432,20 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helperCluster* cluster, CJ
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "1.3");
+
+		std::map<std::string, std::string> grMap;
+		grMap.emplace("type", "GroundSurface");
+		std::map<std::string, std::string> wMap;
+		wMap.emplace("type", "WallSurface");
+		std::map<std::string, std::string> rMap;
+		rMap.emplace("type", "RoofSurface");
+		geoObject->appendSurfaceData(grMap);
+		geoObject->appendSurfaceData(wMap);
+		geoObject->appendSurfaceData(rMap);
+
+		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], i, true);
+		geoObject->setSurfaceTypeValues(typeValueList);
+
 		geoObjectList.emplace_back(geoObject);
 	}
 	return geoObjectList;
@@ -2321,6 +2470,19 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJ
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "2.2");
+		std::map<std::string, std::string> grMap;
+		grMap.emplace("type", "GroundSurface");
+		std::map<std::string, std::string> wMap;
+		wMap.emplace("type", "WallSurface");
+		std::map<std::string, std::string> rMap;
+		rMap.emplace("type", "RoofSurface");
+		geoObject->appendSurfaceData(grMap);
+		geoObject->appendSurfaceData(wMap);
+		geoObject->appendSurfaceData(rMap);
+
+		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], i, false);
+		geoObject->setSurfaceTypeValues(typeValueList);
+
 		geoObjectList.emplace_back(geoObject);
 	}
 	return geoObjectList;

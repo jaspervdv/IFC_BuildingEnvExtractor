@@ -232,6 +232,63 @@ gp_Pnt getHighestPoint(TopoDS_Shape shape)
 	return gp_Pnt(sumX / aP, sumY / aP, highestZ);
 }
 
+gp_Pnt getPointOnFace(TopoDS_Face theFace) {
+
+	theFace.Reverse();
+	int maxGuesses = 10;
+
+	gp_Pnt lll(999999, 999999, 999999);
+	gp_Pnt urr(-999999, -999999, -999999);
+
+	for (TopExp_Explorer vertexExp(theFace, TopAbs_VERTEX); vertexExp.More(); vertexExp.Next()) {
+		TopoDS_Vertex vertex = TopoDS::Vertex(vertexExp.Current());
+		gp_Pnt p = BRep_Tool::Pnt(vertex);
+		if (p.X() < lll.X()) { lll.SetX(p.X()); }
+		if (p.Y() < lll.Y()) { lll.SetY(p.Y()); }
+		if (p.Z() < lll.Z()) { lll.SetZ(p.Z()); }
+		if (p.X() > urr.X()) { urr.SetX(p.X()); }
+		if (p.Y() > urr.Y()) { urr.SetY(p.Y()); }
+		if (p.Z() > urr.Z()) { urr.SetZ(p.Z()); }
+	}
+	//std::cout << "t" << std::endl;
+	// Generate a random point on the face
+	std::random_device rd;
+	std::mt19937 gen(rd());
+
+	std::uniform_real_distribution<> xDistr(lll.X(), urr.X());
+	std::uniform_real_distribution<> yDistr(lll.Y(), urr.Y());
+	std::uniform_real_distribution<> zDistr(lll.Z(), urr.Z());
+
+	gp_Pnt randomPoint;
+	bool isOnFace = false;
+	int itt = 0;
+	while (!isOnFace) {
+		randomPoint.SetXYZ(gp_XYZ(xDistr(gen), yDistr(gen), zDistr(gen)));
+		
+		BRepExtrema_DistShapeShape distanceCalc(theFace, BRepBuilderAPI_MakeVertex(randomPoint));
+		distanceCalc.Perform();
+
+		randomPoint = distanceCalc.PointOnShape1(1);
+		isOnFace = true;
+
+		for (TopExp_Explorer wireExp(theFace, TopAbs_WIRE); wireExp.More(); wireExp.Next()) {
+			TopoDS_Wire theWire = TopoDS::Wire(wireExp.Current());
+
+			BRepExtrema_DistShapeShape distanceWireCalc(theWire, BRepBuilderAPI_MakeVertex(randomPoint));
+			distanceWireCalc.Perform();
+
+			if (distanceWireCalc.Value() < 0.01)
+			{
+				isOnFace = false;
+			}
+		}
+		if (itt == maxGuesses) { break; } // TODO: prevent hitting this
+		itt++;
+	}
+
+	return randomPoint;
+}
+
 std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape)
 {
 	TopExp_Explorer expl;

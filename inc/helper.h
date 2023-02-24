@@ -38,6 +38,7 @@
 #include <IntCurvesFace_Intersector.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <gp_Pln.hxx>
+#include <BRepClass_FaceClassifier.hxx>
 
 #include <CJT.h>
 #include <CJToKernel.h>
@@ -83,6 +84,7 @@ gp_Pnt Point3DBTO(BoostPoint3D oP);
 
 gp_Pnt getLowestPoint(TopoDS_Shape shape, bool areaFilter);
 gp_Pnt getHighestPoint(TopoDS_Shape shape);
+gp_Pnt getPointOnFace(TopoDS_Face theFace);
 
 std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape);
 
