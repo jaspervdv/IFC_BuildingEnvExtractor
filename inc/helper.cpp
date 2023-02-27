@@ -660,12 +660,17 @@ std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr produc
 
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
+		std::string typeName = product->data().type()->name();
 
 		if (!product->hasRepresentation()) { continue; }
-		if (product->data().type()->name() == "IfcAnnotation") { continue; } // find points another way
-		if (product->data().type()->name() == "IfcSite") { continue; }
-		if (product->data().type()->name() == "IfcBuildingElementProxy") { continue; }
-		if (product->data().type()->name() == "IfcFastener") { continue; }
+
+		if (typeName != "IfcRoof" && 
+			typeName != "IfcSlab" &&
+			typeName != "IfcWallStandardCase" &&
+			typeName != "IfcWall")
+		{
+			continue; 
+		}
 
 		std::vector<gp_Pnt> temp = getObjectPoints(product);
 
@@ -775,11 +780,9 @@ void helper::setUnits(IfcParse::IfcFile *file) {
 void helper::internalizeGeo()
 {
 	std::cout << "[INFO] Internalizing Geometry of Construction Model\n" << std::endl;
-
 	// get products
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
 	objectCount = products->size();
-
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 
@@ -788,7 +791,7 @@ void helper::internalizeGeo()
 			proxyCount++;
 		}
 	}
-	
+
 	if (proxyCount > 0)
 	{
 		hasProxy = true;
@@ -796,8 +799,7 @@ void helper::internalizeGeo()
 	if (proxyCount/objectCount >= maxProxyP)
 	{
 		hasLotProxy = true;
-	}
-
+	} 
 	std::vector<gp_Pnt> pointList = getAllPoints(products);
 
 	// approximate smalles bbox
@@ -842,7 +844,6 @@ void helper::internalizeGeo()
 	lllPoint_ = lllPoint;
 	urrPoint_ = urrPoint;
 	originRot_ = rotation;
-
 	hasGeo = true;
 }
 
@@ -1464,20 +1465,19 @@ void helper::addObjectToIndex(T object) {
 	// add doors to the rtree (for the appartment detection)
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;		
-
 		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (bg::get<bg::min_corner, 0>(box) == bg::get<bg::max_corner, 0>(box) &&
 			bg::get<bg::min_corner, 1>(box) == bg::get<bg::max_corner, 1>(box)) {
 			std::cout << "Failed: " + product->data().toString() << std::endl;
 			continue;
 		}
-
 		TopoDS_Shape shape = getObjectShape(product);
 		TopoDS_Shape cbbox;
 		bool hasCBBox = false;
 		bool matchFound = false;
 
-		if (product->data().type()->name() == "IfcDoor" || product->data().type()->name() == "IfcWindow")
+		std::string productType = product->data().type()->name();
+		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
 			// get potential nesting objects
 			std::vector<Value> qResult;
@@ -1485,17 +1485,25 @@ void helper::addObjectToIndex(T object) {
 			index_.query(bgi::intersects(box), std::back_inserter(qResult));
 
 			BRepExtrema_DistShapeShape distanceMeasurer;
-			distanceMeasurer.LoadS1(shape);
+
+			gp_Pnt lll = Point3DBTO(box.min_corner());
+			gp_Pnt urr = Point3DBTO(box.max_corner());
+
+			gp_Pnt mP = gp_Pnt((lll.X() + urr.X()) / 2, (lll.Y() + urr.Y()) / 2, (lll.Z() + urr.Z()) / 2);
+
+			distanceMeasurer.LoadS1(BRepBuilderAPI_MakeVertex(mP)); //TODO: check for outliers
+			//distanceMeasurer.LoadS1(shape); //TODO: check for outliers
 
 			for (size_t i = 0; i < qResult.size(); i++)
 			{
 				LookupValue lookup = productLookup_[qResult[i].second];
 				IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
+				std::string qProductType = qProduct->data().type()->name();
 
-				if (qProduct->data().type()->name() != "IfcWall" &&
-					qProduct->data().type()->name() != "IfcWallStandardCase" &&
-					qProduct->data().type()->name() != "IfcRoof" &&
-					qProduct->data().type()->name() != "IfcSlab")
+				if (qProductType != "IfcWall" &&
+					qProductType != "IfcWallStandardCase" &&
+					qProductType != "IfcRoof" &&
+					qProductType != "IfcSlab")
 				{
 					continue;
 				}

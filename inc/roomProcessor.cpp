@@ -1037,20 +1037,13 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(std::vector<Edge*> edgeList
 
 std::vector<TopoDS_Face> CJGeoCreator::outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList)
 {
-	std::cout << edgeList.size() << std::endl;
-	std::cout << "Reached" << std::endl;
-
 	std::vector<TopoDS_Wire> wireList = growWires(edgeList);
-	std::cout << "Reached1" << std::endl;
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);	
-	std::cout << "Reached2" << std::endl;
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
-	std::cout << "Reached3" << std::endl;
 	return cleanedFaceList;
 }
 
 std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeList){
-	std::cout << edgeList.size() << std::endl;
 	std::vector<TopoDS_Wire> wireCollection;
 
 	BRepBuilderAPI_MakeWire wireMaker;
@@ -1131,7 +1124,6 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 		{
 			wireMaker.Build();
 			wireCollection.emplace_back(wireMaker.Wire());
-
 			wireMaker = BRepBuilderAPI_MakeWire();
 			loopFound = false;
 		}
@@ -1142,6 +1134,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 			{
 				if (evaluated[j] == 0)
 				{
+					wireMaker = BRepBuilderAPI_MakeWire();
 					connectionPoint = std::get<1>(getPointsEdge(edgeList[j]));
 					originPoint = std::get<0>(getPointsEdge(edgeList[j]));
 					wireMaker.Add(BRepBuilderAPI_MakeEdge(originPoint, connectionPoint));
@@ -1156,7 +1149,6 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(std::vector<TopoDS_Edge> edgeLi
 			}
 		}
 	}
-
 	return wireCollection;
 }
 
@@ -1232,7 +1224,7 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire> wireList) {
-	
+
 	BRepBuilderAPI_MakeFace faceBuilder;
 	std::vector<TopoDS_Face> faceList;
 	for (size_t i = 0; i < wireList.size(); i++)
@@ -1258,9 +1250,9 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 			break;
 		}
 		gp_Vec normal = vec1.Crossed(vec2);
-		normal.Normalize();
+		//normal.Normalize();
 		faceBuilder = BRepBuilderAPI_MakeFace(
-			gp_Pln(originPoint, normal ),
+			gp_Pln(originPoint, normal),
 			wireList[i]);
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
@@ -1578,7 +1570,8 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 				{
 					continue;
 				}
-				double distance = BRepExtrema_DistShapeShape(cleanedFaceList[i], cleanedFaceList[j]).Value();
+
+				double distance = BRepExtrema_DistShapeShape(cleanedFaceList[i], cleanedFaceList[j]).Value(); // TODO: speed this up
 				if (distance < 0.001)
 				{
 					valid = true;
@@ -1592,7 +1585,6 @@ std::vector<TopoDS_Solid> CJGeoCreator::computePrisms(bool isFlat)
 
 		brepSewer.Perform();
 		brepBuilder.Add(solidShape, brepSewer.SewedShape());
-		std::cout << "reached" << std::endl;
 		TopoDS_Solid cleanedSolid = simplefySolid(solidShape);
 		prismList.emplace_back(cleanedSolid);
 	}
@@ -1605,11 +1597,33 @@ TopoDS_Solid CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 	std::vector<TopoDS_Face> facelist;
 	std::vector<gp_Dir> normalList;
 	for (TopExp_Explorer expl(solidShape, TopAbs_FACE); expl.More(); expl.Next()) {
-		TopoDS_Face face = TopoDS::Face(expl.Current());
 
+		TopoDS_Face face = TopoDS::Face(expl.Current());
+		gp_Vec vec1;
+		gp_Vec vec2;
+		gp_Pnt originPoint;
+
+		for (TopExp_Explorer vertexExp(face, TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
+			TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
+
+			std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+			originPoint = std::get<0>(sE);
+			vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			while (vec1.IsParallel(vec2, 0.0001))
+			{
+				vertexExp.Next();
+				edge = TopoDS::Edge(vertexExp.Current());
+				std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+				vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			}
+			break;
+		}
+
+		gp_Vec normal = vec1.Crossed(vec2);
+		normal.Normalize();
 		facelist.emplace_back(face);
-		BRepAdaptor_Surface adaptor1(face); //TODO: simplefy 
-		normalList.emplace_back(adaptor1.Plane().Position().Direction());
+		normalList.emplace_back(normal);
 	}
 
 	if (facelist.size() != normalList.size()) { return solidShape; }
@@ -1689,15 +1703,14 @@ TopoDS_Solid CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 					count = mergeList.size();
 				}
 				else {
-					brepSewer.Add(mergeFaces(mergeList));
+
+					TopoDS_Face mergedFace = mergeFaces(mergeList);
+					brepSewer.Add(mergedFace);
 					break;
 				}
 			}
 		}
-
-
 	}
-
 	brepSewer.Perform();
 	brepBuilder.Add(simpleBuilding, brepSewer.SewedShape());
 
@@ -1714,9 +1727,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 		}
 
 	}
-
-	BRepAdaptor_Surface adaptor1(mergeFaces[0]); //TODO: simplefy 
-	gp_Pln surfPlane = adaptor1.Plane();
 
 	std::vector<TopoDS_Edge> cleanList;
 	std::vector<int> evalList(edgeList.size());
@@ -1780,11 +1790,8 @@ std::vector<int> CJGeoCreator::getTypeValuesBySample(TopoDS_Solid prism, int pri
 	int faceIdx = 0;
 
 	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
-		std::cout << "t" << std::endl;
 		TopoDS_Face currentface = TopoDS::Face(faceExp.Current());
 		gp_Pnt evalpoint = getPointOnFace(currentface);
-		std::cout << "0" << std::endl;
-		//std::cout << "new eval" << std::endl;
 		for (size_t i = 0; i < faceList.size(); i++)
 		{
 			TopoDS_Face evalFace = faceList[i];
@@ -1806,7 +1813,6 @@ std::vector<int> CJGeoCreator::getTypeValuesBySample(TopoDS_Solid prism, int pri
 			lowestZ = zmin;
 			lowestFaceIdx = faceIdx;
 		}
-		std::cout << "out" << std::endl;
 		faceIdx++;
 	}
 
