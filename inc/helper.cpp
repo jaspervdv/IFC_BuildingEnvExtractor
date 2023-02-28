@@ -659,6 +659,7 @@ std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr produc
 
 
 	for (auto it = products->begin(); it != products->end(); ++it) {
+
 		IfcSchema::IfcProduct* product = *it;
 		std::string typeName = product->data().type()->name();
 
@@ -801,7 +802,6 @@ void helper::internalizeGeo()
 		hasLotProxy = true;
 	} 
 	std::vector<gp_Pnt> pointList = getAllPoints(products);
-
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
 	double rotation = 0;
@@ -1464,7 +1464,7 @@ template <typename T>
 void helper::addObjectToIndex(T object) {
 	// add doors to the rtree (for the appartment detection)
 	for (auto it = object->begin(); it != object->end(); ++it) {
-		IfcSchema::IfcProduct* product = *it;		
+		IfcSchema::IfcProduct* product = *it;	
 		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (bg::get<bg::min_corner, 0>(box) == bg::get<bg::max_corner, 0>(box) &&
 			bg::get<bg::min_corner, 1>(box) == bg::get<bg::max_corner, 1>(box)) {
@@ -1515,7 +1515,6 @@ void helper::addObjectToIndex(T object) {
 
 				TopExp_Explorer expl;
 				for (expl.Init(qUntrimmedShape, TopAbs_SOLID); expl.More(); expl.Next()) {
-
 					// get distance to isolated actual object
 					distanceMeasurer.LoadS2(expl.Current());
 					distanceMeasurer.Perform();
@@ -1547,7 +1546,6 @@ void helper::addObjectToIndex(T object) {
 					gp_Pnt p = BRep_Tool::Pnt(vertex);
 					pointList.emplace_back(p);
 				}
-
 				for (size_t i = 0; i < pointList.size(); i += 2)
 				{
 					gp_Pnt p1 = pointList[i];
@@ -1600,6 +1598,13 @@ void helper::addObjectToIndex(T object) {
 
 				gp_Pnt lllPoint = std::get<0>(base);
 				gp_Pnt urrPoint = std::get<1>(base);
+
+				if (std::abs(lllPoint.X() - urrPoint.X()) < 1e-6 ||
+					std::abs(lllPoint.Y() - urrPoint.Y()) < 1e-6 || 
+					std::abs(lllPoint.Z() - urrPoint.Z()) < 1e-6 ) { //TODO: find better way to do this
+					continue;
+				}
+
 				double rot = angle;
 
 				if (lllPoint.Distance(urrPoint) > std::get<0>(base2).Distance(std::get<1>(base2)))
@@ -1614,8 +1619,6 @@ void helper::addObjectToIndex(T object) {
 				cbbox = makeSolidBox(lllPoint, urrPoint, rot);
 			}
 		}
-
-
 		index_.insert(std::make_pair(box, (int)index_.size()));
 		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);
 		auto lookup = std::make_tuple(*it, triangleMeshList, shape, hasCBBox, cbbox);
@@ -1746,11 +1749,7 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 		}
 	}
 	else {
-
-		//std::cout << product->data().toString() << std::endl;
-
 		TopoDS_Shape rShape = getObjectShape(product, simple);
-
 		TopExp_Explorer expl;
 		for (expl.Init(rShape, TopAbs_VERTEX); expl.More(); expl.Next())
 		{
@@ -1927,7 +1926,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		}
 	}
 
-
 	IfcGeom::IteratorSettings settings;
 	// TODO: monitor the effect of doing this
 	//if (isFloor) { settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true); }
@@ -1982,10 +1980,9 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		IfcGeom::BRepElement<double, double>* brep = kernel_->convert(settings, ifc_representation, product);
 		kernel_->convert_placement(ifc_representation, placement);
 
+		if (brep == nullptr) { return {}; } //TODO: find manner to aquire data in another manner
 		comp = brep->geometry().as_compound();
 		comp.Move(trsf * placement); // location in global space
-
-
 		if (hasHoles)
 		{
 			settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true);

@@ -302,11 +302,11 @@ private:
 
 	void initializeBasic(helperCluster* cluster);
 
-	std::vector<TopoDS_Solid> computePrisms(bool isFlat = false);
-	TopoDS_Solid simplefySolid(TopoDS_Solid solidShape);
+	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
+	TopoDS_Shape simplefySolid(TopoDS_Solid solidShape);
 	TopoDS_Face mergeFaces(std::vector<TopoDS_Face> mergeFaces);
 
-	std::vector<int> getTypeValuesBySample(TopoDS_Solid prism, int prismNum, bool flat);
+	std::vector<int> getTypeValuesBySample(TopoDS_Shape prism, int prismNum, bool flat);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
