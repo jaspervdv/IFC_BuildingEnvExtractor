@@ -87,7 +87,6 @@ gp_Vec getDirEdge(TopoDS_Edge edge) {
 	return vec.Normalized();
 }
 
-
 gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2) {
 
 	gp_Pnt sP1 = edge1->getProjectedStart();
@@ -1262,7 +1261,6 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
-
 	if (faceList.size() == 1) { return faceList; }
 
 	// test which surfaces are inner loops
@@ -1299,7 +1297,6 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		ordered[evalIdx] = 1;
 	}
 
-
 	std::vector<int> clipped(areaList.size());
 	std::vector<TopoDS_Face> cleanedFaceList;
 	for (size_t i = 0; i < orderedFootprintList.size(); i++)
@@ -1319,12 +1316,20 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 			for (expl.Init(orderedFootprintList[j], TopAbs_VERTEX); expl.More(); expl.Next())
 			{
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt p = BRep_Tool::Pnt(vertex);
 
-				BRepExtrema_DistShapeShape distanceCalc(clippedFace, vertex);
-				distanceCalc.Perform();
-				double distance = distanceCalc.Value();
+				TopoDS_Edge evalEdge = BRepBuilderAPI_MakeEdge(p, gp_Pnt(p.X() + 1000, p.Y(), p.Z()));
 
-				if (distance < 0.001)
+				int intersectionCount = 0;
+				TopExp_Explorer edgeExplorer(clippedFace, TopAbs_EDGE);
+				for (; edgeExplorer.More(); edgeExplorer.Next()) {
+					const TopoDS_Edge& currentEdge = TopoDS::Edge(edgeExplorer.Current());
+
+					BRepExtrema_DistShapeShape distanceCalc1(evalEdge, currentEdge); //TODO: speed up with linear intersection function?
+					distanceCalc1.Perform();
+					if (distanceCalc1.Value() < 1e-6) { intersectionCount++; }
+				}
+				if (intersectionCount % 2 == 1)
 				{
 					overlap = true;
 					clipped[j] = 1;
@@ -1336,7 +1341,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 
 			GProp_GProps gprop;
 			BRepGProp::VolumeProperties(orderedFootprintList[j], gprop);
-			double mass = abs(gprop.Mass());
+			//double mass = abs(gprop.Mass());
 
 			//if (mass < 5) { continue; }
 
@@ -1405,7 +1410,9 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	std::vector<SurfaceGroup*> tempSurfaceGroup = faceList_[0];
 	faceList_.clear();
 
-	for (size_t i = 0; i < footPrintList_.size(); i++) { faceList_.emplace_back(std::vector<SurfaceGroup*>()); }
+	for (size_t i = 0; i < footPrintList_.size(); i++) { 
+		faceList_.emplace_back(std::vector<SurfaceGroup*>()); 	
+	}
 
 	TopExp_Explorer expl;
 	for (size_t i = 0; i < tempSurfaceGroup.size(); i++)
