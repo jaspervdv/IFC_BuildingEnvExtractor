@@ -1519,7 +1519,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 						break;
 					}
 				}
-
+				
 				if (above)
 				{
 					aLSFuseObjects.Append(TopoDS::Solid(expl.Current()));
@@ -1539,6 +1539,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 			ObjectFaceList.emplace_back(TopoDS::Face(expl.Current()));
 		}
 
+		if (ObjectFaceList.size() == 0) { continue; }
 
 		std::vector<TopoDS_Face> cleanedFaceList;
 		// check if surfaces overlap
@@ -1565,7 +1566,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 				cleanedFaceList.emplace_back(ObjectFaceList[i]);
 			}
 		}
-
 		BRep_Builder brepBuilder;
 		BRepBuilderAPI_Sewing brepSewer;
 
@@ -1573,8 +1573,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 		brepBuilder.MakeShell(shell);
 		TopoDS_Solid solidShape;
 		brepBuilder.MakeSolid(solidShape);
-
 		// check if edge has overlap
+		bool success = false;
 		for (size_t i = 0; i < cleanedFaceList.size(); i++)
 		{
 			bool valid = false;
@@ -1594,13 +1594,16 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 			if (valid)
 			{
 				brepSewer.Add(cleanedFaceList[i]);
+				success = true;
 			}
 		}
-
-		brepSewer.Perform();
-		brepBuilder.Add(solidShape, brepSewer.SewedShape());
-		TopoDS_Shape cleanedSolid = simplefySolid(solidShape);
- 		prismList.emplace_back(cleanedSolid);
+		if (success)
+		{
+			brepSewer.Perform();
+			brepBuilder.Add(solidShape, brepSewer.SewedShape());
+			TopoDS_Shape cleanedSolid = simplefySolid(solidShape);
+			prismList.emplace_back(cleanedSolid);
+		}
 	}
 	return prismList;
 }
