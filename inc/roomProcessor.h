@@ -308,6 +308,8 @@ private:
 
 	std::vector<int> getTypeValuesBySample(TopoDS_Shape prism, int prismNum, bool flat);
 
+	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
+
 public:
 	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
 

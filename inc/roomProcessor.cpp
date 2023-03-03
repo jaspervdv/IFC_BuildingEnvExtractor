@@ -55,32 +55,6 @@ std::tuple<gp_Pnt, gp_Pnt> getProPointsEdge(TopoDS_Edge edge) {
 	return std::make_tuple(startPoint, endPoint);
 }
 
-std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge) {
-	TopExp_Explorer expl;
-
-	int counter = 0;
-	gp_Pnt startPoint(0, 0, 0);
-	gp_Pnt endPoint(0, 0, 0);
-
-	for (expl.Init(edge, TopAbs_VERTEX); expl.More(); expl.Next()) {
-		TopoDS_Vertex currentVertex = TopoDS::Vertex(expl.Current());
-		gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-		if (counter == 0)
-		{
-			startPoint = currentPoint;
-			counter++;
-			continue;
-		}
-		if (counter == 1)
-		{
-			endPoint = currentPoint;
-			break;
-		}
-	}
-
-	return std::make_tuple(startPoint, endPoint);
-}
-
 gp_Vec getDirEdge(TopoDS_Edge edge) {
 	std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edge);
 	gp_Vec vec = gp_Vec(std::get<0>(pp), std::get<1>(pp));
@@ -397,8 +371,9 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 			if (!overlap(otherGroup)) { continue; }
 		}
 
-
 		TopoDS_Face otherFace = otherGroup->getFace();
+		gp_Pnt otherLLLPoint = otherGroup->getLLLPoint();
+		gp_Pnt otherURRPoint = otherGroup->getURRPoint();
 
 		if (currentFace.IsEqual(otherFace)) { continue; }
 
@@ -409,6 +384,12 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 			EvaluationPoint* currentEvalPoint = currentGrid[k];
 
 			if (!currentEvalPoint->isVisible()) { continue; }
+
+			// check if the projection line falls withing the bbox of the surface
+			gp_Pnt evalPoint = currentEvalPoint->getPoint();
+			if (evalPoint.X() - otherLLLPoint.X() < -0.1 || evalPoint.X() - otherURRPoint.X() > 0.1) { continue; }
+			if (evalPoint.Y() - otherLLLPoint.Y() < -0.1 || evalPoint.Y() - otherURRPoint.Y() > 0.1) { continue; }
+			if (evalPoint.Z() - urrPoint_.Z()  > 0.1)  { continue; }
 
 			intersector.Perform(
 				currentEvalPoint->getEvalLine(),
@@ -1192,13 +1173,13 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 		}
 	}
 	gp_Pnt connection = std::get<0>(getPointsEdge(orderedEdgeList[0]));
-
 	for (size_t i = 0; i < orderedEdgeList.size(); i++) // merge parralel 
 	{
 		if (merged[i] == 1) { continue; }
 		merged[i] = 1;
 
 		TopoDS_Edge currentEdge = orderedEdgeList[i];
+		
 		gp_Vec currentVec = getDirEdge(currentEdge);
 		gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
 
@@ -1214,6 +1195,12 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 			merged[j] = 1;
 			endPoint = std::get<1>(getPointsEdge(otherEdge));
 		}
+
+		if (connection.IsEqual(endPoint, 1e-6))
+		{
+			continue;
+		}
+
 		wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, endPoint));
 
 		connection = endPoint;
@@ -1358,10 +1345,13 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 }
 
 void CJGeoCreator::initializeBasic(helperCluster* cluster) {
+	std::cout << "- Pre proccessing" << std::endl;
 	// generate data required for most exports
 	std::vector<SurfaceGroup*> shapeList;
 	std::vector<TopoDS_Shape> filteredFaces = getTopObjects(cluster);
 
+	auto startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- Reduce surfaces" << std::endl;
 	for (size_t i = 0; i < filteredFaces.size(); i++)
 	{
 		std::vector<SurfaceGroup*>  objectFaces = getXYFaces(filteredFaces[i]);
@@ -1371,7 +1361,10 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 			hasTopFaces_ = true;
 		}
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 
+	startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- Fine filtering of roofing structures" << std::endl;
 	// get the faces visible from the top 
 	faceList_.emplace_back(std::vector<SurfaceGroup*>());
 	std::vector<SurfaceGroup*> cleanedShapeList;
@@ -1383,6 +1376,10 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 			faceList_[0].emplace_back(shapeList[i]);
 		}
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+
+	startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- Construct footprints" << std::endl;
 
 	// create building footprints 
 	std::vector<Edge*> edgeList = makeJumbledGround();
@@ -1396,8 +1393,10 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 			outerList.emplace_back(subOuterList[j]);
 		}
 	}
-	
+
 	footPrintList_ = outerEdges2Shapes(outerList);
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+
 	hasFootPrint_ = true;
 
 	// sort surface groups based on the footprints
@@ -1407,6 +1406,8 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 		return;
 	}
 
+	startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- Sort roofing structures" << std::endl;
 	std::vector<SurfaceGroup*> tempSurfaceGroup = faceList_[0];
 	faceList_.clear();
 
@@ -1446,6 +1447,7 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	}
 
 	hasSortedFaces_ = true;
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return;
 }
 
@@ -1616,31 +1618,8 @@ TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 	for (TopExp_Explorer expl(solidShape, TopAbs_FACE); expl.More(); expl.Next()) {
 
 		TopoDS_Face face = TopoDS::Face(expl.Current());
-		gp_Vec vec1;
-		gp_Vec vec2;
-		gp_Pnt originPoint;
-
-		for (TopExp_Explorer vertexExp(face, TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
-			TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
-
-			std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
-			originPoint = std::get<0>(sE);
-			vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
-			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
-			while (vec1.IsParallel(vec2, 0.0001))
-			{
-				vertexExp.Next();
-				edge = TopoDS::Edge(vertexExp.Current());
-				std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
-				vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
-			}
-			break;
-		}
-
-		gp_Vec normal = vec1.Crossed(vec2);
-		normal.Normalize();
 		facelist.emplace_back(face);
-		normalList.emplace_back(normal);
+		normalList.emplace_back(computeFaceNormal(face));
 	}
 
 	if (facelist.size() != normalList.size()) { return solidShape; }
@@ -1841,6 +1820,18 @@ std::vector<int> CJGeoCreator::getTypeValuesBySample(TopoDS_Shape prism, int pri
 	valueList[lowestFaceIdx] = 0;
 
 	return valueList;
+}
+
+
+void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime) {
+	LONGLONG duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	if (duration < 5)
+	{
+		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << "ms" << std::endl;
+	}
+	else {
+		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << "s" << std::endl;
+	}
 }
 
 
@@ -2078,6 +2069,9 @@ void CJGeoCreator::outputFieldToFile()
 
 std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- Coarse filtering of roofing structures" << std::endl;
+
 	std::vector<int> boxelIdx = getTopBoxelIndx();
 	std::vector<IfcSchema::IfcProduct*> topProducts;
 	std::vector<TopoDS_Shape> topObjects;
@@ -2095,6 +2089,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 		{
 			BoostPoint3D lll(pointList[0].X(), pointList[0].Y(), pointList[0].Z() - downstep);
 			BoostPoint3D urr(pointList[4].X(), pointList[4].Y(), pointList[4].Z());
+			//printPoint(lll);
+			//printPoint(urr);
 			bg::model::box<BoostPoint3D> boostBoxel = bg::model::box<BoostPoint3D>(lll, urr);
 			std::vector<Value> qResult;
 
@@ -2116,7 +2112,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 					if (product->data().type()->name() != "IfcSlab" &&
 						product->data().type()->name() != "IfcWallStandardCase" &&
 						product->data().type()->name() != "IfcWall" &&
-						product->data().type()->name() != "IfcRoof")
+						product->data().type()->name() != "IfcRoof" &&
+						product->data().type()->name() != "IfcWindow")
 					{
 						continue;
 					}
@@ -2149,7 +2146,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 			if (pointList[0].Z() - (downstep + step) < cluster->getLllPoint().Z()) { break; }
 		}
 	}
-
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return topObjects;
 }
 
@@ -2179,20 +2176,9 @@ std::vector<SurfaceGroup*> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 
 		if (area < 0.01) { continue; }
 
-		Handle(Geom_Surface) Surface = BRep_Tool::Surface(face);
+		gp_Vec faceNormal = computeFaceNormal(face);
 
-		GeomAdaptor_Surface theGASurface(Surface);
-		if (theGASurface.GetType() != GeomAbs_Plane) {
-			continue;
-		}
-		GeomLProp_SLProps SLProps(Surface, 1, 0.1);
-		gp_Pnt2d P2d = gp_Pnt2d(0.5,0.5);
-		SLProps.SetParameters(P2d.X(), P2d.Y());
-		gp_Dir direc = SLProps.Normal();
-		double magnitude = direc.X() + direc.Y() + direc.Z();
-
-		if (direc.Z() == 0 ) { continue; }
-		if (direc.Z()/magnitude < 0.001 && direc.Z()/magnitude > - 0.001) { continue; }
+		if (std::abs(faceNormal.Z() - 0) < 0.001) { continue;}
 		surfaceGroupList.emplace_back(new SurfaceGroup(face));
 	}
 
@@ -2273,6 +2259,7 @@ std::vector<SurfaceGroup*> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 
 CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.0 Model" << std::endl;
 
 
@@ -2293,19 +2280,20 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helperCluster* cluster, CJT::CityCollect
 
 	TopoDS_Shape floorProjection = BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "0.0");
 
 	std::map<std::string, std::string> semanticData;
 	semanticData.emplace("type", "RoofSurface");
 	geoObject->appendSurfaceData(semanticData);
 	geoObject->appendSurfaceTypeValue(0);
-
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObject;
 }
 
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
 	if (!hasTopFaces_ || !hasFootPrint_) { initializeBasic(cluster); }
 
@@ -2316,16 +2304,18 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 
 	for (size_t i = 0; i < footPrintList_.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(footPrintList_[i], "0.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(footPrintList_[i].Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "0.2");
 		geoObject->appendSurfaceData(semanticData);
 		geoObject->appendSurfaceTypeValue(0);
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
 }
 
 CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
 	gp_Pnt lll = cluster->getLllPoint();
 	gp_Pnt urr = cluster->getUrrPoint();
@@ -2375,7 +2365,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 	brepSewer.Perform();
 	brepBuilder.Add(bbox, brepSewer.SewedShape());
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "1.0");
 	std::map<std::string, std::string> grMap;
 	grMap.emplace("type", "GroundSurface");
 	std::map<std::string, std::string> wMap;
@@ -2392,12 +2382,13 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helperCluster* cluster, CJT::CityCollect
 	geoObject->appendSurfaceTypeValue(1);
 	geoObject->appendSurfaceTypeValue(1);
 	geoObject->appendSurfaceTypeValue(2);
-
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObject;
 }
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.2 Model" << std::endl;
 	if (!hasTopFaces_ || !hasFootPrint_) { initializeBasic(cluster); }
 
@@ -2417,7 +2408,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJ
 		sweeper.Build();
 		TopoDS_Shape extrudedShape = sweeper.Shape();
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape, "1.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "1.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2438,11 +2429,13 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJ
 		geoObject->setSurfaceTypeValue(counter - 1, 2);
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
 }
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.3 Model" << std::endl;
 	std::vector< CJT::GeoObject*> geoObjectList;
 
@@ -2459,7 +2452,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helperCluster* cluster, CJ
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "1.3");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "1.3");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2475,11 +2468,13 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helperCluster* cluster, CJ
 
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
 }
 
 std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale) 
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 2.2 Model" << std::endl;
 	std::vector< CJT::GeoObject*> geoObjectList;
 
@@ -2496,7 +2491,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJ
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "2.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "2.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2512,6 +2507,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJ
 
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
 }
 

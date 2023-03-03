@@ -67,7 +67,7 @@ void printFaces(TopoDS_Shape shape)
 		{
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 			gp_Pnt p = BRep_Tool::Pnt(vertex);
-			printPoint(p);
+			//printPoint(p);
 		}
 		std::cout << "End of Face" << std::endl;
 		std::cout << std::endl;
@@ -287,6 +287,61 @@ gp_Pnt getPointOnFace(TopoDS_Face theFace) {
 	}
 
 	return randomPoint;
+}
+
+std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge) {
+	TopExp_Explorer expl;
+
+	int counter = 0;
+	gp_Pnt startPoint(0, 0, 0);
+	gp_Pnt endPoint(0, 0, 0);
+
+	for (expl.Init(edge, TopAbs_VERTEX); expl.More(); expl.Next()) {
+		TopoDS_Vertex currentVertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+		if (counter == 0)
+		{
+			startPoint = currentPoint;
+			counter++;
+			continue;
+		}
+		if (counter == 1)
+		{
+			endPoint = currentPoint;
+			break;
+		}
+	}
+
+	return std::make_tuple(startPoint, endPoint);
+}
+
+gp_Vec computeFaceNormal(TopoDS_Face& theFace)
+{
+	gp_Vec vec1;
+	gp_Vec vec2;
+	gp_Pnt originPoint;
+
+	for (TopExp_Explorer vertexExp(theFace, TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
+		TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
+
+		std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+		originPoint = std::get<0>(sE);
+		vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+		vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+		while (vec1.IsParallel(vec2, 0.0001))
+		{
+			vertexExp.Next();
+			edge = TopoDS::Edge(vertexExp.Current());
+			std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+		}
+		break;
+	}
+
+	gp_Vec normal = vec1.Crossed(vec2);
+	normal.Normalize();
+
+	return normal;
 }
 
 std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape)
@@ -666,9 +721,9 @@ std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr produc
 		if (!product->hasRepresentation()) { continue; }
 
 		if (typeName != "IfcRoof" && 
-			typeName != "IfcSlab" &&
-			typeName != "IfcWallStandardCase" &&
-			typeName != "IfcWall")
+			typeName != "IfcSlab" && 
+			typeName != "IfcWall" &&
+			typeName != "IfcWallStandardCase") //TODO: remove
 		{
 			continue; 
 		}
@@ -786,11 +841,7 @@ void helper::internalizeGeo()
 	objectCount = products->size();
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
-
-		if (product->data().type()->name() == "IfcBuildingElementProxy")
-		{
-			proxyCount++;
-		}
+		if (product->data().type()->name() == "IfcBuildingElementProxy") { proxyCount++; }
 	}
 
 	if (proxyCount > 0)
@@ -801,6 +852,39 @@ void helper::internalizeGeo()
 	{
 		hasLotProxy = true;
 	} 
+	std::cout << "c" << std::endl;
+	// get a point to translate the model to
+	IfcSchema::IfcSlab::list::ptr slabList = file_->instances_by_type<IfcSchema::IfcSlab>();
+	std::cout << "t" << std::endl;
+	gp_Pnt lllPointSite;
+	bool hasSitePoint = false;
+
+	for (auto it = slabList->begin(); it != slabList->end(); ++it) {
+		IfcSchema::IfcSlab* slab = *it;
+
+		TopoDS_Shape siteShape = getObjectShape(slab, false, false);
+		for (TopExp_Explorer vertexExplorer(siteShape, TopAbs_VERTEX); vertexExplorer.More(); vertexExplorer.Next())
+		{
+			const TopoDS_Vertex& vertex = TopoDS::Vertex(vertexExplorer.Current());
+			gp_Pnt vertexPoint = BRep_Tool::Pnt(vertex);
+
+			if (!hasSitePoint)
+			{
+				lllPointSite = vertexPoint;
+				hasSitePoint = true;
+			}
+
+			if (vertexPoint.X() < lllPointSite.X()) { lllPointSite.SetX(vertexPoint.X());}
+			if (vertexPoint.Y() < lllPointSite.Y()) { lllPointSite.SetY(vertexPoint.Y());}
+			if (vertexPoint.Z() < lllPointSite.Z()) { lllPointSite.SetZ(vertexPoint.Z());}
+
+		}
+		break;
+	}
+	std::cout << "click" << std::endl;
+	objectTranslation_.SetTranslationPart(gp_Vec(-lllPointSite.X(), -lllPointSite.Y(), 0));
+	std::cout << "clack" << std::endl;
+
 	std::vector<gp_Pnt> pointList = getAllPoints(products);
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
@@ -978,6 +1062,11 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* pro
 {
 	std::vector<gp_Pnt> productVert = getObjectPoints(product);
 	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({0,0,0}, {0,0,0}); }
+
+	for (size_t i = 0; i < productVert.size(); i++)
+	{
+		//printPoint(productVert[i]);
+	}
 
 	// only outputs 2 corners of the three needed corners!
 	auto box = rotatedBBoxDiagonal(productVert, originRot_);
@@ -1814,7 +1903,7 @@ std::vector<TopoDS_Face> helper::getObjectFaces(IfcSchema::IfcProduct* product, 
 	return faceList;
 }
 
-TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted)
+TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, bool memorize)
 {
 	if (product->data().type()->name() == "IfcFastener")
 	{
@@ -1982,7 +2071,9 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 		if (brep == nullptr) { return {}; } //TODO: find manner to aquire data in another manner
 		comp = brep->geometry().as_compound();
-		comp.Move(trsf * placement); // location in global space
+		comp.Move(trsf * placement ); // location in global space
+		comp.Move(objectTranslation_);
+
 		if (hasHoles)
 		{
 			settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true);
@@ -1991,15 +2082,21 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 			simpleComp = brep->geometry().as_compound();
 			simpleComp.Move(trsf * placement); // location in global space
+			simpleComp.Move( objectTranslation_); // location in global space
 		}
 	}
+	if (memorize)
+	{
+		shapeLookup_[product->data().id()] = comp;
+	}
 
-	shapeLookup_[product->data().id()] = comp;
 
 	if (hasHoles)
 	{
-		adjustedshapeLookup_[product->data().id()] = simpleComp;
-		
+		if (memorize)
+		{
+			adjustedshapeLookup_[product->data().id()] = simpleComp;
+		}
 	}
 
 	if (adjusted)

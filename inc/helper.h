@@ -85,6 +85,8 @@ gp_Pnt Point3DBTO(BoostPoint3D oP);
 gp_Pnt getLowestPoint(TopoDS_Shape shape, bool areaFilter);
 gp_Pnt getHighestPoint(TopoDS_Shape shape);
 gp_Pnt getPointOnFace(TopoDS_Face theFace);
+std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge);
+gp_Vec computeFaceNormal(TopoDS_Face& theFace);
 
 std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape);
 
@@ -224,7 +226,7 @@ private:
 	double objectCount = 0;
 
 	bool hasFloors = false;
-	bool isConstruct = false; 
+	bool isConstruct = false;
 	bool isPartial = false;
 	bool hasGeo = false;
 	bool hasRooms = false;
@@ -236,6 +238,7 @@ private:
 
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
+	gp_Trsf objectTranslation_;
 
 	// The needed rotation for the model to be aligned to the world axis!
 	double originRot_;
@@ -288,8 +291,8 @@ private:
 	void addObjectToRIndex(T object);
 
 public:
-	
-	/* 
+
+	/*
 	construct and populate a helper
 	creates and stores SI unit mulitpliers for length, area and volume
 	creates and stores the file and kernel for quick acess
@@ -368,6 +371,8 @@ public:
 
 	double getRotation() { return originRot_; }
 
+	gp_Trsf getObjectTranslation() { return objectTranslation_; }
+
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
 
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getConnectivityIndexPointer() { return &cIndex_; }
@@ -398,7 +403,7 @@ public:
 
 	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
 
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false);
+	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, bool memorize = true);
 	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted = false);
 	void updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
 	void applyVoids();
