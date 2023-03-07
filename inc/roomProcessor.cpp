@@ -1476,6 +1476,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 	aSplitter.SetRunParallel(Standard_True);
 	aSplitter.SetNonDestructive(Standard_True);
 
+	bool allSolids = true;
+
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{
 		if (faceList_[i].size() == 0) { continue; }
@@ -1602,10 +1604,21 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 		if (success)
 		{
 			brepSewer.Perform();
+			if (brepSewer.SewedShape().ShapeType() == TopAbs_COMPOUND)
+			{
+				prismList.emplace_back(brepSewer.SewedShape());
+				allSolids = false;
+				continue;
+			}
+
 			brepBuilder.Add(solidShape, brepSewer.SewedShape());
 			TopoDS_Shape cleanedSolid = simplefySolid(solidShape);
 			prismList.emplace_back(cleanedSolid);
 		}
+	}
+	if (!allSolids)
+	{
+		std::cout << "	Not all shapes could be converted to solids, output might be incorrect or inaccurate!" << std::endl;
 	}
 	return prismList;
 }
@@ -1618,12 +1631,18 @@ TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 	for (TopExp_Explorer expl(solidShape, TopAbs_FACE); expl.More(); expl.Next()) {
 
 		TopoDS_Face face = TopoDS::Face(expl.Current());
+		gp_Vec faceNomal = computeFaceNormal(face);
+
+		if (faceNomal.Magnitude() == 0)
+		{
+			continue;
+		}
+
 		facelist.emplace_back(face);
-		normalList.emplace_back(computeFaceNormal(face));
+		normalList.emplace_back(faceNomal);
 	}
 
 	if (facelist.size() != normalList.size()) { return solidShape; }
-
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
 	TopoDS_Shell shell;
@@ -1700,6 +1719,10 @@ TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 				}
 				else {
 					TopoDS_Face mergedFace = mergeFaces(mergeList);
+					if (mergedFace.IsNull())
+					{
+						for (size_t i = 0; i < mergeList.size(); i++) { brepSewer.Add(mergeList[i]); }
+					}
 					brepSewer.Add(mergedFace);
 					break;
 				}
@@ -1714,7 +1737,6 @@ TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
 	}
 
 	brepBuilder.Add(simpleBuilding, brepSewer.SewedShape());
-
 	return simpleBuilding;
 }
 
@@ -1758,9 +1780,17 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 			cleanList.emplace_back(edgeList[i]);
 		}
 	}
+	//std::cout << "wire" << std::endl;
+	//std::cout << cleanList.size() << std::endl;
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
+	if (wireList.size() == 0) { return TopoDS_Face(); }
+
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
+
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
+	if (cleanedFaceList.size() == 0) { return TopoDS_Face(); }
+
 	return cleanedFaceList[0];
 }
 
@@ -2167,6 +2197,7 @@ std::vector<SurfaceGroup*> CJGeoCreator::getXYFaces(TopoDS_Shape shape) {
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
 		
+
 		// ignore if the z component of normal is 0 
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 

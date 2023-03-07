@@ -1,4 +1,4 @@
-#define USE_IFC4
+//#define USE_IFC4
 
 #ifdef USE_IFC4
 #define IfcSchema Ifc4
@@ -289,6 +289,9 @@ private:
 
 	template <typename T>
 	void addObjectToRIndex(T object);
+
+	template <typename T>
+	std::vector<gp_Pnt> getAllTypePoints(T typePtr);
 
 public:
 

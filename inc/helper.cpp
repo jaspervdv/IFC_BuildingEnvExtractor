@@ -319,28 +319,41 @@ gp_Vec computeFaceNormal(TopoDS_Face& theFace)
 {
 	gp_Vec vec1;
 	gp_Vec vec2;
-	gp_Pnt originPoint;
+
+	bool hasVec1 = false;
+	bool hasVec2 = false;
+
 
 	for (TopExp_Explorer vertexExp(theFace, TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
 		TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
 
 		std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
-		originPoint = std::get<0>(sE);
-		vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
-		vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
-		while (vec1.IsParallel(vec2, 0.0001))
+
+		if (std::get<0>(sE).IsEqual(std::get<1>(sE), 1e-6)) { continue; }
+
+		if (!hasVec1)
 		{
-			vertexExp.Next();
-			edge = TopoDS::Edge(vertexExp.Current());
-			std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
-			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			hasVec1 = true;
+			vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			continue;
 		}
-		break;
+
+		gp_Vec potentialVec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+
+		if (potentialVec2.IsParallel(vec1, 1e-06)) { continue; }
+
+		if (!hasVec2)
+		{
+			hasVec2 = true;
+			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			break;
+		}
 	}
+	//std::cout << "out" << std::endl;
+	if (!hasVec1 || !hasVec2) { return gp_Vec(0, 0, 0); }
 
 	gp_Vec normal = vec1.Crossed(vec2);
 	normal.Normalize();
-
 	return normal;
 }
 
@@ -711,8 +724,6 @@ bool findSchema(std::string path, bool quiet) {
 std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr products)
 {
 	std::vector<gp_Pnt> pointList;
-
-
 	for (auto it = products->begin(); it != products->end(); ++it) {
 
 		IfcSchema::IfcProduct* product = *it;
@@ -740,6 +751,25 @@ std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr produc
 
 	}
 
+	return pointList;
+}
+
+template<typename T>
+std::vector<gp_Pnt> helper::getAllTypePoints(T typePtr)
+{
+	std::vector<gp_Pnt> pointList;
+	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
+		IfcSchema::IfcProduct* product = *it;
+		std::vector<gp_Pnt> temp = getObjectPoints(product);
+
+		if (temp.size() > 1);
+		{
+			for (size_t i = 0; i < temp.size(); i++) {
+				pointList.emplace_back(temp[i]);
+			}
+		}
+		temp.clear();
+	}
 	return pointList;
 }
 
@@ -852,10 +882,10 @@ void helper::internalizeGeo()
 	{
 		hasLotProxy = true;
 	} 
-	std::cout << "c" << std::endl;
+
 	// get a point to translate the model to
 	IfcSchema::IfcSlab::list::ptr slabList = file_->instances_by_type<IfcSchema::IfcSlab>();
-	std::cout << "t" << std::endl;
+
 	gp_Pnt lllPointSite;
 	bool hasSitePoint = false;
 
@@ -881,11 +911,20 @@ void helper::internalizeGeo()
 		}
 		break;
 	}
-	std::cout << "click" << std::endl;
 	objectTranslation_.SetTranslationPart(gp_Vec(-lllPointSite.X(), -lllPointSite.Y(), 0));
-	std::cout << "clack" << std::endl;
+	std::vector<gp_Pnt> pointListWass = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+	std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
+	std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
+	std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
 
-	std::vector<gp_Pnt> pointList = getAllPoints(products);
+	std::vector<gp_Pnt> pointList;
+	pointList.reserve(pointListWass.size() + pointListWallSt.size() + pointListRoof.size() + pointListWindow.size());
+
+	pointList.insert(pointList.end(), pointListWass.begin(), pointListWass.end());
+	pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
+	pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
+	pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
+
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
 	double rotation = 0;
