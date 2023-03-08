@@ -2143,7 +2143,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 						product->data().type()->name() != "IfcWallStandardCase" &&
 						product->data().type()->name() != "IfcWall" &&
 						product->data().type()->name() != "IfcRoof" &&
-						product->data().type()->name() != "IfcWindow")
+						product->data().type()->name() != "IfcWindow" &&
+						product->data().type()->name() != "IfcBuildingElementProxy")
 					{
 						continue;
 					}

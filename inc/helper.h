@@ -44,6 +44,8 @@
 #include <CJToKernel.h>
 
 #include <memory>
+#include <thread>
+#include <future>
 
 #include <gce_MakeLin2d.hxx>
 
@@ -160,6 +162,7 @@ private:
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
 	double originRot_;
+	gp_Trsf objectTranslation_;
 
 	bool hasBbox_ = false;
 
@@ -291,7 +294,7 @@ private:
 	void addObjectToRIndex(T object);
 
 	template <typename T>
-	std::vector<gp_Pnt> getAllTypePoints(T typePtr);
+	std::vector<gp_Pnt> getAllTypePoints(T &typePtr);
 
 public:
 
@@ -309,7 +312,7 @@ public:
 	void internalizeGeo();
 
 	// internalises the geometry while creating a bbox with one axis along the give angle
-	void internalizeGeo(double angle);
+	void internalizeGeo(double angle, gp_Trsf objectTranslation);
 
 	// makes a spatial index for the geometry
 	void indexGeo();

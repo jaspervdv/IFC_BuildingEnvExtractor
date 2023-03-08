@@ -755,7 +755,7 @@ std::vector<gp_Pnt> helper::getAllPoints(IfcSchema::IfcProduct::list::ptr produc
 }
 
 template<typename T>
-std::vector<gp_Pnt> helper::getAllTypePoints(T typePtr)
+std::vector<gp_Pnt> helper::getAllTypePoints(T &typePtr)
 {
 	std::vector<gp_Pnt> pointList;
 	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
@@ -765,7 +765,7 @@ std::vector<gp_Pnt> helper::getAllTypePoints(T typePtr)
 		if (temp.size() > 1);
 		{
 			for (size_t i = 0; i < temp.size(); i++) {
-				pointList.emplace_back(temp[i]);
+				pointList.emplace_back(std::move(temp[i]));
 			}
 		}
 		temp.clear();
@@ -912,17 +912,28 @@ void helper::internalizeGeo()
 		break;
 	}
 	objectTranslation_.SetTranslationPart(gp_Vec(-lllPointSite.X(), -lllPointSite.Y(), 0));
-	std::vector<gp_Pnt> pointListWass = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+
+	std::cout << "in" << std::endl;
+	auto startTime = std::chrono::high_resolution_clock::now();
+	std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+	std::cout << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 	std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
+	std::cout << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 	std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
+	std::cout << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+	std::vector<gp_Pnt> pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(file_->instances_by_type<IfcSchema::IfcSlab>());
+	std::cout << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 	std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
+	std::cout << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+	std::cout << "out" << std::endl;
 
 	std::vector<gp_Pnt> pointList;
-	pointList.reserve(pointListWass.size() + pointListWallSt.size() + pointListRoof.size() + pointListWindow.size());
+	pointList.reserve(pointListWall.size() + pointListWallSt.size() + pointListRoof.size() + pointLisSlab.size() + pointListWindow.size());
 
-	pointList.insert(pointList.end(), pointListWass.begin(), pointListWass.end());
+	pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
 	pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
 	pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
+	pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
 	pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
 
 	// approximate smalles bbox
@@ -970,17 +981,29 @@ void helper::internalizeGeo()
 	hasGeo = true;
 }
 
-void helper::internalizeGeo(double angle) {
+void helper::internalizeGeo(double angle, gp_Trsf objectTranslation) {
 	std::cout << "Internalizing Geometry\n" << std::endl;
+	originRot_ = angle;
+	objectTranslation_ = objectTranslation;
 
-	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
-	std::vector<gp_Pnt> pointList = getAllPoints(products);
+	std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+	std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
+	std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
+	std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
+
+	std::vector<gp_Pnt> pointList;
+	pointList.reserve(pointListWall.size() + pointListWallSt.size() + pointListRoof.size() + pointListWindow.size());
+
+	pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
+	pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
+	pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
+	pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
 
 	auto bbox = rotatedBBoxDiagonal(pointList, angle);
 
 	lllPoint_ = std::get<0>(bbox);
 	urrPoint_ = std::get<1>(bbox);
-	originRot_ = angle;
+
 
 	hasGeo = true;
 }
@@ -995,32 +1018,63 @@ void helper::indexGeo()
 		if (!useCustomFull)
 		{
 			// add the floorslabs to the rtree
+			std::cout << "- Create Spatial Index" << std::endl;
+			auto startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(file_->instances_by_type<IfcSchema::IfcSlab>());
+			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
+			std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the walls to the rtree
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+			std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(file_->instances_by_type<IfcSchema::IfcCovering>());
+			std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the columns to the rtree TODO sweeps
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(file_->instances_by_type<IfcSchema::IfcColumn>());
+			std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the beams to the rtree
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(file_->instances_by_type<IfcSchema::IfcBeam>());
+			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the curtain walls to the rtree
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcCurtainWall>());
+			std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(file_->instances_by_type<IfcSchema::IfcPlate>());
+			std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcMember::list::ptr>(file_->instances_by_type<IfcSchema::IfcMember>());
+			std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add doors to the rtree (for the appartment detection)
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(file_->instances_by_type<IfcSchema::IfcDoor>());
+			std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+			startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
+			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			if (useProxy)
 			{
+				startTime = std::chrono::high_resolution_clock::now();
 				addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(file_->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
+				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 			}
+			std::cout << std::endl;
 		}
 		if (useCustom)
 		{
@@ -1596,7 +1650,7 @@ void helper::addObjectToIndex(T object) {
 		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (bg::get<bg::min_corner, 0>(box) == bg::get<bg::max_corner, 0>(box) &&
 			bg::get<bg::min_corner, 1>(box) == bg::get<bg::max_corner, 1>(box)) {
-			std::cout << "Failed: " + product->data().toString() << std::endl;
+			//std::cout << "Failed: " + product->data().toString() << std::endl;
 			continue;
 		}
 		TopoDS_Shape shape = getObjectShape(product);
@@ -1903,13 +1957,11 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 std::vector<gp_Pnt> helper::getObjectPoints(TopoDS_Shape shape, bool sortEdges)
 {
 	std::vector<gp_Pnt> pointList;
-
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_VERTEX); expl.More(); expl.Next())
 	{
-		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-		gp_Pnt p = BRep_Tool::Pnt(vertex);
-		pointList.emplace_back(p);
+		const TopoDS_Vertex& vertex = TopoDS::Vertex(expl.Current());
+		pointList.emplace_back(BRep_Tool::Pnt(vertex));
 	}
 
 	if (!sortEdges) { return pointList; }
@@ -1944,17 +1996,17 @@ std::vector<TopoDS_Face> helper::getObjectFaces(IfcSchema::IfcProduct* product, 
 
 TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, bool memorize)
 {
-	if (product->data().type()->name() == "IfcFastener")
+	std::string objectType = product->data().type()->name();
+	if (objectType == "IfcFastener")
 	{
 		return {};
 	}
 
-
 	// filter with lookup
-	if (product->data().type()->name() != "IfcWall" &&
-		product->data().type()->name() != "IfcWallStandardCase" &&
-		product->data().type()->name() != "IfcRoof" &&
-		product->data().type()->name() != "IfcSlab" )
+	if (objectType != "IfcWall" &&
+		objectType != "IfcWallStandardCase" &&
+		objectType != "IfcRoof" &&
+		objectType != "IfcSlab" )
 	{
 		adjusted = false;
 	}
@@ -1977,9 +2029,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		}
 	}
 
-	if (!product->hasRepresentation()) {
-
-
+	if (!product->hasRepresentation())
+	{
 #ifdef USE_IFC4
 		IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
 #else
@@ -2017,13 +2068,13 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	bool hasHoles = false;
 	bool isFloor = false;
 
-	if (product->data().type()->name() == "IfcWall" ||
-		product->data().type()->name() == "IfcWallStandardCase" ||
-		product->data().type()->name() == "IfcRoof" ||
-		product->data().type()->name() == "IfcSlab") {
+	if (objectType == "IfcWall" ||
+		objectType == "IfcWallStandardCase" ||
+		objectType == "IfcRoof" ||
+		objectType == "IfcSlab") {
 		hasHoles = true;
 	}
-	if (product->data().type()->name() == "IfcSlab") { isFloor = true; }
+	if (objectType == "IfcSlab") { isFloor = true; }
 
 
 	TopoDS_Compound comp;
@@ -2042,7 +2093,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		}
 	}
 
-	if (ifc_representation == 0)
+	/*if (ifc_representation == 0)
 	{
 		for (IfcSchema::IfcRepresentation::list::it it = reps->begin(); it != reps->end(); ++it) {
 			IfcSchema::IfcRepresentation* rep = *it;
@@ -2052,7 +2103,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 				break;
 			}
 		}
-	}
+	}*/
 
 	IfcGeom::IteratorSettings settings;
 	// TODO: monitor the effect of doing this
@@ -2065,39 +2116,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 	if (ifc_representation->RepresentationIdentifier() == "Annotation")
 	{
-
-		gp_Trsf placement;
-		gp_Trsf trsf;
-
-		settings.set(settings.INCLUDE_CURVES, true);
-
-		kernel_->convert_placement(product->ObjectPlacement(), trsf);
-		IfcGeom::BRepElement<double, double>* brep = kernel_->convert(settings, ifc_representation, product);
-		kernel_->convert_placement(ifc_representation, placement);
-		//comp = brep->geometry().as_compound();
-
-
-		/*gp_Trsf trsf;
-		kernel_->convert_placement(product->ObjectPlacement(), trsf);
-
-		IfcSchema::IfcRepresentationItem::list::ptr representationItems = ifc_representation->Items();
-
-		for (auto it = representationItems->begin(); it != representationItems->end(); ++it)
-		{
-			IfcSchema::IfcRepresentationItem* representationItem = *it;
-
-			if (representationItem->data().type()->name() == "IfcTextLiteralWithExtent") { continue; }
-
-		}
-
-		*/
-		//std::cout << representationItems->data().toString() << std::endl;
-
-		// data is never deleted, can be used later as internalized data
-		//IfcGeom::IfcRepresentationShapeItems ob(kernel_->convert(representationItems));
-
-
-
+		return {};
 	}
 	else if (ifc_representation->RepresentationIdentifier() == "Body")
 	{
@@ -2429,6 +2448,7 @@ void helperCluster::internaliseData()
 			lllPoint_ = helper->getLllPoint();
 			urrPoint_ = helper->getUrrPoint();
 			originRot_ = helper->getRotation();
+			objectTranslation_ = helper->getObjectTranslation();
 		}
 	}
 
@@ -2438,7 +2458,7 @@ void helperCluster::internaliseData()
 
 		if (!helper->getHasGeo())
 		{
-			helper->internalizeGeo(originRot_);
+			helper->internalizeGeo(originRot_, objectTranslation_);
 
 			// update bbox if needed
 			gp_Pnt addLllPoint = helper->getLllPoint();

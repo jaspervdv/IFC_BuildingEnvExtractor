@@ -49,12 +49,20 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Duplex_A_20110907_optimized.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/INPRO example KP1 demonstration_RevitArch2009.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/CUVO_Ockenburghstraat_KOW.ifc"
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark_Edit.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
+		
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad.ifc"
+		"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad_edited.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/15262 - 170406_Bright Rotterdam_Revit Model.ifc"
+
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/BWK.ifc"//,
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/STR.ifc"
+
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/9252_VRI_Boompjes_constructie.ifc"
 	};
 
 	// if no override is found use normal interface
@@ -510,14 +518,16 @@ int main(int argc, char** argv) {
 
 	hCluster->internaliseData();
 
+	std::wcout << "=============================== " << std::endl;
+	std::cout << "  Building Envelope Extractor" << std::endl;
+	std::wcout << "=============================== \n" << std::endl;
+
 	if (!checkproxy(hCluster))
 	{
 		return 0;
 	}
 
-	std::wcout << "=============================== " << std::endl;
-	std::cout << "  Building Envelope Extractor" << std::endl;
-	std::wcout << "=============================== \n" << std::endl;
+
 
 	if (sourcePathArray.size() != 1)
 	{
