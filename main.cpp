@@ -41,6 +41,7 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
+
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
@@ -49,6 +50,7 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Duplex_A_20110907_optimized.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/INPRO example KP1 demonstration_RevitArch2009.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/CUVO_Ockenburghstraat_KOW.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/RE16_E3D_Building_2x3_Testversion.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Rabarberstraat144.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark_Edit.ifc"
@@ -56,7 +58,7 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
 		
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad.ifc"
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad_edited.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad_edited.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/15262 - 170406_Bright Rotterdam_Revit Model.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/BWK.ifc"//,
@@ -527,7 +529,9 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-
+	std::cout << "Ignore IfcBuildingElementProxy elements?  (Y/N):";
+	hCluster->setUseProxy(!yesNoQuestion());
+	std::cout << std::endl;
 
 	if (sourcePathArray.size() != 1)
 	{
@@ -611,8 +615,8 @@ int main(int argc, char** argv) {
 	for (size_t i = 0; i < geo13.size(); i++) { cityObject->addGeoObject(geo13[i]); }
 	std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
-	//CJT::GeoObject* geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
-	//cityObject->addGeoObject(geo32);
+	CJT::GeoObject* geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
+	cityObject->addGeoObject(geo32);
 
 	collection->addCityObject(cityObject);
 	collection->cullDuplicatedVerices();

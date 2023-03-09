@@ -2829,7 +2829,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 		}
 	}
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(outSideShape, "3.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(outSideShape.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
 	return geoObject;
 }
 
