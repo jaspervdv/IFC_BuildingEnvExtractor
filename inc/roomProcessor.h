@@ -303,7 +303,7 @@ private:
 	void initializeBasic(helperCluster* cluster);
 
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
-	TopoDS_Shape simplefySolid(TopoDS_Solid solidShape);
+	TopoDS_Shape simplefySolid(TopoDS_Shape solidShape);
 	TopoDS_Face mergeFaces(std::vector<TopoDS_Face> mergeFaces);
 
 	std::vector<int> getTypeValuesBySample(TopoDS_Shape prism, int prismNum, bool flat);

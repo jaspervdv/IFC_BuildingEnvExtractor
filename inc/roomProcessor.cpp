@@ -1249,7 +1249,6 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
 	if (faceList.size() == 1) { return faceList; }
-
 	// test which surfaces are inner loops
 	std::vector<double> areaList;
 	for (size_t i = 0; i < faceList.size(); i++)
@@ -1259,6 +1258,11 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		GProp_GProps gprops;
 		BRepGProp::SurfaceProperties(currentFootprint, gprops); // Stores results in gprops
 		double area = gprops.Mass();
+
+		if (area < 0.001)
+		{
+			return std::vector<TopoDS_Face>();
+		}
 
 		areaList.emplace_back(area);
 	}
@@ -1624,12 +1628,11 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 }
 
 
-TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Solid solidShape)
+TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Shape solidShape)
 {
 	std::vector<TopoDS_Face> facelist;
 	std::vector<gp_Dir> normalList;
 	for (TopExp_Explorer expl(solidShape, TopAbs_FACE); expl.More(); expl.Next()) {
-
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 		gp_Vec faceNomal = computeFaceNormal(face);
 
@@ -1780,14 +1783,11 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 			cleanList.emplace_back(edgeList[i]);
 		}
 	}
-	//std::cout << "wire" << std::endl;
-	//std::cout << cleanList.size() << std::endl;
+	if (cleanList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
 	if (wireList.size() == 0) { return TopoDS_Face(); }
-
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
-
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
 	if (cleanedFaceList.size() == 0) { return TopoDS_Face(); }
 
@@ -1909,6 +1909,8 @@ std::vector<int> CJGeoCreator::getNeighbours(int voxelIndx, bool connect6)
 
 		if (!connect6)
 		{
+			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ - 1); }
+			if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ - 1); }
 			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ - 1); }
 			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ - 1); }
 		}
@@ -1920,6 +1922,8 @@ std::vector<int> CJGeoCreator::getNeighbours(int voxelIndx, bool connect6)
 
 		if (!connect6)
 		{
+			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ - 1); }
+			if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ + 1); }
 			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ + 1); }
 			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ + 1); }
 		}
@@ -2553,7 +2557,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 	TopoDS_Shape outSideShape;
 
 	std::vector<int> totalRoom;
-	std::cout << "[INFO] Exterior space growing" << std::endl;
+	std::cout << "\tExterior space growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
 		if (!VoxelLookup_[i]->getIsIntersecting())
@@ -2563,15 +2567,14 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 		}
 	}
 	std::cout << std::endl;
-	std::cout << std::endl;
-
 	if (totalRoom.size() == 0)
 	{
 		std::cout << "Unable to find exterior space" << std::endl;
 		return nullptr;
 	}
 
-	std::cout << "[INFO] Exterior space succesfully grown" << std::endl << std::endl;
+	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
+
 
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
@@ -2708,39 +2711,29 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 			LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
 			IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
 			TopoDS_Shape shape;
+			if (std::get<3>(lookup)) { shape = std::get<4>(lookup); }
+			else { shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true); }
 
-			if (std::get<3>(lookup))
-			{
-				shape = std::get<4>(lookup);
-			}
-			else {
-				shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true);
-			}
-
-			int sCount = 0;
+			bool hasSolid = false;
 
 			for (expl.Init(shape, TopAbs_SOLID); expl.More(); expl.Next()) {
 				aLSTools.Append(TopoDS::Solid(expl.Current()));
-				sCount++;
+				hasSolid = true;	
 			}
 
-			if (sCount == 0)
+			if (!hasSolid)
 			{
-				if (qProduct->data().type()->name() == "IfcSlab") // TODO: replace this statement
-				{
-					for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
-						aLSTools.Append(TopoDS::Face(expl.Current()));
-					}
+				for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
+					aLSTools.Append(TopoDS::Face(expl.Current()));
 				}
 			}
 		}
 	}
-
+	std::cout << "\tProcessing Surfaces (this process might take a while)" << std::endl;
 	aLSTools.Reverse();
 	aSplitter.SetArguments(aLSObjects);
 	aSplitter.SetTools(aLSTools);
 	aSplitter.SetRunParallel(Standard_True);
-	//aSplitter.SetFuzzyValue(0.0001);
 	aSplitter.SetNonDestructive(Standard_True);
 
 	aSplitter.Perform();
@@ -2749,7 +2742,24 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 
 	STEPControl_Writer writer;
 	writer.Transfer(aResult, STEPControl_AsIs);
-	//writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
+	writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
+
+	std::ofstream outFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/voxels.txt");
+	for (size_t j = 1; j < totalRoom.size(); j++)
+	{
+		voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
+		if (currentBoxel->getIsIntersecting())
+		{
+			std::vector<gp_Pnt> points = currentBoxel->getCornerPoints(planeRotation_);
+
+			for (size_t k = 0; k < points.size(); k++)
+			{
+				outFile << points[k].X() << ", " << points[k].Y() << ", " << points[k].Z() << std::endl;
+			}
+		}
+	}
+	// Close the file stream
+	outFile.close();
 
 	// get outside shape
 	std::vector<TopoDS_Solid> solids;
@@ -2829,7 +2839,9 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 		}
 	}
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(outSideShape.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
+	TopoDS_Shape cleanedSolid = simplefySolid(outSideShape);
+
+	CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
 	return geoObject;
 }
 
@@ -2961,7 +2973,7 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 			if (j % 1000 == 0)
 			{
 				std::cout.flush();
-				std::cout << "Size: " << totalRoom.size() << "\r";
+				std::cout << "\tSize: " << totalRoom.size() << "\r";
 			}
 
 			int currentIdx = buffer[j];
@@ -2994,9 +3006,9 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 					for (size_t k = 0; k < qResult.size(); k++)
 					{
 						LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
-						IfcSchema::IfcProduct* product = std::get<0>(lookup);
 
-						if (!product->hasRepresentation()) { continue; }
+						//IfcSchema::IfcProduct* product = std::get<0>(lookup);	
+						//if (!product->hasRepresentation()) { continue; }
 
 						if (currentBoxel->checkIntersecting(lookup, pointList, cluster->getHelper(j)))
 						{
