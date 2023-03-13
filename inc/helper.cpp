@@ -62,15 +62,13 @@ void printFaces(TopoDS_Shape shape)
 
 	for (size_t i = 0; i < faceList.size(); i++)
 	{
-		std::cout << "Start of Face" << std::endl;
+		std::cout << "new" << std::endl;
 		for (expl.Init(faceList[i], TopAbs_VERTEX); expl.More(); expl.Next())
 		{
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 			gp_Pnt p = BRep_Tool::Pnt(vertex);
-			//printPoint(p);
+			printPoint(p);
 		}
-		std::cout << "End of Face" << std::endl;
-		std::cout << std::endl;
 	}
 	//std::cout << std::endl;
 }
@@ -2238,7 +2236,6 @@ void helper::voidShapeAdjust(T products)
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* wallProduct = *it;
 		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, true);
-
 		TopExp_Explorer expl;
 
 		// get the voids
@@ -2252,21 +2249,13 @@ void helper::voidShapeAdjust(T products)
 			IfcSchema::IfcRelVoidsElement* voidElement = *et;
 			IfcSchema::IfcFeatureElementSubtraction* openingElement = voidElement->RelatedOpeningElement();
 			TopoDS_Shape substractionShape = getObjectShape(openingElement);
-
-			//printFaces(substractionShape);
 			
-			auto base = rotatedBBoxDiagonal(getObjectPoints(openingElement), 0);
+			auto base = rotatedBBoxDiagonal(getObjectPoints(openingElement), originRot_);
 			gp_Pnt lllPoint = std::get<0>(base);
 			gp_Pnt urrPoint = std::get<1>(base);
 
-			//printPoint(lllPoint);
-			//printPoint(urrPoint);
-
 			std::vector<Value> qResult;
 			boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(Point3DOTB(lllPoint), Point3DOTB(urrPoint));
-
-			//printPoint(lllPoint);
-			//printPoint(urrPoint);
 
 			index_.query(bgi::intersects(qBox), std::back_inserter(qResult));
 
