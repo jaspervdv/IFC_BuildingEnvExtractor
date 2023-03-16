@@ -1301,8 +1301,6 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		{
 			if (clipped[j] == 1) { continue; }
 
-			bool overlap = false;
-
 			TopExp_Explorer expl;
 			for (expl.Init(orderedFootprintList[j], TopAbs_VERTEX); expl.More(); expl.Next())
 			{
@@ -1312,7 +1310,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 				TopoDS_Edge evalEdge = BRepBuilderAPI_MakeEdge(p, gp_Pnt(p.X() + 1000, p.Y(), p.Z()));
 
 				int intersectionCount = 0;
-				TopExp_Explorer edgeExplorer(clippedFace, TopAbs_EDGE);
+				TopExp_Explorer edgeExplorer(orderedFootprintList[i], TopAbs_EDGE);
 				for (; edgeExplorer.More(); edgeExplorer.Next()) {
 					const TopoDS_Edge& currentEdge = TopoDS::Edge(edgeExplorer.Current());
 
@@ -1322,24 +1320,14 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 				}
 				if (intersectionCount % 2 == 1)
 				{
-					overlap = true;
+					for (expl.Init(orderedFootprintList[j], TopAbs_WIRE); expl.More(); expl.Next())
+					{
+						BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, TopoDS::Wire(expl.Current()));
+						clippedFace = merger.Face();
+						break;
+					}
 					clipped[j] = 1;
 				}
-				break;
-			}
-
-			if (!overlap) { continue; }
-
-			GProp_GProps gprop;
-			BRepGProp::VolumeProperties(orderedFootprintList[j], gprop);
-			//double mass = abs(gprop.Mass());
-
-			//if (mass < 5) { continue; }
-
-			for (expl.Init(orderedFootprintList[j], TopAbs_WIRE); expl.More(); expl.Next())
-			{
-				BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, TopoDS::Wire(expl.Current()));
-				clippedFace = merger.Face();
 				break;
 			}
 		}
@@ -1691,8 +1679,8 @@ TopoDS_Shape CJGeoCreator::simplefySolid(TopoDS_Shape solidShape)
 							std::tuple<gp_Pnt, gp_Pnt> otherSE = getPointsEdge(edge2);
 
 							// check if the edges have the same vertices
-							if (std::get<0>(currentSE).IsEqual(std::get<1>(otherSE), 0.001) && std::get<1>(currentSE).IsEqual(std::get<0>(otherSE), 0.001) ||
-								std::get<1>(currentSE).IsEqual(std::get<1>(otherSE), 0.001) && std::get<0>(currentSE).IsEqual(std::get<0>(otherSE), 0.001)) {
+							if (std::get<0>(currentSE).IsEqual(std::get<1>(otherSE), 1e-6) && std::get<1>(currentSE).IsEqual(std::get<0>(otherSE), 1e-6) ||
+								std::get<1>(currentSE).IsEqual(std::get<1>(otherSE), 1e-6) && std::get<0>(currentSE).IsEqual(std::get<0>(otherSE), 1e-6)) {
 								touching = true;
 								break;
 							}
@@ -1770,8 +1758,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 			if (evalList[j] == 1) { continue; }
 			std::tuple<gp_Pnt, gp_Pnt> otherSE = getPointsEdge(edgeList[j]);
 
-			if (std::get<0>(currentSE).IsEqual(std::get<1>(otherSE), 0.001) && std::get<1>(currentSE).IsEqual(std::get<0>(otherSE), 0.001) ||
-				std::get<1>(currentSE).IsEqual(std::get<1>(otherSE), 0.001) && std::get<0>(currentSE).IsEqual(std::get<0>(otherSE), 0.001)) {
+			if (std::get<0>(currentSE).IsEqual(std::get<1>(otherSE), 1e-6) && std::get<1>(currentSE).IsEqual(std::get<0>(otherSE), 1e-6) ||
+				std::get<1>(currentSE).IsEqual(std::get<1>(otherSE), 1e-6) && std::get<0>(currentSE).IsEqual(std::get<0>(otherSE), 1e-6)) {
 				evalList[j] = 1;
 				dub = true;
 				break;
@@ -1785,6 +1773,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 	}
 	if (cleanList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
+	TopExp_Explorer expl;
 	if (wireList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
@@ -2740,10 +2729,6 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 
 	const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
 
-	STEPControl_Writer writer;
-	writer.Transfer(aResult, STEPControl_AsIs);
-	writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
-
 	std::ofstream outFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/voxels.txt");
 	for (size_t j = 1; j < totalRoom.size(); j++)
 	{
@@ -2840,6 +2825,10 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 	}
 
 	TopoDS_Shape cleanedSolid = simplefySolid(outSideShape);
+
+	STEPControl_Writer writer;
+	writer.Transfer(cleanedSolid, STEPControl_AsIs);
+	writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
 
 	CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
 	return geoObject;

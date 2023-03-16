@@ -40,11 +40,12 @@ std::vector<std::string> GetSources() {
 		//IFC 4
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
+		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project-ifc4_edit.ifc"
 
 		//IFC2x3
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/haviklaan-6.ifc" 

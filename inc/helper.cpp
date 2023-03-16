@@ -90,7 +90,15 @@ BoostPoint3D rotatePointWorld(BoostPoint3D p, double angle) {
 	return BoostPoint3D(pX * cos(angle) - pY * sin(angle), pY * cos(angle) + pX * sin(angle), pZ);
 }
 
-std::tuple<gp_Pnt, gp_Pnt, double> rotatedBBoxDiagonal(std::vector<gp_Pnt> pointList, double angle) {
+
+gp_Pnt rotatePointPoint(gp_Pnt& p, gp_Pnt& anchorP, double angle)
+{
+	gp_Pnt translatedP = p.Translated(gp_Vec(-anchorP.X(), -anchorP.Y(), -anchorP.Z()));
+	gp_Pnt rotatedP = rotatePointWorld(translatedP, angle);
+	return rotatedP.Translated(gp_Vec(anchorP.X(), anchorP.Y(), anchorP.Z()));
+
+}
+std::tuple<gp_Pnt, gp_Pnt, double> rotatedBBoxDiagonal(std::vector<gp_Pnt> pointList, double angle, double secondAngle = 0) {
 	
 	bool isPSet = false;
 	gp_Pnt lllPoint;
@@ -98,7 +106,7 @@ std::tuple<gp_Pnt, gp_Pnt, double> rotatedBBoxDiagonal(std::vector<gp_Pnt> point
 
 	for (size_t i = 0; i < pointList.size(); i++)
 	{
-		gp_Pnt point = rotatePointWorld(pointList[i], angle);
+		gp_Pnt point = rotatePointWorld(pointList[i], angle).Rotated(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0, 1, 0)), -secondAngle);
 
 		if (!isPSet)
 		{
@@ -1197,8 +1205,10 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchem
 	return bg::model::box < BoostPoint3D >(boostlllpoint, boosturrpoint);
 }
 
-TopoDS_Solid helper::makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle)
+TopoDS_Solid helper::makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle, double extraAngle)
 {
+	gp_Ax1 vertRotation(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0));
+
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
 
@@ -1207,15 +1217,15 @@ TopoDS_Solid helper::makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle)
 	TopoDS_Solid solidbox;
 	brepBuilder.MakeSolid(solidbox);
 
-	gp_Pnt p0(rotatePointWorld(lll, -angle));
-	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -angle);
-	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -angle);
-	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -angle);
+	gp_Pnt p0(rotatePointWorld(lll.Rotated(vertRotation, extraAngle), -angle));
+	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
+	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
+	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
 
-	gp_Pnt p4(rotatePointWorld(urr, -angle));
-	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -angle);
-	gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()), -angle);
-	gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()), -angle);
+	gp_Pnt p4(rotatePointWorld(urr.Rotated(vertRotation, extraAngle), -angle));
+	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
+	gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
+	gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
 
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
@@ -1648,7 +1658,7 @@ template <typename T>
 void helper::addObjectToIndex(T object) {
 	// add doors to the rtree (for the appartment detection)
 	for (auto it = object->begin(); it != object->end(); ++it) {
-		IfcSchema::IfcProduct* product = *it;	
+		IfcSchema::IfcProduct* product = *it;
 		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (bg::get<bg::min_corner, 0>(box) == bg::get<bg::max_corner, 0>(box) &&
 			bg::get<bg::min_corner, 1>(box) == bg::get<bg::max_corner, 1>(box)) {
@@ -1662,6 +1672,10 @@ void helper::addObjectToIndex(T object) {
 		bool matchFound = false;
 
 		std::string productType = product->data().type()->name();
+		if (product->Name() == "M_Skylight:1180 x 1170mm:488881")
+		{
+			//printFaces(shape);
+		}
 
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
@@ -1676,9 +1690,7 @@ void helper::addObjectToIndex(T object) {
 			gp_Pnt urr = Point3DBTO(box.max_corner());
 
 			gp_Pnt mP = gp_Pnt((lll.X() + urr.X()) / 2, (lll.Y() + urr.Y()) / 2, (lll.Z() + urr.Z()) / 2);
-
-			distanceMeasurer.LoadS1(BRepBuilderAPI_MakeVertex(mP)); //TODO: check for outliers
-			//distanceMeasurer.LoadS1(shape); //TODO: check for outliers
+			distanceMeasurer.LoadS1(BRepBuilderAPI_MakeVertex(mP));
 
 			for (size_t i = 0; i < qResult.size(); i++)
 			{
@@ -1696,7 +1708,6 @@ void helper::addObjectToIndex(T object) {
 
 				auto search = adjustedshapeLookup_.find(qProduct->data().id());
 				if (search == adjustedshapeLookup_.end()) { continue; }
-
 				TopoDS_Shape qUntrimmedShape = search->second;
 
 				TopExp_Explorer expl;
@@ -1705,7 +1716,6 @@ void helper::addObjectToIndex(T object) {
 					distanceMeasurer.LoadS2(expl.Current());
 					distanceMeasurer.Perform();
 					double distance = distanceMeasurer.Value();
-
 					if (!distanceMeasurer.InnerSolution()) { continue; }
 					if (distance > 0.2) { continue; }
 
@@ -1713,97 +1723,115 @@ void helper::addObjectToIndex(T object) {
 					break;
 				}
 			}
+			//if (matchFound) { continue; }
 
-			if (!matchFound)
+			// if no void was found
+			// find longest horizontal and vertical edge
+			std::vector<gp_Pnt> pointList;
+			std::vector<gp_Pnt> horizontalMaxEdge;
+			std::vector<gp_Pnt> verticalMaxEdge;
+
+			double maxHDistance = 0;
+			double maxVDistance = 0;
+
+			TopExp_Explorer expl;
+			for (expl.Init(shape, TopAbs_VERTEX); expl.More(); expl.Next())
 			{
-				// if no void was found
-				// find longest horizontal and vertical edge
-				std::vector<gp_Pnt> pointList;
-				std::vector<gp_Pnt> horizontalMaxEdge;
-				std::vector<gp_Pnt> verticalMaxEdge;
-
-				double maxHDistance = 0;
-				double maxVDistance = 0;
-
-				TopExp_Explorer expl;
-				for (expl.Init(shape, TopAbs_VERTEX); expl.More(); expl.Next())
-				{
-					TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-					gp_Pnt p = BRep_Tool::Pnt(vertex);
-					pointList.emplace_back(p);
-				}
-				for (size_t i = 0; i < pointList.size(); i += 2)
-				{
-					gp_Pnt p1 = pointList[i];
-					gp_Pnt p2 = pointList[i + 1];
-
-					double vDistance = abs(p1.Z() - p2.Z());
-
-					if (maxVDistance < vDistance)
-					{
-						maxVDistance = vDistance;
-						verticalMaxEdge = { p1, p2 };
-					}
-
-					p1.SetZ(0);
-					p2.SetZ(0);
-
-					double hDistance = p1.Distance(p2);
-
-					if (hDistance > maxHDistance)
-					{
-						maxHDistance = hDistance;
-						horizontalMaxEdge = { p1, p2 };
-					}
-				}
-
-				// get rotation in xy plane
-				gp_Pnt bp(0, 0, 0);
-
-				double bpDistance0 = bp.Distance(horizontalMaxEdge[0]);
-				double bpDistance1 = bp.Distance(horizontalMaxEdge[1]);
-
-				if (bpDistance0 > bpDistance1)
-				{
-					std::reverse(horizontalMaxEdge.begin(), horizontalMaxEdge.end());
-				}
-
-				gp_Pnt p1 = horizontalMaxEdge[0];
-				gp_Pnt p2 = horizontalMaxEdge[1];
-
-				double angle = 0;
-
-				if (abs(p1.Y() - p2.Y()) > 0.00001)
-				{
-					double os = (p1.Y() - p2.Y()) / p1.Distance(p2);
-					angle = asin(os);
-				}
-
-				auto base = rotatedBBoxDiagonal(pointList, angle);
-				auto base2 = rotatedBBoxDiagonal(pointList, -angle);
-
-				gp_Pnt lllPoint = std::get<0>(base);
-				gp_Pnt urrPoint = std::get<1>(base);
-
-				if (std::abs(lllPoint.X() - urrPoint.X()) < 1e-6 ||
-					std::abs(lllPoint.Y() - urrPoint.Y()) < 1e-6 || 
-					std::abs(lllPoint.Z() - urrPoint.Z()) < 1e-6 ) { //TODO: find better way to do this
-					continue;
-				}
-
-				double rot = angle;
-
-				if (lllPoint.Distance(urrPoint) > std::get<0>(base2).Distance(std::get<1>(base2)))
-				{
-					lllPoint = std::get<0>(base2);
-					urrPoint = std::get<1>(base2);
-
-					rot = -angle;
-				}
-
-				hasCBBox = true;
-				cbbox = makeSolidBox(lllPoint, urrPoint, rot);
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt p = BRep_Tool::Pnt(vertex);
+				pointList.emplace_back(p);
 			}
+			for (size_t i = 0; i < pointList.size(); i += 2)
+			{
+				gp_Pnt p1 = pointList[i];
+				gp_Pnt p2 = pointList[i + 1];
+
+				double vDistance = abs(p1.Z() - p2.Z());
+
+				if (maxVDistance < vDistance)
+				{
+					maxVDistance = vDistance;
+					verticalMaxEdge = { p1, p2 };
+				}
+
+				p1.SetZ(0);
+				p2.SetZ(0);
+
+				double hDistance = p1.Distance(p2);
+
+				if (hDistance > maxHDistance)
+				{
+					maxHDistance = hDistance;
+					horizontalMaxEdge = { p1, p2 };
+				}
+			}
+
+			// compute horizontal rotaion
+			gp_Pnt p1 = horizontalMaxEdge[0];
+			gp_Pnt p2 = horizontalMaxEdge[1];
+
+			double angleFlat = 0;
+
+			if (abs(p1.Y() - p2.Y()) > 0.00001)
+			{
+				double os = abs(p1.Y() - p2.Y()) / p1.Distance(p2);
+				angleFlat = asin(os);
+
+				gp_Pnt tempP = rotatePointPoint(p2, p1, angleFlat);
+
+				if (Abs(p1.X() - tempP.X()) > 0.01 && Abs(p1.Y() - tempP.Y()) > 0.01)
+				{
+					angleFlat = -angleFlat;
+				}
+			}
+
+			// compute vertical rotation
+			gp_Pnt p3 = verticalMaxEdge[0];
+			gp_Pnt p4 = rotatePointPoint(verticalMaxEdge[1], p3, angleFlat);
+			bool isRotated = false;
+			if (abs(p3.X() - p4.X()) < 0.01)
+			{
+				p3 = rotatePointWorld(p3, M_PI / 2.0);
+				p4 = rotatePointWorld(p4, M_PI / 2.0);
+				angleFlat += M_PI / 2.0;
+				isRotated = true;
+			}
+
+			double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
+			gp_Pnt tempPoint = p4.Rotated(gp_Ax1(p3, gp_Dir(0, 1, 0)), angleVert);
+			if (Abs(p3.X() - tempPoint.X()) > 0.01 && Abs(p3.Z() - tempPoint.Z()) > 0.01)
+			{
+				angleVert = -angleVert;
+			}
+
+			auto base = rotatedBBoxDiagonal(pointList, angleFlat, angleVert);
+
+			gp_Pnt lllPoint = std::get<0>(base);
+			gp_Pnt urrPoint = std::get<1>(base);
+
+			if (lllPoint.IsEqual(urrPoint, 1e-6)) { continue; }
+
+			hasCBBox = true;
+			cbbox = makeSolidBox(lllPoint, urrPoint, angleFlat, angleVert);
+
+			//if (isRotated)
+			//{
+			//	gp_Trsf transform;
+			//	transform.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), -M_PI / 2.0);
+			//	angleFlat -= M_PI / 2.0;
+			//	BRepBuilderAPI_Transform brep_transform(cbbox, transform);
+			//	cbbox = brep_transform.Shape();
+			//}
+
+			//if (angleVert != 0)
+			//{
+			//	gp_Trsf transform;
+			//	transform.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0)), angleVert);
+			//	BRepBuilderAPI_Transform brep_transform(cbbox, transform);
+			//	cbbox = brep_transform.Shape();
+			//}
+
+
 		}
 		index_.insert(std::make_pair(box, (int)index_.size()));
 		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);

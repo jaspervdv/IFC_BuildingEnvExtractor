@@ -282,7 +282,7 @@ private:
 	// returns a bbox of a ifcproduct that functions with boost
 	bg::model::box <BoostPoint3D> makeObjectBox(IfcSchema::IfcProduct* product);
 	bg::model::box <BoostPoint3D> makeObjectBox(std::vector<IfcSchema::IfcProduct*> products);
-	TopoDS_Solid makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle);
+	TopoDS_Solid makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle, double extraAngle = 0);
 
 	template <typename T>
 	void addObjectToIndex(T object);
