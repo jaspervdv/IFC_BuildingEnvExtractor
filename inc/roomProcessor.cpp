@@ -1247,6 +1247,9 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		);
 
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
+
+		TopoDS_Face theFace = faceBuilder.Face();
+
 	}
 	if (faceList.size() == 1) { return faceList; }
 	// test which surfaces are inner loops
@@ -1257,7 +1260,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 
 		GProp_GProps gprops;
 		BRepGProp::SurfaceProperties(currentFootprint, gprops); // Stores results in gprops
-		double area = gprops.Mass();
+		double area = gprops.Mass(); 
 
 		if (area < 0.001)
 		{
@@ -1268,6 +1271,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 	}
 
 	std::vector<TopoDS_Face> orderedFootprintList;
+	std::vector<double> orderedAreaList;
 	std::vector<int> ordered(areaList.size());
 	for (size_t i = 0; i < areaList.size(); i++)
 	{
@@ -1285,6 +1289,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		}
 
 		orderedFootprintList.emplace_back(faceList[evalIdx]);
+		orderedAreaList.emplace_back(areaList[evalIdx]);
 		ordered[evalIdx] = 1;
 	}
 
@@ -1322,7 +1327,9 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 				{
 					for (expl.Init(orderedFootprintList[j], TopAbs_WIRE); expl.More(); expl.Next())
 					{
-						BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, TopoDS::Wire(expl.Current()));
+						TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+						if (orderedAreaList[j] > 0) { voidWire = TopoDS::Wire(expl.Current().Reversed()); }
+						BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, voidWire);
 						clippedFace = merger.Face();
 						break;
 					}
@@ -2832,6 +2839,41 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 
 	CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
 	return geoObject;
+
+	//// extract the inner shell of the shape
+	//double score = 0;
+	//std::vector<TopoDS_Shape> OuterShapeList;
+	//for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
+	//{
+	//	found = false;
+	//	for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
+	//		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+	//		gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+	//		for (size_t k = 0; k < bboxPoints.size(); k++)
+	//		{
+	//			if (p.IsEqual(bboxPoints[k], 0.01)) {
+	//				found = true;
+	//				break;
+	//			}
+	//		}
+	//		if (found)
+	//		{
+	//			break;
+	//		}
+	//	}
+	//	if (found)
+	//	{
+	//		continue;
+	//	}
+	//	OuterShapeList.emplace_back(simplefySolid(shellList[j]));
+	//}
+
+	//STEPControl_Writer writer;
+	//for (size_t i = 0; i < OuterShapeList.size(); i++)
+	//{
+	//	writer.Transfer(OuterShapeList[i], STEPControl_AsIs);
+	//}
 }
 
 CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
