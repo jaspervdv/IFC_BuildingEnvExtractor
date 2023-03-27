@@ -1240,20 +1240,17 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 			normal = vec1.Crossed(vec2);
 			normal.Normalize();
 		}
-
 		faceBuilder = BRepBuilderAPI_MakeFace(
 			gp_Pln(originPoint, normal),
 			wireList[i]
 		);
 
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
-
-		TopoDS_Face theFace = faceBuilder.Face();
-
 	}
 	if (faceList.size() == 1) { return faceList; }
 	// test which surfaces are inner loops
 	std::vector<double> areaList;
+	std::vector<TopoDS_Face> correctedFaceList;
 	for (size_t i = 0; i < faceList.size(); i++)
 	{
 		TopoDS_Face currentFootprint = faceList[i];
@@ -1262,12 +1259,10 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 		BRepGProp::SurfaceProperties(currentFootprint, gprops); // Stores results in gprops
 		double area = gprops.Mass(); 
 
-		if (area < 0.001)
-		{
-			return std::vector<TopoDS_Face>();
-		}
+		if (area < 0.001) { continue; }
 
 		areaList.emplace_back(area);
+		correctedFaceList.emplace_back(faceList[i]);
 	}
 
 	std::vector<TopoDS_Face> orderedFootprintList;
@@ -1288,7 +1283,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(std::vector<TopoDS_Wire
 			}
 		}
 
-		orderedFootprintList.emplace_back(faceList[evalIdx]);
+		orderedFootprintList.emplace_back(correctedFaceList[evalIdx]);
 		orderedAreaList.emplace_back(areaList[evalIdx]);
 		ordered[evalIdx] = 1;
 	}
@@ -2543,12 +2538,15 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJ
 	return geoObjectList;
 }
 
-CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 3.2 Model" << std::endl;
 	// asign rooms
 	int roomnum = 0;
 	int temps = 0;
+
+	std::vector< CJT::GeoObject*> geoObjectList;
 
 	TopoDS_Shape outSideShape;
 
@@ -2566,7 +2564,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 	if (totalRoom.size() == 0)
 	{
 		std::cout << "Unable to find exterior space" << std::endl;
-		return nullptr;
+		return geoObjectList;
 	}
 
 	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
@@ -2797,52 +2795,8 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 		shellList.emplace_back(TopoDS::Shell(expl.Current()));
 	}
 
-	// extract the inner shell of the shape
-	double score = 0;
-	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
-	{
-		found = false;
-		for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-			for (size_t k = 0; k < bboxPoints.size(); k++)
-			{
-				if (p.IsEqual(bboxPoints[k], 0.01)) {
-					found = true;
-					break;
-				}
-			}
-			if (found)
-			{
-				break;
-			}
-		}
-		if (!found)
-		{
-			GProp_GProps gprop;
-			BRepGProp::VolumeProperties(shellList[j], gprop);
-			double mass = abs(gprop.Mass());
-			if (score < mass)
-			{
-				outSideShape = shellList[j];
-				score = mass;
-			}
-		}
-	}
-
-	TopoDS_Shape cleanedSolid = simplefySolid(outSideShape);
-
-	STEPControl_Writer writer;
-	writer.Transfer(cleanedSolid, STEPControl_AsIs);
-	writer.Write("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/test.STEP");
-
-	CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
-	return geoObject;
-
 	//// extract the inner shell of the shape
 	//double score = 0;
-	//std::vector<TopoDS_Shape> OuterShapeList;
 	//for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
 	//{
 	//	found = false;
@@ -2862,18 +2816,68 @@ CJT::GeoObject* CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollect
 	//			break;
 	//		}
 	//	}
-	//	if (found)
+	//	if (!found)
 	//	{
-	//		continue;
+	//		GProp_GProps gprop;
+	//		BRepGProp::VolumeProperties(shellList[j], gprop);
+	//		double mass = abs(gprop.Mass());
+	//		if (score < mass)
+	//		{
+	//			outSideShape = shellList[j];
+	//			score = mass;
+	//		}
 	//	}
-	//	OuterShapeList.emplace_back(simplefySolid(shellList[j]));
 	//}
 
-	//STEPControl_Writer writer;
-	//for (size_t i = 0; i < OuterShapeList.size(); i++)
-	//{
-	//	writer.Transfer(OuterShapeList[i], STEPControl_AsIs);
-	//}
+	std::vector<TopoDS_Shape> OuterShapeList;
+	std::vector<double> massList;
+	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
+	{
+		found = false;
+		for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+			for (size_t k = 0; k < bboxPoints.size(); k++)
+			{
+				if (p.IsEqual(bboxPoints[k], 0.01)) {
+					found = true;
+					break;
+				}
+			}
+			if (found)
+			{
+				break;
+			}
+		}
+		if (found)
+		{
+			continue;
+		}
+
+		GProp_GProps gprop;
+		BRepGProp::VolumeProperties(shellList[j], gprop);
+		massList.emplace_back(abs(gprop.Mass()));
+
+		OuterShapeList.emplace_back(shellList[j]);
+	}
+
+	double massThreshold = 27;
+	for (size_t i = 0; i < OuterShapeList.size(); i++)
+	{
+		if (massList[i] < massThreshold) { continue; }
+
+		TopoDS_Shape cleanedSolid = simplefySolid(OuterShapeList[i]);
+		CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
+		geoObjectList.emplace_back(geoObject);
+	}
+
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+	return geoObjectList;
+
+	//// extract the inner shell of the shape
+	double score = 0;
+	
 }
 
 CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)

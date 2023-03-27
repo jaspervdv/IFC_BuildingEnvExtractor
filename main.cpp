@@ -38,7 +38,7 @@ std::vector<std::string> GetSources() {
 	// easy override 
 	std::vector<std::string> sourcePathArray = {
 		//IFC 4
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
@@ -48,7 +48,7 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project-ifc4_edit.ifc"
 
 		//IFC2x3
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/haviklaan-6.ifc" 
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/haviklaan-6.ifc" 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Duplex_A_20110907_optimized.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/INPRO example KP1 demonstration_RevitArch2009.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc2x3.ifc"
@@ -449,6 +449,7 @@ void askApartmentRules(helperCluster* hCluster) {
 
 
 int main(int argc, char** argv) {
+	auto startTime = std::chrono::high_resolution_clock::now();
 
 	// some information on startup
 	std::wcout << "============================================================= \n" << std::endl;
@@ -464,23 +465,13 @@ int main(int argc, char** argv) {
 	bool hasAskedBoundingRules = false;
 
 	// make export path
-	std::vector<std::string> exportPathArray;
-	std::string graphPath;
 	std::vector<std::string> fileNames;
 	for (size_t i = 0; i < sourcePathArray.size(); i++)
 	{
-		std::string exportPath;
 		std::vector<std::string> segments;
 		boost::split(segments, sourcePathArray[i], boost::is_any_of("/"));
-
-		for (size_t i = 0; i < segments.size()-1; i++) { exportPath += segments[i] + "/"; }
-
-		graphPath = exportPath + "exports/Exported_" + segments[segments.size() - 1];
-		graphPath.erase(graphPath.length() - 4);
-
-		fileNames.emplace_back(segments[segments.size() - 1]);
-		exportPath += "exports/Exported_" + segments[segments.size() - 1];
-		exportPathArray.emplace_back(exportPath);
+		std::string filePath = segments[segments.size() - 1];
+		fileNames.emplace_back(filePath.substr(0, filePath.size() - 4));
 	}
 
 	int constructionIndx = -1;
@@ -579,7 +570,8 @@ int main(int argc, char** argv) {
 		hCluster->getHelper(i)->indexGeo();
 	}
 
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTimeLod = std::chrono::high_resolution_clock::now();
+
 	CJGeoCreator* geoCreator = new CJGeoCreator(hCluster);
 
 	CJT::CityCollection* collection = new CJT::CityCollection;
@@ -618,12 +610,11 @@ int main(int argc, char** argv) {
 	for (size_t i = 0; i < geo13.size(); i++) { cityObject->addGeoObject(geo13[i]); }
 	std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
-	CJT::GeoObject* geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
-	cityObject->addGeoObject(geo32);
-
+	std::vector<CJT::GeoObject*> geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
+	for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
 	collection->addCityObject(cityObject);
 	collection->cullDuplicatedVerices();
-	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + BuildingName + ".city.json");
+	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + fileNames[0] + ".city.json");
 
 	delete kernel;
 	delete collection;
@@ -635,7 +626,8 @@ int main(int argc, char** argv) {
 
 
 	auto endTime = std::chrono::high_resolution_clock::now();
-	std::cout << "computing time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
+	std::cout << "Computing Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTimeLod).count() << std::endl;
+	std::cout << "Total Process Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
 	std::cout << "[INFO] process has been succesfully executed" << std::endl;
 
 	return 0;

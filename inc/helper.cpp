@@ -872,13 +872,17 @@ void helper::setUnits(IfcParse::IfcFile *file) {
 void helper::internalizeGeo()
 {
 	std::cout << "[INFO] Internalizing Geometry of Construction Model\n" << std::endl;
+	int faceCount = 0;
 	// get products
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
 	objectCount = products->size();
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 		if (product->data().type()->name() == "IfcBuildingElementProxy") { proxyCount++; }
+		//faceCount += getObjectFaces(product, false).size();
 	}
+
+	//std::cout << "count= " << faceCount << std::endl;
 
 	if (proxyCount > 0)
 	{
