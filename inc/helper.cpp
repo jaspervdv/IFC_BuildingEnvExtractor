@@ -873,16 +873,19 @@ void helper::internalizeGeo()
 {
 	std::cout << "[INFO] Internalizing Geometry of Construction Model\n" << std::endl;
 	int faceCount = 0;
+	int objectCount = 0;
 	// get products
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
 	objectCount = products->size();
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 		if (product->data().type()->name() == "IfcBuildingElementProxy") { proxyCount++; }
-		//faceCount += getObjectFaces(product, false).size();
+		faceCount += getObjectFaces(product, false).size();
+		objectCount += 1;
 	}
 
-	//std::cout << "count= " << faceCount << std::endl;
+	std::cout << "objectCount = " << objectCount << std::endl;
+	std::cout << "FaceCount = " << faceCount << std::endl;
 
 	if (proxyCount > 0)
 	{
