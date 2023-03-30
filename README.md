@@ -15,7 +15,9 @@ High level detail envelopes (Lod 3.2) can be extracted based on the model’s ob
 This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses.
 These features are often only present in models that are made manually.
 
+Below you can see a speed comparison between the software and manual processing. Note that the software creates the envelopes for LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 while the manual processing only creates LoD 2.2.
 
+![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample2.gif "Speed comparison of the software making LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 vs making LoD 2.2 by hand.")
 
 ## Envelope generation
 
