@@ -4,6 +4,8 @@ The IfcEnvelopeExtractor enables users to automatically extract the building env
 Automating this process allows designs to be easily analyzed on a city scale without the need for manual conversion.
 This is one of the steps required to close the gap between architecture/BIM and city scale models.
 
+![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample.gif "An example of the created LoD envelopes based on an input file")
+
 The software is able to extract multiple different LoD (Level of Detail) envelopes from an IFC-model.
 The actual LoDs it is able to extract is dependent on the accuracy and validity of the input model.
 The tool utilizes three different extraction methods that can be used on progressively more accurate models.
@@ -12,6 +14,8 @@ Middle level detail envelopes (Lod 0.2, 1.2, 1.3, 2.2) can be extracted based on
 High level detail envelopes (Lod 3.2) can be extracted based on the model’s objects that are part of the building envelope.
 This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses.
 These features are often only present in models that are made manually.
+
+
 
 ## Envelope generation
 

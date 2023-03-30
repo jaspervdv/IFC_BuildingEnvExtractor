@@ -880,12 +880,12 @@ void helper::internalizeGeo()
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 		if (product->data().type()->name() == "IfcBuildingElementProxy") { proxyCount++; }
-		faceCount += getObjectFaces(product, false).size();
-		objectCount += 1;
+		//faceCount += getObjectFaces(product, false).size();
+		//objectCount += 1;
 	}
 
-	std::cout << "objectCount = " << objectCount << std::endl;
-	std::cout << "FaceCount = " << faceCount << std::endl;
+	//std::cout << "objectCount = " << objectCount << std::endl;
+	//std::cout << "FaceCount = " << faceCount << std::endl;
 
 	if (proxyCount > 0)
 	{
