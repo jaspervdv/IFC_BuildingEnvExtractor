@@ -39,8 +39,8 @@ std::vector<std::string> GetSources() {
 	std::vector<std::string> sourcePathArray = {
 		//IFC 4
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
+		//"C:/Users/Jasper/DocUments/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
+		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
@@ -451,21 +451,36 @@ void askApartmentRules(helperCluster* hCluster) {
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
 
-	// some information on startup
-	std::wcout << "============================================================= \n" << std::endl;
-	std::cout << "    IFC_BuildingEnvExtractor" << std::endl;
-	std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
-	std::wcout << "=============================================================" << std::endl;
-
-
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
 	std::vector<std::string> sourcePathArray = GetSources();
+
+	bool isStandalone = true;
+	std::string version = "Standalone";
+	bool ignoreProxy = false;
+	double voxelSize = -1;
+
+	if (argc > 1)
+	{
+		version = "Internal";
+		isStandalone = false;
+		sourcePathArray = { argv[1] };
+		if (std::string(argv[2]) == "True") { ignoreProxy = true; }
+		voxelSize = std::stod(argv[3]);
+	}
+
+	// some information on startup
+	std::wcout << "============================================================= \n" << std::endl;
+	std::cout << "    " << version + " IFC_BuildingEnvExtractor" << std::endl;
+	std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
+	std::wcout << "=============================================================" << std::endl;
+
 	bool hasAskedBoundingRules = false;
 
 	// make export path
 	std::vector<std::string> fileNames;
+
 	for (size_t i = 0; i < sourcePathArray.size(); i++)
 	{
 		std::vector<std::string> segments;
@@ -523,9 +538,20 @@ int main(int argc, char** argv) {
 		return 0;
 	}
 
-	std::cout << "Ignore IfcBuildingElementProxy elements?  (Y/N):";
-	hCluster->setUseProxy(!yesNoQuestion());
-	std::cout << std::endl;
+	if (isStandalone)
+	{
+		std::cout << "Ignore IfcBuildingElementProxy elements?  (Y/N):";
+		hCluster->setUseProxy(!yesNoQuestion());
+		std::cout << std::endl;
+	}
+	else if (ignoreProxy == 0)
+	{
+		hCluster->setUseProxy(false);
+	}
+	else if (ignoreProxy == 1)
+	{
+		hCluster->setUseProxy(true);
+	}
 
 	if (sourcePathArray.size() != 1)
 	{
@@ -572,7 +598,7 @@ int main(int argc, char** argv) {
 
 	auto startTimeLod = std::chrono::high_resolution_clock::now();
 
-	CJGeoCreator* geoCreator = new CJGeoCreator(hCluster);
+	CJGeoCreator* geoCreator = new CJGeoCreator(hCluster, voxelSize);
 
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);

@@ -2880,49 +2880,62 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 	
 }
 
-CJGeoCreator::CJGeoCreator(helperCluster* cluster, bool isFlat)
+CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
 {
+	double xySize;
+	double zSize;
+
 	// ask user for desired voxel dimensions
-
-	std::string stringXYSize = "";
-	std::string stringZSize = "";
-
-	while (true)
+	if (vSize == -1)
 	{
-		std::cout << "Enter voxel XY dimenion (double):";
-		std::cin >> stringXYSize;
+		std::string stringXYSize = "";
+		std::string stringZSize = "";
 
-		char* end = nullptr;
-		double val = strtod(stringXYSize.c_str(), &end);
-
-
-		if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
+		while (true)
 		{
-			voxelSize_ = val;
-			break;
-		}
-	}
+			std::cout << "Enter voxel XY dimenion (double):";
+			std::cin >> stringXYSize;
 
-	while (true)
+			char* end = nullptr;
+			double val = strtod(stringXYSize.c_str(), &end);
+
+
+			if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
+			{
+				voxelSize_ = val;
+				break;
+			}
+		}
+
+		while (true)
+		{
+			std::cout << "Enter voxel Z dimension (double):";
+			std::cin >> stringZSize;
+
+			char* end = nullptr;
+			double val = strtod(stringXYSize.c_str(), &end);
+
+
+			if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
+			{
+				voxelSizeZ_ = val;
+				break;
+			}
+		}
+
+		std::cout << std::endl;
+
+		xySize = std::stod(stringXYSize);
+		zSize = std::stod(stringZSize);
+	}
+	else
 	{
-		std::cout << "Enter voxel Z dimension (double):";
-		std::cin >> stringZSize;
+		voxelSize_ = vSize;
+		voxelSizeZ_ = vSize;
 
-		char* end = nullptr;
-		double val = strtod(stringXYSize.c_str(), &end);
-
-
-		if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
-		{
-			voxelSizeZ_ = val;
-			break;
-		}
+		xySize = vSize;
+		zSize = vSize;
 	}
-
-	std::cout << std::endl;
-
-	double xySize = std::stod(stringXYSize);
-	double zSize = std::stod(stringZSize);
 
 	// compute generic voxelfield data
 	anchor_ = cluster->getLllPoint();

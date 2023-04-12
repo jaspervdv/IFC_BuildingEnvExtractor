@@ -311,7 +311,7 @@ private:
 	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
 
 public:
-	explicit CJGeoCreator(helperCluster* cluster, bool isFlat = true);
+	explicit CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat = true);
 
 	CJT::GeoObject* makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
