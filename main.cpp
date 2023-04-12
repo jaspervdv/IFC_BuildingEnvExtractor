@@ -40,7 +40,7 @@ std::vector<std::string> GetSources() {
 		//IFC 4
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/DocUments/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Savigliano.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
@@ -454,7 +454,7 @@ int main(int argc, char** argv) {
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
-	std::vector<std::string> sourcePathArray = GetSources();
+	std::vector<std::string> sourcePathArray;
 
 	bool isStandalone = true;
 	std::string version = "Standalone";
@@ -468,6 +468,9 @@ int main(int argc, char** argv) {
 		sourcePathArray = { argv[1] };
 		if (std::string(argv[2]) == "True") { ignoreProxy = true; }
 		voxelSize = std::stod(argv[3]);
+	}
+	else {
+		sourcePathArray = GetSources();
 	}
 
 	// some information on startup
@@ -533,24 +536,24 @@ int main(int argc, char** argv) {
 	std::cout << "  Building Envelope Extractor" << std::endl;
 	std::wcout << "=============================== \n" << std::endl;
 
-	if (!checkproxy(hCluster))
-	{
-		return 0;
-	}
-
 	if (isStandalone)
 	{
+		if (!checkproxy(hCluster))
+		{
+			return 0;
+		}
+
 		std::cout << "Ignore IfcBuildingElementProxy elements?  (Y/N):";
 		hCluster->setUseProxy(!yesNoQuestion());
 		std::cout << std::endl;
 	}
 	else if (ignoreProxy == 0)
 	{
-		hCluster->setUseProxy(false);
+		hCluster->setUseProxy(true);
 	}
 	else if (ignoreProxy == 1)
 	{
-		hCluster->setUseProxy(true);
+		hCluster->setUseProxy(false);
 	}
 
 	if (sourcePathArray.size() != 1)
