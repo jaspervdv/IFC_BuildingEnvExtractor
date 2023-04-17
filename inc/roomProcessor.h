@@ -18,6 +18,7 @@
 #include <vector>
 #include <tuple>
 
+const int treeDepth_ = 25;
 
 class EvaluationPoint {
 private:
@@ -283,7 +284,7 @@ private:
 	std::vector<Edge*> makeJumbledGround();
 
 	/// @brief check if edge is part of outer envelope
-	bool isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList);
+	bool isOuterEdge(Edge* currentEdge, std::vector<TopoDS_Face*> flatFaceList, bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex);
 
 	/// @brief get all the edges that enclose the projected faces
 	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<SurfaceGroup*> faceList);

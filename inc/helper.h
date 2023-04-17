@@ -65,6 +65,8 @@ typedef std::tuple<IfcSchema::IfcSpace*, TopoDS_Shape> roomLookupValue;
 #ifndef HELPER_HELPER_H
 #define HELPER_HELPER_H
 
+void addTimeToJSON(nlohmann::json* j, std::string valueName, std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
+
 // helper functions that can be utilised everywhere
 gp_Pnt rotatePointWorld(gp_Pnt p, double angle);
 BoostPoint3D rotatePointWorld(BoostPoint3D p, double angle);

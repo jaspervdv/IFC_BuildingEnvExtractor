@@ -74,6 +74,14 @@ void printFaces(TopoDS_Shape shape)
 }
 
 
+void addTimeToJSON(nlohmann::json* j, std::string valueName, std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime)
+{
+
+	double duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	if (duration < 5) { (*j)[valueName + " (ms)"] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
+	else { (*j)[valueName + " (s)"] = duration; }
+}
+
 gp_Pnt rotatePointWorld(gp_Pnt p, double angle) {
 	double pX = p.X();
 	double pY = p.Y();
