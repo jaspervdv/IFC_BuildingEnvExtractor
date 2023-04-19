@@ -2179,18 +2179,16 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 
 					LookupValue lookup = cluster->getHelper(j)->getLookup(qResult[k].second);
 					IfcSchema::IfcProduct* product = std::get<0>(lookup);
-
 					if (product->data().type()->name() != "IfcSlab" &&
 						product->data().type()->name() != "IfcWallStandardCase" &&
 						product->data().type()->name() != "IfcWall" &&
 						product->data().type()->name() != "IfcRoof" &&
 						product->data().type()->name() != "IfcWindow" &&
-						product->data().type()->name() != "IfcBuildingElementProxy")
+						product->data().type()->name() != "IfcBuildingElementProxy" &&
+						product->data().type()->name() != "IfcBuildingElementPart")
 					{
 						continue;
 					}
-
-					if (!product->hasRepresentation()) { continue; }
 
 					for (size_t l = 0; l < topProducts.size(); l++)
 					{

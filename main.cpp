@@ -46,9 +46,8 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project-ifc4_edit.ifc"
+		
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/sweco models/20220221 riederkercke-kievitsweg_gebruiksfunctie 4/20220221 riederkercke-kievitsweg_gebruiksfunctie 4.ifc"
-
-
 
 		//IFC2x3
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/haviklaan-6.ifc" 
