@@ -57,6 +57,9 @@ std::tuple<gp_Pnt, gp_Pnt> getProPointsEdge(TopoDS_Edge edge) {
 
 gp_Vec getDirEdge(TopoDS_Edge edge) {
 	std::tuple<gp_Pnt, gp_Pnt> pp = getPointsEdge(edge);
+
+	if (std::get<0>(pp).Distance(std::get<1>(pp)) == 0)  { return gp_Vec(0, 0, 0); }
+
 	gp_Vec vec = gp_Vec(std::get<0>(pp), std::get<1>(pp));
 	return vec.Normalized();
 }
@@ -377,8 +380,27 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 	TopoDS_Face currentFace = getFace();
 	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
 
+	
+	//std::cout << "face" << std::endl;
+	TopExp_Explorer expl1;
+	for (expl1.Init(currentFace, TopAbs_VERTEX); expl1.More(); expl1.Next()) {
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl1.Current());
+		gp_Pnt point = BRep_Tool::Pnt(vertex);
+		//printPoint(point);
+	}
+	//std::cout << "process" << std::endl;
+
+	for (size_t k = 0; k < currentGrid.size(); k++)
+	{
+		EvaluationPoint* currentEvalPoint = currentGrid[k];
+		//printPoint(currentEvalPoint->getPoint());
+		break;
+
+	}
+
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
 	{
+
 		SurfaceGroup* otherGroup = otherSurfaces[i];
 
 		if (preFilter)
@@ -406,13 +428,14 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 			if (evalPoint.Y() - otherLLLPoint.Y() < -0.1 || evalPoint.Y() - otherURRPoint.Y() > 0.1) { continue; }
 			if (evalPoint.Z() - urrPoint_.Z()  > 0.1)  { continue; }
 
-			intersector.Perform(
+			intersector.Perform( //TODO: find a smarter way to proccess
 				currentEvalPoint->getEvalLine(),
 				-0,
 				+INFINITE);
 
 			if (intersector.NbPnt() > 0)
 			{
+				//printPoint(currentEvalPoint->getPoint());
 				currentEvalPoint->setInvisible();
 				continue;
 			}
@@ -1197,26 +1220,32 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 	for (TopExp_Explorer edgeExp(wire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
 		orderedEdgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
 	}
-	std::vector<int> merged(orderedEdgeList.size());
-	gp_Vec evalVec = getDirEdge(orderedEdgeList[0]);
-	for (size_t i = 1; i < orderedEdgeList.size(); i++) // pick corner point as start point
+
+	//std::cout << std::endl;
+	/*for (size_t i = 0; i < orderedEdgeList.size(); i++)
 	{
+		gp_Pnt startPoint = std::get<0>(getPointsEdge(orderedEdgeList[i]));
+		gp_Pnt endPoint = std::get<1>(getPointsEdge(orderedEdgeList[i]));
 
-		TopoDS_Edge currentEdge = orderedEdgeList[i];
-		gp_Vec currentVec = getDirEdge(currentEdge);
+		printPoint(startPoint);
+		printPoint(endPoint);
+	}*/
 
-		gp_Pnt startPoint = std::get<0>(getPointsEdge(currentEdge));
-		gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
+	std::vector<int> merged(orderedEdgeList.size());
+	//gp_Vec evalVec = getDirEdge(orderedEdgeList[0]);
+	//for (size_t i = 1; i < orderedEdgeList.size(); i++) // pick corner point as start point
+	//{
+	//	TopoDS_Edge currentEdge = orderedEdgeList[i];
+	//	gp_Vec currentVec = getDirEdge(currentEdge);
 
-		if (!currentVec.IsParallel(evalVec, 0.01)) {
-			std::vector<TopoDS_Edge> splitToFront(orderedEdgeList.begin() + i + 1, orderedEdgeList.end());
-			std::vector<TopoDS_Edge> splitToBack(orderedEdgeList.begin(), orderedEdgeList.begin() + i);
+	//	gp_Pnt startPoint = std::get<0>(getPointsEdge(currentEdge));
+	//	gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
 
-			splitToFront.insert(splitToFront.end(), splitToBack.begin(), splitToBack.end());
-			orderedEdgeList = splitToFront;
-			break;
-		}
-	}
+	//	if (!currentVec.IsParallel(evalVec, 0.01)) {
+	//		std::rotate(orderedEdgeList.begin(), orderedEdgeList.begin() + i, orderedEdgeList.end());
+	//		break;
+	//	}
+	//}
 	gp_Pnt connection = std::get<0>(getPointsEdge(orderedEdgeList[0]));
 	for (size_t i = 0; i < orderedEdgeList.size(); i++) // merge parralel 
 	{
@@ -1224,8 +1253,15 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 		merged[i] = 1;
 
 		TopoDS_Edge currentEdge = orderedEdgeList[i];
-		
 		gp_Vec currentVec = getDirEdge(currentEdge);
+
+		if (currentVec.Magnitude() == 0)
+		{
+			merged[i] = 1;
+			continue;
+		}
+
+
 		gp_Pnt endPoint = std::get<1>(getPointsEdge(currentEdge));
 
 		for (size_t j = i + 1; j < orderedEdgeList.size(); j++)
@@ -1235,21 +1271,36 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 			TopoDS_Edge otherEdge = orderedEdgeList[j];
 			gp_Vec otherVec = getDirEdge(otherEdge);
 
-			if (!currentVec.IsParallel(otherVec, 0.01)) { break; }
+			if (otherVec.Magnitude() == 0)
+			{
+				merged[j] = 1;
+				continue; 
+			}
 
-			merged[j] = 1;
-			endPoint = std::get<1>(getPointsEdge(otherEdge));
+			if (currentVec.IsParallel(otherVec, 0.01)) { 
+				merged[j] = 1;
+				continue; 
+			}
+
+			endPoint = std::get<0>(getPointsEdge(otherEdge));
+			break;
 		}
 
-		if (connection.IsEqual(endPoint, 1e-6))
-		{
-			continue;
-		}
+		if (connection.IsEqual(endPoint, 1e-6)) { continue; }
 
+		//printPoint(connection);
+		//printPoint(endPoint);
 		wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, endPoint));
-
 		connection = endPoint;
 	}
+
+	if (connection.IsEqual(std::get<0>(getPointsEdge(orderedEdgeList[0])), 1e-6))
+	{
+		return wireMaker.Wire();
+	}
+
+	//printPoint(connection);
+	//printPoint(std::get<0>(getPointsEdge(orderedEdgeList[0])));
 	wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, std::get<0>(getPointsEdge(orderedEdgeList[0]))));
 	return wireMaker.Wire();
 }
@@ -1408,7 +1459,7 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	faceList_.emplace_back(std::vector<SurfaceGroup*>());
 	std::vector<SurfaceGroup*> cleanedShapeList;
 	for (size_t i = 0; i < shapeList.size(); i++)
-	{
+	{ 
 		SurfaceGroup* currentSurfaceGroup = shapeList[i];
 		if (currentSurfaceGroup->testIsVisable(shapeList, true))
 		{
@@ -1617,27 +1668,47 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 		brepBuilder.MakeShell(shell);
 		TopoDS_Solid solidShape;
 		brepBuilder.MakeSolid(solidShape);
-		// check if edge has overlap
+		// check if all the vertices have overlap
 		bool success = false;
-		for (size_t i = 0; i < cleanedFaceList.size(); i++)
+		for (size_t j = 0; j < cleanedFaceList.size(); j++)
 		{
-			bool valid = false;
-			for (size_t j = 0; j < cleanedFaceList.size(); j++)
-			{
-				if (i == j)
-				{
-					continue;
-				}
+			int vertCount = 0;
+			int overlapCount = 0;
 
-				double distance = BRepExtrema_DistShapeShape(cleanedFaceList[i], cleanedFaceList[j]).Value(); // TODO: speed this up
-				if (distance < 0.001)
+			for (TopExp_Explorer vertexExplorer(cleanedFaceList[j], TopAbs_VERTEX); vertexExplorer.More(); vertexExplorer.Next()) {
+
+				bool hasOverlap = false;
+				vertCount++;
+
+				TopoDS_Vertex vertex = TopoDS::Vertex(vertexExplorer.Current());
+				gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+				for (size_t k = 0; k < cleanedFaceList.size(); k++)
 				{
-					valid = true;
+					if (j == k)
+					{
+						continue;
+					}
+					for (TopExp_Explorer otherVertexExplorer(cleanedFaceList[k], TopAbs_VERTEX); otherVertexExplorer.More(); otherVertexExplorer.Next()) {
+						TopoDS_Vertex otherVertex = TopoDS::Vertex(otherVertexExplorer.Current());
+						gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
+
+						if (point.IsEqual(otherPoint, 1e-6))
+						{
+							overlapCount++;
+							hasOverlap = true;
+							break;
+						}
+					}
+					if (hasOverlap)
+					{
+						break;
+					}
 				}
 			}
-			if (valid)
+			if (overlapCount == vertCount)
 			{
-				brepSewer.Add(cleanedFaceList[i]);
+				brepSewer.Add(cleanedFaceList[j]);
 				success = true;
 			}
 		}
@@ -1787,7 +1858,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 		for (TopExp_Explorer edgeExp(mergeFaces[i], TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
 			edgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
 		}
-
 	}
 
 	std::vector<TopoDS_Edge> cleanList;
@@ -1799,6 +1869,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 
 		bool dub = false;
 		std::tuple<gp_Pnt, gp_Pnt> currentSE = getPointsEdge(edgeList[i]);
+
+		if (std::get<0>(currentSE).IsEqual(std::get<1>(currentSE), 1e-6)) { continue; }
 
 		for (size_t j = 0; j < edgeList.size(); j++)
 		{
@@ -1813,15 +1885,14 @@ TopoDS_Face CJGeoCreator::mergeFaces(std::vector<TopoDS_Face> mergeFaces) {
 				break;
 			}
 		}
-
 		if (!dub)
 		{
 			cleanList.emplace_back(edgeList[i]);
 		}
 	}
+
 	if (cleanList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
-	TopExp_Explorer expl;
 	if (wireList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }

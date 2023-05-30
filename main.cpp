@@ -33,9 +33,7 @@
 #include <vld.h>
 #endif
 
-std::vector<std::string> GetSources() {
-
-	// easy override 
+std::vector<std::string> GetSourcePathArray() {
 	std::vector<std::string> sourcePathArray = {
 		//IFC 4
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
@@ -46,8 +44,10 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/FM_ARC_DigitalHub_with_SB.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project_ifc4.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Revit_Example_Models/RAC_basic_sample_project-ifc4_edit.ifc"
-		
+
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/sweco models/20220221 riederkercke-kievitsweg_gebruiksfunctie 4/20220221 riederkercke-kievitsweg_gebruiksfunctie 4.ifc"
+
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Nijmegen/4-Daagse__Ontwerp_Start-finishlocatie_04.ifc"
 
 		//IFC2x3
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/haviklaan-6.ifc" 
@@ -61,8 +61,10 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark_Edit.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
-		
+
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/sweco models/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet.ifc"
+
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/TUD/Gebouw_29/ECHO B-BWK-B-UNS-R19.IFC.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/De Raad_edited.ifc"
@@ -71,8 +73,29 @@ std::vector<std::string> GetSources() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/BWK.ifc"//,
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/STR.ifc"
 
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Kadaster/20230320_high5_bimlegal_hoevesteijn.ifc"
+
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/9252_VRI_Boompjes_constructie.ifc"
 	};
+	return sourcePathArray;
+}
+
+std::vector<std::string> GetFileNames(std::vector<std::string>& sourcePathList) {
+	std::vector<std::string> fileNames;
+	for (size_t i = 0; i < sourcePathList.size(); i++)
+	{
+		std::vector<std::string> segments;
+		boost::split(segments, sourcePathList[i], boost::is_any_of("/, \\"));
+		std::string filePath = segments[segments.size() - 1];
+		fileNames.emplace_back(filePath.substr(0, filePath.size() - 4));
+	}
+	return fileNames;
+}
+
+std::vector<std::string> GetSources() {
+
+	// search for test input
+	std::vector<std::string> sourcePathArray = GetSourcePathArray();
 
 	// if no override is found use normal interface
 	while (true)
@@ -135,45 +158,13 @@ std::vector<std::string> GetSources() {
 
 		std::cout << std::endl;
 
-		if (!hasError)
-		{
-			break;
-		}
+		if (!hasError) { break; }
 
 		sourcePathArray.clear();
 	}
 
 	return sourcePathArray;
 }
-
-void compareElevationsOutput(const std::vector<double> left, const std::vector<double> right) {
-	int tab = 35;
-	if (left.size() != right.size())
-	{
-		if (left.size() > right.size())
-		{
-			int minIndx = (int) right.size();
-			for (size_t i = 0; i < left.size(); i++)
-			{
-				if (i < minIndx) { std::cout << std::left << std::setw(tab) << left[i] << right[i] << std::endl; }
-				else { std::cout << std::left << std::setw(tab) << left[i] << "-" << std::endl; }
-			}
-		}
-		else {
-			int minIndx = (int) left.size();
-			for (size_t i = 0; i < right.size(); i++)
-			{
-				if (i < minIndx) { std::cout << std::left << std::setw(tab) << left[i] << right[i] << std::endl; }
-				else { std::cout << std::left << std::setw(tab) << "-" << right[i] << std::endl; }
-			}
-		}
-	}
-	else
-	{
-		for (size_t i = 0; i < right.size(); i++) { std::cout << std::left << std::setw(tab) << left[i] << right[i] << std::endl; }
-	}
-}
-
 
 bool yesNoQuestion() {
 	std::string cont = "";
@@ -220,50 +211,10 @@ int numQuestion(int n, bool lower = true) {
 					return intNum;
 				}
 			}
-
 		}
 		std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
 	}
 }
-
-double numQuestionD(int n, bool lower = true) {
-	while (true)
-	{
-		bool validInput = true;
-		std::string stringNum = "";
-
-		std::cout << "Num: ";
-		std::cin >> stringNum;
-
-		for (size_t i = 0; i < stringNum.size(); i++)
-		{
-			if (!std::isdigit(stringNum[i]))
-			{
-				validInput = false;
-			}
-		}
-
-		if (validInput)
-		{
-			double intNum = std::stod(stringNum);
-			if (!lower)
-			{
-				if (n >= intNum) {
-					return intNum;
-				}
-			}
-			else if (lower)
-			{
-				if (n >= intNum && intNum >= 0) {
-					return intNum;
-				}
-			}
-
-		}
-		std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-	}
-}
-
 
 bool checkproxy(helperCluster* cluster) {
 
@@ -287,8 +238,6 @@ bool checkproxy(helperCluster* cluster) {
 	if (hasLot)
 	{
 		std::cout << "[WARNING] A large amount of IfcBuildingElementProxy objects are present in the model!" << std::endl;
-		//std::cout << "[INFO] Process is terminated" << std::endl;
-		//return false;
 	}
 
 	std::cout << "[INFO] " << proxyCount << " of " << totalCount <<  " evaluated objects are IfcBuildingElementProxy objects" << std::endl;
@@ -301,156 +250,6 @@ bool checkproxy(helperCluster* cluster) {
 	
 	return answer;
 }
-
-
-void askBoudingRules(helperCluster* hCluster) {
-	std::cout << "Please select a desired rulset for room bounding objects" << std::endl;
-	std::cout << "1. Default room bounding objects" << std::endl;
-	std::cout << "2. Default room bounding objects + IfcBuildingElementProxy objects" << std::endl;
-	std::cout << "3. Default room bounding objects + custom object selection" << std::endl;
-	std::cout << "4. custom object selection" << std::endl;
-
-	int ruleNum = numQuestion(4);
-
-	if (ruleNum == 1)
-	{
-		hCluster->setUseProxy(true);
-	}
-	if (ruleNum == 2 || ruleNum == 3)
-	{
-		bool fCustom = false;
-		std::vector<std::string> defaultList = {
-			"IFCSLAB",
-			"IFCROOF",
-			"IFCWALL",
-			"IFCWALLSTANDARDCASE",
-			"IFCCOVERING",
-			"IFCCOLUMN",
-			"IFCBEAM",
-			"IFCCURTAINWALL",
-			"IFCPLATE",
-			"IFCMEMBER",
-			"IFCDOOR",
-			"IFCWINDOW"
-		};
-
-		std::list<std::string> sourceTypeList = hCluster->getObjectList();
-		std::list<std::string>* objectList = new std::list<std::string>;
-
-		std::cout << std::endl;
-		std::cout << "Please enter the desired IfcTypes" << std::endl;
-		std::cout << "[INFO] Not case sensitive" << std::endl;
-		std::cout << "[INFO] Seperate type by enter" << std::endl;
-		std::cout << "[INFO] Finish by empty line + enter" << std::endl;
-
-		if (ruleNum == 3)
-		{
-			fCustom = true;
-			defaultList = {};
-		}
-
-		int i = 0;
-		while (true)
-		{
-			std::cout << "IfcType: ";
-
-			std::string singlepath = "";
-
-			if (i == 0)
-			{
-				std::cin.ignore();
-				i++;
-			}
-
-			getline(std::cin, singlepath);
-
-			if (singlepath.size() == 0 && objectList->size() == 0)
-			{
-				std::cout << "[INFO] No type has been supplied" << std::endl;
-				continue;
-			}
-			else if (singlepath.size() == 0)
-			{
-				break;
-			}
-			else if (boost::to_upper_copy<std::string>(singlepath.substr(0, 3)) == "IFC") {
-
-				std::string potentialType = boost::to_upper_copy<std::string>(singlepath);
-
-				bool defaultType = false;
-				for (size_t i = 0; i < defaultList.size(); i++)
-				{
-					if (potentialType == defaultList[i])
-					{
-						defaultType = true;
-						std::cout << "[INFO] Type is present in default set" << std::endl;
-
-						break;
-					}
-
-				}
-
-				if (defaultType) { 
-					continue;
-				}
-
-				bool found = false;
-
-				for (auto it = sourceTypeList.begin(); it != sourceTypeList.end(); ++it)
-				{
-					if (*it == potentialType)
-					{
-						objectList->emplace_back(boost::to_upper_copy<std::string>(singlepath));
-						found = true;
-					}
-				}
-				if (!found)
-				{
-					std::cout << "[INFO] Type is not present in file" << std::endl;
-					continue;
-				}
-			}
-			else
-			{
-				std::cout << "[INFO] No valid type has been supplied" << std::endl;
-				continue;
-			}
-		}
-
-		for (size_t i = 0; i < hCluster->getSize(); i++)
-		{
-			hCluster->getHelper(i)->setRoomBoundingObjects(objectList, true, fCustom);
-		}
-	}
-	std::cout << std::endl;
-}
-
-void askApartmentRules(helperCluster* hCluster) {
-	std::cout << "Please select a desired rulset" << std::endl;
-	std::cout << "1. Default apartment construction rules" << std::endl;
-	std::cout << "2. Custom apartment construction rules" << std::endl;
-
-	int ruleNum = numQuestion(2);
-
-	if (ruleNum == 1)
-	{
-		std::cout << std::endl;
-		std::cout << "Minimal apartment room count (int)" << std::endl;
-		int roomCount = numQuestion(15) + 1;
-
-		std::cout << std::endl;
-		std::cout << "Minimal apartment area size (double)" << std::endl;
-		double apArea = numQuestionD(1000);
-
-		std::cout << std::endl;
-		std::cout << "Minimal connections needed to be considered splitting point (int)" << std::endl;;
-		int conCount = numQuestion(15) + 1;
-
-		hCluster->setApRules(conCount, roomCount, apArea);
-	}
-	std::cout << std::endl;
-}
-
 
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -466,16 +265,39 @@ int main(int argc, char** argv) {
 	double voxelSize = -1;
 	bool makeReport = false;
 
+	// generate storing data
+	std::vector<std::string> fileNames;
+	std::string exportRootPath;
+
 	if (argc > 1)
 	{
 		version = "Internal";
 		isStandalone = false;
 		sourcePathArray = { argv[1] };
-		if (std::string(argv[2]) == "True") { ignoreProxy = true; }
-		voxelSize = std::stod(argv[3]);
+		if (std::string(argv[3]) == "True") { ignoreProxy = true; }
+		voxelSize = std::stod(argv[4]);
+		fileNames = GetFileNames(sourcePathArray);
+		exportRootPath = argv[2];
+		if (exportRootPath[-1] != '\\' && exportRootPath[-1] != '/') { exportRootPath += "\\"; }
 	}
 	else {
 		sourcePathArray = GetSources();
+		fileNames = GetFileNames(sourcePathArray);
+		if (GetSourcePathArray().size() == 0) // if test input is used test output paths can be used
+		{
+			std::cout << "Enter target folderpath of the CityJSON file" << std::endl;
+			std::cout << "Path: ";
+
+			std::string singlepath = "";
+			getline(std::cin, singlepath);
+
+			exportRootPath = singlepath;
+			if (exportRootPath[-1] != '\\' && exportRootPath[-1] != '/') { exportRootPath += "\\"; }
+			std::cout << std::endl;
+		}
+		else {
+			exportRootPath = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/";
+		}
 	}
 
 	// some information on startup
@@ -483,20 +305,17 @@ int main(int argc, char** argv) {
 	std::cout << "    " << version + " IFC_BuildingEnvExtractor" << std::endl;
 	std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
 	std::wcout << "=============================================================" << std::endl;
+	std::cout << std::endl;
+
+	// output targets
+	std::cout << "[INFO] Input file paths:" << std::endl;
+	for (size_t i = 0; i < sourcePathArray.size(); i++) { std::cout << sourcePathArray[i] << std::endl; }
+
+	std::cout << "[INFO] Output file path: " << std::endl;
+	std::cout << exportRootPath + fileNames[0] + ".city.json" << std::endl;
+	std::cout << std::endl;
 
 	bool hasAskedBoundingRules = false;
-
-	// make export path
-	std::vector<std::string> fileNames;
-
-	for (size_t i = 0; i < sourcePathArray.size(); i++)
-	{
-		std::vector<std::string> segments;
-		boost::split(segments, sourcePathArray[i], boost::is_any_of("/"));
-		std::string filePath = segments[segments.size() - 1];
-		fileNames.emplace_back(filePath.substr(0, filePath.size() - 4));
-	}
-
 	int constructionIndx = -1;
 	int semanticHelper = 0;
 
@@ -559,43 +378,6 @@ int main(int argc, char** argv) {
 	else if (ignoreProxy == 1)
 	{
 		hCluster->setUseProxy(false);
-	}
-
-	if (sourcePathArray.size() != 1)
-	{
-		while (true)
-		{
-			bool validInput = true;
-			std::string stringNum = "";
-
-			std::cout << "Please enter number of the target model where the envelope is to be stored" << std::endl;
-			for (size_t i = 0; i < fileNames.size(); i++) { std::cout << i + 1 << ": " << fileNames[i] << std::endl; }
-			std::cout << "Num: ";
-			std::cin >> stringNum;
-			std::cout << std::endl;
-
-			for (size_t i = 0; i < stringNum.size(); i++)
-			{
-				if (!std::isdigit(stringNum[i]))
-				{
-					validInput = false;
-				}
-			}
-
-			if (validInput)
-			{
-				int roomIndx = std::stoi(stringNum) - 1;
-
-				if (roomIndx >= 0) {
-					hCluster->getHelper(roomIndx)->setHasRooms();
-					break;
-				}
-			}
-			std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-		}
-	}
-	else {
-		hCluster->getHelper(0)->setHasRooms();
 	}
 
 	if (isStandalone)
@@ -667,7 +449,7 @@ int main(int argc, char** argv) {
 	auto geo32Time = std::chrono::high_resolution_clock::now();
 	collection->addCityObject(cityObject);
 	collection->cullDuplicatedVerices();
-	collection->dumpJson("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + fileNames[0] + ".city.json");
+	collection->dumpJson(exportRootPath + fileNames[0] + ".city.json");
 	auto exportTime = std::chrono::high_resolution_clock::now();
 
 	delete kernel;
@@ -693,7 +475,7 @@ int main(int argc, char** argv) {
 		addTimeToJSON(&report, "Time LoD3.2 generation", geo22Time, geo32Time);
 		addTimeToJSON(&report, "Total Processing time", startTimeLod, endTime);
 		addTimeToJSON(&report, "Total running time", startTime, endTime);
-		std::ofstream reportFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/" + fileNames[0] + "_report" + ".json");
+		std::ofstream reportFile(exportRootPath + fileNames[0] + "_report.city.json");
 		reportFile << report;
 		reportFile.close();
 		return 0;

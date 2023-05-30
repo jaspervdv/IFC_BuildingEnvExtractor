@@ -325,7 +325,6 @@ std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge) {
 			break;
 		}
 	}
-
 	return std::make_tuple(startPoint, endPoint);
 }
 
@@ -881,19 +880,14 @@ void helper::internalizeGeo()
 {
 	std::cout << "[INFO] Internalizing Geometry of Construction Model\n" << std::endl;
 	int faceCount = 0;
-	int objectCount = 0;
 	// get products
 	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
 	objectCount = products->size();
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 		if (product->data().type()->name() == "IfcBuildingElementProxy") { proxyCount++; }
-		//faceCount += getObjectFaces(product, false).size();
-		//objectCount += 1;
+		objectCount ++;
 	}
-
-	//std::cout << "objectCount = " << objectCount << std::endl;
-	//std::cout << "FaceCount = " << faceCount << std::endl;
 
 	if (proxyCount > 0)
 	{
@@ -1236,6 +1230,27 @@ TopoDS_Solid helper::makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle, double e
 	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
 	gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
 	gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
+
+	bool sameXCoordinate = true;
+	bool sameYCoordinate = true;
+	bool sameZCoordinate = true;
+
+	double xCoord = p0.X();
+	double yCoord = p0.Y();
+	double zCoord = p0.Z();
+	for (const auto& p : { p1, p2, p3, p4, p5, p6, p7 }) {
+		if (abs(p.X() - xCoord) > 0.1) { sameXCoordinate = false; }
+		if (abs(p.Y() - yCoord) > 0.1) { sameYCoordinate = false; }
+		if (abs(p.Z() - zCoord) > 0.1) { sameZCoordinate = false; }
+
+		if (!sameXCoordinate && !sameYCoordinate && !sameZCoordinate) { break; }
+	}
+
+	if (sameXCoordinate || sameYCoordinate || sameZCoordinate)
+	{
+		return TopoDS_Solid(); //TODO: find a solution for this issue 
+	}
+
 
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
@@ -1794,6 +1809,7 @@ void helper::addObjectToIndex(T object) {
 			// compute vertical rotation
 			gp_Pnt p3 = verticalMaxEdge[0];
 			gp_Pnt p4 = rotatePointPoint(verticalMaxEdge[1], p3, angleFlat);
+
 			bool isRotated = false;
 			if (abs(p3.X() - p4.X()) < 0.01)
 			{
@@ -1819,6 +1835,7 @@ void helper::addObjectToIndex(T object) {
 
 			hasCBBox = true;
 			cbbox = makeSolidBox(lllPoint, urrPoint, angleFlat, angleVert);
+			if (cbbox.IsNull()) { hasCBBox = false; }
 
 			//if (isRotated)
 			//{
