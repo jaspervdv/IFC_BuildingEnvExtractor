@@ -74,6 +74,7 @@ std::vector<std::string> GetSourcePathArray() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/STR.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Kadaster/20230320_high5_bimlegal_hoevesteijn.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/IFCTools/IfcSplit/Export/20230320_high5_bimlegal_hoevesteijn_2.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Rotterdam/9252_VRI_Boompjes_constructie.ifc"
 	};
@@ -448,7 +449,7 @@ int main(int argc, char** argv) {
 	for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
 	auto geo32Time = std::chrono::high_resolution_clock::now();
 	collection->addCityObject(cityObject);
-	collection->cullDuplicatedVerices();
+	collection->CleanVertices();
 	collection->dumpJson(exportRootPath + fileNames[0] + ".city.json");
 	auto exportTime = std::chrono::high_resolution_clock::now();
 

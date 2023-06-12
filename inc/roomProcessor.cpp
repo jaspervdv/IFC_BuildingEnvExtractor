@@ -139,8 +139,30 @@ gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge
 	std::tuple<gp_Pnt, gp_Pnt> points2 = getProPointsEdge(edge2);
 
 	return linearLineIntersection(std::get<0>(points1), std::get<1>(points1), std::get<0>(points2), std::get<1>(points2), buffer);
+}
 
 
+/// using the grids to see if surfaces are identical
+bool isOverlappingCompletely(SurfaceGroup* evalFace, SurfaceGroup* otherFace) {
+	std::vector<EvaluationPoint*> evalGrid =  evalFace->getPointGrid();
+	std::vector<EvaluationPoint*> otherGrid = otherFace->getPointGrid();
+
+	if (evalGrid.size() != otherGrid.size()) { return false; }
+
+	for (size_t i = 0; i < evalGrid.size(); i++)
+	{
+		if (!evalGrid[i]->getPoint().IsEqual(otherGrid[i]->getPoint(), 1e-6)) { return false; }
+	}
+	return true;
+}
+
+
+bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*>  facePool) {
+	for (size_t i = 0; i < facePool.size(); i++)
+	{
+		if (isOverlappingCompletely(evalFace, facePool[i])) { return true; }
+	}
+	return false;
 }
 
 
@@ -388,15 +410,7 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 		gp_Pnt point = BRep_Tool::Pnt(vertex);
 		//printPoint(point);
 	}
-	//std::cout << "process" << std::endl;
-
-	for (size_t k = 0; k < currentGrid.size(); k++)
-	{
-		EvaluationPoint* currentEvalPoint = currentGrid[k];
-		//printPoint(currentEvalPoint->getPoint());
-		break;
-
-	}
+	//std::cout << "click" << std::endl;
 
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
 	{
@@ -435,6 +449,7 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 
 			if (intersector.NbPnt() > 0)
 			{
+
 				//printPoint(currentEvalPoint->getPoint());
 				currentEvalPoint->setInvisible();
 				continue;
@@ -1221,15 +1236,14 @@ TopoDS_Wire CJGeoCreator::cleanWire(TopoDS_Wire wire) {
 		orderedEdgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
 	}
 
-	//std::cout << std::endl;
-	/*for (size_t i = 0; i < orderedEdgeList.size(); i++)
+	for (size_t i = 0; i < orderedEdgeList.size(); i++)
 	{
 		gp_Pnt startPoint = std::get<0>(getPointsEdge(orderedEdgeList[i]));
 		gp_Pnt endPoint = std::get<1>(getPointsEdge(orderedEdgeList[i]));
 
-		printPoint(startPoint);
-		printPoint(endPoint);
-	}*/
+		//printPoint(startPoint);
+		//printPoint(endPoint);
+	}
 
 	std::vector<int> merged(orderedEdgeList.size());
 	//gp_Vec evalVec = getDirEdge(orderedEdgeList[0]);
@@ -1442,15 +1456,29 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Reduce surfaces" << std::endl;
+
 	for (size_t i = 0; i < filteredFaces.size(); i++)
 	{
 		std::vector<SurfaceGroup*>  objectFaces = getXYFaces(filteredFaces[i]);
 		for (size_t j = 0; j < objectFaces.size(); j++)
 		{
-			shapeList.emplace_back(objectFaces[j]);
-			hasTopFaces_ = true;
+			bool isDub = false;
+
+
+			if (shapeList.size() <= 1)
+			{
+				shapeList.emplace_back(objectFaces[j]);
+				continue;
+			}
+
+			if (!isOverlappingCompletely(objectFaces[j], shapeList))
+			{
+				shapeList.emplace_back(objectFaces[j]);
+				hasTopFaces_ = true;
+			}
 		}
 	}
+
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 
 	startTime = std::chrono::high_resolution_clock::now();
@@ -1463,9 +1491,10 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 		SurfaceGroup* currentSurfaceGroup = shapeList[i];
 		if (currentSurfaceGroup->testIsVisable(shapeList, true))
 		{
-			faceList_[0].emplace_back(shapeList[i]);
+			faceList_[0].emplace_back(currentSurfaceGroup);
 		}
 	}
+
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 
 	startTime = std::chrono::high_resolution_clock::now();

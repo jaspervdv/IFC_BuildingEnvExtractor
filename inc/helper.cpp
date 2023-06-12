@@ -862,8 +862,9 @@ void helper::setUnits(IfcParse::IfcFile *file) {
 
 	if (!volume)
 	{
-		std::cout << "[Error] SI unit for volume cannot be found!" << std::endl;
-		return;
+		std::cout << "[Warning] SI unit for volume cannot be found!" << std::endl;
+		std::cout << "[Warning] SI unit for volume is set to cubic metre!" << std::endl;
+		volume = 1;
 	}
 	else if (volume == 1) { std::cout << "- Volume in cubic metre" << std::endl; }
 	else if (volume == 0.000000001) { std::cout << "- Volume in cubic millimetre" << std::endl; }
