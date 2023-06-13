@@ -2878,23 +2878,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 
 	const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
 
-	//std::ofstream outFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/voxels.txt");
-	//for (size_t j = 1; j < totalRoom.size(); j++)
-	//{
-	//	voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
-	//	if (currentBoxel->getIsIntersecting())
-	//	{
-	//		std::vector<gp_Pnt> points = currentBoxel->getCornerPoints(planeRotation_);
-
-	//		for (size_t k = 0; k < points.size(); k++)
-	//		{
-	//			outFile << points[k].X() << ", " << points[k].Y() << ", " << points[k].Z() << std::endl;
-	//		}
-	//	}
-	//}
-	//// Close the file stream
-	//outFile.close();
-
 	// get outside shape
 	std::vector<TopoDS_Solid> solids;
 	for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) {
@@ -2939,40 +2922,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 		shellList.emplace_back(TopoDS::Shell(expl.Current()));
 	}
 
-	//// extract the inner shell of the shape
-	//double score = 0;
-	//for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
-	//{
-	//	found = false;
-	//	for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-	//		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-	//		gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-	//		for (size_t k = 0; k < bboxPoints.size(); k++)
-	//		{
-	//			if (p.IsEqual(bboxPoints[k], 0.01)) {
-	//				found = true;
-	//				break;
-	//			}
-	//		}
-	//		if (found)
-	//		{
-	//			break;
-	//		}
-	//	}
-	//	if (!found)
-	//	{
-	//		GProp_GProps gprop;
-	//		BRepGProp::VolumeProperties(shellList[j], gprop);
-	//		double mass = abs(gprop.Mass());
-	//		if (score < mass)
-	//		{
-	//			outSideShape = shellList[j];
-	//			score = mass;
-	//		}
-	//	}
-	//}
-
 	std::vector<TopoDS_Shape> OuterShapeList;
 	std::vector<double> massList;
 	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
@@ -3010,7 +2959,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 	for (size_t i = 0; i < OuterShapeList.size(); i++)
 	{
 		if (massList[i] < massThreshold) { continue; }
-
 		TopoDS_Shape cleanedSolid = simplefySolid(OuterShapeList[i]);
 		CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
 		geoObjectList.emplace_back(geoObject);
@@ -3018,10 +2966,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
-
-	//// extract the inner shell of the shape
-	double score = 0;
-	
 }
 
 CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
@@ -3146,6 +3090,8 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
 	std::cout << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 	std::cout << std::endl;
 	initializeBasic(cluster);
+	std::cout << std::endl;
+	std::cout << "- Processing" << std::endl;
 }
 	
 std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCluster* cluster)
