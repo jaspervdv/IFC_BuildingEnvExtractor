@@ -252,6 +252,129 @@ bool checkproxy(helperCluster* cluster) {
 	return answer;
 }
 
+
+void askBoudingRules(helperCluster* hCluster) {
+	std::cout << "Please select a desired rulset for space bounding objects" << std::endl;
+	std::cout << "1. Default room bounding objects" << std::endl;
+	std::cout << "2. Default room bounding objects + custom object selection" << std::endl;
+	std::cout << "3. custom object selection" << std::endl;
+
+	int ruleNum = numQuestion(4);
+
+	if (ruleNum == 1)
+	{
+		hCluster->setUseProxy(true);
+	}
+	if (ruleNum == 1 || ruleNum == 2)
+	{
+		bool fCustom = false;
+		std::vector<std::string> defaultList = {
+			"IFCSLAB",
+			"IFCROOF",
+			"IFCWALL",
+			"IFCWALLSTANDARDCASE",
+			"IFCCOVERING",
+			"IFCCOLUMN",
+			"IFCBEAM",
+			"IFCCURTAINWALL",
+			"IFCPLATE",
+			"IFCMEMBER",
+			"IFCDOOR",
+			"IFCWINDOW"
+		};
+
+		std::list<std::string> sourceTypeList = hCluster->getObjectList();
+		std::list<std::string>* objectList = new std::list<std::string>;
+
+		std::cout << std::endl;
+		std::cout << "Please enter the desired IfcTypes" << std::endl;
+		std::cout << "[INFO] Not case sensitive" << std::endl;
+		std::cout << "[INFO] Seperate type by enter" << std::endl;
+		std::cout << "[INFO] Finish by empty line + enter" << std::endl;
+
+		if (ruleNum == 2)
+		{
+			fCustom = true;
+			defaultList = {};
+		}
+
+		int i = 0;
+		while (true)
+		{
+			std::cout << "IfcType: ";
+
+			std::string singlepath = "";
+
+			if (i == 0)
+			{
+				cin.ignore();
+				i++;
+			}
+
+			getline(std::cin, singlepath);
+
+			if (singlepath.size() == 0 && objectList->size() == 0)
+			{
+				std::cout << "[INFO] No type has been supplied" << std::endl;
+				continue;
+			}
+			else if (singlepath.size() == 0)
+			{
+				break;
+			}
+			else if (boost::to_upper_copy<std::string>(singlepath.substr(0, 3)) == "IFC") {
+
+				std::string potentialType = boost::to_upper_copy<std::string>(singlepath);
+
+				bool defaultType = false;
+				for (size_t i = 0; i < defaultList.size(); i++)
+				{
+					if (potentialType == defaultList[i])
+					{
+						defaultType = true;
+						std::cout << "[INFO] Type is present in default set" << std::endl;
+
+						break;
+					}
+
+				}
+
+				if (defaultType) {
+					continue;
+				}
+
+				bool found = false;
+
+				for (auto it = sourceTypeList.begin(); it != sourceTypeList.end(); ++it)
+				{
+					if (*it == potentialType)
+					{
+						objectList->emplace_back(boost::to_upper_copy<std::string>(singlepath));
+						found = true;
+					}
+				}
+				if (!found)
+				{
+					std::cout << "[INFO] Type is not present in file" << std::endl;
+					continue;
+				}
+			}
+			else
+			{
+				std::cout << "[INFO] No valid type has been supplied" << std::endl;
+				continue;
+			}
+		}
+
+		for (size_t i = 0; i < hCluster->getSize(); i++)
+		{
+			hCluster->getHelper(i)->setRoomBoundingObjects(objectList, true, fCustom);
+		}
+	}
+	std::cout << std::endl;
+}
+
+
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -368,9 +491,18 @@ int main(int argc, char** argv) {
 			return 0;
 		}
 
-		std::cout << "Ignore IfcBuildingElementProxy elements?  (Y/N):";
+		std::cout << "Ignore IfcBuildingElementProxy elements? (Y/N): ";
 		hCluster->setUseProxy(!yesNoQuestion());
 		std::cout << std::endl;
+
+		std::cout << "Customize space bounding objects? (Y/N): ";
+
+		if (yesNoQuestion())
+		{
+			askBoudingRules(hCluster);
+		}
+
+
 	}
 	else if (ignoreProxy == 0)
 	{

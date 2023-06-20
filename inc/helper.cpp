@@ -1031,10 +1031,10 @@ void helper::indexGeo()
 
 	if (!hasIndex_)
 	{
+		std::cout << "- Create Spatial Index" << std::endl;
 		if (!useCustomFull)
 		{
 			// add the floorslabs to the rtree
-			std::cout << "- Create Spatial Index" << std::endl;
 			auto startTime = std::chrono::high_resolution_clock::now();
 			addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(file_->instances_by_type<IfcSchema::IfcSlab>());
 			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
@@ -1094,7 +1094,7 @@ void helper::indexGeo()
 				addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(file_->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
 				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 			}
-			std::cout << std::endl;
+
 		}
 		if (useCustom)
 		{
@@ -1102,6 +1102,8 @@ void helper::indexGeo()
 			
 			for (auto it = roomBoundingObjects_->begin(); it != roomBoundingObjects_->end(); ++it) {
 				
+				auto startTime = std::chrono::high_resolution_clock::now();
+
 				IfcSchema::IfcProduct::list::ptr selectedlist(new IfcSchema::IfcProduct::list);
 
 				for (auto et = productList->begin(); et != productList->end(); ++et)
@@ -1113,10 +1115,13 @@ void helper::indexGeo()
 						selectedlist.get()->push(product);
 					}
 				}
+
+				std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
 				addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
 			}
 		}
-
+		std::cout << std::endl;
 		// find valid voids
 		applyVoids();
 		hasIndex_ = true;
