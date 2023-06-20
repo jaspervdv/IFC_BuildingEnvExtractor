@@ -1468,13 +1468,13 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 			if (shapeList.size() <= 1)
 			{
 				shapeList.emplace_back(objectFaces[j]);
+				hasTopFaces_ = true;
 				continue;
 			}
 
 			if (!isOverlappingCompletely(objectFaces[j], shapeList))
 			{
 				shapeList.emplace_back(objectFaces[j]);
-				hasTopFaces_ = true;
 			}
 		}
 	}
