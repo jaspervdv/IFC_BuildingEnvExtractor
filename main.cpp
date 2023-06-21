@@ -60,7 +60,7 @@ std::vector<std::string> GetSourcePathArray() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark_Edit.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
+		// "C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/sweco models/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet.ifc"
 

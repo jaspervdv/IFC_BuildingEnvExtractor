@@ -402,16 +402,6 @@ bool SurfaceGroup::testIsVisable(std::vector<SurfaceGroup*> otherSurfaces, bool 
 	TopoDS_Face currentFace = getFace();
 	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
 
-	
-	//std::cout << "face" << std::endl;
-	TopExp_Explorer expl1;
-	for (expl1.Init(currentFace, TopAbs_VERTEX); expl1.More(); expl1.Next()) {
-		TopoDS_Vertex vertex = TopoDS::Vertex(expl1.Current());
-		gp_Pnt point = BRep_Tool::Pnt(vertex);
-		//printPoint(point);
-	}
-	//std::cout << "click" << std::endl;
-
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
 	{
 
@@ -1601,6 +1591,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{
 		if (faceList_[i].size() == 0) { continue; }
+
 		TopTools_ListOfShape aLSFuseObjects;
 		TopExp_Explorer expl;
 		for (size_t j = 0; j < faceList_[i].size(); j++)
@@ -1610,6 +1601,13 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 			if (currentRoof->getURRPoint().Z() == 0) //TODO: make smarter
 			{
 				continue;
+			}
+
+			for (TopExp_Explorer explorer(currentRoof->getFace(), TopAbs_VERTEX); explorer.More(); explorer.Next())
+			{
+				const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer.Current());
+				const gp_Pnt& point = BRep_Tool::Pnt(vertex);
+				//printPoint(point);
 			}
 
 			TopoDS_Face currentFace;
@@ -2293,8 +2291,13 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helperCluster* cluster)
 
 					if (!dub)
 					{
+						TopoDS_Shape shape;
+						if (std::get<3>(lookup)) { shape = std::get<4>(lookup); }
+						else { shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true); }
+
+
 						topProducts.emplace_back(product);
-						topObjects.emplace_back(cluster->getHelper(j)->getObjectShape(product, false));
+						topObjects.emplace_back(shape);
 					}
 				}
 			}
@@ -2809,14 +2812,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 
 	// finalize rough room shape
 	TopoDS_Shape sizedRoomShape = BRepBuilderAPI_Transform(roughRoomShape, scaler).ModifiedShape(roughRoomShape);
-	p0.Transform(scaler);
-	p4.Transform(scaler);
-
-	// finalize qbox shape
-	scaler.SetScale(pCR, 1.1);
-	qlll.Transform(scaler);
-	qurr.Transform(scaler);
-	boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(Point3DOTB(qlll), Point3DOTB(qurr));
 
 	// intersect roomshape with objects 
 	BOPAlgo_Splitter aSplitter;
