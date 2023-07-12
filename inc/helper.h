@@ -39,6 +39,15 @@
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <gp_Pln.hxx>
 #include <BRepClass_FaceClassifier.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <Geom_Surface.hxx>
+#include <BRep_Tool.hxx>
+#include <GeomAPI_IntSS.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
+#include <Geom_Curve.hxx>
+
+#include <Bnd_Box.hxx>
+#include <BRepBndLib.hxx>
 
 #include <CJT.h>
 #include <CJToKernel.h>

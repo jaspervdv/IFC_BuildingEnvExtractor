@@ -144,7 +144,7 @@ private:
 
 	bool isIntersecting_ = false;
 	bool hasEvalIntt = false;
-	std::vector<int> internalProducts;
+	std::vector<Value> internalProducts;
 
 	bool isInside = true;
 	std::vector<int> roomnums_; 
@@ -178,6 +178,7 @@ public:
 	bool getIsInside() { return isInside; }
 
 	BoostPoint3D getCenterPoint() { return center_; }
+	gp_Pnt getOCCTCenterPoint() { return gp_Pnt(center_.get<0>(), center_.get<1>(), center_.get<2>()); }
 
 	BoostPoint3D getCenterPoint(double angle) { return rotatePointWorld(center_, -angle); }
 
@@ -190,11 +191,11 @@ public:
 
 	void isIntersecting() { isIntersecting_ = true; }
 
-	void addInternalProduct(int prodValue) { internalProducts.emplace_back(prodValue); }
+	void addInternalProduct(Value prodValue) { internalProducts.emplace_back(prodValue); }
 
 	bool getHasEvalIntt() { return hasEvalIntt; }
 
-	std::vector<int> getInternalProductList() { return internalProducts; }
+	std::vector<Value> getInternalProductList() { return internalProducts; }
 
 	double getZ() { return sizeZ_; }
 };
@@ -310,6 +311,60 @@ private:
 	std::vector<int> getTypeValuesBySample(TopoDS_Shape prism, int prismNum, bool flat);
 
 	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
+
+	// checks if surface is encapsulated by another shape
+	bool surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape);
+
+	// checks if ray intersects shape
+	bool checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_Shape& shape);
+	bool checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face);
+
+
+	// create spatial index for voxels and lookup
+	void populateVoxelIndex(
+		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
+		std::vector<int>* originVoxels, 
+		std::vector<Value>* productLookupValues, 
+		const std::vector<int>& exteriorVoxels
+	);
+
+	// remove objects that are completely encapsulated by other objects
+	void filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, helperCluster* cluster);
+
+	// remove dublicate values from valueList
+	std::vector<Value> makeUniqueValueList(const std::vector<Value>& valueList);
+
+	bool isSurfaceVisible(
+		helperCluster* cluster,
+		const TopoDS_Shape& currentShape,
+		const TopoDS_Face& currentFace,
+		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
+		const std::vector<int>& originVoxels,
+		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+		double gridDistance,
+		double buffer
+	);
+
+	bool isWireVisible(
+		helperCluster* cluster,
+		const TopoDS_Shape& currentShape,
+		const TopoDS_Face& currentFace,
+		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
+		const std::vector<int>& originVoxels,
+		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+		double gridDistance,
+		double buffer,
+		ofstream* myfile
+	);
+
+	bool pointIsVisible(helperCluster* cluster,
+		const TopoDS_Shape& currentShape,
+		const TopoDS_Face& currentFace,
+		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
+		const std::vector<int>& originVoxels,
+		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+		const gp_Pnt& point,
+		const double& buffer);
 
 public:
 	explicit CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat = true);

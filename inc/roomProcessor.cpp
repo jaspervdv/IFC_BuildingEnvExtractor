@@ -165,7 +165,6 @@ bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*> 
 	return false;
 }
 
-
 EvaluationPoint::EvaluationPoint(gp_Pnt p)
 {
 	thePoint_ = p;
@@ -1670,7 +1669,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 			bool dub = false;
 			for (size_t j = 0; j < ObjectFaceList.size(); j++)
 			{
-
 				if (j == i)
 				{
 					continue;
@@ -1997,6 +1995,69 @@ void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, st
 	else {
 		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << "s" << std::endl;
 	}
+}
+
+
+bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape)
+{
+	for (TopExp_Explorer explorer(encapsulatedShape, TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& outerSurface = TopoDS::Face(explorer.Current());
+		bool encapsulated = true;
+
+		for (TopExp_Explorer explorer2(innerSurface, TopAbs_VERTEX); explorer2.More(); explorer2.Next())
+		{
+			const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer2.Current());
+			BRepExtrema_DistShapeShape distCalculator(outerSurface, vertex);
+			distCalculator.Perform();
+
+			if (distCalculator.Value() >= 1e-6) 
+			{ 
+				encapsulated = false;
+				break; 
+			}
+		}
+		if (encapsulated)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool CJGeoCreator::checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_Shape& shape)
+{
+	for (TopExp_Explorer explorer(shape, TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+		if (checksurfaceIntersection(ray, currentFace))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face)
+{
+	//IntCurvesFace_Intersector intersection(face, 1e-6);
+	//intersection.Perform(ray, RealLast, RealLast);
+
+	BRepExtrema_DistShapeShape intersection(ray, face, 1e-6);
+
+	intersection.Perform();
+
+	// Check if there is an intersection
+	if (!intersection.IsDone()) { return false; }
+	if (intersection.NbSolution() < 1) { return false; }
+	if (intersection.PointOnShape1(1).Distance(intersection.PointOnShape2(1)) <= 1e-6)
+	{
+		return true;
+	}
+	return false;
 }
 
 
@@ -2677,28 +2738,28 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helperCluster* cluster, CJ
 
 std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 3.2 Model" << std::endl;
-	// asign rooms
-	int roomnum = 0;
-	int temps = 0;
+	auto startTime = std::chrono::high_resolution_clock::now();
 
-	std::vector< CJT::GeoObject*> geoObjectList;
+	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
 
-	TopoDS_Shape outSideShape;
+	double buffer = 1 * voxelSize_; // set the distance from the bb of the evaluated object
+	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
 
-	std::vector<int> totalRoom;
 	std::cout << "\tExterior space growing" << std::endl;
+	std::vector<int> exteriorVoxels;
+
 	for (int i = 0; i < totalVoxels_; i++)
 	{
 		if (!VoxelLookup_[i]->getIsIntersecting())
 		{
-			totalRoom = growExterior(i, roomnum, cluster);
+			exteriorVoxels = growExterior(i, 0, cluster);
 			break;
 		}
 	}
+
 	std::cout << std::endl;
-	if (totalRoom.size() == 0)
+	if (exteriorVoxels.size() == 0)
 	{
 		std::cout << "Unable to find exterior space" << std::endl;
 		return geoObjectList;
@@ -2706,251 +2767,428 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 
 	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
 
+	std::vector<Value> productLookupValues;
+	std::vector<int> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
+	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 
-	BRep_Builder brepBuilder;
-	BRepBuilderAPI_Sewing brepSewer;
+	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, exteriorVoxels);
 
-	TopoDS_Shell shell;
-	brepBuilder.MakeShell(shell);
-	TopoDS_Solid roughRoomShape;
-	brepBuilder.MakeSolid(roughRoomShape);
+	double gridDistance = 1.5;
 
-	gp_Pnt inRoomPoint(99999, 99999, 99999);
-	bool hasInsidePoint = false;
+	productLookupValues = makeUniqueValueList(productLookupValues);
 
-	std::vector<int> productLookupValues;
-
-	// create bbox around rough room shape
-	gp_Pnt lll(9999, 9999, 9999);
-	gp_Pnt urr(-9999, -9999, -9999);
-
-	gp_Pnt qlll(9999, 9999, 9999);
-	gp_Pnt qurr(-9999, -9999, -9999);
-
-	for (size_t j = 1; j < totalRoom.size(); j++)
+	// create unique index
+	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
+	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		voxel* currentBoxel = VoxelLookup_[totalRoom[j]];
-		// get unique product lookup values
-		std::vector<int> internalProducts = currentBoxel->getInternalProductList();
-		for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues.emplace_back(internalProducts[k]); }
-
-		// create bbox
-		std::vector<gp_Pnt> cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
-		std::vector<gp_Pnt> cornerPointsRel = currentBoxel->getCornerPoints(0);
-		for (size_t k = 0; k < cornerPoints.size(); k++)
-		{
-			auto currentCorner = rotatePointWorld(cornerPoints[k], planeRotation_);
-			if (urr.X() < currentCorner.X()) { urr.SetX(currentCorner.X()); }
-			if (urr.Y() < currentCorner.Y()) { urr.SetY(currentCorner.Y()); }
-			if (urr.Z() < currentCorner.Z()) { urr.SetZ(currentCorner.Z()); }
-			if (lll.X() > currentCorner.X()) { lll.SetX(currentCorner.X()); }
-			if (lll.Y() > currentCorner.Y()) { lll.SetY(currentCorner.Y()); }
-			if (lll.Z() > currentCorner.Z()) { lll.SetZ(currentCorner.Z()); }
-
-			auto currentCornerRel = cornerPointsRel[k];
-			if (qurr.X() < currentCornerRel.X()) { qurr.SetX(currentCornerRel.X()); }
-			if (qurr.Y() < currentCornerRel.Y()) { qurr.SetY(currentCornerRel.Y()); }
-			if (qurr.Z() < currentCornerRel.Z()) { qurr.SetZ(currentCornerRel.Z()); }
-			if (qlll.X() > currentCornerRel.X()) { qlll.SetX(currentCornerRel.X()); }
-			if (qlll.Y() > currentCornerRel.Y()) { qlll.SetY(currentCornerRel.Y()); }
-			if (qlll.Z() > currentCornerRel.Z()) { qlll.SetZ(currentCornerRel.Z()); }
-		}
-
-		// search for inside point
-		if (!currentBoxel->getIsIntersecting() && !hasInsidePoint)
-		{
-			inRoomPoint = rotatePointWorld(cornerPoints[5], planeRotation_);
-			inRoomPoint.SetZ(inRoomPoint.Z() - currentBoxel->getZ() / 2);
-			hasInsidePoint = true;
-		}
+		exteriorProductIndex.insert(productLookupValues[i]);
 	}
 
-	gp_Pnt p0(rotatePointWorld(lll, -planeRotation_));
-	gp_Pnt p1 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -planeRotation_);
-	gp_Pnt p2 = rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -planeRotation_);
-	gp_Pnt p3 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -planeRotation_);
+	// evaluate which shapes are completely encapsulated by another shape
+	filterEncapsulatedObjects(
+		&productLookupValues,
+		&exteriorProductIndex,
+		cluster
+	);
 
-	gp_Pnt p4(rotatePointWorld(urr, -planeRotation_));
-	gp_Pnt p5 = rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -planeRotation_);
-	gp_Pnt p6 = rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()), -planeRotation_);
-	gp_Pnt p7 = rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()), -planeRotation_);
+	std::vector<TopoDS_Face> rawFaces;
 
-	gp_Pnt pC = rotatePointWorld(gp_Pnt(lll.X() + (urr.X() - lll.X()) / 2, lll.Y() + (urr.Y() - lll.Y()) / 2, lll.Z() + (urr.Z() - lll.Z()) / 2), -planeRotation_);
-	gp_Pnt pCR = gp_Pnt(qlll.X() + (qurr.X() - qlll.X()) / 2, qlll.Y() + (qurr.Y() - qlll.Y()) / 2, qlll.Z() + (qurr.Z() - qlll.Z()) / 2);
+	ofstream myfile;
+	myfile.open("C:/Users/Jasper/Desktop/test.txt");
 
-	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
-	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
-	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
-	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
-
-	TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
-	TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
-	TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
-	TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
-
-	TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
-	TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
-	TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
-	TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
-
-	std::vector<TopoDS_Face> faceList;
-
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
-
-	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
-
-	brepSewer.Perform();
-	brepBuilder.Add(roughRoomShape, brepSewer.SewedShape());
-
-	gp_Trsf scaler;
-	scaler.SetScale(pC, 1.3);
-
-	// finalize rough room shape
-	TopoDS_Shape sizedRoomShape = BRepBuilderAPI_Transform(roughRoomShape, scaler).ModifiedShape(roughRoomShape);
-
-	// intersect roomshape with objects 
-	BOPAlgo_Splitter aSplitter;
-	TopTools_ListOfShape aLSObjects;
-	aLSObjects.Append(sizedRoomShape);
-	TopTools_ListOfShape aLSTools;
-
-	// make unique productLookupValues
-	std::set<int> productLookupValuesSet;
-	for (unsigned i = 0; i < productLookupValues.size(); ++i) productLookupValuesSet.insert(productLookupValues[i]);
-	productLookupValues.assign(productLookupValuesSet.begin(), productLookupValuesSet.end());
-
-	TopExp_Explorer expl;
-	std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList;
-
-	for (int j = 0; j < cluster->getSize(); j++)
+	// evaluate which surfaces are visible
+	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		for (size_t k = 0; k < productLookupValues.size(); k++)
+		LookupValue lookup = cluster->getHelper(0)->getLookup(productLookupValues[i].second);
+		//std::cout << std::get<0>(lookup)->data().toString() << std::endl;
+
+		TopoDS_Shape currentShape;
+
+		if (std::get<3>(lookup)) { currentShape = std::get<4>(lookup); }
+		else { currentShape = cluster->getHelper(0)->getObjectShape(std::get<0>(lookup), true); }
+
+		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
-			LookupValue lookup = cluster->getHelper(j)->getLookup(productLookupValues[k]);
-			IfcSchema::IfcProduct* qProduct = std::get<0>(lookup);
-			TopoDS_Shape shape;
-			if (std::get<3>(lookup)) { shape = std::get<4>(lookup); }
-			else { shape = cluster->getHelper(j)->getObjectShape(std::get<0>(lookup), true); }
+			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
 
-			bool hasSolid = false;
-
-			for (expl.Init(shape, TopAbs_SOLID); expl.More(); expl.Next()) {
-				aLSTools.Append(TopoDS::Solid(expl.Current()));
-				hasSolid = true;	
-			}
-
-			if (!hasSolid)
+			if (isWireVisible(
+				cluster,
+				currentShape,
+				currentFace,
+				voxelIndex,
+				originVoxels,
+				exteriorProductIndex,
+				gridDistance,
+				buffer,
+				&myfile)
+				)
 			{
-				for (expl.Init(shape, TopAbs_FACE); expl.More(); expl.Next()) {
-					aLSTools.Append(TopoDS::Face(expl.Current()));
-				}
+				rawFaces.emplace_back(currentFace);
+				continue;
+			}
+			
+			if (isSurfaceVisible(
+				cluster, 
+				currentShape, 
+				currentFace, 
+				voxelIndex, 
+				originVoxels, 
+				exteriorProductIndex, 
+				gridDistance, 
+				buffer)
+				)
+			{
+				rawFaces.emplace_back(currentFace);
 			}
 		}
 	}
-	std::cout << "\tProcessing Surfaces (this process might take a while)" << std::endl;
-	aLSTools.Reverse();
-	aSplitter.SetArguments(aLSObjects);
-	aSplitter.SetTools(aLSTools);
-	aSplitter.SetRunParallel(Standard_True);
-	aSplitter.SetNonDestructive(Standard_True);
 
-	aSplitter.Perform();
+	myfile.close();
 
-	const TopoDS_Shape& aResult = aSplitter.Shape(); // result of the operation
+	// merge similar faces
 
-	// get outside shape
-	std::vector<TopoDS_Solid> solids;
-	for (expl.Init(aResult, TopAbs_SOLID); expl.More(); expl.Next()) {
-		solids.emplace_back(TopoDS::Solid(expl.Current()));
-	}
 
-	std::vector<gp_Pnt> bboxPoints;
-	for (expl.Init(sizedRoomShape, TopAbs_VERTEX); expl.More(); expl.Next()) {
-		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-		bboxPoints.emplace_back(BRep_Tool::Pnt(vertex));
-	}
+	// split surfaces
+	std::vector<TopoDS_Face> refinedShape;
 
-	bool found = false;
-	for (size_t j = 0; j < solids.size(); j++) // TODO: make function
+	BOPAlgo_Builder aBuilder;
+	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
-		for (expl.Init(solids[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-			for (size_t k = 0; k < bboxPoints.size(); k++)
-			{
-				if (p.IsEqual(bboxPoints[k], 0.01))
-				{
-					outSideShape = solids[j];
-					found = true;
-					break;
-				}
-			}
-			if (found)
-			{
-				break;
-			}
-		}
-		if (found)
-		{
-			break;
-		}
+		aBuilder.AddArgument(rawFaces[i]);
 	}
+	aBuilder.SetFuzzyValue(1e-7);
+	aBuilder.SetRunParallel(Standard_True);
+	aBuilder.Perform();
 
-	std::vector<TopoDS_Shell> shellList;
-	for (expl.Init(outSideShape, TopAbs_SHELL); expl.More(); expl.Next()) {
-		shellList.emplace_back(TopoDS::Shell(expl.Current()));
-	}
-
-	std::vector<TopoDS_Shape> OuterShapeList;
-	std::vector<double> massList;
-	for (size_t j = 0; j < shellList.size(); j++) // TODO: make function
+	for (TopExp_Explorer explorer2(aBuilder.Shape(), TopAbs_FACE); explorer2.More(); explorer2.Next())
 	{
-		found = false;
-		for (expl.Init(shellList[j], TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-			for (size_t k = 0; k < bboxPoints.size(); k++)
-			{
-				if (p.IsEqual(bboxPoints[k], 0.01)) {
-					found = true;
-					break;
-				}
-			}
-			if (found)
-			{
-				break;
-			}
-		}
-		if (found)
-		{
-			continue;
-		}
-
-		GProp_GProps gprop;
-		BRepGProp::VolumeProperties(shellList[j], gprop);
-		massList.emplace_back(abs(gprop.Mass()));
-
-		OuterShapeList.emplace_back(shellList[j]);
+		refinedShape.emplace_back(TopoDS::Face(explorer2.Current()));
 	}
 
-	double massThreshold = 27;
-	for (size_t i = 0; i < OuterShapeList.size(); i++)
+	for (size_t i = 0; i < refinedShape.size(); i++)
 	{
-		if (massList[i] < massThreshold) { continue; }
-		TopoDS_Shape cleanedSolid = simplefySolid(OuterShapeList[i]);
-		CJT::GeoObject* geoObject = kernel->convertToJSON(cleanedSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.0");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(refinedShape[i].Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
-
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
+}
+
+void CJGeoCreator::populateVoxelIndex(
+	bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
+	std::vector<int>* originVoxels, 
+	std::vector<Value>* productLookupValues, 
+	const std::vector<int>& exteriorVoxels
+)
+{
+	for (size_t j = 0; j < exteriorVoxels.size(); j++)
+	{
+		voxel* currentBoxel = VoxelLookup_[exteriorVoxels[j]];
+		std::vector<Value> internalProducts = currentBoxel->getInternalProductList();
+		for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues->emplace_back(internalProducts[k]); }
+
+		// voxels that have no internal products do not have an intersection and are stored as completely external voxels
+		if (internalProducts.size() == 0)
+		{
+			auto cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
+			gp_Pnt lllPoint = cornerPoints[0];
+			gp_Pnt urrPoint = cornerPoints[4];
+
+			BoostPoint3D boostlllPoint = BoostPoint3D(lllPoint.X(), lllPoint.Y(), lllPoint.Z());
+			BoostPoint3D boosturrPoint = BoostPoint3D(urrPoint.X(), urrPoint.Y(), urrPoint.Z());
+
+			bg::model::box <BoostPoint3D> box = bg::model::box < BoostPoint3D >(boostlllPoint, boosturrPoint);
+
+			voxelIndex->insert(std::make_pair(box, (int)originVoxels->size()));
+			originVoxels->emplace_back(exteriorVoxels[j]);
+		}
+	}
+}
+
+void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, helperCluster* cluster)
+{
+	bgi::rtree<Value, bgi::rstar<25>> cleandExteriorProductIndex;
+	std::vector<Value> cleanedProductLookupValues;
+	for (size_t i = 0; i < productLookupValues->size(); i++)
+	{
+		bool isExposed = true;
+		LookupValue lookup = cluster->getHelper(0)->getLookup(productLookupValues->at(i).second);
+		TopoDS_Shape currentShape;
+
+		if (std::get<3>(lookup)) { currentShape = std::get<4>(lookup); }
+		else { currentShape = cluster->getHelper(0)->getObjectShape(std::get<0>(lookup), true); }
+
+		bg::model::box <BoostPoint3D> box = productLookupValues->at(i).first;
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		exteriorProductIndex->query(bgi::intersects(box), std::back_inserter(qResult));
+
+		for (size_t k = 0; k < qResult.size(); k++)
+		{
+			bool encapsulating = true;
+
+			LookupValue otherLookup = cluster->getHelper(0)->getLookup(qResult[k].second);
+
+			TopoDS_Shape otherShape;
+			if (std::get<3>(otherLookup)) { otherShape = std::get<4>(otherLookup); }
+			else { otherShape = cluster->getHelper(0)->getObjectShape(std::get<0>(otherLookup), true); }
+
+			if (currentShape.IsEqual(otherShape)) { continue; }
+
+			BRepClass3d_SolidClassifier solidClassifier;
+			solidClassifier.Load(otherShape);
+
+			for (TopExp_Explorer vertexExplorer(currentShape, TopAbs_VERTEX); vertexExplorer.More(); vertexExplorer.Next())
+			{
+				const TopoDS_Vertex& vertex = TopoDS::Vertex(vertexExplorer.Current());
+				gp_Pnt vertexPoint = BRep_Tool::Pnt(vertex);
+
+				solidClassifier.Perform(vertexPoint, 1e-6);
+
+				TopAbs_State classifierState = solidClassifier.State();
+
+				if (classifierState == TopAbs_IN || classifierState == TopAbs_ON)
+				{
+					continue;
+				}
+
+				encapsulating = false;
+				break;
+			}
+			if (!encapsulating) { continue; }
+
+			isExposed = false;
+			break;
+		}
+
+		if (isExposed)
+		{
+			cleandExteriorProductIndex.insert(productLookupValues->at(i));
+			cleanedProductLookupValues.emplace_back(productLookupValues->at(i));
+		}
+	}
+
+	*exteriorProductIndex = cleandExteriorProductIndex;
+	*productLookupValues = cleanedProductLookupValues;
+
+	return;
+}
+
+std::vector<Value> CJGeoCreator::makeUniqueValueList(const std::vector<Value>& valueList)
+{
+	// make unique productLookupValues
+	std::vector<Value> valueSet;
+
+	for (unsigned i = 0; i < valueList.size(); ++i) {
+		bool dub = false;
+		for (size_t j = 0; j < valueSet.size(); j++)
+		{
+			if (valueList[i].second == valueSet[j].second)
+			{
+				dub = true;
+				break;
+			}
+		}
+		if (dub) { continue; }
+		valueSet.emplace_back(valueList[i]);
+	}	
+	return valueSet;
+}
+
+bool CJGeoCreator::isSurfaceVisible(
+	helperCluster* cluster,
+	const TopoDS_Shape& currentShape, 
+	const TopoDS_Face& currentFace, 
+	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex, 
+	const std::vector<int>& originVoxels,
+	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+	double gridDistance, 
+	double buffer)
+{
+	Handle(Geom_Surface) surface = BRep_Tool::Surface(currentFace);
+	
+	// greate points on grid over surface
+	// get the uv bounds to create a point grid on the surface
+	Standard_Real uMin, uMax, vMin, vMax, wMin, wMax;
+	BRepTools::UVBounds(currentFace, BRepTools::OuterWire(currentFace), uMin, uMax, vMin, vMax);
+
+	uMin = uMin + 0.05;
+	uMax = uMax - 0.05;
+	vMin = vMin + 0.05;
+	vMax = vMax - 0.05;
+
+	int numUPoints = ceil(abs(uMax - uMin) / gridDistance);
+	int numVPoints = ceil(abs(vMax - vMin) / gridDistance);
+
+	if (numUPoints < 2) { numUPoints = 2; }
+	else if (numUPoints > 10) { numUPoints = 10; }
+	if (numVPoints < 2) { numVPoints = 2; }
+	else if (numVPoints > 10) { numVPoints = 10; }
+
+	double uStep = (uMax - uMin) / (numUPoints - 1);
+	double vStep = (vMax - vMin) / (numVPoints - 1);
+
+	// create grid
+	for (int i = 0; i < numUPoints; ++i)
+	{
+		double u = uMin + i * uStep;
+
+		for (int j = 0; j < numVPoints; ++j)
+		{
+			double v = vMin + j * vStep;
+			gp_Pnt point;
+			surface->D0(u, v, point);
+			BRepClass_FaceClassifier faceClassifier(currentFace, point, 1e-6);
+			if (faceClassifier.State() != TopAbs_ON && faceClassifier.State() != TopAbs_IN) { continue; }
+
+			if (pointIsVisible(cluster, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool CJGeoCreator::isWireVisible(
+	helperCluster* cluster, 
+	const TopoDS_Shape& currentShape, 
+	const TopoDS_Face& currentFace, 
+	const bgi::rtree<Value, 
+	bgi::rstar<25>>& voxelIndex, 
+	const std::vector<int>& originVoxels, 
+	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+	double gridDistance, 
+	double buffer,
+	ofstream *myfile)
+{
+	// create points on offset outer wire
+	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(currentFace), GeomAbs_Intersection);
+	offsetter.Perform(-0.02);
+
+	TopExp_Explorer expl;
+	TopoDS_Wire correctedOuterWire;
+
+	for (expl.Init(offsetter.Shape(), TopAbs_WIRE); expl.More(); expl.Next())
+	{
+		correctedOuterWire = TopoDS::Wire(expl.Current());
+		break;
+	}
+
+	if (correctedOuterWire.IsNull()) { return false; }
+
+	for (TopExp_Explorer edgeExp(correctedOuterWire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
+		TopoDS_Edge currentEdge = TopoDS::Edge(edgeExp.Current());
+
+		BRepAdaptor_Curve curveAdaptor(currentEdge);
+		double uStart = curveAdaptor.Curve().FirstParameter();
+		double uEnd = curveAdaptor.Curve().LastParameter();
+
+		int numUPoints = ceil(abs(uStart - uEnd)) / gridDistance;
+
+		if (numUPoints < 2) { numUPoints = 2; }
+		else if (numUPoints > 10) { numUPoints = 10; }
+
+		double uStep = abs(uStart - uEnd) / (numUPoints - 1);
+
+		for (double u = uStart; u < uEnd; u += uStep){
+			gp_Pnt point;
+			curveAdaptor.D0(u, point);
+			//printPoint(point);
+			if (pointIsVisible(cluster, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool CJGeoCreator::pointIsVisible(helperCluster* cluster,
+	const TopoDS_Shape& currentShape,
+	const TopoDS_Face& currentFace,
+	const bgi::rtree<Value,bgi::rstar<25>>& voxelIndex,
+	const std::vector<int>& originVoxels,
+	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
+	const gp_Pnt& point,
+	const double& buffer)
+{
+	std::vector<Value> qResult;
+	voxelIndex.query(
+		bgi::intersects(
+			bg::model::box <BoostPoint3D>(
+				BoostPoint3D(point.X() - buffer, point.Y() - buffer, point.Z() - buffer),
+				BoostPoint3D(point.X() + buffer, point.Y() + buffer, point.Z() + buffer)
+				)
+		),
+		std::back_inserter(qResult)
+	);
+	for (size_t j = 0; j < qResult.size(); j++)
+	{
+		bool intersecting = false;
+
+		int voxelInt = originVoxels[qResult[j].second];
+		voxel* currentBoxel = VoxelLookup_[voxelInt];
+		gp_Pnt voxelCore = currentBoxel->getOCCTCenterPoint();
+
+		TopoDS_Edge ray = BRepBuilderAPI_MakeEdge(point, voxelCore);
+
+		// check for self intersection
+		for (TopExp_Explorer explorer2(currentShape, TopAbs_FACE); explorer2.More(); explorer2.Next())
+		{
+			const TopoDS_Face& otherFace = TopoDS::Face(explorer2.Current());
+			if (otherFace.IsSame(currentFace)) { continue; }
+
+			if (checksurfaceIntersection(ray, otherFace))
+			{
+				intersecting = true;
+				break;
+			}
+		}
+		if (intersecting) { continue; }
+
+		double xMin = std::min(point.X(), voxelCore.X());
+		double yMin = std::min(point.Y(), voxelCore.Y());
+		double zMin = std::min(point.Z(), voxelCore.Z());
+
+		double xMax = std::max(point.X(), voxelCore.X());
+		double yMax = std::max(point.Y(), voxelCore.Y());
+		double zMax = std::max(point.Z(), voxelCore.Z());
+
+		std::vector<Value> qResult2;
+		qResult2.clear();
+		exteriorProductIndex.query(bgi::intersects(
+			bg::model::box <BoostPoint3D>(
+				BoostPoint3D(xMin, yMin, zMin),
+				BoostPoint3D(xMax, yMax, zMax)
+				)), std::back_inserter(qResult2));
+
+
+		for (size_t k = 0; k < qResult2.size(); k++)
+		{
+			LookupValue otherLookup = cluster->getHelper(0)->getLookup(qResult2[k].second);
+
+			TopoDS_Shape otherShape;
+			if (std::get<3>(otherLookup)) { otherShape = std::get<4>(otherLookup); }
+			else { otherShape = cluster->getHelper(0)->getObjectShape(std::get<0>(otherLookup), true); }
+
+			if (otherShape.IsEqual(currentShape)) { continue; }
+
+			if (surfaceIsIncapsulated(currentFace, otherShape))
+			{
+				return false;
+			};
+			if (checkShapeIntersection(ray, otherShape))
+			{
+				intersecting = true;
+				break;
+			}
+		}
+		if (intersecting) { continue; }
+		return true;
+	}
+	return false;
 }
 
 CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
@@ -3135,7 +3373,7 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 
 						if (currentBoxel->checkIntersecting(lookup, pointList, cluster->getHelper(j)))
 						{
-							currentBoxel->addInternalProduct(qResult[k].second);
+							currentBoxel->addInternalProduct(qResult[k]);
 							intt = true;
 						}
 					}

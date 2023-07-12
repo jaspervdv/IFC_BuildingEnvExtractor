@@ -1697,6 +1697,18 @@ void helper::addObjectToIndex(T object) {
 			continue;
 		}
 
+		bool dub = false;
+		for (size_t i = 0; i < productLookup_.size(); i++)
+		{
+			if (std::get<0>(productLookup_[i])->data().id() == product->data().id())
+			{
+				dub = true;
+				break;
+			}
+		}
+
+		if (dub) { continue; }
+
 		TopoDS_Shape shape = getObjectShape(product);
 		TopoDS_Shape cbbox;
 		bool hasCBBox = false;

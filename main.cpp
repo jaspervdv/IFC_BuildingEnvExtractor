@@ -36,7 +36,7 @@
 std::vector<std::string> GetSourcePathArray() {
 	std::vector<std::string> sourcePathArray = {
 		//IFC 4
-		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/DocUments/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
