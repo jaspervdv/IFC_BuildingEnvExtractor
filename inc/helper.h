@@ -45,6 +45,8 @@
 #include <GeomAPI_IntSS.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <Geom_Curve.hxx>
+#include <BRepAlgoAPI_Section.hxx>
+#include <BRepAlgoAPI_Cut.hxx>
 
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
@@ -98,8 +100,10 @@ gp_Pnt Point3DBTO(BoostPoint3D oP);
 gp_Pnt getLowestPoint(TopoDS_Shape shape, bool areaFilter);
 gp_Pnt getHighestPoint(TopoDS_Shape shape);
 gp_Pnt getPointOnFace(TopoDS_Face theFace);
-std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge);
-gp_Vec computeFaceNormal(TopoDS_Face& theFace);
+TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
+gp_Pnt& getFirstPointShape(const TopoDS_Shape& shape);
+gp_Pnt& getLastPointShape(const TopoDS_Shape& shape);
+gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
 
 std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape);
 
@@ -239,6 +243,8 @@ private:
 
 	double objectCount = 0;
 
+	double footprintEvalLvl_ = -0.15;
+
 	bool hasFloors = false;
 	bool isConstruct = false;
 	bool isPartial = false;
@@ -352,6 +358,9 @@ public:
 
 	// returns the volume multiplier
 	double getVolumeMultiplier() const { return volume_; }
+
+	// returns the floor evalLvl
+	double getfootprintEvalLvl() { return footprintEvalLvl_; }
 
 	std::string getName() const { return fileName_; }
 

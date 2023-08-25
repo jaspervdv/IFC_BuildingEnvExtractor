@@ -13,7 +13,7 @@ void WriteToSTEP(TopoDS_Solid shape, std::string addition) {
 }
 
 void WriteToSTEP(TopoDS_Shape shape, std::string addition) {
-	std::string path = "D:/Documents/Uni/Thesis/sources/Models/exports/step" + addition + ".stp";
+	std::string path = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".stp";
 	STEPControl_Writer writer;
 
 	/*TopExp_Explorer expl;
@@ -23,7 +23,7 @@ void WriteToSTEP(TopoDS_Shape shape, std::string addition) {
 
 	IFSelect_ReturnStatus stat = writer.Write(path.c_str());*/
 
-	writer.Transfer(shape, STEPControl_ManifoldSolidBrep);
+	writer.Transfer(shape, STEPControl_AsIs);
 	IFSelect_ReturnStatus stat = writer.Write(path.c_str());
 
 	//std::cout << "stat: " << stat << std::endl;
@@ -88,6 +88,24 @@ gp_Pnt rotatePointWorld(gp_Pnt p, double angle) {
 	double pZ = p.Z();
 
 	return gp_Pnt(pX * cos(angle) - pY * sin(angle), pY * cos(angle) + pX * sin(angle), pZ);
+}
+
+
+TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire) {
+	BRepBuilderAPI_MakeWire wireMaker;
+
+	for (TopExp_Explorer wireExp(mainWire, TopAbs_EDGE); wireExp.More(); wireExp.Next())
+	{
+		TopoDS_Edge edge = TopoDS::Edge(wireExp.Current());
+		gp_Pnt firstPoint = getFirstPointShape(edge);
+		gp_Pnt secondPoint = getLastPointShape(edge);
+
+		wireMaker.Add(BRepBuilderAPI_MakeEdge(secondPoint, firstPoint));
+	}
+	wireMaker.Build();
+
+	if (wireMaker.IsDone()) { return wireMaker.Wire(); }
+	return BRepBuilderAPI_MakeWire();
 }
 
 BoostPoint3D rotatePointWorld(BoostPoint3D p, double angle) {
@@ -303,32 +321,32 @@ gp_Pnt getPointOnFace(TopoDS_Face theFace) {
 	return randomPoint;
 }
 
-std::tuple<gp_Pnt, gp_Pnt> getPointsEdge(TopoDS_Edge edge) {
-	TopExp_Explorer expl;
+gp_Pnt& getFirstPointShape(const TopoDS_Shape& shape) {
+	TopExp_Explorer vertexExplorer(shape, TopAbs_VERTEX);
+	TopoDS_Vertex startVertex;
 
-	int counter = 0;
-	gp_Pnt startPoint(0, 0, 0);
-	gp_Pnt endPoint(0, 0, 0);
-
-	for (expl.Init(edge, TopAbs_VERTEX); expl.More(); expl.Next()) {
-		TopoDS_Vertex currentVertex = TopoDS::Vertex(expl.Current());
-		gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-		if (counter == 0)
-		{
-			startPoint = currentPoint;
-			counter++;
-			continue;
-		}
-		if (counter == 1)
-		{
-			endPoint = currentPoint;
-			break;
-		}
+	if (vertexExplorer.More()) {
+		startVertex = TopoDS::Vertex(vertexExplorer.Current());
 	}
-	return std::make_tuple(startPoint, endPoint);
+
+	gp_Pnt startPoint = BRep_Tool::Pnt(startVertex);
+	return startPoint;
 }
 
-gp_Vec computeFaceNormal(TopoDS_Face& theFace)
+
+gp_Pnt& getLastPointShape(const TopoDS_Shape& shape) {
+	TopExp_Explorer vertexExplorer(shape, TopAbs_VERTEX);
+	TopoDS_Vertex endVertex;
+
+	while (vertexExplorer.More()) {
+		endVertex = TopoDS::Vertex(vertexExplorer.Current());
+		vertexExplorer.Next();
+	}
+	return BRep_Tool::Pnt(endVertex);;
+}
+
+
+gp_Vec computeFaceNormal(const TopoDS_Face& theFace)
 {
 	gp_Vec vec1;
 	gp_Vec vec2;
@@ -340,25 +358,26 @@ gp_Vec computeFaceNormal(TopoDS_Face& theFace)
 	for (TopExp_Explorer vertexExp(theFace, TopAbs_EDGE); vertexExp.More(); vertexExp.Next()) {
 		TopoDS_Edge edge = TopoDS::Edge(vertexExp.Current());
 
-		std::tuple<gp_Pnt, gp_Pnt> sE = getPointsEdge(edge);
+		gp_Pnt startpoint = getFirstPointShape(edge);
+		gp_Pnt endpoint = getLastPointShape(edge);
 
-		if (std::get<0>(sE).IsEqual(std::get<1>(sE), 1e-6)) { continue; }
+		if (startpoint.IsEqual(endpoint, 1e-6)) { continue; }
 
 		if (!hasVec1)
 		{
 			hasVec1 = true;
-			vec1 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			vec1 = gp_Vec(startpoint, endpoint);
 			continue;
 		}
 
-		gp_Vec potentialVec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+		gp_Vec potentialVec2 = gp_Vec(startpoint, endpoint);
 
 		if (potentialVec2.IsParallel(vec1, 1e-06)) { continue; }
 
 		if (!hasVec2)
 		{
 			hasVec2 = true;
-			vec2 = gp_Vec(std::get<0>(sE), std::get<1>(sE));
+			vec2 = gp_Vec(startpoint, endpoint);
 			break;
 		}
 	}

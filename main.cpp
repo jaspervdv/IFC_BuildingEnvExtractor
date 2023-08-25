@@ -36,7 +36,7 @@
 std::vector<std::string> GetSourcePathArray() {
 	std::vector<std::string> sourcePathArray = {
 		//IFC 4
-		"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC20-FZK-Haus.ifc"
 		//"C:/Users/Jasper/DocUments/1_projects/Models_IFC/AC20-Institute-Var-2.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/AC-20-Smiley-West-10-Bldg.ifc"
 
@@ -61,6 +61,8 @@ std::vector<std::string> GetSourcePathArray() {
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Myran_modified_Benchmark_Edit.ifc"
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Ken_models/Witte_de_Withstraat_(20150508).ifc"
 		// "C:/Users/Jasper/Documents/1_projects/Models_IFC/Schependomlaan.ifc"
+
+		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/Siham/Model_IFC.ifc"
 
 		//"C:/Users/Jasper/Documents/1_projects/Models_IFC/sweco models/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet/20415_2021-08-11_14 Woningen Traviataweg Hoogvliet.ifc"
 
@@ -559,8 +561,8 @@ int main(int argc, char** argv) {
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject->addAttribute(iter->first, iter->second); }
 
 	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	CJT::GeoObject* geo00 = geoCreator->makeLoD00(hCluster, collection, kernel, 1);
-	cityObject->addGeoObject(geo00);
+	//CJT::GeoObject* geo00 = geoCreator->makeLoD00(hCluster, collection, kernel, 1);
+	//cityObject->addGeoObject(geo00);
 	auto geo00Time = std::chrono::high_resolution_clock::now();
 	std::vector<CJT::GeoObject*> geo02 = geoCreator->makeLoD02(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo02.size(); i++) { cityObject->addGeoObject(geo02[i]); }
@@ -577,8 +579,8 @@ int main(int argc, char** argv) {
 	std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(hCluster, collection, kernel, 1);
 	for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
 	auto geo22Time = std::chrono::high_resolution_clock::now();
-	std::vector<CJT::GeoObject*> geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
-	for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
+	//std::vector<CJT::GeoObject*> geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
+	//for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
 	auto geo32Time = std::chrono::high_resolution_clock::now();
 	collection->addCityObject(cityObject);
 	collection->CleanVertices();

@@ -107,24 +107,19 @@ public:
 	{
 		theEdge_ = new TopoDS_Edge(edge);
 
-		TopExp_Explorer expl;
+		TopExp_Explorer vertexExplorer(edge, TopAbs_VERTEX);
 
-		int counter = 0;
-		for (expl.Init(edge, TopAbs_VERTEX); expl.More(); expl.Next()) {
-			TopoDS_Vertex currentVertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-			if (counter == 0)
-			{
-				startPoint_ = currentPoint;
-				counter++;
-				continue;
-			}
-			if (counter == 1)
-			{
-				endPoint_ = currentPoint;
-				break;
-			}
+		// Step 2: Get the start and end vertices of the edge.
+		gp_Pnt startVertex, endVertex;
+		if (vertexExplorer.More()) {
+			startPoint_ = BRep_Tool::Pnt(TopoDS::Vertex(vertexExplorer.Current()));
+			vertexExplorer.Next();
 		}
+		if (vertexExplorer.More()) {
+			endPoint_ = BRep_Tool::Pnt(TopoDS::Vertex(vertexExplorer.Current()));
+		}
+
+
 	}
 
 	TopoDS_Edge* getEdge() { return theEdge_; }
@@ -229,6 +224,7 @@ private:
 	// -1 is intersected 0 is not assigned 1..n is room assignement;
 	std::vector<int> Assignment_;
 	std::map<int, voxel*> VoxelLookup_;
+	std::vector<int> exteriorVoxelsIdx_;
 
 	// higher LoD data collection
 	bool hasSortedFaces_ = false;
@@ -236,8 +232,12 @@ private:
 	std::vector<std::vector<SurfaceGroup*>> faceList_;
 	bool hasTopFaces_ = false;
 
-	std::vector<TopoDS_Face> footPrintList_;
-	bool hasFootPrint_ = false;
+	std::vector<TopoDS_Face> roofOutlineList_; // list containing all the roof outlines
+	std::vector<TopoDS_Face> footprintList_; // list containing all the footprints
+	bool hasGeoBase_ = false;
+	bool useRoofOutline_ = true; // if true the roofoutlines are used to create the geometry
+
+	std::vector<TopoDS_Face>& getGeoBase_();
 
 	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
 
@@ -271,12 +271,15 @@ private:
 	/// @brief get the surfaces that have an area when flattened
 	std::vector<SurfaceGroup*> getXYFaces(TopoDS_Shape shape);
 
-	std::vector<Edge*> getUniqueEdges(TopoDS_Shape& flattenedEdges);
+	std::vector<Edge*> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
+	std::vector<Edge*> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
+
+	bool isInList(TopoDS_Edge currentEdge, std::vector<Edge*> edgeList);
 
 	/// @bried merges all the overlapping edges that have the same direction
-	std::vector<Edge*> mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges);
+	std::vector<Edge*> mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges, bool project=true);
 
-	std::vector<Edge*> splitIntersectingEdges(std::vector<Edge*>& edges);
+	std::vector<Edge*> splitIntersectingEdges(std::vector<Edge*>& edges, bool project = true);
 
 	/// @brief get 2d projection of shape at z=0
 	TopoDS_Face getFlatFace(TopoDS_Face face);
@@ -291,21 +294,23 @@ private:
 	std::vector<TopoDS_Edge> getOuterEdges(std::vector<Edge*> edgeList, std::vector<SurfaceGroup*> faceList);
 
 	/// @brief get the footprint shapes from the collection of outer edges
-	std::vector<TopoDS_Face> outerEdges2Shapes(std::vector<TopoDS_Edge> edgeList);
+	std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
 
 	/// @brief grows wires from unordered exterior edges
-	std::vector<TopoDS_Wire> growWires(std::vector<TopoDS_Edge> edgeList);
+	std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
 
 	/// @brief cleans the wires (removes redundant vertex)
-	std::vector<TopoDS_Wire> cleanWires(std::vector<TopoDS_Wire> wireList);
-	TopoDS_Wire cleanWire(TopoDS_Wire wire);
+	std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
+	TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 
 	std::vector<TopoDS_Face> wireCluster2Faces(std::vector<TopoDS_Wire> wireList);
 
 	void initializeBasic(helperCluster* cluster);
 
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
-	TopoDS_Shape simplefySolid(TopoDS_Shape solidShape);
+	TopoDS_Shape simplefySolid(TopoDS_Shape solidShape, bool evalOverlap = false);
+	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap = false);
+	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap = false);
 	TopoDS_Face mergeFaces(std::vector<TopoDS_Face> mergeFaces);
 
 	std::vector<int> getTypeValuesBySample(TopoDS_Shape prism, int prismNum, bool flat);
@@ -353,8 +358,7 @@ private:
 		const std::vector<int>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		double gridDistance,
-		double buffer,
-		ofstream* myfile
+		double buffer
 	);
 
 	bool pointIsVisible(helperCluster* cluster,
