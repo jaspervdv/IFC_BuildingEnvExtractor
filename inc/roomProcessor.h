@@ -225,6 +225,7 @@ private:
 
 	std::vector<std::vector<SurfaceGroup*>> faceList_;
 	bool hasTopFaces_ = false;
+	bool hasFootprints_ = false;
 
 	std::vector<TopoDS_Face> roofOutlineList_; // list containing all the roof outlines
 	std::vector<TopoDS_Face> footprintList_; // list containing all the footprints
@@ -300,6 +301,7 @@ private:
 	std::vector<TopoDS_Face> wireCluster2Faces(std::vector<TopoDS_Wire> wireList);
 
 	void initializeBasic(helperCluster* cluster);
+	void makeFootprint(helperCluster* cluster);
 
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
 	TopoDS_Shape simplefySolid(TopoDS_Shape solidShape, bool evalOverlap = false);

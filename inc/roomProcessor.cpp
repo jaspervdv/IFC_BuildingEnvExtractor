@@ -1918,12 +1918,16 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 		hasSortedFaces_ = true;
 		printTime(startTime, std::chrono::high_resolution_clock::now());
 	}
+	return;
+}
 
+void CJGeoCreator::makeFootprint(helperCluster* cluster)
+{
 	// get footprint
 
 	double floorlvl = cluster->getHelper(0)->getfootprintEvalLvl();
 	std::cout << "- Corse filering footprint at z = " << floorlvl << std::endl;
-	startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::high_resolution_clock::now();
 
 	double voxelCount = VoxelLookup_.size();
 	double zlvls = voxelCount / (xRelRange_ * yRelRange_);
@@ -1956,7 +1960,7 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	{
 		int currentVoxelIdx = exteriorVoxelsIdx_[i];
 
-		if (currentVoxelIdx < lvl || currentVoxelIdx > topLvL ) { continue; }
+		if (currentVoxelIdx < lvl || currentVoxelIdx > topLvL) { continue; }
 
 		exteriorLvlVoxelsIdx.emplace_back(currentVoxelIdx);
 	}
@@ -2139,8 +2143,8 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 	}
 
 	footprintList_ = outerEdges2Shapes(outerFootPrintList);
+	hasFootprints_ = true;
 	printTime(startTime, std::chrono::high_resolution_clock::now());
-
 	return;
 }
 
@@ -3169,6 +3173,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
 	if (!hasTopFaces_ || !hasGeoBase_) { initializeBasic(cluster); }
+	if (!hasFootprints_) { makeFootprint(cluster); }
 
 	std::vector< CJT::GeoObject*> geoObjectList;
 

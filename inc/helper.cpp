@@ -2711,7 +2711,7 @@ bool IOManager::getOutputPathList() {
 			continue;
 		}
 		outputFolderPath_ = singlepath;
-		break;
+		return true;
 	}
 
 }
