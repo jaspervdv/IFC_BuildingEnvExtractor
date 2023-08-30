@@ -1,16 +1,10 @@
 #include "helper.h"
 #include "floorProcessor.h"
 
-#include <ShapeUpgrade_UnifySameDomain.hxx>
-#include <BRepExtrema_DistShapeShape.hxx>
-#include <gce_MakeLin.hxx>
-#include <HLRBRep_Algo.hxx>
-#include <HLRBRep_HLRToShape.hxx>
+#include <chrono>
+#include <CJToKernel.h>
 
-#include <GeomLProp_SLProps.hxx>
-#include <GeomLib_IsPlanarSurface.hxx>
-#include <BOPAlgo_BuilderFace.hxx>
-
+#include <TopoDS.hxx>
 
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>

@@ -8,19 +8,8 @@
 #include <string>
 #include <algorithm>
 #include <chrono>
+#include <memory>
 
-// boost includes
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/algorithm/string.hpp>
-
-// openCASCADE includes
-#include <TopoDS.hxx>
-#include <BRep_Builder.hxx>
-#include <BRepBndLib.hxx>
-#include <Bnd_Box.hxx>
-#include <GProp_GProps.hxx>
-#include <BRepGProp.hxx>
 
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
@@ -83,463 +72,37 @@ std::vector<std::string> GetSourcePathArray() {
 	return sourcePathArray;
 }
 
-std::vector<std::string> GetFileNames(std::vector<std::string>& sourcePathList) {
-	std::vector<std::string> fileNames;
-	for (size_t i = 0; i < sourcePathList.size(); i++)
-	{
-		std::vector<std::string> segments;
-		boost::split(segments, sourcePathList[i], boost::is_any_of("/, \\"));
-		std::string filePath = segments[segments.size() - 1];
-		fileNames.emplace_back(filePath.substr(0, filePath.size() - 4));
-	}
-	return fileNames;
-}
-
-std::vector<std::string> GetSources() {
-
-	// search for test input
-	std::vector<std::string> sourcePathArray = GetSourcePathArray();
-
-	// if no override is found use normal interface
-	while (true)
-	{
-		if (sourcePathArray.size() == 0)
-		{
-			std::cout << "Enter filepath of the IFC file" << std::endl;
-			std::cout << "[INFO] If multifile seperate by enter" << std::endl;
-			std::cout << "[INFO] Finish by empty line + enter" << std::endl;
-
-			while (true)
-			{
-				std::cout << "Path: ";
-
-				std::string singlepath = "";
-				getline(std::cin, singlepath);
-
-				if (singlepath.size() == 0 && sourcePathArray.size() == 0)
-				{
-					std::cout << "[INFO] No filepath has been supplied" << std::endl;
-					std::cout << "Enter filepath of the IFC file (if multiplefile sperate path with enter):" << std::endl;
-					continue;
-				}
-				else if (singlepath.size() == 0)
-				{
-					break;
-				}
-
-				sourcePathArray.emplace_back(singlepath);
-			}
-		}
-
-		bool hasError = false;
-
-		for (size_t i = 0; i < sourcePathArray.size(); i++)
-		{
-			std::string currentPath = sourcePathArray[i];
-
-			if (currentPath.size() <= 4 )
-			{
-				if (!hasError) { std::cout << "[ERROR] Invalid IFC file found!" << std::endl; }
-				std::cout << "[INFO] Invalid file: " + currentPath << std::endl;
-				hasError = true;
-				break;
-			}
-			else if (currentPath.substr(sourcePathArray[i].length() - 4) != ".ifc") {
-				if (!hasError) { std::cout << "[ERROR] Invalid IFC file found!" << std::endl; }
-				std::cout << "[INFO] Invalid file: " + currentPath << std::endl;
-				hasError = true;
-				break;
-			}
-			else if (!findSchema(currentPath, true))
-			{
-				if (!hasError) { std::cout << "[ERROR] Invalid IFC file found!" << std::endl; }
-				std::cout << "[INFO] Invalid file: " + currentPath << std::endl;
-				hasError = true;
-				break;
-			}
-		}
-
-		std::cout << std::endl;
-
-		if (!hasError) { break; }
-
-		sourcePathArray.clear();
-	}
-
-	return sourcePathArray;
-}
-
-bool yesNoQuestion() {
-	std::string cont = "";
-
-	while (true)
-	{
-		std::cin >> cont;
-
-		if (cont == "Y" || cont == "y") { return true; }
-		if (cont == "N" || cont == "n") { return false; }
-	}
-}
-
-
-int numQuestion(int n, bool lower = true) {
-	while (true)
-	{
-		bool validInput = true;
-		std::string stringNum = "";
-
-		std::cout << "Num: ";
-		std::cin >> stringNum;
-
-		for (size_t i = 0; i < stringNum.size(); i++)
-		{
-			if (!std::isdigit(stringNum[i]))
-			{
-				validInput = false;
-			}
-		}
-
-		if (validInput)
-		{
-			int intNum = std::stoi(stringNum) - 1;
-			if (!lower)
-			{
-				if (n >= intNum + 1) {
-					return intNum;
-				}
-			}
-			else if (lower)
-			{
-				if (n >= intNum + 1 &&  intNum >= 0) {
-					return intNum;
-				}
-			}
-		}
-		std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-	}
-}
-
-bool checkproxy(helperCluster* cluster) {
-
-	double proxyCount = 0;
-	double totalCount = 0;
-	bool hasLot = false;
-
-	for (size_t i = 0; i < cluster->getSize(); i++)
-	{
-		helper* h = cluster->getHelper(i);
-
-		if (h->getHasProxy()) { proxyCount += h->getProxyNum(); }
-
-		if (h->getHasLotProxy()) { hasLot = true; }
-
-		totalCount += h->getObjectCount();
-	}
-
-	if (proxyCount == 0) { return true; }
-
-	if (hasLot)
-	{
-		std::cout << "[WARNING] A large amount of IfcBuildingElementProxy objects are present in the model!" << std::endl;
-	}
-
-	std::cout << "[INFO] " << proxyCount << " of " << totalCount <<  " evaluated objects are IfcBuildingElementProxy objects" << std::endl;
-	std::cout << std::endl;
-	std::cout << "Continue processing? (Y/N):";
-	
-	bool answer = yesNoQuestion();
-	
-	std::cout << std::endl;
-	
-	return answer;
-}
-
-
-void askBoudingRules(helperCluster* hCluster) {
-	std::cout << "Please select a desired rulset for space bounding objects" << std::endl;
-	std::cout << "1. Default room bounding objects" << std::endl;
-	std::cout << "2. Default room bounding objects + custom object selection" << std::endl;
-	std::cout << "3. custom object selection" << std::endl;
-
-	int ruleNum = numQuestion(4);
-
-	if (ruleNum == 1)
-	{
-		hCluster->setUseProxy(true);
-	}
-	if (ruleNum == 1 || ruleNum == 2)
-	{
-		bool fCustom = false;
-		std::vector<std::string> defaultList = {
-			"IFCSLAB",
-			"IFCROOF",
-			"IFCWALL",
-			"IFCWALLSTANDARDCASE",
-			"IFCCOVERING",
-			"IFCCOLUMN",
-			"IFCBEAM",
-			"IFCCURTAINWALL",
-			"IFCPLATE",
-			"IFCMEMBER",
-			"IFCDOOR",
-			"IFCWINDOW"
-		};
-
-		std::list<std::string> sourceTypeList = hCluster->getObjectList();
-		std::list<std::string>* objectList = new std::list<std::string>;
-
-		std::cout << std::endl;
-		std::cout << "Please enter the desired IfcTypes" << std::endl;
-		std::cout << "[INFO] Not case sensitive" << std::endl;
-		std::cout << "[INFO] Seperate type by enter" << std::endl;
-		std::cout << "[INFO] Finish by empty line + enter" << std::endl;
-
-		if (ruleNum == 2)
-		{
-			fCustom = true;
-			defaultList = {};
-		}
-
-		int i = 0;
-		while (true)
-		{
-			std::cout << "IfcType: ";
-
-			std::string singlepath = "";
-
-			if (i == 0)
-			{
-				cin.ignore();
-				i++;
-			}
-
-			getline(std::cin, singlepath);
-
-			if (singlepath.size() == 0 && objectList->size() == 0)
-			{
-				std::cout << "[INFO] No type has been supplied" << std::endl;
-				continue;
-			}
-			else if (singlepath.size() == 0)
-			{
-				break;
-			}
-			else if (boost::to_upper_copy<std::string>(singlepath.substr(0, 3)) == "IFC") {
-
-				std::string potentialType = boost::to_upper_copy<std::string>(singlepath);
-
-				bool defaultType = false;
-				for (size_t i = 0; i < defaultList.size(); i++)
-				{
-					if (potentialType == defaultList[i])
-					{
-						defaultType = true;
-						std::cout << "[INFO] Type is present in default set" << std::endl;
-
-						break;
-					}
-
-				}
-
-				if (defaultType) {
-					continue;
-				}
-
-				bool found = false;
-
-				for (auto it = sourceTypeList.begin(); it != sourceTypeList.end(); ++it)
-				{
-					if (*it == potentialType)
-					{
-						objectList->emplace_back(boost::to_upper_copy<std::string>(singlepath));
-						found = true;
-					}
-				}
-				if (!found)
-				{
-					std::cout << "[INFO] Type is not present in file" << std::endl;
-					continue;
-				}
-			}
-			else
-			{
-				std::cout << "[INFO] No valid type has been supplied" << std::endl;
-				continue;
-			}
-		}
-
-		for (size_t i = 0; i < hCluster->getSize(); i++)
-		{
-			hCluster->getHelper(i)->setRoomBoundingObjects(objectList, true, fCustom);
-		}
-	}
-	std::cout << std::endl;
-}
-
-
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
-	std::vector<std::string> sourcePathArray;
-
-	bool isStandalone = true;
-	std::string version = "Standalone";
-	bool ignoreProxy = false;
-	double voxelSize = -1;
-	bool makeReport = false;
-
-	// generate storing data
-	std::vector<std::string> fileNames;
-	std::string exportRootPath;
-
-	if (argc > 1)
-	{
-		version = "Internal";
-		isStandalone = false;
-		sourcePathArray = { argv[1] };
-		if (std::string(argv[3]) == "True") { ignoreProxy = true; }
-		voxelSize = std::stod(argv[4]);
-		fileNames = GetFileNames(sourcePathArray);
-		exportRootPath = argv[2];
-		if (exportRootPath[-1] != '\\' && exportRootPath[-1] != '/') { exportRootPath += "\\"; }
-	}
-	else {
-		sourcePathArray = GetSources();
-		fileNames = GetFileNames(sourcePathArray);
-		if (GetSourcePathArray().size() == 0) // if test input is used test output paths can be used
+	IOManager manager;
+	if (argc > 1) {
+		if (!manager.init({ argv[1] }, true))
 		{
-			std::cout << "Enter target folderpath of the CityJSON file" << std::endl;
-			std::cout << "Path: ";
-
-			std::string singlepath = "";
-			getline(std::cin, singlepath);
-
-			exportRootPath = singlepath;
-			if (exportRootPath[-1] != '\\' && exportRootPath[-1] != '/') { exportRootPath += "\\"; }
-			std::cout << std::endl;
-		}
-		else {
-			exportRootPath = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/";
-		}
-	}
-
-	// some information on startup
-	std::wcout << "============================================================= \n" << std::endl;
-	std::cout << "    " << version + " IFC_BuildingEnvExtractor" << std::endl;
-	std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
-	std::wcout << "=============================================================" << std::endl;
-	std::cout << std::endl;
-
-	// output targets
-	std::cout << "[INFO] Input file paths:" << std::endl;
-	for (size_t i = 0; i < sourcePathArray.size(); i++) { std::cout << sourcePathArray[i] << std::endl; }
-
-	std::cout << "[INFO] Output file path: " << std::endl;
-	std::cout << exportRootPath + fileNames[0] + ".city.json" << std::endl;
-	std::cout << std::endl;
-
-	bool hasAskedBoundingRules = false;
-	int constructionIndx = -1;
-	int semanticHelper = 0;
-
-	// get construction model num from user
-	if (sourcePathArray.size() == 1)
-	{
-		std::cout << "[INFO] One file found, considered combination file" << std::endl;
-	}
-	else {
-
-		std::cout << "Please enter number of construction model, if no constuction model enter 0." << std::endl;
-		for (size_t i = 0; i < fileNames.size(); i++) { std::cout << i + 1 << ": " << fileNames[i] << std::endl; }
-		constructionIndx = numQuestion(fileNames.size(), false);
-	}
-
-	std::cout << std::endl;
-
-	// initialize helper
-	helperCluster* hCluster = new helperCluster;
-
-	for (size_t i = 0; i < sourcePathArray.size(); i++)
-	{
-		std::cout << "[INFO] Parsing file " << sourcePathArray[i] << std::endl;
-		helper* h = new helper(sourcePathArray[i]);
-		
-		if (sourcePathArray.size() > 1) { 
-			h->setDepending(true); 
-
-			// set the construction model
-			if (i == constructionIndx) { h->setIsConstruct(true); }
-		}
-		else { h->setIsConstruct(true); }
-		if (!h->hasSetUnits()) { return 0; }
-		h->setName(fileNames[i]);
-
-		hCluster->appendHelper(h);
-	}
-
-	hCluster->internaliseData();
-
-	std::wcout << "=============================== " << std::endl;
-	std::cout << "  Building Envelope Extractor" << std::endl;
-	std::wcout << "=============================== \n" << std::endl;
-
-	if (isStandalone)
-	{
-		if (!checkproxy(hCluster))
-		{
+			std::cout << "encountered an issue" << std::endl;
 			return 0;
 		}
-
-		std::cout << "Ignore IfcBuildingElementProxy elements? (Y/N): ";
-		hCluster->setUseProxy(!yesNoQuestion());
-		std::cout << std::endl;
-
-		std::cout << "Customize space bounding objects? (Y/N): ";
-
-		if (yesNoQuestion())
+	}
+	else { 
+		if (!manager.init(GetSourcePathArray(), false))
 		{
-			askBoudingRules(hCluster);
+			std::cout << "encountered an issue" << std::endl;
+			return 0;
 		}
-
-
 	}
-	else if (ignoreProxy == 0)
-	{
-		hCluster->setUseProxy(true);
-	}
-	else if (ignoreProxy == 1)
-	{
-		hCluster->setUseProxy(false);
-	}
-
-	if (isStandalone)
-	{
-		std::cout << "Make report file? (Y/N):";
-		if (yesNoQuestion()) { makeReport = true; }
-	}
-	else
-	{
-		makeReport = true;
-	}
-
-
-	// indexation of geometry
-	for (int i = 0; i < hCluster->getSize(); i++)
-	{
-		hCluster->getHelper(i)->indexGeo();
-	}
+	manager.run();
 
 	auto startTimeLod = std::chrono::high_resolution_clock::now();
-	CJGeoCreator* geoCreator = new CJGeoCreator(hCluster, voxelSize);
+	CJGeoCreator* geoCreator = new CJGeoCreator(&manager.helpCluster(), manager.voxelSize());
 
 	auto internalizingTime = std::chrono::high_resolution_clock::now();
 	CJT::CityCollection* collection = new CJT::CityCollection;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject* metaData = new CJT::metaDataObject;
-	metaData->setTitle(hCluster->getHelper(semanticHelper)->getName() +  " Auto export from IfcEnvExtractor");
+	metaData->setTitle(manager.helpCluster().getHelper(0)->getName() +  " Auto export from IfcEnvExtractor");
 	collection->setTransformation(transformation);
 	collection->setMetaData(metaData);
 	collection->setVersion("1.1");
@@ -548,43 +111,65 @@ int main(int argc, char** argv) {
 
 	CJT::CityObject* cityObject = new CJT::CityObject;
 
-	std::string BuildingName = hCluster->getHelper(semanticHelper)->getBuildingName();
+	std::string BuildingName = manager.helpCluster().getHelper(0)->getBuildingName();
 	if (BuildingName == "")
 	{
-		BuildingName = hCluster->getHelper(semanticHelper)->getProjectName();
+		BuildingName = manager.helpCluster().getHelper(0)->getProjectName();
 	}
 
 	cityObject->setName(BuildingName);
 	cityObject->setType(CJT::Building_Type::Building);
 	
-	std::map<std::string, std::string> buildingAttributes = hCluster->getHelper(semanticHelper)->getBuildingInformation();
+	std::map<std::string, std::string> buildingAttributes = manager.helpCluster().getHelper(0)->getBuildingInformation();
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject->addAttribute(iter->first, iter->second); }
 
 	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	//CJT::GeoObject* geo00 = geoCreator->makeLoD00(hCluster, collection, kernel, 1);
-	//cityObject->addGeoObject(geo00);
-	auto geo00Time = std::chrono::high_resolution_clock::now();
-	std::vector<CJT::GeoObject*> geo02 = geoCreator->makeLoD02(hCluster, collection, kernel, 1);
-	for (size_t i = 0; i < geo02.size(); i++) { cityObject->addGeoObject(geo02[i]); }
-	auto geo02Time = std::chrono::high_resolution_clock::now();
-	CJT::GeoObject* geo10 = geoCreator->makeLoD10(hCluster, collection, kernel, 1);
-	cityObject->addGeoObject(geo10);
-	auto geo10Time = std::chrono::high_resolution_clock::now();
-	std::vector<CJT::GeoObject*> geo12 = geoCreator->makeLoD12(hCluster, collection, kernel, 1);
-	for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
-	auto geo12Time = std::chrono::high_resolution_clock::now();
-	std::vector<CJT::GeoObject*> geo13 = geoCreator->makeLoD13(hCluster, collection, kernel, 1);
-	for (size_t i = 0; i < geo13.size(); i++) { cityObject->addGeoObject(geo13[i]); }
-	auto geo13Time = std::chrono::high_resolution_clock::now();
-	std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(hCluster, collection, kernel, 1);
-	for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
-	auto geo22Time = std::chrono::high_resolution_clock::now();
-	//std::vector<CJT::GeoObject*> geo32 = geoCreator->makeLoD32(hCluster, collection, kernel, 1);
-	//for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
-	auto geo32Time = std::chrono::high_resolution_clock::now();
+	if (manager.makeLoD00())
+	{
+		CJT::GeoObject* geo00 = geoCreator->makeLoD00(&manager.helpCluster(), collection, kernel, 1);
+		cityObject->addGeoObject(geo00);
+	}
+	if (manager.makeLoD02())
+	{
+		std::vector<CJT::GeoObject*> geo02 = geoCreator->makeLoD02(&manager.helpCluster(), collection, kernel, 1);
+		for (size_t i = 0; i < geo02.size(); i++) { cityObject->addGeoObject(geo02[i]); }
+	}
+	if (manager.makeLoD10())
+	{
+		CJT::GeoObject* geo10 = geoCreator->makeLoD10(&manager.helpCluster(), collection, kernel, 1);
+		cityObject->addGeoObject(geo10);
+	}
+	if (manager.makeLoD12())
+	{
+		std::vector<CJT::GeoObject*> geo12 = geoCreator->makeLoD12(&manager.helpCluster(), collection, kernel, 1);
+		for (size_t i = 0; i < geo12.size(); i++) { cityObject->addGeoObject(geo12[i]); }
+	}
+	if (manager.makeLoD13())
+	{
+		std::vector<CJT::GeoObject*> geo13 = geoCreator->makeLoD13(&manager.helpCluster(), collection, kernel, 1);
+		for (size_t i = 0; i < geo13.size(); i++) { cityObject->addGeoObject(geo13[i]); }
+	}
+	if (manager.makeLoD22())
+	{
+		std::vector<CJT::GeoObject*> geo22 = geoCreator->makeLoD22(&manager.helpCluster(), collection, kernel, 1);
+		for (size_t i = 0; i < geo22.size(); i++) { cityObject->addGeoObject(geo22[i]); }
+	}
+	if (manager.makeLoD32() && false)
+	{
+		std::vector<CJT::GeoObject*> geo32 = geoCreator->makeLoD32(&manager.helpCluster(), collection, kernel, 1);
+		for (size_t i = 0; i < geo32.size(); i++) { cityObject->addGeoObject(geo32[i]); }
+	}
+
+	//auto geo00Time = std::chrono::high_resolution_clock::now();
+	//auto geo02Time = std::chrono::high_resolution_clock::now();
+	//auto geo10Time = std::chrono::high_resolution_clock::now();
+	//auto geo12Time = std::chrono::high_resolution_clock::now();
+	//auto geo13Time = std::chrono::high_resolution_clock::now();
+	//auto geo22Time = std::chrono::high_resolution_clock::now();
+	//auto geo32Time = std::chrono::high_resolution_clock::now();
 	collection->addCityObject(cityObject);
 	collection->CleanVertices();
-	collection->dumpJson(exportRootPath + fileNames[0] + ".city.json");
+	collection->dumpJson(manager.getOutputPath() + "\\" + manager.helpCluster().getHelper(0)->getName() + ".city.json");
 	auto exportTime = std::chrono::high_resolution_clock::now();
 
 	delete kernel;
@@ -592,33 +177,33 @@ int main(int argc, char** argv) {
 	delete metaData;
 	delete cityObject;
 
-	std::cout << std::endl;
-	std::cout << std::endl;
-	auto endTime = std::chrono::high_resolution_clock::now();
+	//std::cout << std::endl;
+	//std::cout << std::endl;
+	//auto endTime = std::chrono::high_resolution_clock::now();
 
-	if (makeReport) 
-	{
-		// TODO: make function
-		nlohmann::json report;
-		addTimeToJSON(&report, "Time internalizing", startTimeLod, internalizingTime);
-		addTimeToJSON(&report, "Time LoD0.0 generation", startTimeGeoCreation, geo00Time);
-		addTimeToJSON(&report, "Time LoD0.2 generation", geo00Time, geo02Time);
-		addTimeToJSON(&report, "Time LoD1.0 generation", geo02Time, geo10Time);
-		addTimeToJSON(&report, "Time LoD1.2 generation", geo10Time, geo12Time);
-		addTimeToJSON(&report, "Time LoD1.3 generation", geo12Time, geo13Time);
-		addTimeToJSON(&report, "Time LoD2.2 generation", geo13Time, geo22Time);
-		addTimeToJSON(&report, "Time LoD3.2 generation", geo22Time, geo32Time);
-		addTimeToJSON(&report, "Total Processing time", startTimeLod, endTime);
-		addTimeToJSON(&report, "Total running time", startTime, endTime);
-		std::ofstream reportFile(exportRootPath + fileNames[0] + "_report.city.json");
-		reportFile << report;
-		reportFile.close();
-		return 0;
-	}
+	//if (manager.makeReport()) 
+	//{
+	//	// TODO: make function
+	//	nlohmann::json report;
+	//	addTimeToJSON(&report, "Time internalizing", startTimeLod, internalizingTime);
+	//	addTimeToJSON(&report, "Time LoD0.0 generation", startTimeGeoCreation, geo00Time);
+	//	addTimeToJSON(&report, "Time LoD0.2 generation", geo00Time, geo02Time);
+	//	addTimeToJSON(&report, "Time LoD1.0 generation", geo02Time, geo10Time);
+	//	addTimeToJSON(&report, "Time LoD1.2 generation", geo10Time, geo12Time);
+	//	addTimeToJSON(&report, "Time LoD1.3 generation", geo12Time, geo13Time);
+	//	addTimeToJSON(&report, "Time LoD2.2 generation", geo13Time, geo22Time);
+	//	addTimeToJSON(&report, "Time LoD3.2 generation", geo22Time, geo32Time);
+	//	addTimeToJSON(&report, "Total Processing time", startTimeLod, endTime);
+	//	addTimeToJSON(&report, "Total running time", startTime, endTime);
+	//	std::ofstream reportFile(manager.getOutputPath() + manager.helpCluster().getHelper(0)->getName() + "_report.city.json");
+	//	reportFile << report;
+	//	reportFile.close();
+	//	return 0;
+	//}
 
-	std::cout << "Computing Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTimeLod).count() << std::endl;
-	std::cout << "Total Process Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
-	std::cout << "[INFO] process has been succesfully executed" << std::endl;
-
+	//std::cout << "Computing Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTimeLod).count() << std::endl;
+	//std::cout << "Total Process Time = " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << std::endl;
+	//std::cout << "[INFO] process has been succesfully executed" << std::endl;
+	
 	return 0;
 }

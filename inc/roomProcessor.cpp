@@ -1,5 +1,32 @@
 #include "roomProcessor.h"
 
+#include <chrono>
+
+#include <Bnd_Box.hxx>
+#include <BOPAlgo_Splitter.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepAlgoAPI_Cut.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepGProp.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
+#include <BRepPrimAPI_MakePrism.hxx>
+#include <BRep_Builder.hxx>
+#include <GProp_GProps.hxx>
+#include <gp_Vec2d.hxx>
+#include <gp_Vec.hxx>
+#include <gce_MakeLin2d.hxx>
+#include <Geom_Surface.hxx>
+#include <HLRBRep_Algo.hxx>
+#include <HLRBRep_HLRToShape.hxx>
+#include <TopoDS.hxx>
+
+#include <CJToKernel.h>
+
 double getAvFaceHeight(TopoDS_Face face) {
 	double totalZ = 0;
 	int pCount = 0;
@@ -1896,7 +1923,8 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 
 	double floorlvl = cluster->getHelper(0)->getfootprintEvalLvl();
 	std::cout << "- Corse filering footprint at z = " << floorlvl << std::endl;
-	
+	startTime = std::chrono::high_resolution_clock::now();
+
 	double voxelCount = VoxelLookup_.size();
 	double zlvls = voxelCount / (xRelRange_ * yRelRange_);
 	double smallestDistanceToLvl = 999999;
@@ -2087,7 +2115,6 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 
 				if (!distanceCalc.IsDone())
 				{
-					std::cout << "t" << std::endl;
 					continue;
 				}
 
@@ -2108,14 +2135,12 @@ void CJGeoCreator::initializeBasic(helperCluster* cluster) {
 		if (isExterior)
 		{
 			outerFootPrintList.emplace_back(*currentEdge->getEdge());
-
-			//printPoint(startPoint);
-			//printPoint(endPoint);
 		}
 	}
 
-	// TODO: grow external edges to shape
 	footprintList_ = outerEdges2Shapes(outerFootPrintList);
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+
 	return;
 }
 
