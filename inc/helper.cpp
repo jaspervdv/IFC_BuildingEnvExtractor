@@ -3202,6 +3202,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 		else { h.setIsConstruct(true); }
 		if (!h.hasSetUnits()) { return 0; }
 		h.setName(getFileName(currentPath));
+		h.setfootprintLvl(footprintElevation_);
 		//h->setRoomBoundingObjects(, !useDefaultDiv_, );
 
 		hCluster_.appendHelper(h);

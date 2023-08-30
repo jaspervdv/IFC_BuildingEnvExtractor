@@ -378,6 +378,8 @@ public:
 
 	void setUseProxy(bool b) { useProxy = b; }
 
+	void setfootprintLvl(double lvl) { footprintEvalLvl_ = lvl; }
+
 	~helper() {};
 
 };
