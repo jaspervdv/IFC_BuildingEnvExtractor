@@ -1,5 +1,4 @@
 #include "helper.h"
-#include "floorProcessor.h"
 
 #include <chrono>
 #include <CJToKernel.h>
@@ -12,7 +11,8 @@
 #include <vector>
 #include <tuple>
 
-const int treeDepth_ = 25;
+#ifndef EVALUATIONPOINT_EVALUATIONPOINT_H
+#define EVALUATIONPOINT_EVALUATIONPOINT_H
 
 class EvaluationPoint {
 private:
@@ -29,9 +29,12 @@ public:
 	const gp_Pnt getPoint() { return thePoint_; }
 	const TopoDS_Edge& getEvalEdge() { return evalEdge_; }
 	const gp_Lin& getEvalLine() { return evalLin_; }
-
 };
+#endif // EVALUATIONPOINT_EVALUATIONPOINT_H
 
+
+#ifndef SURFACEGROUP_SURFACEGROUP_H
+#define SURFACEGROUP_SURFACEGROUP_H
 
 class SurfaceGroup {
 private:
@@ -83,9 +86,12 @@ public:
 	void projectFace();
 
 	void populateGrid(double distance);
-
 };
+#endif // SURFACEGROUP_SURFACEGROUP_H
 
+
+#ifndef EDGE_EDGE_H
+#define EDGE_EDGE_H
 
 class Edge {
 private:
@@ -126,7 +132,11 @@ public:
 
 	gp_Pnt getProjectedEnd() { return gp_Pnt(endPoint_.X(), endPoint_.Y(), 0); }
 };
+#endif // EDGE_EDGE_H
 
+
+#ifndef VOXEL_VOXEL_H
+#define VOXEL_VOXEL_H
 
 class voxel {
 private:
@@ -188,11 +198,18 @@ public:
 
 	double getZ() { return sizeZ_; }
 };
+#endif // VOXEL_VOXEL_H
 
+
+#ifndef CJGEOCREATOR_CJGEOCREATOR_H
+#define CJGEOCREATOR_CJGEOCREATOR_H
 
 class CJGeoCreator {
 
 private:
+
+	static const int treeDepth_ = 25;
+
 	//world space data
 	gp_Pnt anchor_;
 
@@ -367,7 +384,7 @@ private:
 		const double& buffer);
 
 public:
-	explicit CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat = true);
+	explicit CJGeoCreator(helperCluster* cluster, double vSize, bool mkFootprint = false);
 
 	CJT::GeoObject* makeLoD00(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD02(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
@@ -377,5 +394,6 @@ public:
 	std::vector< CJT::GeoObject*> makeLoD13(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD22(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
 	std::vector< CJT::GeoObject*> makeLoD32(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
-
 };
+#endif // CJGEOCREATOR_CJGEOCREATOR_H
+

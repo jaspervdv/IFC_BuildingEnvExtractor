@@ -384,8 +384,8 @@ bool isOverlappingCompletely(SurfaceGroup* evalFace, SurfaceGroup* otherFace) {
 	return true;
 }
 
-
-bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*> facePool, bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx) {
+template<typename T>
+bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*> facePool, T shapeIdx) {
 	std::vector<Value> qResult;
 	shapeIdx.query(bgi::intersects(
 		bg::model::box <BoostPoint3D>(
@@ -3841,7 +3841,7 @@ bool CJGeoCreator::pointIsVisible(helperCluster* cluster,
 	return false;
 }
 
-CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
+CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool mkFootprint)
 {
 	double xySize;
 	double zSize;
@@ -3974,6 +3974,9 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool isFlat)
 	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
 
 	initializeBasic(cluster);
+
+	if (mkFootprint) { makeFootprint(cluster); }
+
 	std::cout << std::endl;
 	std::cout << "- Processing" << std::endl;
 }

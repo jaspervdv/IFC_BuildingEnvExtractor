@@ -55,8 +55,10 @@ string(REGEX REPLACE "([^;]+)" "${OpenCASCADEC_LIBRARY_DIR}/\\1.lib" OCC_LIBRARI
 
 add_executable(${PROJECT_NAME} 
 main.cpp
+inc/DataManager.cpp
 inc/helper.cpp
 inc/roomProcessor.cpp
+inc/IOManager.cpp
 )
 
 foreach(LIB ${IFC_LIBRARIES})
