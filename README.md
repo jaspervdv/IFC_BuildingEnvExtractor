@@ -86,8 +86,9 @@ The GUI can be accessed via two routes:
 * In the Pre_Build folder the Ext_GUI.exe will start the GUI. Make sure this .exe is always in the same folder as the Extractor.exe files.
 * In the GUI_code the the python file will also start the GUI. This would require the user to have python installed.
 
-![Example of the GUI](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/GUI_example.JPG "An example of the GUI with the default values")
-
+<p align="center" width="100%">
+    <img src="https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/GUI_example.JPG" alt= “” width="300">
+</p>
 Currently the GUI is still in an initial development state and does not expose all the settings that are available. Additionally it does also not supply the user with clear error messages if the tool fails.
 
 ## Settings JSON

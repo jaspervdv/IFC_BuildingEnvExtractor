@@ -13,6 +13,7 @@ def runCode(input_path,
             make_lod13,
             make_lod22,
             make_lod32,
+            bool_igoreproxy,
             make_report,
             footprint_elevation,
             voxel_size):
@@ -69,6 +70,7 @@ def runCode(input_path,
     json_dictionary["voxelSize"] = float(voxel_size)
     json_dictionary["Footprint elevation"] = float(footprint_elevation)
     json_dictionary["Output report"] = make_report
+    json_dictionary["Ignore Proxy"]= bool_igoreproxy
 
     lod_list = []
 
@@ -299,7 +301,8 @@ bool_makerep = tkinter.IntVar(value=1)
 makerep_toggle = ttk.Checkbutton(main_window, text="Create report", variable=bool_makerep)
 
 # The div objects
-igoreproxy_toggle = tkinter.Checkbutton(main_window, text="Ignore proxy elements")
+bool_igoreproxy = tkinter.IntVar(value=1)
+igoreproxy_toggle = ttk.Checkbutton(main_window, text="Ignore proxy elements", variable=bool_igoreproxy)
 igoreproxy_toggle.pack()
 
 # other buttons
@@ -319,6 +322,7 @@ run_button = tkinter.Button(frame_other, text="Run", command=lambda: runCode(
     bool_lod22.get(),
     bool_lod32.get(),
     bool_makerep.get(),
+    bool_igoreproxy.get(),
     entry_footprint.get(),
     entry_voxelsize.get()
 ))
