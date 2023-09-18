@@ -75,22 +75,33 @@ std::vector<std::string> GetSourcePathArray() {
 
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
+	std::string issueEncounterString = "[INFO] encountered an issue";
 
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
 	IOManager manager;
 	if (argc > 1) {
-		if (!manager.init({ argv[1] }, true))
+		try
 		{
-			std::cout << "encountered an issue" << std::endl;
+			manager.init({ argv[1] });
+		}
+		catch (const std::string& exceptionString)
+		{
+			std::cout << issueEncounterString << std::endl;
+			std::cout << exceptionString << std::endl;
 			return 0;
 		}
 	}
 	else { 
-		if (!manager.init(GetSourcePathArray(), false))
+		try
 		{
-			std::cout << "encountered an issue" << std::endl;
+			manager.init(GetSourcePathArray(), false);
+		}
+		catch (const std::string& exceptionString)
+		{
+			std::cout << issueEncounterString << std::endl;
+			std::cout << exceptionString << std::endl;
 			return 0;
 		}
 	}

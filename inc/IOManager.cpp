@@ -59,6 +59,7 @@ int IOManager::numQuestion(int n, bool lower)
 	}
 }
 
+
 bool IOManager::getTargetPathList()
 {
 	std::cout << "Enter filepath of the JSON or IFC input file" << std::endl;
@@ -88,6 +89,13 @@ bool IOManager::getTargetPathList()
 			continue;
 		}
 
+		if (!isValidPath(singlepath))
+		{
+			std::cout << "[INFO] No valid filepath has been supplied" << std::endl;
+			std::cout << "Enter filepath of the JSON or IFC input file (if multiplefile sperate path with enter):" << std::endl;
+			continue;
+		}
+
 		if (hasExtension(singlepath, "json"))
 		{
 			isJsonInput_ = true;
@@ -96,7 +104,6 @@ bool IOManager::getTargetPathList()
 				return false;
 			}
 		}
-
 		inputPathList_.emplace_back(singlepath);
 	}
 
@@ -401,33 +408,65 @@ bool IOManager::getJSONValues()
 
 	inputPathList_.clear();
 
+	if (json.contains("Output report"))
+	{
+		if (json["Output report"].type() != nlohmann::json::value_t::number_integer && json["Output report"].type() != nlohmann::json::value_t::number_unsigned)
+		{
+			throw std::string("JSON file does not contain a valid output report entry");
+		}
+
+		if (json["Output report"] == 0) { writeReport_ = false; }
+	}
+
 	if (!json.contains("Filepaths"))
 	{
-		std::cout << "JSON file does not contain Filpaths Entry" << std::endl;
-		return false;
+		throw std::string("JSON file does not contain Filpaths Entry");
 	}
 
 	nlohmann::json filePaths = json["Filepaths"];
 
 	if (!filePaths.contains("Input"))
 	{
-		std::cout << "JSON file does not contain Input Filpath Entry" << std::endl;
-		return false;
+		throw std::string("JSON file does not contain Input Filepath Entry");
 	}
 	if (!filePaths.contains("Output"))
 	{
-		std::cout << "JSON file does not contain Output Filpath Entry" << std::endl;
-		return false;
+		throw std::string("JSON file does not contain Output Filepath Entry");
 	}
 
 	nlohmann::json inputPaths = filePaths["Input"];
-	for (size_t i = 0; i < inputPaths.size(); i++) { inputPathList_.emplace_back(inputPaths[i]); }
+	if (inputPaths.type() != nlohmann::json::value_t::array )
+	{
+		throw std::string("JSON file does not contain valid input filepath entry: Input filepath entry should be array");
+	}
+
+	for (size_t i = 0; i < inputPaths.size(); i++) {
+		if (inputPaths[i].type() != nlohmann::json::value_t::string)
+		{
+			std::cout << "JSON file does not contain valid input filepath entry" << std::endl;
+			return false;
+		}
+
+		std::string inputPath = inputPaths[i];
+
+		if (hasExtension(inputPath, "ifc") && isValidPath(inputPath))
+		{
+			inputPathList_.emplace_back(inputPaths[i]);
+		}
+		else
+		{
+			throw std::string("[INFO] JSON file input filepath " + inputPath + " is invalid");
+		}	
+	}
+
+	if (filePaths["Output"].type() != nlohmann::json::value_t::string)
+	{
+		throw std::string("JSON file does not contain valid output path entry, output filepath entry should be string");
+	}
+
 	outputFolderPath_ = filePaths["Output"];
 
-	if (json.contains("Output report"))
-	{
-		if (json["Output report"] == 0) { writeReport_ = false; }
-	}
+
 
 	if (json.contains("LoD output"))
 	{
@@ -493,6 +532,23 @@ bool IOManager::hasExtension(const std::string& string, const std::string& ext)
 	return false;
 }
 
+
+bool IOManager::isValidPath(const std::vector<std::string>& path)
+{
+	for (size_t i = 0; i < path.size(); i++)
+	{
+		if (!isValidPath(path[i])) { return false; }
+	}
+	return true;
+}
+
+
+bool IOManager::isValidPath(const std::string& path)
+{
+	struct stat info;
+	if (stat(path.c_str(), &info) != 0) { return false; }
+	return true;
+}
 
 void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
 {
@@ -575,6 +631,8 @@ std::string IOManager::getLoDEnabled()
 	return summaryString;
 }
 
+
+
 nlohmann::json IOManager::settingsToJSON()
 {
 	nlohmann::json settingsJSON;
@@ -639,7 +697,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 		getTargetPathList();
 		hasDirectInterface = true;
 	}
-	else if (hasExtension(inputPathList, "ifc")) // If all files are IFC copy the path list and ask user for info
+	else if (hasExtension(inputPathList, "ifc") && isValidPath(inputPathList)) // If all files are IFC copy the path list and ask user for info
 	{
 		inputPathList_ = inputPathList;
 		if (!isSilent_)
@@ -650,7 +708,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 		}
 		hasDirectInterface = true;
 	}
-	else if (hasExtension(inputPathList, "json")) {
+	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
 		isJsonInput_ = true;
 		inputPathList_ = inputPathList;
 	}
@@ -662,7 +720,12 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	{
 		if (inputPathList.size() > 1) { return false; }
 		isJsonInput_ = true;
-		if (!getJSONValues()) { return false; }  // attempt to get data from json
+
+		try { getJSONValues(); }
+		catch (const std::string& exceptionString) 
+		{ 
+			throw exceptionString; 
+		}
 	}
 
 	if (!isSilent_)
@@ -728,55 +791,109 @@ bool IOManager::run()
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject.addAttribute(iter->first, iter->second); }
 
 	// make the geometry
-	CJGeoCreator geoCreator(&hCluster_, voxelSize_, make02_);
+	CJGeoCreator geoCreator(&hCluster_, voxelSize_);
+
+	try
+	{
+		geoCreator.initializeBasic(&hCluster_);
+	}
+	catch (const std::exception&)
+	{
+		ErrorList_.emplace_back("Basic initialization failed");
+		return false;
+	}
+
+	if (make02_) // TODO: make better bool
+	{
+		try
+		{
+			geoCreator.makeFootprint(&hCluster_);
+		}
+		catch (const std::exception&)
+		{
+			ErrorList_.emplace_back("Footprint creation failed");
+		}
+	}
+
 	if (makeLoD00())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		CJT::GeoObject* geo00 = geoCreator.makeLoD00(&helpCluster(), &collection, &kernel, 1);
-		cityObject.addGeoObject(*geo00);
-		timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			CJT::GeoObject* geo00 = geoCreator.makeLoD00(&helpCluster(), &collection, &kernel, 1);
+			cityObject.addGeoObject(*geo00);
+			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.0 creation failed"); }
+
 	}
 	if (makeLoD02())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(&helpCluster(), &collection, &kernel, 1);
-		for (size_t i = 0; i < geo02.size(); i++) { cityObject.addGeoObject(*geo02[i]); }
-		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(&helpCluster(), &collection, &kernel, 1);
+			for (size_t i = 0; i < geo02.size(); i++) { cityObject.addGeoObject(*geo02[i]); }
+			timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.2 creation failed"); }
 	}
 	if (makeLoD10())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		CJT::GeoObject* geo10 = geoCreator.makeLoD10(&helpCluster(), &collection, &kernel, 1);
-		cityObject.addGeoObject(*geo10);
-		timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			CJT::GeoObject* geo10 = geoCreator.makeLoD10(&helpCluster(), &collection, &kernel, 1);
+			cityObject.addGeoObject(*geo10);
+			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.0 creation failed"); }
 	}
 	if (makeLoD12())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(&helpCluster(), &collection, &kernel, 1);
-		for (size_t i = 0; i < geo12.size(); i++) { cityObject.addGeoObject(*geo12[i]); }
-		timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(&helpCluster(), &collection, &kernel, 1);
+			for (size_t i = 0; i < geo12.size(); i++) { cityObject.addGeoObject(*geo12[i]); }
+			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.2 creation failed"); }
 	}
 	if (makeLoD13())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(&helpCluster(), &collection, &kernel, 1);
-		for (size_t i = 0; i < geo13.size(); i++) { cityObject.addGeoObject(*geo13[i]); }
-		timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(&helpCluster(), &collection, &kernel, 1);
+			for (size_t i = 0; i < geo13.size(); i++) { cityObject.addGeoObject(*geo13[i]); }
+			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.3 creation failed"); }
+
 	}
 	if (makeLoD22())
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(&helpCluster(), &collection, &kernel, 1);
-		for (size_t i = 0; i < geo22.size(); i++) { cityObject.addGeoObject(*geo22[i]); }
-		timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(&helpCluster(), &collection, &kernel, 1);
+			for (size_t i = 0; i < geo22.size(); i++) { cityObject.addGeoObject(*geo22[i]); }
+			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD2.2 creation failed"); }
+
 	}
 	if (makeLoD32() && false)
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(&helpCluster(), &collection, &kernel, 1);
-		for (size_t i = 0; i < geo32.size(); i++) { cityObject.addGeoObject(*geo32[i]); }
-		timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(&helpCluster(), &collection, &kernel, 1);
+			for (size_t i = 0; i < geo32.size(); i++) { cityObject.addGeoObject(*geo32[i]); }
+			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&) { ErrorList_.emplace_back("LoD3.2 creation failed"); }
 	}
 	collection.addCityObject(cityObject);
 	collection.CleanVertices();
@@ -814,6 +931,8 @@ bool IOManager::write()
 	);
 
 	report["Duration"] = timeReport;
+
+	report["Errors"] = ErrorList_;
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
 	std::ofstream reportFile(getOutputPath() + "\\" + hCluster_.getHelper(0)->getName() + "_report.city.json");

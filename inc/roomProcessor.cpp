@@ -3172,8 +3172,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
-	if (!hasTopFaces_ || !hasGeoBase_) { initializeBasic(cluster); }
-	if (!hasFootprints_) { makeFootprint(cluster); }
+	if (!hasTopFaces_ || !hasGeoBase_) { return std::vector< CJT::GeoObject*>(); }
 
 	std::vector< CJT::GeoObject*> geoObjectList;
 
@@ -3195,6 +3194,12 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helperCluster* cluster, CJ
 		geoObject->appendSurfaceData(semanticRoofData);
 		geoObject->appendSurfaceTypeValue(0);
 		geoObjectList.emplace_back(geoObject);
+	}
+
+	if (!hasFootprints_) 
+	{ 
+		printTime(startTime, std::chrono::high_resolution_clock::now());
+		return geoObjectList;
 	}
 
 	for (size_t i = 0; i < footprintList_.size(); i++)
@@ -3286,7 +3291,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helperCluster* cluster, CJ
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.2 Model" << std::endl;
-	if (!hasTopFaces_ || !hasGeoBase_) { initializeBasic(cluster); }
+	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject*>(); } }
 
 	std::vector< CJT::GeoObject*> geoObjectList;
 	if (roofOutlineList_.size() == 0)
@@ -3841,7 +3846,7 @@ bool CJGeoCreator::pointIsVisible(helperCluster* cluster,
 	return false;
 }
 
-CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool mkFootprint)
+CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize)
 {
 	double xySize;
 	double zSize;
@@ -3916,9 +3921,9 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool mkFootprin
 	double yRange = urrPoints.Y() - anchor_.Y();
 	double zRange = urrPoints.Z() - anchor_.Z();
 
-	xRelRange_ = (int) ceil(xRange / voxelSize_) + 1;
-	yRelRange_ = (int) ceil(yRange / voxelSize_) + 1;
-	zRelRange_ = (int) ceil(zRange / voxelSizeZ_) + 1;
+	xRelRange_ = (int)ceil(xRange / voxelSize_) + 1;
+	yRelRange_ = (int)ceil(yRange / voxelSize_) + 1;
+	zRelRange_ = (int)ceil(zRange / voxelSizeZ_) + 1;
 
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
@@ -3972,13 +3977,6 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize, bool mkFootprin
 	}
 	std::cout << std::endl;
 	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
-
-	initializeBasic(cluster);
-
-	if (mkFootprint) { makeFootprint(cluster); }
-
-	std::cout << std::endl;
-	std::cout << "- Processing" << std::endl;
 }
 	
 std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCluster* cluster)

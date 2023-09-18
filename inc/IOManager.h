@@ -66,6 +66,8 @@ private:
 	double timeProcess = -1;
 	double timeTotal = -1;
 
+	std::vector<std::string> ErrorList_;
+
 	// question askers
 	bool yesNoQuestion();
 	int numQuestion(int n, bool lower = true);
@@ -93,6 +95,9 @@ private:
 	// checks if the string has the extension that is supplied
 	bool hasExtension(const std::vector<std::string>& stringList, const std::string& ext);
 	bool hasExtension(const std::string& string, const std::string& ext);
+
+	bool isValidPath(const std::vector<std::string>& path);
+	bool isValidPath(const std::string& path);
 
 	// console outputs the settings that are utilized
 	void printSummary();

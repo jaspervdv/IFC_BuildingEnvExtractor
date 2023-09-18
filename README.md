@@ -59,7 +59,7 @@ Performance of the tool is depending on the complexity of the input model. The t
 
 ## How to use
 
-The tool can be used directly with the executables located in the Pre_Build folder. Make sure that you run the correct executable for the IFC version of the model. An IFC4 file will not be processed by the IFC2x3 version of the tool. When the .exe is started it will ask the required questions for processing. This can also be bypassed by inputting a JSON settings file instead of an IFC file. It is also possible to start the tool from the console or call it with other software directly. The only input allowed when doing this is a file path to the IFC file or the settings JSON. 
+The tool can be used directly with the executables located in the Pre_Build folder. Make sure that you run the correct executable for the IFC version of the model. An IFC4 file will not be processed by the IFC2x3 version of the tool. When the .exe is started it will ask the required questions for processing. This can also be bypassed by inputting a JSON settings file instead of an IFC file. It is also possible to start the tool from the console or call it with other software directly. The only input allowed when doing this is a file path to the IFC file or the settings JSON.
 
 ## How to Build
 
@@ -76,6 +76,19 @@ In main.cpp there is a vector called "sourcePathArray". In this vector filepaths
 In helper.h the first line is "#define USE_IFC4". keeping this line will build an executable that is able to process IFC4. If the line is commented out or removed the build executable will be able to process IFC2x3 files.`
 
 Please note that CJT is developed in tandem with the IFcEnvExtractor. So possible version mismatches may occur due to CJT being updated later than the IFcEnvExtractor.
+
+## GUI
+
+IfcEnvelopeExtractor can now also be operated via an GUI. This GUI enables the user to easily change the settings. The goal of the GUI is making the tool more accessible for non-expert users. The GUI is a python based front that automatically generates the Settings JSON and calls the suitable extractor executable.
+
+The GUI can be accessed via two routes:
+
+* In the Pre_Build folder the Ext_GUI.exe will start the GUI. Make sure this .exe is always in the same folder as the Extractor.exe files.
+* In the GUI_code the the python file will also start the GUI. This would require the user to have python installed.
+
+![Example of the GUI](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/GUI_example.JPG "An example of the GUI with the default values")
+
+Currently the GUI is still in an initial development state and does not expose all the settings that are available. Additionally it does also not supply the user with clear error messages if the tool fails.
 
 ## Settings JSON
 
