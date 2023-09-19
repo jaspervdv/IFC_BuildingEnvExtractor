@@ -4,6 +4,29 @@ from tkinter import ttk, filedialog, messagebox
 import json
 import subprocess
 
+def getDefaultDivObjects():
+    return "IfcWall\tIfcCurtainWall\tIfcWallStandardCase\tIfcRoof\tIfcSlab\tIfcWindow\tIfcColumn\tIfcBeam\tIfcDoor\tIfcCovering\tIfcMember\tIfcPlate"
+
+def toggleEnableDiv(widget, default_toggle, proxy_toggle, default_bool, proxy_bool):
+    if  widget['state'] == "disabled":
+        widget['state'] = tkinter.NORMAL
+        widget['bg'] = 'SystemWindow'
+        widget['fg'] = 'SystemWindowText'
+
+        default_toggle["state"] = tkinter.DISABLED
+        proxy_toggle["state"] = tkinter.DISABLED
+    else:
+        widget['state'] = tkinter.DISABLED
+        widget['bg'] = "#F0F0F0"
+        widget['fg'] = "#707070"
+
+        default_toggle["state"] = tkinter.NORMAL
+        proxy_toggle["state"] = tkinter.NORMAL
+
+        updateDivMessage(widget, default_bool, proxy_bool)
+
+    return
+
 def runCode(input_path,
             output_path,
             make_lod00,
@@ -14,9 +37,12 @@ def runCode(input_path,
             make_lod22,
             make_lod32,
             bool_igoreproxy,
+            bool_useDefault,
+            bool_customEnabled,
             make_report,
             footprint_elevation,
-            voxel_size):
+            voxel_size,
+            div_string):
 
     json_path = "../Pre_Build/~temp.json"
     ifc4_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4.exe"
@@ -70,7 +96,14 @@ def runCode(input_path,
     json_dictionary["voxelSize"] = float(voxel_size)
     json_dictionary["Footprint elevation"] = float(footprint_elevation)
     json_dictionary["Output report"] = make_report
-    json_dictionary["Ignore Proxy"]= bool_igoreproxy
+
+    if not bool_customEnabled:
+        json_dictionary["Default div"] = bool_useDefault
+        json_dictionary["Ignore Proxy"] = bool_igoreproxy
+    else:
+        json_dictionary["Default div"] = 0
+        json_dictionary["Ignore proxy"] = 0
+        json_dictionary["Div objects"] = div_string.split()
 
     lod_list = []
 
@@ -160,7 +193,6 @@ def decrement(value_field, increment_value):
     value_field.insert(0, incremented_Value)
     return
 
-
 def runExe(code_path, json_path):
     try:
         # Run the executable and capture its output
@@ -189,21 +221,39 @@ def runExe(code_path, json_path):
                                      "Error: Was unable to process the file")
         return
 
+def updateDivMessage(message_window, useDefault, useProxy):
+    message_window['state'] = tkinter.NORMAL
+
+    if useDefault.get():
+        message_window.delete('1.0', tkinter.END)
+        message_window.insert(tkinter.INSERT, getDefaultDivObjects() + "\t")
+    else:
+        message_window.delete('1.0', tkinter.END)
+    if not useProxy.get():
+        message_window.insert(tkinter.END, "IfcBuildingElementProxy")
+    message_window['state'] = tkinter.DISABLED
+    return
+
+# main variables
+size_entry_small = 13
+size_button_small = 2
+size_button_normal = 8
 
 # setup the window and the grid
 main_window = tkinter.Tk()
-main_window.geometry('500x470')
+main_window.geometry('500x525')
 main_window.resizable(1,0)
 main_window.title("IfcEnvExtactor GUI")
 
 # the entry functions for the main ifc file
 text_file_browse = tkinter.Label(main_window, text="Input IFC path:")
-text_file_browse.pack()
+text_file_browse.pack(pady=4)
 frame_file_browse = tkinter.Frame(main_window)
 frame_file_browse.pack(fill=tkinter.X)
 entry_inputpath = tkinter.Entry(frame_file_browse, text= "Input path")
 entry_inputpath.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=4)
-button_browse = tkinter.Button(frame_file_browse, text="Browse", command= lambda: browse_(entry_inputpath, False, main_window))
+button_browse = tkinter.Button(frame_file_browse, text="Browse", width=size_button_normal,
+                               command= lambda: browse_(entry_inputpath, False, main_window))
 button_browse.pack(side=tkinter.LEFT, padx=4)
 
 separator = ttk.Separator(main_window, orient='horizontal')
@@ -216,7 +266,8 @@ frame_folder_browse = tkinter.Frame(main_window)
 frame_folder_browse.pack(fill=tkinter.X)
 entry_outputpath = tkinter.Entry(frame_folder_browse, text= "Output path")
 entry_outputpath.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=4)
-button_browse2 = tkinter.Button(frame_folder_browse, text="Browse", command= lambda: browse_(entry_outputpath, True, main_window))
+button_browse2 = tkinter.Button(frame_folder_browse, text="Browse" , width=size_button_normal,
+                                command= lambda: browse_(entry_outputpath, True, main_window))
 button_browse2.pack(side=tkinter.LEFT, padx=4)
 
 separator = ttk.Separator(main_window, orient='horizontal')
@@ -260,38 +311,42 @@ separator2 = ttk.Separator(main_window, orient='horizontal')
 separator2.pack(fill='x', pady=10)
 
 # the voxel size that is desired
-text_voxel_settings = tkinter.Label(main_window, text="Voxel size:")
+frame_foot_voxel = tkinter.Frame(main_window)
+frame_foot_voxel.pack()
+
+frame_voxel = tkinter.Frame(frame_foot_voxel)
+frame_voxel.pack(side=tkinter.LEFT, padx=30)
+
+text_voxel_settings = tkinter.Label(frame_voxel, text="Voxel size:")
 text_voxel_settings.pack()
 
-frame_voxel = tkinter.Frame(main_window)
-frame_voxel.pack()
-
-entry_voxelsize = tkinter.Entry(frame_voxel, text= "voxelsize")
+entry_voxelsize = tkinter.Entry(frame_voxel, text= "voxelsize", width=size_entry_small)
 entry_voxelsize.insert(0, "1.0")
 entry_voxelsize.pack(side=tkinter.LEFT)
 
-button_min_voxelsize = tkinter.Button(frame_voxel, text="-", command= lambda : decrement(entry_voxelsize, 0.1))
+button_min_voxelsize = tkinter.Button(frame_voxel, text="-", width=size_button_small,
+                                      command= lambda : decrement(entry_voxelsize, 0.1))
 button_min_voxelsize.pack(side=tkinter.LEFT)
-button_plus_voxelsize = tkinter.Button(frame_voxel, text="+", command= lambda : increment(entry_voxelsize, 0.1))
+button_plus_voxelsize = tkinter.Button(frame_voxel, text="+", width=size_button_small,
+                                       command= lambda : increment(entry_voxelsize, 0.1))
 button_plus_voxelsize.pack(side=tkinter.LEFT)
 
-separatorVoxel = ttk.Separator(main_window, orient='horizontal')
-separatorVoxel.pack(fill='x', pady=10)
-
 # the footprint height
-text_footprint_settings = tkinter.Label(main_window, text="footprint elevation:")
+frame_footprint = tkinter.Frame(frame_foot_voxel)
+frame_footprint.pack(side=tkinter.LEFT)
+
+text_footprint_settings = tkinter.Label(frame_footprint, text="footprint elevation:")
 text_footprint_settings.pack()
 
-frame_footprint = tkinter.Frame(main_window)
-frame_footprint.pack()
-
-entry_footprint = tkinter.Entry(frame_footprint, text= "footprint elevation")
+entry_footprint = tkinter.Entry(frame_footprint, text= "footprint elevation", width=size_entry_small)
 entry_footprint.insert(0, "-0.15")
 entry_footprint.pack(side=tkinter.LEFT)
 
-button_min_footprint = tkinter.Button(frame_footprint, text="-", command= lambda : decrement(entry_footprint, 0.01))
+button_min_footprint = tkinter.Button(frame_footprint, text="-", width=size_button_small,
+                                      command= lambda : decrement(entry_footprint, 0.01))
 button_min_footprint.pack(side=tkinter.LEFT)
-button_plus_footprint = tkinter.Button(frame_footprint, text="+", command= lambda : increment(entry_footprint, 0.01))
+button_plus_footprint = tkinter.Button(frame_footprint, text="+", width=size_button_small,
+                                       command= lambda : increment(entry_footprint, 0.01))
 button_plus_footprint.pack(side=tkinter.LEFT)
 
 separatorFootprint = ttk.Separator(main_window, orient='horizontal')
@@ -301,17 +356,50 @@ bool_makerep = tkinter.IntVar(value=1)
 makerep_toggle = ttk.Checkbutton(main_window, text="Create report", variable=bool_makerep)
 
 # The div objects
-bool_igoreproxy = tkinter.IntVar(value=1)
-igoreproxy_toggle = ttk.Checkbutton(main_window, text="Ignore proxy elements", variable=bool_igoreproxy)
-igoreproxy_toggle.pack()
+message_div_objects = tkinter.Text(main_window,  width=300, height=5, bg="#F0F0F0", fg="#707070")
 
+frame_div_objects = tkinter.Frame(main_window)
+frame_div_objects.pack()
+
+bool_igoreproxy = tkinter.IntVar(value=1)
+bool_useDefault = tkinter.IntVar(value=1)
+
+igoreproxy_toggle = ttk.Checkbutton(frame_div_objects,
+                                    text="Ignore proxy elements",
+                                    variable=bool_igoreproxy,
+                                    command= lambda : updateDivMessage(message_div_objects, bool_useDefault, bool_igoreproxy))
+igoreproxy_toggle.pack(side=tkinter.LEFT, padx=30)
+
+bool_useDefault = tkinter.IntVar(value=1)
+useDefault_toggle = ttk.Checkbutton(frame_div_objects,
+                                    text="Use Default div objects",
+                                    variable=bool_useDefault,
+                                    command= lambda : updateDivMessage(message_div_objects, bool_useDefault, bool_igoreproxy))
+useDefault_toggle.pack(side=tkinter.LEFT)
+
+# div communication
+message_div_objects.insert(tkinter.INSERT, getDefaultDivObjects())
+message_div_objects['state'] = tkinter.DISABLED
+message_div_objects.pack(fill='x', padx=5, pady=10)
+
+bool_enableCustom = tkinter.IntVar(value=0)
+enableCustom_toggle = ttk.Checkbutton(main_window,
+                                    text="Custom div objects",
+                                    variable=bool_enableCustom,
+                                    command= lambda : toggleEnableDiv(
+                                        message_div_objects,
+                                        useDefault_toggle,
+                                        igoreproxy_toggle,
+                                        bool_useDefault,
+                                        bool_igoreproxy))
+enableCustom_toggle.pack()
 # other buttons
 separator3 = ttk.Separator(main_window, orient='horizontal')
 separator3.pack(fill='x', pady=10)
 
 frame_other = tkinter.Frame(main_window)
 frame_other.pack()
-run_button = tkinter.Button(frame_other, text="Run", command=lambda: runCode(
+run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, command=lambda: runCode(
     entry_inputpath.get(),
     entry_outputpath.get(),
     bool_lod00.get(),
@@ -321,14 +409,17 @@ run_button = tkinter.Button(frame_other, text="Run", command=lambda: runCode(
     bool_lod13.get(),
     bool_lod22.get(),
     bool_lod32.get(),
-    bool_makerep.get(),
     bool_igoreproxy.get(),
+    bool_useDefault.get(),
+    bool_enableCustom.get(),
+    bool_makerep.get(),
     entry_footprint.get(),
-    entry_voxelsize.get()
+    entry_voxelsize.get(),
+    message_div_objects.get('1.0', tkinter.END)
 ))
 run_button.pack(side=tkinter.LEFT)
 
-close_button = tkinter.Button(frame_other, text="Close", command= lambda : main_window.destroy())
+close_button = tkinter.Button(frame_other, text="Close", width=size_button_normal, command= lambda : main_window.destroy())
 close_button.pack(side=tkinter.LEFT)
 
 main_window.mainloop()

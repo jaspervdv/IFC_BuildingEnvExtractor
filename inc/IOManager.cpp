@@ -506,13 +506,44 @@ bool IOManager::getJSONValues()
 		if (voxelData.contains("xy")) { voxelSize_ = voxelData["xy"]; }
 	}
 
-	if (json.contains("Ignore Proxy"))
+	if (json.contains("Default div"))
 	{
-		if (json["Ignore Proxy"] == 1)
+		if (json["Default div"] == 0)
+		{
+			useDefaultDiv_ = false;
+		}
+	}
+
+	if (json.contains("Ignore proxy"))
+	{
+		if (json["Ignore proxy"] == 1)
 		{
 			useProxy_ = true;
 		}
 	}
+
+	if (json.contains("Div objects"))
+	{
+		std::vector<std::string> stringDivList = json["Div objects"];
+
+		for (size_t i = 0; i < stringDivList.size(); i++)
+		{
+			std::string potentialType = stringDivList[i];
+			std::transform(potentialType.begin(), potentialType.end(), potentialType.begin(), ::toupper);
+
+			if (DevObjectsOptions_.find(potentialType) == DevObjectsOptions_.end())
+			{
+				continue;
+			}
+
+			if (addDivObjects_.find(potentialType) != addDivObjects_.end())
+			{
+				continue;
+			}
+			addDivObjects_.insert(potentialType);
+		}
+	}
+
 	return true;
 }
 
