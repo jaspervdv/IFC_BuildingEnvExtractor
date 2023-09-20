@@ -27,6 +27,14 @@ def toggleEnableDiv(widget, default_toggle, proxy_toggle, default_bool, proxy_bo
 
     return
 
+def toggleEnableEntry(entry_widget, additional_bool_list):
+    for additional_bool in additional_bool_list:
+        if  additional_bool:
+            entry_widget['state'] = tkinter.NORMAL
+            return
+    entry_widget['state'] = tkinter.DISABLED
+    return
+
 def runCode(input_path,
             output_path,
             make_lod00,
@@ -287,7 +295,13 @@ frame_lod_settings3.pack()
 bool_lod00 = tkinter.IntVar(value=1)
 toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=bool_lod00)
 bool_lod02 = tkinter.IntVar(value=1)
-toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.2", variable=bool_lod02)
+toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
+                                   text="LoD0.2",
+                                   variable=bool_lod02,
+                                   command= lambda : [toggleEnableEntry(entry_footprint, {bool_lod02.get()}),
+                                                      toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
+                                                                                          bool_lod32.get()])]
+                                   )
 bool_lod10 = tkinter.IntVar(value=1)
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings1, text="LoD1.0", variable=bool_lod10)
 bool_lod12 = tkinter.IntVar(value=1)
@@ -297,7 +311,12 @@ toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=
 bool_lod22 = tkinter.IntVar(value=1)
 toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=bool_lod22)
 bool_lod32 = tkinter.IntVar(value=0)
-toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3, text="LoD3.2", variable=bool_lod32)
+toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
+                                   text="LoD3.2",
+                                   variable=bool_lod32,
+                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
+                                                                                          bool_lod32.get()])
+                                   )
 
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)

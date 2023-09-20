@@ -95,7 +95,7 @@ Currently the GUI is still in an initial development state and does not expose a
 
 The settings json has a very simple structure. An example can be found below:
 
-```
+```json
 {
     "Filepaths": {
         "Input" : 
@@ -111,7 +111,9 @@ The settings json has a very simple structure. An example can be found below:
     "Footprint elevation" : 0.15,
     "Output report" : 1,
     "LoD output" : [0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2],
-    "Ignore Proxy" : 1
+    "Default div": 1,
+    "Ignore proxy" : 1,
+    "Div objects": ["IfcFlowTerminal"]
 }
 ```
 
@@ -127,8 +129,10 @@ Optional:
 * "voxelSize""xy" is a double that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings. Default value = 0.5.
 * "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
 * "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
-* "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2 and 3.2. Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2
-* "Ignore Proxy" is an int/bool (either 0 or 1) tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
+* "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2 and 3.2. Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
+* "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
+* "Ignore proxy" is an int/bool (either 0 or 1) tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
+* "Div Objects" is an array including the additional space dividing objects (the Ifc types). Default value = emptry
 
 more options will be added in the future
 
