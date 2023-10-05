@@ -26,6 +26,7 @@ private:
 	bool make13_ = true;
 	bool make22_ = true;
 	bool make32_ = true;
+	bool makeV_ = true;
 
 	bool writeReport_ = true;
 
@@ -62,6 +63,8 @@ private:
 	bool timeLoD22IsS_ = false;
 	double timeLoD32_ = -1;
 	bool timeLoD32IsS_ = false;
+	double timeV_ = -1;
+	bool timeVIsS_ = false;
 
 	double timeProcess = -1;
 	double timeTotal = -1;
@@ -130,6 +133,7 @@ public:
 	bool makeLoD13() { return make13_; }
 	bool makeLoD22() { return make22_; }
 	bool makeLoD32() { return make32_; }
+	bool makeV() { return makeV_; }
 
 	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
 		"IFCSLAB",

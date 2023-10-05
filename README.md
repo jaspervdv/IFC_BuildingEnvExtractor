@@ -32,6 +32,10 @@ To construct the LoD 2.2 shell all the filtered roofing surfaces are extruded in
 
 The high level shells are extracted via a voxelizations system that is refined by ray casting. The voxilization process functions is inspired by the room growing process described by [Vaart et al., (2022)](#1). The starting point is a voxel that is outside of the building. Every object that intersects with the growing shape is stored. The surfaces of each found object are then filtered with the help of a ray casting system which casts rays from points on each surface to the center of the exterior voxels. The found objects are merged into the LoD3.2 shell
 
+### voxel shells (WIP)
+
+Additionally the tool will also be able to export a voxel shell based on the input model. This will be stored as LoD5.0. LoD5.0 has only been partially implemented in the current tool and does not yet output desired results.
+
 ## Input file requirements
 
 The algorithms in this tool have been developed to work with models created by people who may not be BIM experts. As a result, the tool has been developed to accept unconventional input files. However, To enlarge the chances of success, there are currently some requirements that should be followed whenever possible. The list with requirements is divided over the three different levels of processing that were mentioned before. The requirements per level build on top of the ones of lower levels. So for middle level shells the mentioned requirements + the lower detail requirements are recommended. The requirements within one level are listed in order of importance.
@@ -129,10 +133,10 @@ Optional:
 * "voxelSize""xy" is a double that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings. Default value = 0.5.
 * "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
 * "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
-* "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2 and 3.2. Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
+* "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
 * "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
 * "Ignore proxy" is an int/bool (either 0 or 1) tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
-* "Div Objects" is an array including the additional space dividing objects (the Ifc types). Default value = emptry
+* "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = emptry
 
 more options will be added in the future
 

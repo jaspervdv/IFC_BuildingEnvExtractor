@@ -24,6 +24,7 @@
 #include <HLRBRep_Algo.hxx>
 #include <HLRBRep_HLRToShape.hxx>
 #include <TopoDS.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
 
 #include <CJToKernel.h>
 
@@ -1956,10 +1957,9 @@ void CJGeoCreator::makeFootprint(helperCluster* cluster)
 
 	std::vector<int> exteriorLvlVoxelsIdx;
 
-	for (size_t i = 0; i < exteriorVoxelsIdx_.size(); i++)
+	for (size_t i = 0; i < VoxelLookup_.size(); i++)
 	{
-		int currentVoxelIdx = exteriorVoxelsIdx_[i];
-
+		int currentVoxelIdx =i;
 		if (currentVoxelIdx < lvl || currentVoxelIdx > topLvL) { continue; }
 
 		exteriorLvlVoxelsIdx.emplace_back(currentVoxelIdx);
@@ -1969,6 +1969,7 @@ void CJGeoCreator::makeFootprint(helperCluster* cluster)
 	std::vector<int> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, exteriorLvlVoxelsIdx);
+
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
 	// create unique index
@@ -2798,7 +2799,7 @@ std::vector<int> CJGeoCreator::getNeighbours(int voxelIndx, bool connect6)
 	if (zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)); }
 	if (zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_ )); }
 
-	if (!connect6)
+	if (connect6)
 	{
 		return neightbours;
 	}
@@ -3515,8 +3516,78 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helperCluster* cluster, CJT
 		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i].Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+	return geoObjectList;
+}
 
+std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helperCluster* cluster, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+{
+	std::cout << "- Computing LoD 5.0 Model" << std::endl;
+	auto startTime = std::chrono::high_resolution_clock::now();
+	BRepBuilderAPI_Sewing brepSewer;
 
+	//TODO: group the voxels can be done after cleaning up the voxel growing code
+
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		voxel currentVoxel = *i->second;
+
+		if (!currentVoxel.getIsIntersecting()) { continue; }
+
+		std::vector<int> neighbourVoxelIdxList = getNeighbours(i->first, true);
+
+		if (neighbourVoxelIdxList.size() != 6) { std::cout << "t" << std::endl; continue; } //TODO: something with this
+
+		std::vector<TopoDS_Edge> edgeList;
+
+		for (size_t j = 0; j < neighbourVoxelIdxList.size(); j++) // get the valid faces of the voxels
+		{
+			int neighbourVoxelIdx = neighbourVoxelIdxList[j];
+
+			if (VoxelLookup_[neighbourVoxelIdx]->getIsInside() || VoxelLookup_[neighbourVoxelIdx]->getIsIntersecting()) { continue; }
+
+			std::vector<int> face;
+			if (j == 0) { face = currentVoxel.getVoxelFaces()[3]; }
+			if (j == 1) { face = currentVoxel.getVoxelFaces()[1]; }
+			if (j == 2) { face = currentVoxel.getVoxelFaces()[0]; }
+			if (j == 3) { face = currentVoxel.getVoxelFaces()[2]; }
+			if (j == 4) { face = currentVoxel.getVoxelFaces()[5]; }
+			if (j == 5) { face = currentVoxel.getVoxelFaces()[4]; }
+
+			std::vector<gp_Pnt> cornerPoints = currentVoxel.getCornerPoints(planeRotation_);
+
+			TopoDS_Face voxelFace = BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(
+				BRepBuilderAPI_MakeEdge(cornerPoints[face[0]], cornerPoints[face[1]]),
+				BRepBuilderAPI_MakeEdge(cornerPoints[face[1]], cornerPoints[face[2]]),
+				BRepBuilderAPI_MakeEdge(cornerPoints[face[2]], cornerPoints[face[3]]),
+				BRepBuilderAPI_MakeEdge(cornerPoints[face[3]], cornerPoints[face[0]])
+			));
+
+			brepSewer.Add(voxelFace);
+		}
+	}
+
+	brepSewer.Perform();
+
+	BRep_Builder brepBuilder;
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid voxelSolid;
+	brepBuilder.MakeSolid(voxelSolid);
+
+	try
+	{
+		brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
+	}
+	catch (Standard_Failure& e)
+	{
+		std::cout << "\t[WARNING] Unable to create voxelized shape, multiple building models not (yet) supported" << std::endl;
+		return {};
+	}
+
+	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
+	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "5.0");
+	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
@@ -4093,8 +4164,10 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 		buffer.clear();
 		buffer = tempBuffer;
 	}
-	if (!isOutSide)
+	if (isOutSide)
 	{
+		std::vector<int> exterior;
+
 		for (size_t k = 0; k < totalRoom.size(); k++)
 		{
 			int currentIdx = totalRoom[k];
@@ -4102,11 +4175,12 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 			if (!currentBoxel->getIsIntersecting())
 			{
 				currentBoxel->setOutside();
+				exterior.emplace_back(currentIdx);
 			}
 		}
-		return{};
+		return exterior;
 	}
-	return totalRoom;
+	return {};
 }
 
 voxel::voxel(BoostPoint3D center, double sizeXY, double sizeZ)

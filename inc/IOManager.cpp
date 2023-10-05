@@ -478,6 +478,7 @@ bool IOManager::getJSONValues()
 		make13_ = false;
 		make22_ = false;
 		make32_ = false;
+		makeV_ = false;
 
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
@@ -488,6 +489,7 @@ bool IOManager::getJSONValues()
 			else if (lodList[i] == 1.3) { make13_ = true; }
 			else if (lodList[i] == 2.2) { make22_ = true; }
 			else if (lodList[i] == 3.2) { make32_ = true; }
+			else if (lodList[i] == 5.0) { makeV_ = true; }
 		}
 	}
 
@@ -656,6 +658,7 @@ std::string IOManager::getLoDEnabled()
 	if (make13_) { summaryString += ", 1.3"; }
 	if (make22_) { summaryString += ", 2.2"; }
 	if (make32_) { summaryString += ", 3.2"; }
+	if (makeV_) { summaryString += ", 5.0 (V)"; }
 
 	summaryString.erase(0, 2);
 
@@ -821,7 +824,7 @@ bool IOManager::run()
 	std::map<std::string, std::string> buildingAttributes = hCluster_.getHelper(0)->getBuildingInformation();
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject.addAttribute(iter->first, iter->second); }
 
-	// make the geometry
+	// make the geometrycreator and voxelgrid
 	CJGeoCreator geoCreator(&hCluster_, voxelSize_);
 
 	try
@@ -926,6 +929,16 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD3.2 creation failed"); }
 	}
+	if (makeV())
+	{
+		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(&helpCluster(), &collection, &kernel, 1);
+		for (size_t i = 0; i < geoV.size(); i++) { cityObject.addGeoObject(*geoV[i]); }
+		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	}
+
+	//TODO: bake voxelshape
+
 	collection.addCityObject(cityObject);
 	collection.CleanVertices();
 	cityCollection_ = collection;
@@ -950,6 +963,7 @@ bool IOManager::write()
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);
 	addTimeToJSON(&timeReport, "LoD2.2 generation", timeLoD22_);
 	addTimeToJSON(&timeReport, "LoD3.2 generation", timeLoD32_);
+	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
 	addTimeToJSON(&timeReport, "Total Processing",
 		timeInternalizing_ +
 		timeLoD00_ +
@@ -958,7 +972,8 @@ bool IOManager::write()
 		timeLoD12_ +
 		timeLoD13_ +
 		timeLoD22_ +
-		timeLoD32_
+		timeLoD32_ +
+		timeV_
 	);
 
 	report["Duration"] = timeReport;

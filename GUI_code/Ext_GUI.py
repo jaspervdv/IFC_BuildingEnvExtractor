@@ -44,6 +44,8 @@ def runCode(input_path,
             make_lod13,
             make_lod22,
             make_lod32,
+            make_lod50,
+            make_lod51,
             bool_igoreproxy,
             bool_useDefault,
             bool_customEnabled,
@@ -129,6 +131,10 @@ def runCode(input_path,
         lod_list.append(2.2)
     if (make_lod32):
         lod_list.append(3.2)
+    if (make_lod50):
+        lod_list.append(5.0)
+    if (make_lod51):
+        lod_list.append(5.1)
 
     json_dictionary["LoD output"] = lod_list
 
@@ -300,7 +306,9 @@ toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    variable=bool_lod02,
                                    command= lambda : [toggleEnableEntry(entry_footprint, {bool_lod02.get()}),
                                                       toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                          bool_lod32.get()])]
+                                                                                          bool_lod32.get(),
+                                                                                          bool_lod50.get(),
+                                                                                          bool_lod51.get()])]
                                    )
 bool_lod10 = tkinter.IntVar(value=1)
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings1, text="LoD1.0", variable=bool_lod10)
@@ -315,8 +323,31 @@ toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
                                    variable=bool_lod32,
                                    command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                          bool_lod32.get()])
+                                                                                         bool_lod32.get(),
+                                                                                         bool_lod50.get(),
+                                                                                         bool_lod51.get()])
                                    )
+bool_lod50 = tkinter.IntVar(value=0)
+toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
+                                   text="LoDV.0",
+                                   variable=bool_lod50,
+                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
+                                                                                         bool_lod32.get(),
+                                                                                         bool_lod50.get(),
+                                                                                         bool_lod51.get()
+                                                                                         ])
+                                   )
+bool_lod51 = tkinter.IntVar(value=0)
+toggle_makelod51 = ttk.Checkbutton(frame_lod_settings3,
+                                   text="LoDV.1",
+                                   variable=bool_lod51,
+                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
+                                                                                         bool_lod32.get(),
+                                                                                         bool_lod50.get(),
+                                                                                         bool_lod51.get()
+                                                                                         ])
+                                   )
+
 
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)
@@ -325,6 +356,8 @@ toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
+toggle_makelod50.pack(side=tkinter.LEFT)
+toggle_makelod51.pack(side=tkinter.LEFT)
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
 separator2.pack(fill='x', pady=10)
@@ -428,6 +461,8 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     bool_lod13.get(),
     bool_lod22.get(),
     bool_lod32.get(),
+    bool_lod50.get(),
+    bool_lod51.get(),
     bool_igoreproxy.get(),
     bool_useDefault.get(),
     bool_enableCustom.get(),
