@@ -78,7 +78,8 @@ def runCode(input_path,
 
     # check if an LoD output is selected
     if(not make_lod00 and not make_lod02 and not make_lod10 and not
-        make_lod12 and not make_lod13 and not make_lod22 and not make_lod32):
+        make_lod12 and not make_lod13 and not make_lod22 and not
+        make_lod32 and not make_lod50 and not make_lod51):
         tkinter.messagebox.showerror("Settings Error",  "Error: no LoD output selected")
         return
 

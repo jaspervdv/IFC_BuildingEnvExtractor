@@ -200,14 +200,13 @@ TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire) {
 
 bg::model::box <BoostPoint3D> createBBox(TopoDS_Shape shape) {
 
-	double buffer = 0.05;
+	double buffer = 0.5;
 	Bnd_Box boundingBox;
 	BRepBndLib::Add(shape, boundingBox);
 
 	// Step 3: Get the bounds of the bounding box.
 	Standard_Real minX, minY, minZ, maxX, maxY, maxZ;
 	boundingBox.Get(minX, minY, minZ, maxX, maxY, maxZ);
-
 	return  bg::model::box < BoostPoint3D >(
 		BoostPoint3D(minX - buffer, minY - buffer, minZ - buffer),
 		BoostPoint3D(maxX + buffer, maxY + buffer, maxZ + buffer)
@@ -215,7 +214,23 @@ bg::model::box <BoostPoint3D> createBBox(TopoDS_Shape shape) {
 }
 
 
+bg::model::box <BoostPoint3D> createBBox(std::vector<TopoDS_Face> shape) {
 
+	double buffer = 0.5;
+	Bnd_Box boundingBox;
+	for (size_t i = 0; i < shape.size(); i++)
+	{
+		BRepBndLib::Add(shape[i], boundingBox);
+	}
+
+	// Step 3: Get the bounds of the bounding box.
+	Standard_Real minX, minY, minZ, maxX, maxY, maxZ;
+	boundingBox.Get(minX, minY, minZ, maxX, maxY, maxZ);
+	return  bg::model::box < BoostPoint3D >(
+		BoostPoint3D(minX - buffer, minY - buffer, minZ - buffer),
+		BoostPoint3D(maxX + buffer, maxY + buffer, maxZ + buffer)
+		);
+}
 
 bg::model::box <BoostPoint3D> createBBox(gp_Pnt p1, gp_Pnt p2) {
 
@@ -2420,102 +2435,164 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 
 	if (surfaceList.size() != normalList.size()) { return surfaceList; }
 
-	std::vector<TopoDS_Face> cleanedFaceList;
-
-	std::vector<int> evalList(surfaceList.size());
+	// make spatial index
+	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
 	for (size_t i = 0; i < surfaceList.size(); i++)
 	{
-		if (evalList[i] == 1) { continue; }
-		evalList[i] = 1;
-
-		std::vector<TopoDS_Face> mergeList;
-		mergeList.emplace_back(surfaceList[i]);
-
 		TopoDS_Face currentFace = surfaceList[i];
-		gp_Dir currentdir = normalList[i];
-		int count = 0;
+		bg::model::box <BoostPoint3D> bbox = createBBox(currentFace);
+		shapeIdx.insert(std::make_pair(bbox, i));
+	}
 
-		while (true)
+	std::vector<TopoDS_Face> cleanedFaceList;
+
+	std::vector<int> mergedSurfaceIdxList = {0};
+	std::vector<int> tempMergeSurfaceIdxList;
+	std::vector<int> evalList(surfaceList.size());
+
+	while (true)
+	{
+		for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
 		{
-			for (size_t j = 0; j < surfaceList.size(); j++) //TODO: step
+			int currentIdx = mergedSurfaceIdxList[i];
+
+			if (evalList[currentIdx] == 1) { continue; }
+			evalList[currentIdx] = 1;
+
+			TopoDS_Face currentFace = surfaceList[currentIdx];
+			gp_Dir currentdir = normalList[currentIdx];
+
+			Bnd_Box boundingBox;
+			BRepBndLib::Add(currentFace, boundingBox);
+			double buffer = 0.05;
+			// Step 3: Get the bounds of the bounding box.
+			Standard_Real minX, minY, minZ, maxX, maxY, maxZ;
+			boundingBox.Get(minX, minY, minZ, maxX, maxY, maxZ);
+			bg::model::box < BoostPoint3D > cummulativeBox(
+				BoostPoint3D(minX - buffer, minY - buffer, minZ - buffer),
+				BoostPoint3D(maxX + buffer, maxY + buffer, maxZ + buffer)
+			);
+
+			std::vector<Value> qResult;
+			qResult.clear();
+			shapeIdx.query(bgi::intersects(
+				cummulativeBox), std::back_inserter(qResult));
+			for (size_t j = 0; j < qResult.size(); j++)
 			{
-				if (i == j) { continue; }
-				if (evalList[j] == 1) { continue; }
+				int otherFaceIdx = qResult[j].second;
+				TopoDS_Face otherFace = surfaceList[otherFaceIdx];
+				gp_Dir otherdir = normalList[otherFaceIdx];
 
-				TopoDS_Face otherFace = surfaceList[j];
-				gp_Dir otherdir = normalList[j];
-
+				if (currentIdx == otherFaceIdx) { continue; }
+				if (evalList[otherFaceIdx] == 1) { continue; }
 				if (!currentdir.IsParallel(otherdir, 1e-6)) { continue; }
-
 				bool touching = false;
-				for (size_t k = 0; k < mergeList.size(); k++)
-				{
-					for (TopExp_Explorer edgeExp(mergeList[k], TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
-						TopoDS_Edge edge1 = TopoDS::Edge(edgeExp.Current());
-						gp_Pnt currentStartpoint = getFirstPointShape(edge1);
-						gp_Pnt currentEndpoint = getLastPointShape(edge1);
 
-						// loop through the edges of face2
-						for (TopExp_Explorer edgeExp2(otherFace, TopAbs_EDGE); edgeExp2.More(); edgeExp2.Next()) {
-							TopoDS_Edge edge2 = TopoDS::Edge(edgeExp2.Current());
-							gp_Pnt otherStartpoint = getFirstPointShape(edge2);
-							gp_Pnt otherEndpoint = getLastPointShape(edge2);
+				for (TopExp_Explorer edgeExp(currentFace, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
+					TopoDS_Edge edge1 = TopoDS::Edge(edgeExp.Current());
+					gp_Pnt currentStartpoint = getFirstPointShape(edge1);
+					gp_Pnt currentEndpoint = getLastPointShape(edge1);
 
-							// check if the edges have the same vertices
-							if (currentStartpoint.IsEqual(otherEndpoint, 1e-6) && currentEndpoint.IsEqual(otherStartpoint, 1e-6) ||
-								currentEndpoint.IsEqual(otherEndpoint, 1e-6) && currentStartpoint.IsEqual(otherStartpoint, 1e-6)) {
-								touching = true;
-								break;
-							}
+					// loop through the edges of face2
+					for (TopExp_Explorer edgeExp2(otherFace, TopAbs_EDGE); edgeExp2.More(); edgeExp2.Next()) {
+						TopoDS_Edge edge2 = TopoDS::Edge(edgeExp2.Current());
+						gp_Pnt otherStartpoint = getFirstPointShape(edge2);
+						gp_Pnt otherEndpoint = getLastPointShape(edge2);
 
-							if (!evalOverlap) { continue; }
-
-							BRepExtrema_DistShapeShape distanceWireCalc(edge1, edge2);
-
-							if (distanceWireCalc.Value() < 0.001)
-							{
-								touching = true;
-								break;
-							}
+						// check if the edges have the same vertices
+						if (currentStartpoint.IsEqual(otherEndpoint, 1e-6) && currentEndpoint.IsEqual(otherStartpoint, 1e-6) ||
+							currentEndpoint.IsEqual(otherEndpoint, 1e-6) && currentStartpoint.IsEqual(otherStartpoint, 1e-6)) {
+							touching = true;
+							break;
 						}
 
-						if (touching) { break; }
+						if (!evalOverlap) { continue; }
+
+						BRepExtrema_DistShapeShape distanceWireCalc(edge1, edge2);
+
+						if (distanceWireCalc.Value() < 0.001)
+						{
+							touching = true;
+							break;
+						}
 					}
 					if (touching) { break; }
 				}
-
-				if (touching) {
-					evalList[j] = 1;
-					mergeList.emplace_back(surfaceList[j]);
-				}
-			}
-
-			if (mergeList.size() == 1)
-			{
-				cleanedFaceList.emplace_back(mergeList[0]);
-				break;
-			}
-			else
-			{
-				if (count != mergeList.size())
+				if (touching)
 				{
-					count = mergeList.size();
-				}
-				else {
-					TopoDS_Face mergedFace = mergeFaces(mergeList);
-					if (mergedFace.IsNull())
+					bool isDub = false;
+					for (size_t k = 0; k < mergedSurfaceIdxList.size(); k++)
 					{
-						for (size_t i = 0; i < mergeList.size(); i++) { cleanedFaceList.emplace_back(mergeList[i]); }
+						if (mergedSurfaceIdxList[k] == otherFaceIdx)
+						{
+							isDub = true;
+							break;
+						}
 					}
-					cleanedFaceList.emplace_back(mergedFace);
-					break;
+
+					if (!isDub)
+					{
+						for (size_t k = 0; k < tempMergeSurfaceIdxList.size(); k++)
+						{
+							if (tempMergeSurfaceIdxList[k] == otherFaceIdx)
+							{
+								isDub = true;
+								break;
+							}
+						}
+					}
+
+
+					if (!isDub)
+					{
+						tempMergeSurfaceIdxList.emplace_back(otherFaceIdx);
+						continue;
+					}
 				}
 			}
 		}
+		if (tempMergeSurfaceIdxList.size() == 0)
+		{
+			if (mergedSurfaceIdxList.size() == 1)
+			{
+				cleanedFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[0]]);
+			}
+			else
+			{
+				std::vector<TopoDS_Face> tempFaceList;
+				for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
+				{
+					tempFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[i]]);
+				}
+				TopoDS_Face mergedFace = mergeFaces(tempFaceList);
+				cleanedFaceList.emplace_back(mergedFace);
+			}
+
+			bool newSetFound = false;
+			for (size_t i = 0; i < surfaceList.size(); i++)
+			{
+				if (evalList[i] == 0)
+				{
+					mergedSurfaceIdxList = { (int) i };
+					tempMergeSurfaceIdxList.clear();
+					newSetFound = true;
+					break;
+				}
+			}
+			if (newSetFound)
+			{
+				continue;
+			}
+			break;
+		}
+
+		for (size_t i = 0; i < tempMergeSurfaceIdxList.size(); i++)
+		{
+			mergedSurfaceIdxList.emplace_back(tempMergeSurfaceIdxList[i]);
+		}
+		tempMergeSurfaceIdxList.clear();
 	}
-
 	return cleanedFaceList;
-
 }
 
 
@@ -3536,7 +3613,10 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helperCluster* cluster, CJT::Ci
 
 		std::vector<int> neighbourVoxelIdxList = getNeighbours(i->first, true);
 
-		if (neighbourVoxelIdxList.size() != 6) { std::cout << "t" << std::endl; continue; } //TODO: something with this
+		if (neighbourVoxelIdxList.size() != 6) { 
+			std::cout << "\t[WARNING] Unable to create voxelized shape, encountered complex case" << std::endl;
+			return {};
+		} //TODO: something with this
 
 		std::vector<TopoDS_Edge> edgeList;
 
@@ -3585,8 +3665,10 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helperCluster* cluster, CJT::Ci
 		return {};
 	}
 
+	auto test = simplefySolid(voxelSolid);
+
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
-	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "5.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
