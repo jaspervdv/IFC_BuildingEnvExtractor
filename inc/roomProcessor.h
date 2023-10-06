@@ -144,7 +144,7 @@ private:
 	bool isIntersecting_ = false;
 	bool hasEvalIntt = false;
 	std::vector<Value> internalProducts;
-
+	int buildingNum_ = -1;
 	bool isInside = true;
 	std::vector<int> roomnums_; 
 	BoostPoint3D center_;
@@ -170,6 +170,8 @@ public:
 
 	void addRoomNumber(int num) { roomnums_.emplace_back(num); }
 
+	void setBuildingNum(int num) { buildingNum_ = num; }
+
 	void setOutside() { isInside = false; }
 
 	std::vector<int> getRoomNumbers() { return roomnums_; }
@@ -187,6 +189,8 @@ public:
 	bool linearEqIntersection(std::vector<gp_Pnt> productPoints, std::vector<gp_Pnt> voxelPoints);
 
 	bool getIsIntersecting() { return isIntersecting_; }
+
+	int getBuildingNum() { return buildingNum_; }
 
 	void isIntersecting() { isIntersecting_ = true; }
 
@@ -263,6 +267,8 @@ private:
 
 	// create a group of voxels representing a rough room
 	std::vector<int> growExterior(int startIndx, int roomnum, helperCluster* cluster);
+
+	void markVoxelBuilding(int startIndx, int roomnum);
 
 	// generates the faces of the voxel that are needed to create a rough room shape
 	std::vector<TopoDS_Face> getPartialFaces(std::vector<int> roomIndx, int voxelIndx);

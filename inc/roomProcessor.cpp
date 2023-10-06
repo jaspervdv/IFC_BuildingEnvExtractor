@@ -200,7 +200,7 @@ TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire) {
 
 bg::model::box <BoostPoint3D> createBBox(TopoDS_Shape shape) {
 
-	double buffer = 0.5;
+	double buffer = 0.05;
 	Bnd_Box boundingBox;
 	BRepBndLib::Add(shape, boundingBox);
 
@@ -216,7 +216,7 @@ bg::model::box <BoostPoint3D> createBBox(TopoDS_Shape shape) {
 
 bg::model::box <BoostPoint3D> createBBox(std::vector<TopoDS_Face> shape) {
 
-	double buffer = 0.5;
+	double buffer = 0.05;
 	Bnd_Box boundingBox;
 	for (size_t i = 0; i < shape.size(); i++)
 	{
@@ -3601,16 +3601,26 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helperCluster* cluster, CJT::Ci
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
-	BRepBuilderAPI_Sewing brepSewer;
 
-	//TODO: group the voxels can be done after cleaning up the voxel growing code
+	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
+	std::vector<std::vector<TopoDS_Face>> pairedFaceList;
 
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
 		voxel currentVoxel = *i->second;
 
 		if (!currentVoxel.getIsIntersecting()) { continue; }
+		if (!currentVoxel.getBuildingNum() == -1) { continue; }
 
+		int currentBuildingNum = currentVoxel.getBuildingNum();
+		if (pairedFaceList.size() < currentBuildingNum + 1)
+		{
+			for (size_t j = 0; j < currentBuildingNum + 1 - pairedFaceList.size(); j++)
+			{
+				std::vector<TopoDS_Face> tempList;
+				pairedFaceList.emplace_back(tempList);
+			}
+		}
 		std::vector<int> neighbourVoxelIdxList = getNeighbours(i->first, true);
 
 		if (neighbourVoxelIdxList.size() != 6) { 
@@ -3643,33 +3653,30 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helperCluster* cluster, CJT::Ci
 				BRepBuilderAPI_MakeEdge(cornerPoints[face[3]], cornerPoints[face[0]])
 			));
 
-			brepSewer.Add(voxelFace);
+			pairedFaceList[currentBuildingNum].emplace_back(voxelFace);
 		}
 	}
 
-	brepSewer.Perform();
-
-	BRep_Builder brepBuilder;
-	TopoDS_Shell shell;
-	brepBuilder.MakeShell(shell);
-	TopoDS_Solid voxelSolid;
-	brepBuilder.MakeSolid(voxelSolid);
-
-	try
+	for (size_t i = 0; i < pairedFaceList.size(); i++)
 	{
+		BRepBuilderAPI_Sewing brepSewer;
+		for (size_t j = 0; j < pairedFaceList[i].size(); j++)
+		{
+			brepSewer.Add(pairedFaceList[i][j]);
+		}
+
+		brepSewer.Perform();
+		BRep_Builder brepBuilder;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid voxelSolid;
+		brepBuilder.MakeSolid(voxelSolid);
 		brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
-	}
-	catch (Standard_Failure& e)
-	{
-		std::cout << "\t[WARNING] Unable to create voxelized shape, multiple building models not (yet) supported" << std::endl;
-		return {};
-	}
+		auto test = simplefySolid(voxelSolid);
 
-	auto test = simplefySolid(voxelSolid);
-
-	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
-	CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "5.0");
-	geoObjectList.emplace_back(geoObject);
+		CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(cluster->getHelper(0)->getObjectTranslation().Inverted()), "5.0");
+		geoObjectList.emplace_back(geoObject);
+	}
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
@@ -4129,7 +4136,20 @@ CJGeoCreator::CJGeoCreator(helperCluster* cluster, double vSize)
 		}
 	}
 	std::cout << std::endl;
-	std::cout << "\tExterior space succesfully grown" << std::endl << std::endl;
+	std::cout << "\tExterior space succesfully grown" << std::endl;
+
+	std::cout << "- Pair voxels" << std::endl;
+	int buildingNum = 0;
+	for (int i = 0; i < totalVoxels_; i++)
+	{
+		if (VoxelLookup_[i]->getIsIntersecting() && VoxelLookup_[i]->getBuildingNum() == -1)
+		{
+			markVoxelBuilding(i, buildingNum);
+			buildingNum++;
+		}
+	}
+	std::cout << "\tVoxel pairing succesful" << std::endl << std::endl;
+
 }
 	
 std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCluster* cluster)
@@ -4263,6 +4283,44 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helperCl
 		return exterior;
 	}
 	return {};
+}
+
+void CJGeoCreator::markVoxelBuilding(int startIndx, int buildnum) {
+
+	VoxelLookup_[startIndx]->setBuildingNum(buildnum);
+	std::vector<int> buffer = { startIndx };
+	std::vector<int> potentialBuildingVoxels;
+
+	while (true)
+	{
+		for (size_t i = 0; i < buffer.size(); i++)
+		{
+			int currentIdx = buffer[i];
+			voxel* currentVoxel = VoxelLookup_[currentIdx];
+
+			std::vector<int> neighbours = getNeighbours(currentIdx);
+
+			for (size_t j = 0; j < neighbours.size(); j++)
+			{
+				int otherIdx = neighbours[j];
+				voxel* otherVoxel = VoxelLookup_[otherIdx];
+
+				if (!otherVoxel->getIsIntersecting()) { continue; }
+				if (otherVoxel->getBuildingNum() != -1) { continue; }
+
+				otherVoxel->setBuildingNum(buildnum);
+				potentialBuildingVoxels.emplace_back(otherIdx);
+			}
+		}
+
+		if (potentialBuildingVoxels.size() == 0)
+		{
+			break;
+		}
+		buffer = potentialBuildingVoxels;
+		potentialBuildingVoxels.clear();
+	}
+	return;
 }
 
 voxel::voxel(BoostPoint3D center, double sizeXY, double sizeZ)
