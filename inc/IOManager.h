@@ -1,5 +1,5 @@
 #include "helper.h"
-#include "roomProcessor.h"
+#include "cjCreator.h"
 
 #include <unordered_set>
 #include <string>
@@ -41,7 +41,7 @@ private:
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;
 
-	helperCluster hCluster_;
+	helper internalHelper_;
 
 	CJT::CityCollection cityCollection_;
 
@@ -124,7 +124,7 @@ public:
 
 	std::string getOutputPath() { return outputFolderPath_; }
 
-	helperCluster helpCluster() { return hCluster_; }
+	helper getHelper() { return internalHelper_; }
 
 	bool makeLoD00() { return make00_; }
 	bool makeLoD02() { return make02_; }

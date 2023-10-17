@@ -6,12 +6,7 @@
 #define IfcSchema Ifc2x3
 #endif // USE_IFC4
 
-// Boost includes
-#include <boost/algorithm/string.hpp>
-#include <boost/geometry.hpp>
-#include <boost/geometry/index/rtree.hpp>
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
+#include "surfaceCollection.h"
 
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
@@ -26,363 +21,129 @@
 #include <gp_Vec.hxx>
 #include <TopoDS.hxx>
 
-#include <unordered_set>
-
 #include <CJT.h>
 #include <CJToKernel.h>
 
 #include <chrono>
+#include <unordered_set>
 
-// Forward Decleration helper class
-class helper;
-struct roomObject;
 
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 typedef bg::model::point<double, 3, bg::cs::cartesian> BoostPoint3D;
 typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
-typedef std::tuple<IfcSchema::IfcProduct*, std::vector<std::vector<gp_Pnt>>, TopoDS_Shape , bool, TopoDS_Shape> LookupValue;
-typedef std::tuple<IfcSchema::IfcProduct*,std::vector<gp_Pnt>, std::vector<roomObject*>*> ConnectLookupValue;
-typedef std::tuple<IfcSchema::IfcSpace*, TopoDS_Shape> roomLookupValue;
+
 
 #ifndef HELPER_HELPER_H
 #define HELPER_HELPER_H
 
-void addTimeToJSON(nlohmann::json* j, std::string valueName, std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
-
 // helper functions that can be utilised everywhere
-gp_Pnt rotatePointWorld(gp_Pnt p, double angle);
-BoostPoint3D rotatePointWorld(BoostPoint3D p, double angle);
+struct helperFunctions{
+	/// Output shape to step file (for development only)
+	static void WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition);
+	static void WriteToSTEP(const TopoDS_Shape& shape, const std::string& addition);
 
-void WriteToSTEP(TopoDS_Solid shape, std::string addition);
-void WriteToSTEP(TopoDS_Shape shape, std::string addition);
+	/// Print point to console (for development only)
+	static void printPoint(const gp_Pnt& p);
+	static void printPoint(const gp_Pnt2d& p);
+	static void printPoint(const BoostPoint3D& p);
+	static void printPoint(const gp_Vec& p);
+	static void printPoint(const gp_Vec2d& p);
 
-void printPoint(gp_Pnt p);
-void printPoint(gp_Pnt2d p);
-void printPoint(BoostPoint3D p);
-void printPoint(gp_Vec p);
-void printPoint(gp_Vec2d p);
+	/// Print points of the faces to console (for development only)
+	static void printFaces(const TopoDS_Shape& shape);
 
-void printFaces(TopoDS_Shape shape);
+	///	Rotate OpenCascade point around 0,0,0
+	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);
+	///	Rotate Boost point around 0,0,0
+	static BoostPoint3D rotatePointWorld(const BoostPoint3D& p, double angle);
 
-BoostPoint3D Point3DOTB(gp_Pnt oP);
+	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, double angle);
 
-gp_Pnt Point3DBTO(BoostPoint3D oP);
+	static std::tuple<gp_Pnt, gp_Pnt, double> rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, double angle, double secondAngle = 0);
 
-gp_Pnt getLowestPoint(TopoDS_Shape shape, bool areaFilter);
-gp_Pnt getHighestPoint(TopoDS_Shape shape);
-gp_Pnt getPointOnFace(TopoDS_Face theFace);
-TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
-gp_Pnt& getFirstPointShape(const TopoDS_Shape& shape);
-gp_Pnt& getLastPointShape(const TopoDS_Shape& shape);
-gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
+	/// Convert OpenCascade point to Boost point
+	static BoostPoint3D Point3DOTB(const gp_Pnt& oP);
 
-std::vector<TopoDS_Face> getRoomFootprint(TopoDS_Shape shape);
+	/// Conver Boost point to OpenCascade point
+	static gp_Pnt Point3DBTO(const BoostPoint3D& oP);
 
-std::vector<IfcSchema::IfcProduct*> getNestedProducts(IfcSchema::IfcProduct* product);
+	/// Get the lowest point of a shape. If areaFilter = true the lowest point of the largest face is taken
+	static gp_Pnt getLowestPoint(const TopoDS_Shape& shape, bool areaFilter);
+	/// Get the highest point of a shape
+	static gp_Pnt getHighestPoint(const TopoDS_Shape& shape);
+	/// get a random point on face
+	static gp_Pnt getPointOnFace(const TopoDS_Face& theFace);
+	/// make a reversed copy of the input wire
+	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
+	/// get first point on shape (used for wires and edges)
+	static gp_Pnt getFirstPointShape(const TopoDS_Shape& shape);
+	/// get last point on shape (used for wires and edges)
+	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
+	/// compute the face normal 
+	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
 
-bool testSolid(TopoDS_Shape shape);
+	/// get the products nested in this object
+	static std::vector<IfcSchema::IfcProduct*> getNestedProducts(IfcSchema::IfcProduct* product);
 
-std::vector<std::vector<gp_Pnt>> triangulateShape(TopoDS_Shape* shape);
+	/// get a nested list represeting the triangulation of an object
+	static std::vector<std::vector<gp_Pnt>> triangulateShape(const TopoDS_Shape& shape);
 
-double tVolume(gp_Pnt p, const std::vector<gp_Pnt> vertices);
-bool triangleIntersecting(const std::vector<gp_Pnt> line, const std::vector<gp_Pnt> triangle);
+	/// get the signed volume
+	static double tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices);
 
-std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> checkConnection(TopoDS_Shape roomShape, IfcSchema::IfcSpace* room, std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList);
-std::vector<IfcSchema::IfcRelSpaceBoundary*> makeSpaceBoundary(IfcSchema::IfcSpace* room, std::vector<std::tuple<IfcSchema::IfcProduct*, TopoDS_Shape>> qProductList);
+	/// check if line intersects triangle
+	static bool triangleIntersecting(const std::vector<gp_Pnt>& line, const std::vector<gp_Pnt>& triangle);
 
-// finds the ifc schema that is used in the supplied file
-bool findSchema(std::string path, bool quiet = false);
+	/// check is boost box has a volume
+	static bool hasVolume(const bg::model::box <BoostPoint3D>& box);
 
+	/// check if value is in vector T1
+	template<typename T1, typename T2>
+	static bool isInList(const T1& list, const T2& value);
 
-class helperCluster
-{
-private:
-	gp_Pnt lllPoint_;
-	gp_Pnt urrPoint_;
-	double originRot_;
-	gp_Trsf objectTranslation_;
+	/// get the average height of a shape, computed by taking the average height of all the object's vertices
+	static double getAvFaceHeight(const TopoDS_Face& face);
 
-	bool hasBbox_ = false;
+	/// get the height of the heighest vertex
+	static double getTopFaceHeight(const TopoDS_Face& face);
 
-	std::vector<helper> helperList;
-	int size_ = 0;
+	/// gets the direction that the edge is orentated towards
+	static gp_Vec helperFunctions::getDirEdge(const TopoDS_Edge& edge);
 
-	double hallwayNum_ = 5;
-	double minRoom_ = 2;
-	double minArea_ = 32;
+	/// merges the input wires in the correct order
+	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);
 
-	std::vector<std::string> objectList_;
+	/// attempts to close an open wire
+	static TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire);
 
-public:
-	//std::vector<helper*> getHelper() const { return helperList; }
+	/// construct a bbox from a shape or list of shapes
+	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
+	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Face>& shape);
+	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2);
 
-	gp_Pnt getLllPoint() const { return lllPoint_; }
-	gp_Pnt getUrrPoint() const { return urrPoint_; }
-	double getDirection() const { return originRot_; }
+	/// get the intersection between two linear lines, returns 0 if not intersection
+	static gp_Pnt* linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);
+	static gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2, bool projected, double buffer = 0.01);
+	static gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
 
-	int getSize() const { return size_; }
+	/// Check if surface is completely overlapped
+	static bool isOverlappingCompletely(SurfaceGroup* evalFace, SurfaceGroup* otherFace);
 
-	void internaliseData();
-
-	bool hasBbox() const { return hasBbox_; }
-
-	void appendHelper(std::string path);
-	void appendHelper(helper data);
-
-	void makeBbox();
-
-	helper* getHelper(int i) { return &helperList[i]; }
-	//std::vector<helper*> getHelpers() { return helperList; }
-
-	void setUseProxy(bool b = true);
-
-	void setApRules(int hallway, int minRooms, double minArea) { hallwayNum_ = hallway; minRoom_ = minRooms; minArea_ = minArea; }
-
-	int getHallwayNum() { return hallwayNum_; }
-	int getMinRoomNum() { return minRoom_; }
-	int getMinArea() { return minArea_; }
-
-	std::list<std::string> getObjectList();
-
+	template<typename T>
+	static bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*> facePool, T shapeIdx)
+	{
+		std::vector<Value> qResult;
+		shapeIdx.query(bgi::intersects(
+			bg::model::box <BoostPoint3D>(
+				createBBox(evalFace->getFace())
+				)), std::back_inserter(qResult));
+		for (size_t i = 0; i < qResult.size(); i++)
+		{
+			if (isOverlappingCompletely(evalFace, facePool[qResult[i].second])) { return true; }
+		}
+		return false;
+	}
 };
-
-class helper
-{
-private:
-
-	// The unit multipliers found
-	double length_ = 0;
-	double area_ = 0;
-	double volume_ = 0;
-
-	double objectCount = 0;
-
-	double footprintEvalLvl_ = -0.15;
-
-	bool hasFloors = false;
-	bool isConstruct = false;
-	bool isPartial = false;
-	bool hasGeo = false;
-	bool hasRooms = false;
-
-	double maxProxyP = 0.3;
-	double proxyCount = 0;
-	bool hasProxy = false;
-	bool hasLotProxy = false;
-
-	gp_Pnt lllPoint_;
-	gp_Pnt urrPoint_;
-	gp_Trsf objectTranslation_;
-
-	// The needed rotation for the model to be aligned to the world axis!
-	double originRot_;
-
-	std::string path_;
-	std::string fileName_;
-
-	IfcParse::IfcFile* file_;
-	IfcGeom::Kernel* kernel_;
-
-	static const int treeDepth = 25;
-	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
-	bgi::rtree<Value, bgi::rstar<treeDepth>> cIndex_;
-	bgi::rtree<Value, bgi::rstar<treeDepth>> rIndex_;
-	std::vector<LookupValue> productLookup_;
-	std::vector<ConnectLookupValue> connectivityLookup_;
-	std::vector<roomLookupValue> roomLookup_;
-	std::vector<gp_Pnt> roomCenterPoints_;
-
-	bool hasIndex_ = false;
-	bool hasCIndex_ = false;
-	bool hasRIndex_ = false;
-
-	std::map < int, TopoDS_Shape > shapeLookup_;
-	std::map < int, TopoDS_Shape > adjustedshapeLookup_;
-
-	bool useProxy = false;
-	std::list<std::string>* roomBoundingObjects_ = {};
-	bool useCustom = false;
-	bool useCustomFull = false;
-
-	// sets the unit multipliers to allow for the use of other units than metres
-	void setUnits(IfcParse::IfcFile* file);
-
-	// returns a list of all the points present in a model
-	std::vector<gp_Pnt> getAllPoints(IfcSchema::IfcProduct::list::ptr products);
-
-	// returns a bbox of a ifcproduct that functions with boost
-	bg::model::box <BoostPoint3D> makeObjectBox(IfcSchema::IfcProduct* product);
-	bg::model::box <BoostPoint3D> makeObjectBox(std::vector<IfcSchema::IfcProduct*> products);
-	TopoDS_Solid makeSolidBox(gp_Pnt lll, gp_Pnt urr, double angle, double extraAngle = 0);
-
-	template <typename T>
-	void addObjectToIndex(T object);
-
-	template <typename T>
-	void addObjectToCIndex(T object);
-
-	template <typename T>
-	void addObjectToRIndex(T object);
-
-	template <typename T>
-	std::vector<gp_Pnt> getAllTypePoints(T &typePtr);
-
-public:
-
-	/*
-	construct and populate a helper
-	creates and stores SI unit mulitpliers for length, area and volume
-	creates and stores the file and kernel for quick acess
-	*/
-	explicit helper(std::string path);
-
-	// returns true when length, area and volume multiplier are not 0
-	bool hasSetUnits();
-
-	// internalises the geometry while approximating a smallest bbox around the geometry
-	void internalizeGeo();
-
-	// internalises the geometry while creating a bbox with one axis along the give angle
-	void internalizeGeo(double angle, gp_Trsf objectTranslation);
-
-	// makes a spatial index for the geometry
-	void indexGeo();
-	void indexRooms();
-	void indexConnectiveShapes();
-
-	// corrects room classification
-	void correctRooms();
-
-	std::map<std::string, std::string> getProjectInformation();
-	std::map<std::string, std::string> getBuildingInformation();
-	std::string getBuildingName();
-	std::string getBuildingLongName();
-	std::string getProjectName();
-
-	std::list<std::string> getObjectTypes();
-
-	// returns a vector with length, area and volume multipliers
-	std::vector<double> getUnits() const { return { length_, area_, volume_ }; }
-
-	// returns the length multiplier
-	double getLengthMultiplier() const { return length_; }
-
-	// returns the area multiplier
-	double getAreaMultiplier() const { return area_; }
-
-	// returns the volume multiplier
-	double getVolumeMultiplier() const { return volume_; }
-
-	// returns the floor evalLvl
-	double getfootprintEvalLvl() { return footprintEvalLvl_; }
-
-	std::string getName() const { return fileName_; }
-
-	std::string getPath() const { return path_; }
-
-	// returns a pointer to the sourcefile
-	IfcParse::IfcFile* getSourceFile() const { return file_; }
-
-	// returns a pointer to the kernel
-	IfcGeom::Kernel* getKernel() const { return kernel_; }
-
-	// returns a pointer to the owner(s)
-	IfcSchema::IfcOwnerHistory* getHistory();
-
-	bool getDepending() { return isPartial; }
-
-	bool getIsConstruct() { return isConstruct; }
-
-	bool getHasGeo() { return hasGeo; }
-
-	bool getHasRoom() { return hasRooms; }
-
-	double getProxyNum() { return proxyCount; }
-
-	double getObjectCount() { return objectCount; }
-
-	bool getHasProxy() { return hasProxy; }
-
-	bool getHasLotProxy() { return hasLotProxy; }
-
-	gp_Pnt getLllPoint() { return lllPoint_; }
-
-	gp_Pnt getUrrPoint() { return urrPoint_; }
-
-	double getRotation() { return originRot_; }
-
-	gp_Trsf getObjectTranslation() { return objectTranslation_; }
-
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
-
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getConnectivityIndexPointer() { return &cIndex_; }
-
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getRoomIndexPointer() { return &rIndex_; }
-
-	void setRoomBoundingObjects(std::list<std::string>* objectList, bool custom, bool customFull) { roomBoundingObjects_ = objectList; useCustom = custom; useCustomFull = customFull; };
-
-	bool hasClookup() { return hasCIndex_; }
-
-	bool hasIndex() { return hasIndex_; }
-
-	auto getLookup(int i) { return productLookup_[i]; }
-	auto updateLookupTriangle(std::vector<std::vector<gp_Pnt>> triangleMeshList, int i) { std::get<1>(productLookup_[i]) = triangleMeshList; }
-	
-	auto getCLookup(int i) { return connectivityLookup_[i]; }
-
-	auto getRLookup(int i) { return roomLookup_[i]; }
-
-	auto getFullClookup() { return connectivityLookup_; }
-
-	auto getFullRLookup() { return roomLookup_; }
-
-	auto getRoomCenters() { return roomCenterPoints_; }
-
-	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool sortEdges = false, bool simple = false);
-	std::vector<gp_Pnt> getObjectPoints(TopoDS_Shape shape, bool sortEdges = false);
-
-	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
-
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, bool memorize = true);
-	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted = false);
-	void updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
-	void applyVoids();
-
-	std::vector<std::vector<gp_Pnt>> triangulateProduct(IfcSchema::IfcProduct* product);
-
-	template <typename T>
-	void voidShapeAdjust(T products);
-
-	void setIsConstruct(bool b) { isConstruct = b; }
-	
-	void setPath(std::string path) { path_ = path; }
-
-	void setName(std::string name) { fileName_ = name; }
-
-	void setHasRooms() { hasRooms = true; }
-
-	//TODO implement
-	void whipeObject(IfcSchema::IfcProduct* product);
-	
-	// add bounding box items for the present objects in the data
-	void createBounds(helper* data);
-
-	// deletes all dependencies of an object and the object itself
-	static void wipeObject(helper* data, int id);
-
-	void writeToFile(std::string path);
-
-	void setDepending(bool i) { isPartial = i; }
-
-	void setUseProxy(bool b) { useProxy = b; }
-
-	void setfootprintLvl(double lvl) { footprintEvalLvl_ = lvl; }
-
-	~helper() {};
-
-};
-
-
 #endif // HELPER_HELPER_H

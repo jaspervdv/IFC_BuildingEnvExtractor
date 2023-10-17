@@ -1,6 +1,6 @@
 #include "inc/helper.h"
 #include "inc/IOManager.h"
-#include "inc/roomProcessor.h"
+#include "inc/cjCreator.h"
 
 // basic includes
 #include <iostream>
