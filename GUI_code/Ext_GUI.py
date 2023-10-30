@@ -104,7 +104,7 @@ def runCode(input_path,
         "Input" : [input_path],
         "Output" : output_path
     }
-    json_dictionary["voxelSize"] = float(voxel_size)
+    json_dictionary["voxelSize"] = {"xy" : float(voxel_size)}
     json_dictionary["Footprint elevation"] = float(footprint_elevation)
     json_dictionary["Output report"] = make_report
 

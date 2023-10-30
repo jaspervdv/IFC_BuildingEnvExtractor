@@ -148,16 +148,12 @@ gp_Pnt helperFunctions::rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP,
 	gp_Pnt translatedP = p.Translated(gp_Vec(-anchorP.X(), -anchorP.Y(), -anchorP.Z()));
 	gp_Pnt rotatedP = helperFunctions::rotatePointWorld(translatedP, angle);
 	return rotatedP.Translated(gp_Vec(anchorP.X(), anchorP.Y(), anchorP.Z()));
-
 }
 
 
-std::tuple<gp_Pnt, gp_Pnt, double> helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, double angle, double secondAngle) {
-	
-	bool isPSet = false;
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
+bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint , double angle, double secondAngle) {
 
+	bool isPSet = false;
 	for (size_t i = 0; i < pointList.size(); i++)
 	{
 		gp_Pnt point = helperFunctions::rotatePointWorld(pointList[i], angle).Rotated(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0, 1, 0)), -secondAngle);
@@ -166,24 +162,22 @@ std::tuple<gp_Pnt, gp_Pnt, double> helperFunctions::rotatedBBoxDiagonal(const st
 		{
 			isPSet = true;
 
-			lllPoint = point;
-			urrPoint = point;
+			*lllPoint = point;
+			*urrPoint = point;
 		}
 		else
 		{
-			if (point.X() < lllPoint.X()) { lllPoint.SetX(point.X()); }
-			if (point.Y() < lllPoint.Y()) { lllPoint.SetY(point.Y()); }
-			if (point.Z() < lllPoint.Z()) { lllPoint.SetZ(point.Z()); }
+			if (point.X() < lllPoint->X()) { lllPoint->SetX(point.X()); }
+			if (point.Y() < lllPoint->Y()) { lllPoint->SetY(point.Y()); }
+			if (point.Z() < lllPoint->Z()) { lllPoint->SetZ(point.Z()); }
 
-			if (point.X() > urrPoint.X()) { urrPoint.SetX(point.X()); }
-			if (point.Y() > urrPoint.Y()) { urrPoint.SetY(point.Y()); }
-			if (point.Z() > urrPoint.Z()) { urrPoint.SetZ(point.Z()); }
+			if (point.X() > urrPoint->X()) { urrPoint->SetX(point.X()); }
+			if (point.Y() > urrPoint->Y()) { urrPoint->SetY(point.Y()); }
+			if (point.Z() > urrPoint->Z()) { urrPoint->SetZ(point.Z()); }
 		}
 	}
-
-	// compute diagonal distance
-	double distance = lllPoint.Distance(urrPoint);
-	return std::make_tuple(lllPoint, urrPoint, distance);
+	if (lllPoint->IsEqual(*urrPoint, 0.01)) { return false; }
+	return true;
 }
 
 
@@ -419,6 +413,27 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 	gp_Vec normal = vec1.Crossed(vec2);
 	normal.Normalize();
 	return normal;
+}
+
+std::vector<TopoDS_Face> helperFunctions::shape2FaceList(const TopoDS_Shape& shape)
+{
+	std::vector<TopoDS_Face> faceList;
+	for (TopExp_Explorer expl(shape, TopAbs_FACE); expl.More(); expl.Next())
+	{
+		faceList.emplace_back(TopoDS::Face(expl.Current()));
+	}
+	return faceList;
+}
+
+std::vector<gp_Pnt> helperFunctions::shape2PointList(const TopoDS_Shape& shape)
+{
+	std::vector<gp_Pnt> pointList;
+	for (TopExp_Explorer expl(shape, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		pointList.emplace_back(BRep_Tool::Pnt(vertex));
+	}
+	return pointList;
 }
 
 

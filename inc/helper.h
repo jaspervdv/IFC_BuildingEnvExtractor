@@ -61,7 +61,7 @@ struct helperFunctions{
 
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, double angle);
 
-	static std::tuple<gp_Pnt, gp_Pnt, double> rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, double angle, double secondAngle = 0);
+	static bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double angle, double secondAngle = 0);
 
 	/// Convert OpenCascade point to Boost point
 	static BoostPoint3D Point3DOTB(const gp_Pnt& oP);
@@ -83,6 +83,9 @@ struct helperFunctions{
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
 	/// compute the face normal 
 	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
+
+	static std::vector<TopoDS_Face> shape2FaceList(const TopoDS_Shape& shape);
+	static std::vector<gp_Pnt> shape2PointList(const TopoDS_Shape& shape);
 
 	/// get the products nested in this object
 	static std::vector<IfcSchema::IfcProduct*> getNestedProducts(IfcSchema::IfcProduct* product);
@@ -145,5 +148,6 @@ struct helperFunctions{
 		}
 		return false;
 	}
+
 };
 #endif // HELPER_HELPER_H

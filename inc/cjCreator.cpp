@@ -89,7 +89,6 @@ bool CJGeoCreator::isInList(const TopoDS_Edge& currentEdge, const std::vector<Ed
 
 std::vector<Edge*> CJGeoCreator::mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges, bool project)//, std::vector<TopoDS_Face> flatFaceList) 
 {
-	
 	double buffer = 0.01; //TODO: have it scale with units
 	std::vector<int> discardIndx;
 
@@ -1162,7 +1161,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	// get footprint
 
 	double floorlvl = h->getfootprintEvalLvl();
-	std::cout << "- Corse filering footprint at z = " << floorlvl << std::endl;
+	std::cout << "- Corse filtering footprint at z = " << floorlvl << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
 	double voxelCount = VoxelLookup_.size();
@@ -1196,7 +1195,6 @@ void CJGeoCreator::makeFootprint(helper* h)
 	{
 		int currentVoxelIdx =i;
 		if (currentVoxelIdx < lvl || currentVoxelIdx > topLvL) { continue; }
-
 		exteriorLvlVoxelsIdx.emplace_back(currentVoxelIdx);
 	}
 
@@ -1328,12 +1326,11 @@ void CJGeoCreator::makeFootprint(helper* h)
 			int voxelInt = originVoxels[qResult[j].second];
 			voxel* currentBoxel = VoxelLookup_[voxelInt];
 
+			if (currentBoxel->getIsInside()) { continue; }
+
 			auto boostCastPoint = currentBoxel->getCenterPoint(planeRotation_);
 			gp_Pnt castPoint(boostCastPoint.get<0>(), boostCastPoint.get<1>(), floorlvl);
 			TopoDS_Edge castRay = BRepBuilderAPI_MakeEdge(centerPoint, castPoint);
-
-			//printPoint(centerPoint);
-			//printPoint(castPoint);
 
 			std::vector<Value> qResult2;
 			qResult2.clear();
@@ -1380,6 +1377,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	footprintList_ = outerEdges2Shapes(outerFootPrintList);
 	hasFootprints_ = true;
 	printTime(startTime, std::chrono::high_resolution_clock::now());
+	std::cout << std::endl;
 	return;
 }
 
@@ -2668,14 +2666,18 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::CityCollect
 
 		TopoDS_Shape currentShape;
 
-		if (lookup.hasCBox()) { currentShape = lookup.getCBox(); }
+		std::string lookupType = lookup.getProductPtr()->data().type()->name();
+
+		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
+		{
+			if (lookup.hasCBox()) { currentShape = lookup.getCBox(); }
+			else { continue; }
+		}
 		else { currentShape = h->getObjectShape(lookup.getProductPtr(), true); }
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-			//std::cout << currentFace.IsNull() << std::endl;
-			//std::cout << "in" << std::endl;
 			if (isWireVisible(
 				h,
 				currentShape,
@@ -2687,7 +2689,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::CityCollect
 				buffer)
 				)
 			{
-				//std::cout << "out" << std::endl;
 				rawFaces.emplace_back(currentFace);
 				continue;
 			}

@@ -28,6 +28,8 @@ private:
 	bool make32_ = true;
 	bool makeV_ = true;
 
+	bool makeOutlines_ = true;
+
 	bool writeReport_ = true;
 
 	// variables set the deviding objects

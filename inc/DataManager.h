@@ -23,9 +23,6 @@
 #ifndef DATAMANAGER_DATAMANAGER_H
 #define DATAMANAGER_DATAMANAGER_H
 
-//class helper;
-//struct roomObject;
-
 // lookup for the major spatial index used in the code (indexing all the objects in the ifc file)
 class lookupValue
 {
@@ -33,6 +30,7 @@ private:
 	IfcSchema::IfcProduct* productPtr_;
 	std::vector<std::vector<gp_Pnt>> triangulatedShape_;
 	TopoDS_Shape cBox_;
+
 public:
 	lookupValue(IfcSchema::IfcProduct* productPtr, const std::vector<std::vector<gp_Pnt>>& triangulatedShape, const TopoDS_Shape& cBox);
 
@@ -93,14 +91,14 @@ private:
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
 
+	std::unordered_set<std::string> openingObjects_  = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" }; 
+	std::unordered_set<std::string> cuttingObjects_  = { "IfcWindow", "IfcDoor", "IfcColumn"}; 
+
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
 
 	/// sets the unit multipliers to allow for the use of other units than metres
 	void setUnits(IfcParse::IfcFile* file);
-
-	/// returns a list of all the points present in a model
-	std::vector<gp_Pnt> getAllPoints(IfcSchema::IfcProduct::list::ptr products);
 
 	/// count the elements in the file and set the related bools
 	void elementCountSummary(bool* hasProxy, bool* hasLotProxy);
@@ -122,9 +120,11 @@ private:
 	/// create orientated bbox representing a simplefied shape of the input
 	TopoDS_Shape boxSimplefy(const TopoDS_Shape& shape);
 
+	/// adds all instances of an objectype to the spatial index
 	template <typename T>
 	void addObjectToIndex(const T& object);
 
+	/// get all the points of all the instances of an objecttype
 	template <typename T>
 	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr);
 
@@ -147,9 +147,13 @@ public:
 	// makes a spatial index for the geometry
 	void indexGeo();
 
+	/// gets the generic building information
 	std::map<std::string, std::string> getBuildingInformation();
+	/// gets the building name
 	std::string getBuildingName();
+	/// gets the long building name
 	std::string getBuildingLongName();
+	/// gets the project name
 	std::string getProjectName();
 
 	// returns a vector with length, area and volume multipliers
@@ -167,7 +171,7 @@ public:
 	// returns the floor evalLvl
 	double getfootprintEvalLvl() { return footprintEvalLvl_; }
 
-	std::string getName() const { return fileName_; }
+	std::string getFileName() const { return fileName_; }
 
 	std::string getPath() const { return path_; }
 
@@ -204,8 +208,7 @@ public:
 	auto getLookup(int i) { return productLookup_[i]; }
 	auto updateLookupTriangle(const std::vector<std::vector<gp_Pnt>>& triangleMeshList, int i) { productLookup_[i].getTriangluatedShape() = triangleMeshList; }
 
-	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool sortEdges = false, bool simple = false);
-	std::vector<gp_Pnt> getObjectPoints(const TopoDS_Shape& shape, bool sortEdges = false);
+	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 
 	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
 

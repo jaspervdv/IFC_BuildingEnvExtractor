@@ -480,16 +480,45 @@ bool IOManager::getJSONValues()
 		make32_ = false;
 		makeV_ = false;
 
+		makeOutlines_ = false;
+
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { make00_ = true; }
-			else if (lodList[i] == 0.2) { make02_ = true; }
-			else if (lodList[i] == 1.0) { make10_ = true; }
-			else if (lodList[i] == 1.2) { make12_ = true; }
-			else if (lodList[i] == 1.3) { make13_ = true; }
-			else if (lodList[i] == 2.2) { make22_ = true; }
-			else if (lodList[i] == 3.2) { make32_ = true; }
-			else if (lodList[i] == 5.0) { makeV_ = true; }
+			else if (lodList[i] == 0.2) 
+			{ 
+				make02_ = true; 
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 1.0) 
+			{ 
+				make10_ = true; 
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 1.2) 
+			{ 
+				make12_ = true; 
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 1.3) 
+			{ 
+				make13_ = true; 
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 2.2) 
+			{ 
+				make22_ = true;
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 3.2) 
+			{ 
+				make32_ = true; 
+				makeOutlines_ = true;
+			}
+			else if (lodList[i] == 5.0) 
+			{ 
+				makeV_ = true; 
+			}
 		}
 	}
 
@@ -673,7 +702,7 @@ nlohmann::json IOManager::settingsToJSON()
 
 	settingsJSON["Input IFC file"] = inputPathList_;
 	settingsJSON["Output folder"] = outputFolderPath_;
-	settingsJSON["Output IFC file"] = getOutputPath() + "\\" + internalHelper_.getName() + ".city.json";
+	settingsJSON["Output IFC file"] = getOutputPath() + "\\" + internalHelper_.getFileName() + ".city.json";
 	settingsJSON["Create report"] = "true";
 	if (isJsonInput_) { settingsJSON["JSON input"] = "true"; }
 	else if (!isJsonInput_) { settingsJSON["JSON input"] = "false"; }
@@ -797,7 +826,7 @@ bool IOManager::run()
 	CJT::CityCollection collection;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
-	metaData.setTitle(internalHelper_.getName() + " Auto export from IfcEnvExtractor");
+	metaData.setTitle(internalHelper_.getFileName() + " Auto export from IfcEnvExtractor");
 	collection.setTransformation(transformation);
 	collection.setMetaData(metaData);
 	collection.setVersion("1.1");
@@ -817,14 +846,17 @@ bool IOManager::run()
 	// make the geometrycreator and voxelgrid
 	CJGeoCreator geoCreator(&internalHelper_, voxelSize_);
 
-	try
+	if (makeOutlines_)
 	{
-		geoCreator.initializeBasic(&internalHelper_);
-	}
-	catch (const std::exception&)
-	{
-		ErrorList_.emplace_back("Basic initialization failed");
-		return false;
+		try
+		{
+			geoCreator.initializeBasic(&internalHelper_);
+		}
+		catch (const std::exception&)
+		{
+			ErrorList_.emplace_back("Basic initialization failed");
+			return false;
+		}
 	}
 
 	if (make02_) // TODO: make better bool
@@ -838,7 +870,6 @@ bool IOManager::run()
 			ErrorList_.emplace_back("Footprint creation failed");
 		}
 	}
-
 	if (makeLoD00())
 	{
 		try
@@ -894,7 +925,6 @@ bool IOManager::run()
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.3 creation failed"); }
-
 	}
 	if (makeLoD22())
 	{
@@ -906,9 +936,8 @@ bool IOManager::run()
 			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD2.2 creation failed"); }
-
 	}
-	if (makeLoD32()&& false)
+	if (makeLoD32())
 	{
 		try
 		{
@@ -938,7 +967,7 @@ bool IOManager::run()
 
 bool IOManager::write()
 {
-	cityCollection_.dumpJson(getOutputPath() + "\\" + internalHelper_.getName() + ".city.json");
+	cityCollection_.dumpJson(getOutputPath() + "\\" + internalHelper_.getFileName() + ".city.json");
 
 	if (!writeReport_) { return true; }
 	nlohmann::json report;
@@ -971,7 +1000,7 @@ bool IOManager::write()
 	report["Errors"] = ErrorList_;
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
-	std::ofstream reportFile(getOutputPath() + "\\" + internalHelper_.getName() + "_report.city.json");
+	std::ofstream reportFile(getOutputPath() + "\\" + internalHelper_.getFileName() + "_report.city.json");
 	reportFile << report;
 	reportFile.close();
 }

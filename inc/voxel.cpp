@@ -118,7 +118,15 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	std::vector<std::vector<int>> vets = getVoxelEdges();
 
 	IfcSchema::IfcProduct* product = lookup.getProductPtr();
-	std::vector<gp_Pnt> productPoints = h->getObjectPoints(product, false, true);
+
+	std::string productType = product->data().type()->name();
+
+	if (productType == "IfcDoor" || productType == "IfcWindow")
+	{
+		if (!lookup.hasCBox())  { return false; }
+	}
+
+	std::vector<gp_Pnt> productPoints = h->getObjectPoints(product, true);
 
 	// check if any cornerpoints fall inside voxel
 	if (linearEqIntersection(productPoints, voxelPoints))
