@@ -54,6 +54,9 @@ struct helperFunctions{
 	/// Print points of the faces to console (for development only)
 	static void printFaces(const TopoDS_Shape& shape);
 
+	/// get a list of unique points from a pointlist
+	static std::vector<gp_Pnt> getUniquePoints(const std::vector<gp_Pnt>& pointList);
+
 	///	Rotate OpenCascade point around 0,0,0
 	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);
 	///	Rotate Boost point around 0,0,0
@@ -123,24 +126,30 @@ struct helperFunctions{
 
 	/// construct a bbox from a shape or list of shapes
 	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
-	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Face>& shape);
+	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Shape>& shape);
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2);
+
+	/// creates face with middlepont 0,0,0 ranging from -x to x and -y to y at z
+	static TopoDS_Face createHorizontalFace(double x, double y, double z);
+
+	/// creates a planar face between lll and urr with a rotation
+	static TopoDS_Face createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle);
 
 	/// get the intersection between two linear lines, returns 0 if not intersection
 	static gp_Pnt* linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);
-	static gp_Pnt* linearLineIntersection(Edge* edge1, Edge* edge2, bool projected, double buffer = 0.01);
+	static gp_Pnt* linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer = 0.01);
 	static gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
 
 	/// Check if surface is completely overlapped
-	static bool isOverlappingCompletely(SurfaceGroup* evalFace, SurfaceGroup* otherFace);
+	static bool isOverlappingCompletely(SurfaceGroup evalFace, SurfaceGroup otherFace);
 
 	template<typename T>
-	static bool isOverlappingCompletely(SurfaceGroup* evalFace, std::vector<SurfaceGroup*> facePool, T shapeIdx)
+	static bool isOverlappingCompletely(SurfaceGroup evalFace, std::vector<SurfaceGroup> facePool, T shapeIdx)
 	{
 		std::vector<Value> qResult;
 		shapeIdx.query(bgi::intersects(
 			bg::model::box <BoostPoint3D>(
-				createBBox(evalFace->getFace())
+				createBBox(evalFace.getFace())
 				)), std::back_inserter(qResult));
 		for (size_t i = 0; i < qResult.size(); i++)
 		{

@@ -53,15 +53,15 @@ SurfaceGroup::SurfaceGroup(const TopoDS_Face& aFace)
 }
 
 
-bool SurfaceGroup::overlap(SurfaceGroup* other) {
+bool SurfaceGroup::overlap(SurfaceGroup other) {
 
 	bool inXD = false;
 	bool inYD = false;
 
-	if (llPoint_.X() <= other->llPoint_.X() && urPoint_.X() >= other->lllPoint_.X()) { inXD = true; }
-	if (other->llPoint_.X() <= llPoint_.X() && other->urrPoint_.X() > llPoint_.X()) { inXD = true; }
-	if (llPoint_.Y() <= other->llPoint_.Y() && urPoint_.Y() >= other->lllPoint_.Y()) { inYD = true; }
-	if (other->llPoint_.Y() <= llPoint_.Y() && other->urrPoint_.Y() >= llPoint_.Y()) { inYD = true; }
+	if (llPoint_.X() <= other.llPoint_.X() && urPoint_.X() >= other.lllPoint_.X()) { inXD = true; }
+	if (other.llPoint_.X() <= llPoint_.X() && other.urrPoint_.X() > llPoint_.X()) { inXD = true; }
+	if (llPoint_.Y() <= other.llPoint_.Y() && urPoint_.Y() >= other.lllPoint_.Y()) { inYD = true; }
+	if (other.llPoint_.Y() <= llPoint_.Y() && other.urrPoint_.Y() >= llPoint_.Y()) { inYD = true; }
 
 	if (inXD && inYD)
 	{
@@ -243,7 +243,7 @@ void SurfaceGroup::populateGrid(double distance) {
 }
 
 
-bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup*>& otherSurfaces, bool preFilter)
+bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter)
 {
 	TopoDS_Face currentFace = getFace();
 	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
@@ -251,16 +251,16 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup*>& otherSurfaces
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
 	{
 
-		SurfaceGroup* otherGroup = otherSurfaces[i];
+		SurfaceGroup otherGroup = otherSurfaces[i];
 
 		if (preFilter)
 		{
 			if (!overlap(otherGroup)) { continue; }
 		}
 
-		TopoDS_Face otherFace = otherGroup->getFace();
-		gp_Pnt otherLLLPoint = otherGroup->getLLLPoint();
-		gp_Pnt otherURRPoint = otherGroup->getURRPoint();
+		TopoDS_Face otherFace = otherGroup.getFace();
+		gp_Pnt otherLLLPoint = otherGroup.getLLLPoint();
+		gp_Pnt otherURRPoint = otherGroup.getURRPoint();
 
 		if (currentFace.IsEqual(otherFace)) { continue; }
 
@@ -320,7 +320,7 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup*>& otherSurfaces
 
 Edge::Edge(const TopoDS_Edge& edge)
 {
-	theEdge_ = new TopoDS_Edge(edge);
+	theEdge_ = edge;
 
 	TopExp_Explorer vertexExplorer(edge, TopAbs_VERTEX);
 
@@ -334,3 +334,22 @@ Edge::Edge(const TopoDS_Edge& edge)
 		endPoint_ = BRep_Tool::Pnt(TopoDS::Vertex(vertexExplorer.Current()));
 	}
 }
+
+gp_Pnt Edge::getStart(bool projected) const
+{
+	if (projected)
+	{
+		return gp_Pnt(startPoint_.X(), startPoint_.Y(), 0);
+	}
+	return startPoint_;
+}
+
+gp_Pnt Edge::getEnd(bool projected) const
+{ 
+	if (projected)
+	{
+		return gp_Pnt(endPoint_.X(), endPoint_.Y(), 0);
+	}
+	return endPoint_;
+}
+

@@ -47,7 +47,7 @@ private:
 	std::map<int, voxel*> VoxelLookup_;
 
 	// container for surface group data
-	std::vector<std::vector<SurfaceGroup*>> faceList_;
+	std::vector<std::vector<SurfaceGroup>> faceList_;
 
 	// flags representing the eval state of the creator
 	bool hasTopFaces_ = false;
@@ -88,29 +88,42 @@ private:
 	std::vector<int> getTopBoxelIndx();
 
 	/// @brief get the surfaces that have an area when flattened
-	std::vector<SurfaceGroup*> getXYFaces(const TopoDS_Shape& shape);
+	std::vector<SurfaceGroup> getXYFaces(const TopoDS_Shape& shape);
 
 	/// get the unique edges from in a shape or a collection of edges
-	std::vector<Edge*> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
-	std::vector<Edge*> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
+	std::vector<Edge> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
+	std::vector<Edge> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
+
+	/// get faces that are uniquely in a list dublicates are ingnored
+	std::vector<TopoDS_Face> getUniqueFaces(const std::vector<TopoDS_Face>& faceList);
+
+	/// get all the faces that have all vertices shared with one or more other faces from the list
+	std::vector<TopoDS_Face> getEncompassedFaces(const std::vector<TopoDS_Face>& faceList);
 
 	/// check if edge is in list of edge objects
-	bool isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge*>& edgeList);
+	bool isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge>& edgeList);
 
 	/// @bried merges all the overlapping edges that have the same direction
-	std::vector<Edge*> mergeOverlappingEdges(std::vector<Edge*>& uniqueEdges, bool project=true);
+	std::vector<Edge> mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project=true);
 
 	/// splits all the edges so that no edges overlap but all rest against eachother with their start and endpoints
-	std::vector<Edge*> splitIntersectingEdges(std::vector<Edge*>& edges, bool project = true);
+	std::vector<Edge> splitIntersectingEdges(const std::vector<Edge>& edges, bool project = true);
 
 	/// @brief get a clean list of all the edges the projected shapes
-	std::vector<Edge*> makeJumbledGround();
+	std::vector<Edge> makeJumbledGround();
 
 	/// @brief check if edge is part of outer envelope
-	bool isOuterEdge(Edge* currentEdge, const std::vector<TopoDS_Face*>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
+	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge*>& edgeList, const std::vector<SurfaceGroup*>& faceList);
+	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<SurfaceGroup>& faceList);
+
+	/// @brief get all the outer edges based on a voxelplate
+	std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
+		const std::vector<Edge>& edgeList,
+		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
+		const std::vector<int>& originVoxels,
+		double floorlvl);
 
 	/// @brief get the footprint shapes from the collection of outer edges
 	std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
@@ -122,8 +135,19 @@ private:
 	std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
 	TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 
-
 	std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+
+	// divides the projected footprints over the seperate buildings
+	void sortRoofStructures();
+
+	// get a full xy section of voxels that is 1 voxel thick at the desired plate level
+	std::vector<int> getVoxelPlate(double platelvl);
+
+	// create list of edges by cutting objects at the floor lvl
+	std::vector<TopoDS_Edge> section2edges(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
+
+	// extrudes shape downwards and caps it on the splitting face
+	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, const TopoDS_Face& splittingFace, double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
@@ -140,7 +164,7 @@ private:
 	std::vector<int> getTypeValuesBySample(const TopoDS_Shape& prism, int prismNum, bool flat);
 
 	/// outputs the time delta between the start and end time
-	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
+	void printTime(const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime);
 
 	/// checks if surface is encapsulated by another shape
 	bool surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape);

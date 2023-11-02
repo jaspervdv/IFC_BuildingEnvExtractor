@@ -107,6 +107,28 @@ void helperFunctions::printFaces(const TopoDS_Shape& shape)
 }
 
 
+std::vector<gp_Pnt> helperFunctions::getUniquePoints(const std::vector<gp_Pnt>& pointList) {
+	std::vector<gp_Pnt> uniquePoints;
+	for (size_t j = 0; j < pointList.size(); j++)
+	{
+		bool dub = false;
+
+		for (size_t k = 0; k < uniquePoints.size(); k++)
+		{
+			if (pointList[j].IsEqual(uniquePoints[k], 0.001))
+			{
+				dub = true;
+				break;
+			}
+		}
+		if (!dub)
+		{
+			uniquePoints.emplace_back(pointList[j]);
+		}
+	}
+	return uniquePoints;
+}
+
 gp_Pnt helperFunctions::rotatePointWorld(const gp_Pnt& p, double angle) {
 	double pX = p.X();
 	double pY = p.Y();
@@ -244,7 +266,6 @@ gp_Pnt helperFunctions::getLowestPoint(const TopoDS_Shape& shape, bool areaFilte
 			sumY += p.Y();
 		}
 	}
-
 	return gp_Pnt(sumX / aP, sumY / aP, lowestZ);
 }
 
@@ -284,7 +305,6 @@ gp_Pnt helperFunctions::getHighestPoint(const TopoDS_Shape& shape)
 			sumY += p.Y();
 		}
 	}
-
 	return gp_Pnt(sumX / aP, sumY / aP, highestZ);
 }
 
@@ -342,7 +362,6 @@ gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace) {
 		if (itt == maxGuesses) { break; } // TODO: prevent hitting this
 		itt++;
 	}
-
 	return randomPoint;
 }
 
@@ -471,7 +490,6 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 	{
 		productList.emplace_back(product);
 	}
-
 	return productList;
 }
 
@@ -496,7 +514,6 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 
 	double left3 = tVolume(triangle[2], { triangle[1], line[0], line[1] });
 	double right3 = tVolume(triangle[0], { triangle[1], line[0], line[1] });
-
 
 	if (left > 0 && right > 0 || left < 0 && right < 0) { return false; }
 	if (left2 > 0 && right2 > 0 || left2 < 0 && right2 < 0) { return false; }
@@ -696,7 +713,7 @@ bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& sh
 }
 
 
-bg::model::box <BoostPoint3D> helperFunctions::createBBox(const std::vector<TopoDS_Face>& shape) {
+bg::model::box <BoostPoint3D> helperFunctions::createBBox(const std::vector<TopoDS_Shape>& shape) {
 
 	double buffer = 0.05;
 	Bnd_Box boundingBox;
@@ -781,6 +798,36 @@ bg::model::box <BoostPoint3D>  helperFunctions::createBBox(const gp_Pnt& p1, con
 }
 
 
+TopoDS_Face helperFunctions::createHorizontalFace(double x, double y, double z) {
+	
+	gp_Pnt p0(-x, -y, z);
+	gp_Pnt p1(-x, y, z);
+	gp_Pnt p2(x, y, z);
+	gp_Pnt p3(x, -y, z);
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
+}
+
+TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle) {
+	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), -rotationAngle);
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
+}
+
+
 gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer) {
 
 	gp_Pnt evalSP1 = sP1;
@@ -854,12 +901,11 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 }
 
 
-gp_Pnt* helperFunctions::linearLineIntersection(Edge* edge1, Edge* edge2, bool projected, double buffer) {
-
-	gp_Pnt sP1 = edge1->getStart();
-	gp_Pnt eP1 = edge1->getEnd();
-	gp_Pnt sP2 = edge2->getStart();
-	gp_Pnt eP2 = edge2->getEnd();
+gp_Pnt* helperFunctions::linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer) {
+	gp_Pnt sP1 = edge1.getStart(false);
+	gp_Pnt eP1 = edge1.getEnd(false);
+	gp_Pnt sP2 = edge2.getStart(false);
+	gp_Pnt eP2 = edge2.getEnd(false);
 
 	return linearLineIntersection(sP1, eP1, sP2, eP2, projected, buffer);
 }
@@ -877,9 +923,9 @@ gp_Pnt* helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const 
 }
 
 
-bool helperFunctions::isOverlappingCompletely(SurfaceGroup* evalFace, SurfaceGroup* otherFace) {
-	std::vector<EvaluationPoint*> evalGrid = evalFace->getPointGrid();
-	std::vector<EvaluationPoint*> otherGrid = otherFace->getPointGrid();
+bool helperFunctions::isOverlappingCompletely(SurfaceGroup evalFace, SurfaceGroup otherFace) {
+	std::vector<EvaluationPoint*> evalGrid = evalFace.getPointGrid();
+	std::vector<EvaluationPoint*> otherGrid = otherFace.getPointGrid();
 	if (evalGrid.size() != otherGrid.size()) { return false; }
 
 	for (size_t i = 0; i < evalGrid.size(); i++)

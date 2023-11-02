@@ -54,14 +54,14 @@ private:
 	int vertCount_ = 0;
 
 	std::vector<EvaluationPoint*> pointGrid_;
-	bool overlap(SurfaceGroup* other);
+	bool overlap(SurfaceGroup other);
 
 public:
 	SurfaceGroup(const TopoDS_Face& aFace);
 
 	const TopoDS_Face& getFace() { return theFace_; }
 	const TopoDS_Face& getFlatFace() { return theFlatFace_; }
-	const TopoDS_Face& getProjectedFace() { return theProjectedFace_; }
+	const TopoDS_Face& getProjectedFace() const { return theProjectedFace_; }
 	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }
 
 	const gp_Pnt getLLLPoint() { return lllPoint_; }
@@ -75,7 +75,7 @@ public:
 
 	std::vector<EvaluationPoint*>& getPointGrid() { return pointGrid_; }
 	bool isVisible() { return visibility_; }
-	bool testIsVisable(const std::vector<SurfaceGroup*>& otherSurfaces, bool preFilter = false);
+	bool testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
 
 	void setIsHidden() { visibility_ = false; }
@@ -91,7 +91,7 @@ public:
 
 class Edge {
 private:
-	TopoDS_Edge* theEdge_;
+	TopoDS_Edge theEdge_;
 	gp_Pnt startPoint_;
 	gp_Pnt endPoint_;
 
@@ -101,14 +101,12 @@ private:
 public:
 	explicit Edge(const TopoDS_Edge& edge);
 
-	TopoDS_Edge* getEdge() { return theEdge_; }
+	TopoDS_Edge getEdge() { return theEdge_; }
 
-	gp_Pnt getStart() { return startPoint_; }
+	TopoDS_Edge* getEdgePtr() { return &theEdge_; }
 
-	gp_Pnt getEnd() { return endPoint_; }
+	gp_Pnt getStart(bool projected) const;
 
-	gp_Pnt getProjectedStart() { return gp_Pnt(startPoint_.X(), startPoint_.Y(), 0); }
-
-	gp_Pnt getProjectedEnd() { return gp_Pnt(endPoint_.X(), endPoint_.Y(), 0); }
+	gp_Pnt getEnd(bool projected) const;
 };
 #endif // EDGE_EDGE_H
