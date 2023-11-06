@@ -5,23 +5,25 @@
 #include <BRepClass3d_SolidClassifier.hxx>
 
 
-helper::helper(std::string path) {
-	if (!findSchema(path)) { return; }
-
-	IfcParse::IfcFile* sourceFile = new IfcParse::IfcFile(path);
-
-	if (!sourceFile->good())
+helper::helper(const std::vector<std::string>& pathList) {
+	for (size_t i = 0; i < pathList.size(); i++)
 	{
-		std::cout << "Unable to parse .ifc file" << std::endl;
-		return;
+		std::string path = pathList[i];
+		if (!findSchema(pathList[i])) { return; }
+		fileKernelCollection dataCollection = fileKernelCollection(path);
+		if (!dataCollection.isGood())
+		{
+			std::cout << "Unable to parse .ifc file" << std::endl;
+			return;
+		}
+
+		std::cout << "- Valid IFC file found" << std::endl;
+		std::cout << std::endl;
+
+		datacollection_.emplace_back(dataCollection);
+		dataCollectionSize_++;
 	}
-
-	std::cout << "- Valid IFC file found" << std::endl;
-	std::cout << std::endl;
-
-	file_ = sourceFile;
-	kernel_ = new IfcGeom::Kernel(file_);
-	helper::setUnits(file_);
+	return;
 }
 
 
@@ -98,14 +100,20 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 void helper::elementCountSummary(bool* hasProxy, bool* hasLotProxy)
 {
 	// count the proxy amount
-	IfcSchema::IfcProduct::list::ptr products = file_->instances_by_type<IfcSchema::IfcProduct>();
-	IfcSchema::IfcBuildingElementProxy::list::ptr proxyProducts = file_->instances_by_type<IfcSchema::IfcBuildingElementProxy>();
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		IfcParse::IfcFile* fileObject = datacollection_[i].getFilePtr();
 
-	objectCount_ = products->size();
-	proxyCount_ = proxyProducts->size();
+		IfcSchema::IfcProduct::list::ptr products = fileObject->instances_by_type<IfcSchema::IfcProduct>();
+		IfcSchema::IfcBuildingElementProxy::list::ptr proxyProducts = fileObject->instances_by_type<IfcSchema::IfcBuildingElementProxy>();
+
+		objectCount_ += products->size();
+		proxyCount_ += proxyProducts->size();
+	}
 
 	if (proxyCount_ > 0) { *hasProxy = true; }
 	if (proxyCount_ / objectCount_ >= maxProxyP_) { *hasLotProxy = true; }
+
 	return;
 }
 
@@ -113,20 +121,25 @@ void helper::elementCountSummary(bool* hasProxy, bool* hasLotProxy)
 void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* originRot)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
-	std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
-	std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
-	std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
-	std::vector<gp_Pnt> pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(file_->instances_by_type<IfcSchema::IfcSlab>());
-	std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
-
 	std::vector<gp_Pnt> pointList;
-	pointList.reserve(pointListWall.size() + pointListWallSt.size() + pointListRoof.size() + pointLisSlab.size() + pointListWindow.size());
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		IfcParse::IfcFile* fileObject = datacollection_[i].getFilePtr();
 
-	pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
-	pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
-	pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
-	pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
-	pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
+		std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
+		std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWallStandardCase>());
+		std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcRoof>());
+		std::vector<gp_Pnt> pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcSlab>());
+		std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWindow>());
+
+		pointList.reserve(pointListWall.size() + pointListWallSt.size() + pointListRoof.size() + pointLisSlab.size() + pointListWindow.size());
+
+		pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
+		pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
+		pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
+		pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
+		pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
+	}
 
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
@@ -177,15 +190,19 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 void helper::computeObjectTranslation(gp_Vec* vec)
 {
 	// get a point to translate the model to
-	gp_Pnt lllPointSite;
-	IfcSchema::IfcSlab::list::ptr slabList = file_->instances_by_type<IfcSchema::IfcSlab>();
+	IfcSchema::IfcSlab::list::ptr slabList = datacollection_[0].getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
+
+	if (!slabList.get()->size()) {
+		std::cout << "[WARNING] no slab objects were found!" << std::endl;
+		return; 
+	}
 	IfcSchema::IfcSlab* slab = *slabList->begin();
 
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 	TopoDS_Shape siteShape = getObjectShape(slab, false, false);
 	helperFunctions::rotatedBBoxDiagonal(helperFunctions::shape2PointList(siteShape), &lllPoint, &urrPoint, 0);
-	*vec = gp_Vec(-lllPointSite.X(), -lllPointSite.Y(), 0);
+	*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
 	return;
 }
 
@@ -207,94 +224,13 @@ std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr)
 
 
 bool helper::hasSetUnits() {
-	if (!length_ || !area_ || !volume_) { return false; }
-	else { return true; }
-}
-
-
-void helper::setUnits(IfcParse::IfcFile* file) {
-	double length = 0;
-	double area = 0;
-	double volume = 0;
-
-	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file->instances_by_type<IfcSchema::IfcUnitAssignment>();
-	if (presentUnits.get()->size() == 0) {
-		std::cout << "[Error] No unit assignment has been found" << std::endl;
-		return;
-	}
-	else if (presentUnits.get()->size() > 1)
+	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		std::cout << "[Error] Multiple unit assignments have been found" << std::endl;
-		return;
+		if (!datacollection_[i].getAreaMultiplier() || 
+			!datacollection_[i].getLengthMultiplier() || 
+			!datacollection_[i].getVolumeMultiplier()) { return false; }
 	}
-
-
-	for (IfcSchema::IfcUnitAssignment::list::it it = presentUnits->begin(); it != presentUnits->end(); ++it)
-	{
-		const IfcSchema::IfcUnitAssignment* itUnits = *it;
-		auto units = itUnits->Units();
-
-		for (auto et = units.get()->begin(); et != units.get()->end(); et++) {
-			auto unit = *et;
-
-			if (unit->declaration().type() == 902 || unit->declaration().type() == 765) // select the IfcSIUnit
-			{
-				std::string unitType = unit->data().getArgument(1)->toString();
-				std::string SiUnitBase = unit->data().getArgument(3)->toString();
-				std::string SiUnitAdd = unit->data().getArgument(2)->toString();
-
-				if (unitType == ".LENGTHUNIT.")
-				{
-					if (SiUnitBase == ".METRE.") { length = 1; }
-					if (SiUnitAdd == ".MILLI.") { length = length / 1000; }
-				}
-				else if (unitType == ".AREAUNIT.")
-				{
-					if (SiUnitBase == ".SQUARE_METRE.") { area = 1; }
-					if (SiUnitAdd == ".MILLI.") { area = area / pow(1000, 2); }
-				}
-				if (unitType == ".VOLUMEUNIT.")
-				{
-					if (SiUnitBase == ".CUBIC_METRE.") { volume = 1; }
-					if (SiUnitAdd == ".MILLI.") { volume = volume / pow(1000, 3); }
-				}
-			}
-		}
-	}
-
-	// check if units have been found
-	std::cout << "[INFO] found units:" << std::endl;
-	if (!length)
-	{
-		std::cout << "[Error] SI unit for length cannot be found!" << std::endl;
-		return;
-	}
-	else if (length == 1) { std::cout << "- Lenght in metre" << std::endl; }
-	else if (length == 0.001) { std::cout << "- Lenght in millimetre" << std::endl; }
-
-	if (!area)
-	{
-		std::cout << "[Error] SI unit for area cannot be found!" << std::endl;
-		return;
-	}
-	else if (area == 1) { std::cout << "- Area in square metre" << std::endl; }
-	else if (area == 0.000001) { std::cout << "- Area in square millimetre" << std::endl; }
-
-	if (!volume)
-	{
-		std::cout << "[Warning] SI unit for volume cannot be found!" << std::endl;
-		std::cout << "[Warning] SI unit for volume is set to cubic metre!" << std::endl;
-		volume = 1;
-	}
-	else if (volume == 1) { std::cout << "- Volume in cubic metre" << std::endl; }
-	else if (volume == 0.000000001) { std::cout << "- Volume in cubic millimetre" << std::endl; }
-
-	std::cout << std::endl;
-
-	//internalize the data
-	length_ = length;
-	area_ = area;
-	volume_ = volume;
+	{ return true; }
 }
 
 
@@ -304,7 +240,6 @@ void helper::internalizeGeo()
 	gp_Vec objectTranslation;
 	computeObjectTranslation(&objectTranslation);
 	objectTranslation_.SetTranslationPart(objectTranslation);
-
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
 	computeBoundingData(&lllPoint_, &urrPoint_, &originRot_);
 
@@ -323,85 +258,101 @@ void helper::indexGeo()
 		{
 			// add the floorslabs to the rtree
 			auto startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(file_->instances_by_type<IfcSchema::IfcSlab>());
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+				addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcSlab>());
 			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(file_->instances_by_type<IfcSchema::IfcRoof>());
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+				addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcRoof>());
 			std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the walls to the rtree
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+				addObjectToIndex<IfcSchema::IfcWall::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcWall>());
 			std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+				addObjectToIndex<IfcSchema::IfcWallStandardCase::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcWallStandardCase>());
 			std::cout << "\tIfcWallStandardCase objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(file_->instances_by_type<IfcSchema::IfcCovering>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcCovering>());
 			std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the columns to the rtree TODO sweeps
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(file_->instances_by_type<IfcSchema::IfcColumn>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcColumn>());
 			std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the beams to the rtree
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(file_->instances_by_type<IfcSchema::IfcBeam>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
 			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add the curtain walls to the rtree
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcCurtainWall>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcCurtainWall>());
 			std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(file_->instances_by_type<IfcSchema::IfcPlate>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcPlate>());
 			std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcMember::list::ptr>(file_->instances_by_type<IfcSchema::IfcMember>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcMember::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcMember>());
 			std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			// add doors to the rtree (for the appartment detection)
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(file_->instances_by_type<IfcSchema::IfcDoor>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcDoor>());
 			std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
-			addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(file_->instances_by_type<IfcSchema::IfcWindow>());
+			for (size_t i = 0; i < dataCollectionSize_; i++) 
+				addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
 			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
 			if (useProxy_)
 			{
 				startTime = std::chrono::high_resolution_clock::now();
-				addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(file_->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
+				for (size_t i = 0; i < dataCollectionSize_; i++) 
+					addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
 				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 			}
 		}
 		if (useCustom_)
 		{
-			IfcSchema::IfcProduct::list::ptr productList = file_->instances_by_type<IfcSchema::IfcProduct>();
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+			{
+				IfcSchema::IfcProduct::list::ptr productList = datacollection_[i].getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
 
-			for (auto it = roomBoundingObjects_->begin(); it != roomBoundingObjects_->end(); ++it) {
-				auto startTime = std::chrono::high_resolution_clock::now();
+				for (auto it = roomBoundingObjects_->begin(); it != roomBoundingObjects_->end(); ++it) {
+					auto startTime = std::chrono::high_resolution_clock::now();
 
-				IfcSchema::IfcProduct::list::ptr selectedlist(new IfcSchema::IfcProduct::list);
-				for (auto et = productList->begin(); et != productList->end(); ++et)
-				{
-					IfcSchema::IfcProduct* product = *et;
-					if (*it == boost::to_upper_copy<std::string>(product->data().type()->name()))
+					IfcSchema::IfcProduct::list::ptr selectedlist(new IfcSchema::IfcProduct::list);
+					for (auto et = productList->begin(); et != productList->end(); ++et)
 					{
-						selectedlist.get()->push(product);
+						IfcSchema::IfcProduct* product = *et;
+						if (*it == boost::to_upper_copy<std::string>(product->data().type()->name()))
+						{
+							selectedlist.get()->push(product);
+						}
 					}
+
+					std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+
+					addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
 				}
-
-				std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
-
-				addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
 			}
 		}
 		std::cout << std::endl;
@@ -552,7 +503,7 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 
 		if (openingObjects_.find(qProductType) == openingObjects_.end()) { continue; }
 
-		auto search = adjustedshapeLookup_.find(qProduct->data().id());
+		auto search = adjustedshapeLookup_.find(qProduct->GlobalId());
 		if (search == adjustedshapeLookup_.end()) { continue; }
 		TopoDS_Shape qUntrimmedShape = search->second;
 		TopExp_Explorer expl;
@@ -663,8 +614,11 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 
 std::map<std::string, std::string> helper::getBuildingInformation()
 {
+	//TODO: improve the datamanagement
+	IfcParse::IfcFile* fileObejct = datacollection_[0].getFilePtr();
+
 	std::map<std::string, std::string> dictionary;
-	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+	IfcSchema::IfcBuilding::list::ptr buildingList = fileObejct->instances_by_type<IfcSchema::IfcBuilding>();
 
 	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
 		IfcSchema::IfcBuilding* building = *it;
@@ -675,7 +629,7 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 		if (building->hasLongName()) { dictionary.emplace("Long Name", building->LongName()); }
 	}
 
-	IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = file_->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
+	IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = fileObejct->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
 
 	for (auto it = propteriesRels->begin(); it != propteriesRels->end(); ++it) {
 		IfcSchema::IfcRelDefinesByProperties* propteriesRel = *it;
@@ -743,7 +697,10 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 
 std::string helper::getBuildingName()
 {
-	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+	//TODO: improve the datamanagement
+	IfcParse::IfcFile* fileObejct = datacollection_[0].getFilePtr();
+
+	IfcSchema::IfcBuilding::list::ptr buildingList = fileObejct->instances_by_type<IfcSchema::IfcBuilding>();
 
 	IfcSchema::IfcBuilding* building = *buildingList->begin();
 	if (building->hasName()) { return building->Name(); }
@@ -753,7 +710,9 @@ std::string helper::getBuildingName()
 
 std::string helper::getBuildingLongName()
 {
-	IfcSchema::IfcBuilding::list::ptr buildingList = file_->instances_by_type<IfcSchema::IfcBuilding>();
+	//TODO: improve the datamanagement
+	IfcParse::IfcFile* fileObejct = datacollection_[0].getFilePtr();
+	IfcSchema::IfcBuilding::list::ptr buildingList = fileObejct->instances_by_type<IfcSchema::IfcBuilding>();
 
 	IfcSchema::IfcBuilding* building = *buildingList->begin();
 	if (building->hasLongName()) { return building->LongName(); }
@@ -763,7 +722,9 @@ std::string helper::getBuildingLongName()
 
 std::string helper::getProjectName()
 {
-	IfcSchema::IfcProject::list::ptr projectList = file_->instances_by_type<IfcSchema::IfcProject>();
+	//TODO: improve the datamanagement
+	IfcParse::IfcFile* fileObejct = datacollection_[0].getFilePtr();
+	IfcSchema::IfcProject::list::ptr projectList = fileObejct->instances_by_type<IfcSchema::IfcProject>();
 
 	IfcSchema::IfcProject* project = *projectList->begin();
 	if (project->hasName()) { return project->Name(); }
@@ -816,6 +777,7 @@ template <typename T>
 void helper::addObjectToIndex(const T& object) {
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
+
 		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (!helperFunctions::hasVolume(box))
 		{
@@ -845,9 +807,8 @@ void helper::addObjectToIndex(const T& object) {
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
 			if (!isInWall(box)) { cbbox = boxSimplefy(shape); }
-			// if no void was found where object could be nested in
-
 		}
+
 		index_.insert(std::make_pair(box, (int)index_.size()));
 		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);
 
@@ -885,13 +846,13 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 	if (!adjusted)
 	{
-		auto search = shapeLookup_.find(product->data().id());
+		auto search = shapeLookup_.find(product->GlobalId());
 		if (search != shapeLookup_.end()) { return search->second; }
 	}
 
 	if (adjusted)
 	{
-		auto search = adjustedshapeLookup_.find(product->data().id());
+		auto search = adjustedshapeLookup_.find(product->GlobalId());
 		if (search != adjustedshapeLookup_.end()) { return search->second; }
 	}
 
@@ -956,11 +917,11 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 				}
 			}
 
-			if (memorize) { shapeLookup_[product->data().id()] = collection; }
+			if (memorize) { shapeLookup_[product->GlobalId()] = collection; }
 
 			if (hasHoles)
 			{
-				if (memorize) { adjustedshapeLookup_[product->data().id()] = collectionSimple; }
+				if (memorize) { adjustedshapeLookup_[product->GlobalId()] = collectionSimple; }
 			}
 
 			if (adjusted) { return collectionSimple; }
@@ -974,13 +935,33 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	gp_Trsf placement;
 	gp_Trsf trsf;
 
+	IfcGeom::Kernel* kernelObject = nullptr;
+
+	if (dataCollectionSize_ == 0)
+	{
+		kernelObject = datacollection_[0].getKernelPtr();
+	}
+	else { // TODO: makes this smarter and quicker
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+		{
+			try { datacollection_[i].getFilePtr()->instance_by_guid(product->GlobalId())->data().toString(); }
+			catch (const std::exception&) { continue; }
+
+			kernelObject = datacollection_[i].getKernelPtr();
+		}
+	}
+	if (kernelObject == nullptr)
+	{
+		return {};
+	}
+
+	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	IfcGeom::IteratorSettings settings;
-	kernel_->convert_placement(product->ObjectPlacement(), trsf);
-	IfcGeom::BRepElement<double, double>* brep = kernel_->convert(settings, ifc_representation, product);
+	IfcGeom::BRepElement<double, double>* brep = kernelObject->convert(settings, ifc_representation, product);
 
 	if (brep == nullptr) { return {}; } //TODO: find manner to aquire data in another manner
 
-	kernel_->convert_placement(ifc_representation, placement);
+	kernelObject->convert_placement(ifc_representation, placement);
 
 	comp = brep->geometry().as_compound();
 	comp.Move(trsf * placement); // location in global space
@@ -989,20 +970,20 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (hasHoles)
 	{
 		settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true);
-		brep = kernel_->convert(settings, ifc_representation, product);
-		kernel_->convert_placement(ifc_representation, placement);
+		brep = kernelObject->convert(settings, ifc_representation, product);
+		kernelObject->convert_placement(ifc_representation, placement);
 
 		simpleComp = brep->geometry().as_compound();
 		simpleComp.Move(trsf * placement); // location in global space
 		simpleComp.Move(objectTranslation_);
 	}
 
-	if (memorize) { shapeLookup_[product->data().id()] = comp; }
+	if (memorize) { shapeLookup_[product->GlobalId()] = comp; }
 
 	if (hasHoles)
 	{
 		if (memorize)
-		{ adjustedshapeLookup_[product->data().id()] = simpleComp; }
+		{ adjustedshapeLookup_[product->GlobalId()] = simpleComp; }
 	}
 	if (adjusted) { return simpleComp; }
 	return comp;
@@ -1016,22 +997,22 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 	// filter with lookup
 	if (!adjusted)
 	{
-		auto search = shapeLookup_.find(product->data().id());
+		auto search = shapeLookup_.find(product->GlobalId());
 		if (search == shapeLookup_.end())
 		{
 			return;
 		}
-		shapeLookup_[product->data().id()] = shape;
+		shapeLookup_[product->GlobalId()] = shape;
 	}
 
 	if (adjusted)
 	{
-		auto search = adjustedshapeLookup_.find(product->data().id());
+		auto search = adjustedshapeLookup_.find(product->GlobalId());
 		if (search == adjustedshapeLookup_.end())
 		{
 			return;
 		}
-		adjustedshapeLookup_[product->data().id()] = shape;
+		adjustedshapeLookup_[product->GlobalId()] = shape;
 	}
 }
 
@@ -1060,8 +1041,13 @@ void helper::updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape) {
 
 void helper::applyVoids()
 {
-	voidShapeAdjust<IfcSchema::IfcWallStandardCase::list::ptr>(file_->instances_by_type<IfcSchema::IfcWallStandardCase>());
-	voidShapeAdjust<IfcSchema::IfcWall::list::ptr>(file_->instances_by_type<IfcSchema::IfcWall>());
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		// TODO: make this work
+		IfcParse::IfcFile* fileObject = datacollection_[i].getFilePtr();
+		voidShapeAdjust<IfcSchema::IfcWallStandardCase::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWallStandardCase>());
+		voidShapeAdjust<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
+	}
 }
 
 
@@ -1220,4 +1206,105 @@ bool lookupValue::hasTraingulatedShape()
 {
 	if (triangulatedShape_.size() > 0) { return true; }
 	return false;
+}
+
+
+fileKernelCollection::fileKernelCollection(const std::string& filePath)
+{
+	file_ = new IfcParse::IfcFile(filePath);
+
+	if (!file_->good()) { return; }
+
+	good_ = true;
+	kernel_ = new IfcGeom::Kernel(file_);;
+	setUnits();
+}
+
+
+void fileKernelCollection::setUnits()
+{
+	double length = 0;
+	double area = 0;
+	double volume = 0;
+
+	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
+	if (presentUnits.get()->size() == 0) {
+		std::cout << "[Error] No unit assignment has been found" << std::endl;
+		return;
+	}
+	else if (presentUnits.get()->size() > 1)
+	{
+		std::cout << "[Error] Multiple unit assignments have been found" << std::endl;
+		return;
+	}
+
+
+	for (IfcSchema::IfcUnitAssignment::list::it it = presentUnits->begin(); it != presentUnits->end(); ++it)
+	{
+		const IfcSchema::IfcUnitAssignment* itUnits = *it;
+		auto units = itUnits->Units();
+
+		for (auto et = units.get()->begin(); et != units.get()->end(); et++) {
+			auto unit = *et;
+
+			if (unit->declaration().type() == 902 || unit->declaration().type() == 765) // select the IfcSIUnit
+			{
+				std::string unitType = unit->data().getArgument(1)->toString();
+				std::string SiUnitBase = unit->data().getArgument(3)->toString();
+				std::string SiUnitAdd = unit->data().getArgument(2)->toString();
+
+				if (unitType == ".LENGTHUNIT.")
+				{
+					if (SiUnitBase == ".METRE.") { length = 1; }
+					if (SiUnitAdd == ".MILLI.") { length = length / 1000; }
+				}
+				else if (unitType == ".AREAUNIT.")
+				{
+					if (SiUnitBase == ".SQUARE_METRE.") { area = 1; }
+					if (SiUnitAdd == ".MILLI.") { area = area / pow(1000, 2); }
+				}
+				if (unitType == ".VOLUMEUNIT.")
+				{
+					if (SiUnitBase == ".CUBIC_METRE.") { volume = 1; }
+					if (SiUnitAdd == ".MILLI.") { volume = volume / pow(1000, 3); }
+				}
+			}
+		}
+	}
+
+	// check if units have been found
+	std::cout << "[INFO] found units:" << std::endl;
+	if (!length)
+	{
+		std::cout << "[Error] SI unit for length cannot be found!" << std::endl;
+		return;
+	}
+	else if (length == 1) { std::cout << "- Lenght in metre" << std::endl; }
+	else if (length == 0.001) { std::cout << "- Lenght in millimetre" << std::endl; }
+
+	if (!area)
+	{
+		std::cout << "[Error] SI unit for area cannot be found!" << std::endl;
+		return;
+	}
+	else if (area == 1) { std::cout << "- Area in square metre" << std::endl; }
+	else if (area == 0.000001) { std::cout << "- Area in square millimetre" << std::endl; }
+
+	if (!volume)
+	{
+		std::cout << "[Warning] SI unit for volume cannot be found!" << std::endl;
+		std::cout << "[Warning] SI unit for volume is set to cubic metre!" << std::endl;
+		volume = 1;
+	}
+	else if (volume == 1) { std::cout << "- Volume in cubic metre" << std::endl; }
+	else if (volume == 0.000000001) { std::cout << "- Volume in cubic millimetre" << std::endl; }
+
+	std::cout << std::endl;
+
+	//internalize the data
+	length_ = length;
+	area_ = area;
+	volume_ = volume;
+
+	return;
 }

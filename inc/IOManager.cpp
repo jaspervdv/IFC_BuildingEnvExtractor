@@ -802,7 +802,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	std::string currentPath = inputPathList_[0];
 	std::cout << "[INFO] Parsing file " << currentPath << std::endl;
 	//TODO: multifile merging
-	helper h = helper(currentPath);
+	helper h = helper(inputPathList_);
 	if (!h.hasSetUnits()) { return 0; }
 	h.setName(getFileName(currentPath));
 	h.setfootprintLvl(footprintElevation_);

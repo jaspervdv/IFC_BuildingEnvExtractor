@@ -84,24 +84,21 @@ def runCode(input_path,
         return
 
     # check paths
-    if(not os.path.isfile(input_path)):
-        tkinter.messagebox.showerror("Settings Error",  "Error: No Valid input file supplied")
-        return
+    input_path_list = input_path.split(" ")
+
+    for path in input_path_list:
+        if(not os.path.isfile(path)):
+            tkinter.messagebox.showerror("Settings Error",  "Error: No Valid input file supplied")
+            return
 
     if(not os.path.isdir(output_path) and not len(output_path) == 0):
         tkinter.messagebox.showerror("Settings Error", "Error: No Valid output folder supplied\n (GUI can not create new folders)")
         return
 
-    # generate output path
-    if(len(output_path) == 0):
-        output_path = os.path.dirname(input_path) + "/exports"
-
-    print(os.path.dirname(input_path))
-
     # write data to json
     json_dictionary = {}
     json_dictionary["Filepaths"] = {
-        "Input" : [input_path],
+        "Input" : input_path_list,
         "Output" : output_path
     }
     json_dictionary["voxelSize"] = {"xy" : float(voxel_size)}
@@ -143,22 +140,22 @@ def runCode(input_path,
         json.dump(json_dictionary, outfile)
 
     # get schema of the file
-    counter  = 0
     is_ifc4 = True
+    for path in input_path_list:
+        counter = 0
+        for line in open(path):
+            if "FILE_SCHEMA(('IFC2X3'))" in line:
+                is_ifc4 = False
+                break
 
-    for line in open(input_path):
-        if "FILE_SCHEMA(('IFC2X3'))" in line:
-            is_ifc4 = False
-            break
+            if  "FILE_SCHEMA(('IFC4'))" in line:
+                break
 
-        if  "FILE_SCHEMA(('IFC4'))" in line:
-            break
-
-        if counter == 100:
-            tkinter.messagebox.showerror("File Error",
-                                         "Error: Was unable to find IFC schema in file")
-            return
-        counter += 1
+            if counter == 100:
+                tkinter.messagebox.showerror("File Error",
+                                             "Error: Was unable to find IFC schema in file")
+                return
+            counter += 1
 
 
     # call ifc exe
@@ -175,9 +172,12 @@ def browse_(box, is_folder, window):
     folder_path = ""
 
     if (not is_folder):
-        folder_path =  filedialog.askopenfilename()
+        folder_path =  filedialog.askopenfilenames()
     else:
         folder_path = filedialog.askdirectory()
+
+    if len(folder_path) == 0:
+        return
 
     box.delete(0, tkinter.END)
     box.insert(0, folder_path)

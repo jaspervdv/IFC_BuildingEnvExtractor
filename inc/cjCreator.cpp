@@ -1104,13 +1104,13 @@ void CJGeoCreator::sortRoofStructures() {
 void CJGeoCreator::initializeBasic(helper* cluster) {
 	std::cout << "- Pre proccessing" << std::endl;
 	// generate data required for most exports
-	std::vector<SurfaceGroup> shapeList;
 	std::vector<TopoDS_Shape> filteredFaces = getTopObjects(cluster);
 
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Reduce surfaces" << std::endl;
 
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx;
+	std::vector<SurfaceGroup> shapeList;
 
 	for (size_t i = 0; i < filteredFaces.size(); i++)
 	{
@@ -1373,7 +1373,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 		for (size_t j = 0; j < faceList_[i].size(); j++)
 		{
 			SurfaceGroup currentRoof = faceList_[i][j];
-
 			if (currentRoof.getURRPoint().Z() == 0) { continue; }
 
 			TopoDS_Face currentFace;
@@ -1998,7 +1997,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 
 		int idx = boxelIdx[i];
 		voxel* boxel = VoxelLookup_[idx];
-		std::vector<gp_Pnt> pointList = boxel->getCornerPoints(planeRotation_);
+		std::vector<gp_Pnt> pointList = boxel->getCornerPoints(0);
 		while (true)
 		{
 			BoostPoint3D lll(pointList[0].X(), pointList[0].Y(), pointList[0].Z() - downstep);

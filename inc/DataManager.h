@@ -45,14 +45,53 @@ public:
 	TopoDS_Shape getCBox() { return cBox_; }
 };
 
-class helper
+
+class fileKernelCollection 
 {
 private:
+	IfcParse::IfcFile* file_ = nullptr;
+	IfcGeom::Kernel* kernel_ = nullptr;
+
+	bool good_ = false;
+
 	// The unit multipliers found
 	double length_ = 0;
 	double area_ = 0;
 	double volume_ = 0;
 
+public:
+	fileKernelCollection(const std::string& file);
+
+	/// returns the pointer to the file object
+	IfcParse::IfcFile getFile() const  { return *file_; }
+	IfcParse::IfcFile* getFilePtr()  { return file_; }
+
+	/// returns the pointer to the kernel object
+	IfcGeom::Kernel getKernel() const { return *kernel_; }
+	IfcGeom::Kernel* getKernelPtr() { return kernel_; }
+
+	/// internalizes the units that are stored in the file
+	void setUnits();
+
+	// returns a vector with length, area and volume multipliers
+	std::vector<double> getUnits() const { return { length_, area_, volume_ }; }
+
+	// returns the length multiplier
+	double getLengthMultiplier() const { return length_; }
+
+	// returns the area multiplier
+	double getAreaMultiplier() const { return area_; }
+
+	// returns the volume multiplier
+	double getVolumeMultiplier() const { return volume_; }
+
+	bool isGood() { return good_; }
+};
+
+
+class helper
+{
+private:
 	double objectCount_ = 0;
 
 	double footprintEvalLvl_ = -0.15;
@@ -74,8 +113,8 @@ private:
 	std::string path_;
 	std::string fileName_;
 
-	IfcParse::IfcFile* file_;
-	IfcGeom::Kernel* kernel_;
+	std::vector<fileKernelCollection> datacollection_;
+	double dataCollectionSize_ = 0;
 
 	static const int treeDepth = 25;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
@@ -83,8 +122,8 @@ private:
 
 	bool hasIndex_ = false;
 
-	std::map < int, TopoDS_Shape > shapeLookup_;
-	std::map < int, TopoDS_Shape > adjustedshapeLookup_;
+	std::map < std::string, TopoDS_Shape > shapeLookup_;
+	std::map < std::string, TopoDS_Shape > adjustedshapeLookup_;
 
 	bool useProxy_ = false;
 	std::list<std::string>* roomBoundingObjects_ = {};
@@ -96,9 +135,6 @@ private:
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
-
-	/// sets the unit multipliers to allow for the use of other units than metres
-	void setUnits(IfcParse::IfcFile* file);
 
 	/// count the elements in the file and set the related bools
 	void elementCountSummary(bool* hasProxy, bool* hasLotProxy);
@@ -129,14 +165,13 @@ private:
 	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr);
 
 public:
-
 	/*
 	construct and populate a helper
 	creates and stores SI unit mulitpliers for length, area and volume
 	creates and stores the file and kernel for quick acess
 	*/
 	explicit helper() {};
-	explicit helper(std::string path);
+	explicit helper(const std::vector<std::string>& path);
 
 	// returns true when length, area and volume multiplier are not 0
 	bool hasSetUnits();
@@ -156,18 +191,6 @@ public:
 	/// gets the project name
 	std::string getProjectName();
 
-	// returns a vector with length, area and volume multipliers
-	std::vector<double> getUnits() const { return { length_, area_, volume_ }; }
-
-	// returns the length multiplier
-	double getLengthMultiplier() const { return length_; }
-
-	// returns the area multiplier
-	double getAreaMultiplier() const { return area_; }
-
-	// returns the volume multiplier
-	double getVolumeMultiplier() const { return volume_; }
-
 	// returns the floor evalLvl
 	double getfootprintEvalLvl() { return footprintEvalLvl_; }
 
@@ -176,10 +199,10 @@ public:
 	std::string getPath() const { return path_; }
 
 	// returns a pointer to the sourcefile
-	IfcParse::IfcFile* getSourceFile() const { return file_; }
+	IfcParse::IfcFile getSourceFile(int i) const { return datacollection_[i].getFile(); }
 
 	// returns a pointer to the kernel
-	IfcGeom::Kernel* getKernel() const { return kernel_; }
+	IfcGeom::Kernel getKernel(int i) const { return datacollection_[i].getKernel(); }
 
 	bool getHasGeo() { return hasGeo_; }
 
