@@ -1234,11 +1234,11 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		lookupValue lookup = h->getLookup(productLookupValues[i].second);
+		lookupValue* lookup = h->getLookup(productLookupValues[i].second);
 		TopoDS_Shape currentShape;
 
-		if (lookup.hasCBox()) { currentShape = lookup.getCBox(); }
-		else { currentShape = h->getObjectShape(lookup.getProductPtr(), true); }
+		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
+		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
 
 		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next()) {
 
@@ -2017,8 +2017,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 			{
 				bool dub = false;
 
-				lookupValue lookup = h->getLookup(qResult[k].second);
-				IfcSchema::IfcProduct* product = lookup.getProductPtr();
+				lookupValue* lookup = h->getLookup(qResult[k].second);
+				IfcSchema::IfcProduct* product = lookup->getProductPtr();
 
 				for (size_t l = 0; l < topProducts.size(); l++)
 				{
@@ -2034,8 +2034,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 				if (!dub)
 				{
 					TopoDS_Shape shape;
-					if (lookup.hasCBox()) { shape = lookup.getCBox(); }
-					else { shape = h->getObjectShape(lookup.getProductPtr(), true); }
+					if (lookup->hasCBox()) { shape = lookup->getCBox(); }
+					else { shape = h->getObjectShape(lookup->getProductPtr(), true); }
 					topProducts.emplace_back(product);
 					topObjects.emplace_back(shape);
 				}
@@ -2485,19 +2485,19 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::CityCollect
 	// evaluate which surfaces are visible
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		lookupValue lookup = h->getLookup(productLookupValues[i].second);
+		lookupValue* lookup = h->getLookup(productLookupValues[i].second);
 		//std::cout << std::get<0>(lookup)->data().toString() << std::endl;
 
 		TopoDS_Shape currentShape;
 
-		std::string lookupType = lookup.getProductPtr()->data().type()->name();
+		std::string lookupType = lookup->getProductPtr()->data().type()->name();
 
 		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
 		{
-			if (lookup.hasCBox()) { currentShape = lookup.getCBox(); }
+			if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
 			else { continue; }
 		}
-		else { currentShape = h->getObjectShape(lookup.getProductPtr(), true); }
+		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -2669,11 +2669,11 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 	for (size_t i = 0; i < productLookupValues->size(); i++)
 	{
 		bool isExposed = true;
-		lookupValue lookup = h->getLookup(productLookupValues->at(i).second);
+		lookupValue* lookup = h->getLookup(productLookupValues->at(i).second);
 		TopoDS_Shape currentShape;
 
-		if (lookup.hasCBox()) { currentShape = lookup.getCBox(); }
-		else { currentShape = h->getObjectShape(lookup.getProductPtr(), true); }
+		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
+		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
 
 		bg::model::box <BoostPoint3D> box = productLookupValues->at(i).first;
 
@@ -2685,11 +2685,11 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 		{
 			bool encapsulating = true;
 
-			lookupValue otherLookup = h->getLookup(qResult[k].second);
+			lookupValue* otherLookup = h->getLookup(qResult[k].second);
 
 			TopoDS_Shape otherShape;
-			if (otherLookup.hasCBox()) { otherShape = otherLookup.getCBox(); }
-			else { otherShape = h->getObjectShape(otherLookup.getProductPtr(), true); }
+			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
+			else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
 
 			if (currentShape.IsEqual(otherShape)) { continue; }
 
@@ -2933,11 +2933,11 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 
 		for (size_t k = 0; k < qResult2.size(); k++)
 		{
-			lookupValue otherLookup = h->getLookup(qResult2[k].second);
+			lookupValue* otherLookup = h->getLookup(qResult2[k].second);
 
 			TopoDS_Shape otherShape;
-			if (otherLookup.hasCBox()) { otherShape = otherLookup.getCBox(); }
-			else { otherShape = h->getObjectShape(otherLookup.getProductPtr(), true); }
+			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
+			else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
 
 			if (otherShape.IsEqual(currentShape)) { continue; }
 
@@ -3153,12 +3153,9 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helper* 
 
 				for (size_t k = 0; k < qResult.size(); k++)
 				{
-					lookupValue lookup = h->getLookup(qResult[k].second);
+					lookupValue* lookup = h->getLookup(qResult[k].second);
 
-					//IfcSchema::IfcProduct* product = std::get<0>(lookup);	
-					//if (!product->hasRepresentation()) { continue; }
-
-					if (currentBoxel->checkIntersecting(lookup, pointList, h))
+					if (currentBoxel->checkIntersecting(*lookup, pointList, h))
 					{
 						currentBoxel->addInternalProduct(qResult[k]);
 						intt = true;

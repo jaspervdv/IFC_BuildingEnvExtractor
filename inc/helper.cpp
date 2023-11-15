@@ -923,7 +923,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const 
 }
 
 
-bool helperFunctions::isOverlappingCompletely(SurfaceGroup evalFace, SurfaceGroup otherFace) {
+bool helperFunctions::isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace) {
 	std::vector<EvaluationPoint*> evalGrid = evalFace.getPointGrid();
 	std::vector<EvaluationPoint*> otherGrid = otherFace.getPointGrid();
 	if (evalGrid.size() != otherGrid.size()) { return false; }

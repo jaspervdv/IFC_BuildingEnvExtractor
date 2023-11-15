@@ -153,10 +153,10 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	}
 
 	// check with triangulated object
-	std::vector<std::vector<gp_Pnt>> triangleMesh = lookup.getTriangluatedShape();
-	for (size_t i = 0; i < triangleMesh.size(); i++)
+	std::vector<std::vector<gp_Pnt>>* triangleMesh = lookup.getTriangluatedShape();
+	for (size_t i = 0; i < triangleMesh->size(); i++)
 	{
-		std::vector<gp_Pnt> triangle = triangleMesh[i];
+		std::vector<gp_Pnt> triangle = triangleMesh->at(i);
 		for (size_t k = 0; k < vets.size(); k++)
 		{
 			if (helperFunctions::triangleIntersecting({ voxelPoints[vets[k][0]], voxelPoints[vets[k][1]] }, triangle))

@@ -20,6 +20,8 @@
 #include <gp_Vec.hxx>
 #include <TopoDS.hxx>
 
+#include <mutex>
+
 #ifndef DATAMANAGER_DATAMANAGER_H
 #define DATAMANAGER_DATAMANAGER_H
 
@@ -27,30 +29,35 @@
 class lookupValue
 {
 private:
-	IfcSchema::IfcProduct* productPtr_;
-	std::vector<std::vector<gp_Pnt>> triangulatedShape_;
+	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
+	std::unique_ptr<std::vector<std::vector<gp_Pnt>>> triangulatedShape_;
 	TopoDS_Shape cBox_;
 
 public:
 	lookupValue(IfcSchema::IfcProduct* productPtr, const std::vector<std::vector<gp_Pnt>>& triangulatedShape, const TopoDS_Shape& cBox);
 
-	IfcSchema::IfcProduct* getProductPtr() { return productPtr_; }
+	~lookupValue() {
+	}
+
+	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
 
 	bool hasTraingulatedShape();
 
-	std::vector<std::vector<gp_Pnt>> getTriangluatedShape() { return triangulatedShape_; }
+	std::vector<std::vector<gp_Pnt>>* getTriangluatedShape() { return triangulatedShape_.get(); }
+
+	void setTriangluatedShape(const std::vector<std::vector<gp_Pnt>>& triangulatedShape) { triangulatedShape_ = std::make_unique<std::vector<std::vector<gp_Pnt>>>(triangulatedShape); }
 
 	bool hasCBox() { return !cBox_.IsNull(); }
 
-	TopoDS_Shape getCBox() { return cBox_; }
+	const TopoDS_Shape& getCBox() { return cBox_; }
 };
 
 
 class fileKernelCollection 
 {
 private:
-	IfcParse::IfcFile* file_ = nullptr;
-	IfcGeom::Kernel* kernel_ = nullptr;
+	IfcParse::IfcFile* file_; //TODO: find out why memory needs to be leaked
+	std::unique_ptr<IfcGeom::Kernel> kernel_;
 
 	bool good_ = false;
 
@@ -62,13 +69,14 @@ private:
 public:
 	fileKernelCollection(const std::string& file);
 
+	~fileKernelCollection() {
+	}
+
 	/// returns the pointer to the file object
-	IfcParse::IfcFile getFile() const  { return *file_; }
 	IfcParse::IfcFile* getFilePtr()  { return file_; }
 
 	/// returns the pointer to the kernel object
-	IfcGeom::Kernel getKernel() const { return *kernel_; }
-	IfcGeom::Kernel* getKernelPtr() { return kernel_; }
+	IfcGeom::Kernel* getKernelPtr() { return kernel_.get(); }
 
 	/// internalizes the units that are stored in the file
 	void setUnits();
@@ -97,6 +105,7 @@ private:
 	double footprintEvalLvl_ = -0.15;
 
 	bool hasGeo_ = false;
+	bool isPopulated_ = false;
 
 	double maxProxyP_ = 0.3;
 	double proxyCount_ = 0;
@@ -113,12 +122,12 @@ private:
 	std::string path_;
 	std::string fileName_;
 
-	std::vector<fileKernelCollection> datacollection_;
+	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	double dataCollectionSize_ = 0;
 
-	static const int treeDepth = 25;
+	static const int treeDepth = 10;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
-	std::vector<lookupValue> productLookup_;
+	std::vector<lookupValue*> productLookup_;
 
 	bool hasIndex_ = false;
 
@@ -130,8 +139,8 @@ private:
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
 
-	std::unordered_set<std::string> openingObjects_  = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" }; 
-	std::unordered_set<std::string> cuttingObjects_  = { "IfcWindow", "IfcDoor", "IfcColumn"}; 
+	std::unordered_set<std::string> openingObjects_  = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };  // read only!
+	std::unordered_set<std::string> cuttingObjects_  = { "IfcWindow", "IfcDoor", "IfcColumn"}; // read only!
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
@@ -162,7 +171,10 @@ private:
 
 	/// get all the points of all the instances of an objecttype
 	template <typename T>
-	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr);
+	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr, bool simple = false);
+
+	template<typename T>
+	void getAllTypePointsPtr(const T& typePtr, std::vector<gp_Pnt>* pointList, bool simple);
 
 public:
 	/*
@@ -172,6 +184,16 @@ public:
 	*/
 	explicit helper() {};
 	explicit helper(const std::vector<std::string>& path);
+
+	~helper() {
+		for (size_t i = 0; i < productLookup_.size(); i++)
+		{
+			delete productLookup_[i];
+		}
+	}
+
+	// returns true if helper is well populated
+	bool isPopulated() { return isPopulated_; }
 
 	// returns true when length, area and volume multiplier are not 0
 	bool hasSetUnits();
@@ -194,15 +216,15 @@ public:
 	// returns the floor evalLvl
 	double getfootprintEvalLvl() { return footprintEvalLvl_; }
 
-	std::string getFileName() const { return fileName_; }
+	const std::string& getFileName() const { return fileName_; }
 
-	std::string getPath() const { return path_; }
+	const std::string& getPath() const { return path_; }
 
 	// returns a pointer to the sourcefile
-	IfcParse::IfcFile getSourceFile(int i) const { return datacollection_[i].getFile(); }
+	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
 
 	// returns a pointer to the kernel
-	IfcGeom::Kernel getKernel(int i) const { return datacollection_[i].getKernel(); }
+	IfcGeom::Kernel* getKernel(int i) const { return datacollection_[i].get()->getKernelPtr(); }
 
 	bool getHasGeo() { return hasGeo_; }
 
@@ -214,13 +236,13 @@ public:
 
 	bool getHasLotProxy() { return hasLotProxy_; }
 
-	gp_Pnt getLllPoint() { return lllPoint_; }
+	const gp_Pnt& getLllPoint() { return lllPoint_; }
 
-	gp_Pnt getUrrPoint() { return urrPoint_; }
+	const gp_Pnt& getUrrPoint() { return urrPoint_; }
 
 	double getRotation() { return originRot_; }
 
-	gp_Trsf getObjectTranslation() { return objectTranslation_; }
+	const gp_Trsf& getObjectTranslation() { return objectTranslation_; }
 
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
 
@@ -228,8 +250,8 @@ public:
 
 	bool hasIndex() { return hasIndex_; }
 
-	auto getLookup(int i) { return productLookup_[i]; }
-	auto updateLookupTriangle(const std::vector<std::vector<gp_Pnt>>& triangleMeshList, int i) { productLookup_[i].getTriangluatedShape() = triangleMeshList; }
+	lookupValue* getLookup(int i) { return productLookup_.at(i); }
+	void updateLookupTriangle(const std::vector<std::vector<gp_Pnt>>& triangleMeshList, int i) { productLookup_.at(i)->setTriangluatedShape(triangleMeshList); }
 
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 
@@ -253,9 +275,6 @@ public:
 	void setUseProxy(bool b) { useProxy_ = b; }
 
 	void setfootprintLvl(double lvl) { footprintEvalLvl_ = lvl; }
-
-	~helper() {};
-
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

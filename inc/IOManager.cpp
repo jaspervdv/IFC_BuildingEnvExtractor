@@ -702,7 +702,7 @@ nlohmann::json IOManager::settingsToJSON()
 
 	settingsJSON["Input IFC file"] = inputPathList_;
 	settingsJSON["Output folder"] = outputFolderPath_;
-	settingsJSON["Output IFC file"] = getOutputPath() + "\\" + internalHelper_.getFileName() + ".city.json";
+	settingsJSON["Output IFC file"] = getOutputPath() + "\\" + internalHelper_->getFileName() + ".city.json";
 	settingsJSON["Create report"] = "true";
 	if (isJsonInput_) { settingsJSON["JSON input"] = "true"; }
 	else if (!isJsonInput_) { settingsJSON["JSON input"] = "false"; }
@@ -737,9 +737,7 @@ nlohmann::json IOManager::settingsToJSON()
 
 bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 {
-
 	timeTotal = 0;
-
 	bool isSilent_ = silent;
 
 	// find if input has IFC format
@@ -798,17 +796,14 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 	auto internalizingTime = std::chrono::high_resolution_clock::now(); // Time Collection Starts
 	
-																		// init helpers
-	std::string currentPath = inputPathList_[0];
-	std::cout << "[INFO] Parsing file " << currentPath << std::endl;
-	//TODO: multifile merging
-	helper h = helper(inputPathList_);
-	if (!h.hasSetUnits()) { return 0; }
-	h.setName(getFileName(currentPath));
-	h.setfootprintLvl(footprintElevation_);
-	internalHelper_ = h;
+	internalHelper_ = std::make_unique<helper>(inputPathList_);
+	helper* internalHelperPtr = internalHelper_.get();
+	if (!internalHelperPtr->isPopulated()) { return 0; }
+	if (!internalHelperPtr->hasSetUnits()) { return 0; }
+	internalHelperPtr->setName(getFileName(inputPathList_[0]));
+	internalHelperPtr->setfootprintLvl(footprintElevation_);
+	internalHelperPtr->setUseProxy(useProxy_);
 
-	internalHelper_.setUseProxy(useProxy_);
 	return true;
 }
 
@@ -818,39 +813,39 @@ bool IOManager::run()
 	auto internalizingTime = std::chrono::high_resolution_clock::now();
 	
 	// internalize the helper data
-	internalHelper_.internalizeGeo();
-	internalHelper_.indexGeo();
+	internalHelper_->internalizeGeo();
+	internalHelper_->indexGeo();
 
 	timeInternalizing_ = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
 	// create the cjt objects
-	CJT::CityCollection collection;
+	std::unique_ptr<CJT::CityCollection> collection = std::make_unique<CJT::CityCollection>();
+	CJT::CityCollection* collectionPtr = collection.get();
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
-	metaData.setTitle(internalHelper_.getFileName() + " Auto export from IfcEnvExtractor");
-	collection.setTransformation(transformation);
-	collection.setMetaData(metaData);
-	collection.setVersion("1.1");
+	metaData.setTitle(internalHelper_.get()->getFileName() + " Auto export from IfcEnvExtractor");
+	collectionPtr->setTransformation(transformation);
+	collectionPtr->setMetaData(metaData);
+	collectionPtr->setVersion("1.1");
 
 	CJT::CityObject cityObject;
-	std::string BuildingName = internalHelper_.getBuildingName();
-	if (BuildingName == "") { BuildingName = internalHelper_.getProjectName(); }
+	std::string BuildingName = internalHelper_.get()->getBuildingName();
+	if (BuildingName == "") { BuildingName = internalHelper_.get()->getProjectName(); }
 
 	cityObject.setName(BuildingName);
 	cityObject.setType(CJT::Building_Type::Building);
+	CJT::Kernel kernel = CJT::Kernel(collectionPtr);
 
-	CJT::Kernel kernel = CJT::Kernel(&collection);
-
-	std::map<std::string, std::string> buildingAttributes = internalHelper_.getBuildingInformation();
+	std::map<std::string, std::string> buildingAttributes = internalHelper_.get()->getBuildingInformation();
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject.addAttribute(iter->first, iter->second); }
 
 	// make the geometrycreator and voxelgrid
-	CJGeoCreator geoCreator(&internalHelper_, voxelSize_);
+	CJGeoCreator geoCreator(internalHelper_.get(), voxelSize_);
 
 	if (makeOutlines_)
 	{
 		try
 		{
-			geoCreator.initializeBasic(&internalHelper_);
+			geoCreator.initializeBasic(internalHelper_.get());
 		}
 		catch (const std::exception&)
 		{
@@ -863,7 +858,7 @@ bool IOManager::run()
 	{
 		try
 		{
-			geoCreator.makeFootprint(&internalHelper_);
+			geoCreator.makeFootprint(internalHelper_.get());
 		}
 		catch (const std::exception&)
 		{
@@ -875,7 +870,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject* geo00 = geoCreator.makeLoD00(&internalHelper_, &collection, &kernel, 1);
+			CJT::GeoObject* geo00 = geoCreator.makeLoD00(internalHelper_.get(), collectionPtr, &kernel, 1);
 			cityObject.addGeoObject(*geo00);
 			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -887,7 +882,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(&internalHelper_, &collection, &kernel, 1);
+			std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(internalHelper_.get(), collectionPtr, &kernel, 1);
 			for (size_t i = 0; i < geo02.size(); i++) { cityObject.addGeoObject(*geo02[i]); }
 			timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -898,7 +893,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject* geo10 = geoCreator.makeLoD10(&internalHelper_, &collection, &kernel, 1);
+			CJT::GeoObject* geo10 = geoCreator.makeLoD10(internalHelper_.get(), collectionPtr, &kernel, 1);
 			cityObject.addGeoObject(*geo10);
 			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -909,7 +904,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(&internalHelper_, &collection, &kernel, 1);
+			std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(internalHelper_.get(), collectionPtr, &kernel, 1);
 			for (size_t i = 0; i < geo12.size(); i++) { cityObject.addGeoObject(*geo12[i]); }
 			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -920,7 +915,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(&internalHelper_, &collection, &kernel, 1);
+			std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(internalHelper_.get(), collectionPtr, &kernel, 1);
 			for (size_t i = 0; i < geo13.size(); i++) { cityObject.addGeoObject(*geo13[i]); }
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -931,7 +926,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(&internalHelper_, &collection, &kernel, 1);
+			std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(internalHelper_.get(), collectionPtr, &kernel, 1);
 			for (size_t i = 0; i < geo22.size(); i++) { cityObject.addGeoObject(*geo22[i]); }
 			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -942,7 +937,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(&internalHelper_, &collection, &kernel, 1);
+			std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(internalHelper_.get(), collectionPtr, &kernel, 1);
 			for (size_t i = 0; i < geo32.size(); i++) { cityObject.addGeoObject(*geo32[i]); }
 			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -951,23 +946,23 @@ bool IOManager::run()
 	if (makeV())
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(&internalHelper_, &collection, &kernel, 1);
+		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(internalHelper_.get(), collectionPtr, &kernel, 1);
 		for (size_t i = 0; i < geoV.size(); i++) { cityObject.addGeoObject(*geoV[i]); }
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	}
 
 	//TODO: bake voxelshape
 
-	collection.addCityObject(cityObject);
-	collection.CleanVertices();
-	cityCollection_ = collection;
+	collectionPtr->addCityObject(cityObject);
+	collectionPtr->CleanVertices();
+	cityCollection_ = std::move(collection);
 
 	return true;
 }
 
 bool IOManager::write()
 {
-	cityCollection_.dumpJson(getOutputPath() + "\\" + internalHelper_.getFileName() + ".city.json");
+	cityCollection_.get()->dumpJson(getOutputPath() + "\\" + internalHelper_.get()->getFileName() + ".city.json");
 
 	if (!writeReport_) { return true; }
 	nlohmann::json report;
@@ -1000,7 +995,7 @@ bool IOManager::write()
 	report["Errors"] = ErrorList_;
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
-	std::ofstream reportFile(getOutputPath() + "\\" + internalHelper_.getFileName() + "_report.city.json");
+	std::ofstream reportFile(getOutputPath() + "\\" + internalHelper_.get()->getFileName() + "_report.city.json");
 	reportFile << report;
 	reportFile.close();
 }

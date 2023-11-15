@@ -59,8 +59,8 @@ private:
 public:
 	SurfaceGroup(const TopoDS_Face& aFace);
 
-	const TopoDS_Face& getFace() { return theFace_; }
-	const TopoDS_Face& getFlatFace() { return theFlatFace_; }
+	const TopoDS_Face& getFace() const { return theFace_; }
+	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
 	const TopoDS_Face& getProjectedFace() const { return theProjectedFace_; }
 	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }
 
@@ -73,7 +73,7 @@ public:
 	double getAvHeight() { return avHeight_; }
 	double getTopHeight() { return topHeight_; }
 
-	std::vector<EvaluationPoint*>& getPointGrid() { return pointGrid_; }
+	const std::vector<EvaluationPoint*>& getPointGrid() const { return pointGrid_; }
 	bool isVisible() { return visibility_; }
 	bool testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
@@ -101,7 +101,7 @@ private:
 public:
 	explicit Edge(const TopoDS_Edge& edge);
 
-	TopoDS_Edge getEdge() { return theEdge_; }
+	const TopoDS_Edge& getEdge() const { return theEdge_; }
 
 	TopoDS_Edge* getEdgePtr() { return &theEdge_; }
 

@@ -81,10 +81,11 @@ int main(int argc, char** argv) {
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
 
 	IOManager manager;
+	bool success = false;
 	if (argc > 1) {
 		try
 		{
-			manager.init({ argv[1] });
+			success = manager.init({ argv[1] });
 		}
 		catch (const std::string& exceptionString)
 		{
@@ -96,7 +97,7 @@ int main(int argc, char** argv) {
 	else { 
 		try
 		{
-			manager.init(GetSourcePathArray(), false);
+			success = manager.init(GetSourcePathArray(), false);
 		}
 		catch (const std::string& exceptionString)
 		{
@@ -104,6 +105,11 @@ int main(int argc, char** argv) {
 			std::cout << exceptionString << std::endl;
 			return 0;
 		}
+	}
+	if (!success)
+	{
+		std::cout << "[WARNING] unable to process file(s)" << std::endl;
+		return 0;
 	}
 	manager.run();
 	manager.write();

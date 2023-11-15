@@ -8,7 +8,6 @@
 
 class IOManager {
 private:
-
 	// if true no comminucation is pushed to console
 	bool isSilent_ = false;
 
@@ -43,9 +42,9 @@ private:
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;
 
-	helper internalHelper_;
+	std::unique_ptr<helper> internalHelper_;
 
-	CJT::CityCollection cityCollection_;
+	std::unique_ptr<CJT::CityCollection> cityCollection_;
 
 	// time summary for the output
 	double timeInternalizing_ = -1;
@@ -113,6 +112,7 @@ private:
 
 
 public:
+
 	bool init(const std::vector<std::string>& inputPathList, bool silent = false);
 
 	bool run();
@@ -124,9 +124,9 @@ public:
 	double voxelSize() { return voxelSize_; }
 	bool makeReport() { return writeReport_; }
 
-	std::string getOutputPath() { return outputFolderPath_; }
+	const std::string& getOutputPath() { return outputFolderPath_; }
 
-	helper getHelper() { return internalHelper_; }
+	helper* getHelper() { return internalHelper_.get(); }
 
 	bool makeLoD00() { return make00_; }
 	bool makeLoD02() { return make02_; }

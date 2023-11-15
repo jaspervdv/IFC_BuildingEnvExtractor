@@ -2,8 +2,10 @@
 
 #ifdef USE_IFC4
 #define IfcSchema Ifc4
+#define buildVersion "Ifc4"
 #else
 #define IfcSchema Ifc2x3
+#define buildVersion "Ifc2x3"
 #endif // USE_IFC4
 
 #include "surfaceCollection.h"
@@ -141,10 +143,10 @@ struct helperFunctions{
 	static gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
 
 	/// Check if surface is completely overlapped
-	static bool isOverlappingCompletely(SurfaceGroup evalFace, SurfaceGroup otherFace);
+	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace);
 
 	template<typename T>
-	static bool isOverlappingCompletely(SurfaceGroup evalFace, std::vector<SurfaceGroup> facePool, T shapeIdx)
+	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const std::vector<SurfaceGroup>& facePool, const T& shapeIdx)
 	{
 		std::vector<Value> qResult;
 		shapeIdx.query(bgi::intersects(
