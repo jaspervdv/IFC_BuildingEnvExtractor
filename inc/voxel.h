@@ -17,6 +17,7 @@ private:
 	bool hasEvalIntt_ = false;
 	bool isInside_ = true;
 	int buildingNum_ = -1;
+	int roomNum_ = -1;
 
 	std::vector<Value> internalProducts_;
 

@@ -792,7 +792,7 @@ std::string helper::getProjectName()
 
 std::vector<std::vector<gp_Pnt>> helper::triangulateProduct(IfcSchema::IfcProduct* product)
 {
-	return triangulateShape(getObjectShape(product, true));
+	return triangulateShape(getObjectShapeFromMem(product, true));
 }
 
 
@@ -894,19 +894,8 @@ std::vector<TopoDS_Face> helper::getObjectFaces(IfcSchema::IfcProduct* product, 
 }
 
 
-TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, bool memorize)
+TopoDS_Shape helper::getObjectShapeFromMemEmpty(IfcSchema::IfcProduct* product, bool adjusted)
 {
-	//std::cout << product->data().toString() << std::endl;
-	std::string objectType = product->data().type()->name();
-
-	//TODO: find issue with this object with Bologna model
-	//TODO: make threadsave
-
-	if (objectType == "IfcFastener") { return {}; }
-
-	// filter with lookup
-	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
-
 	if (!adjusted)
 	{
 		auto search = shapeLookup_.find(product->GlobalId());
@@ -917,6 +906,33 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		auto search = adjustedshapeLookup_.find(product->GlobalId());
 		if (search != adjustedshapeLookup_.end()) { return search->second; }
 	}
+	return {};
+}
+
+
+TopoDS_Shape helper::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted)
+{
+	// filter with lookup
+	std::string objectType = product->data().type()->name();
+	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
+	return getObjectShapeFromMemEmpty(product, adjusted);
+}
+
+
+TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, bool memorize)
+{
+	std::string objectType = product->data().type()->name();
+
+	//TODO: find issue with this object with Bologna model
+	//TODO: make threadsave
+
+	if (objectType == "IfcFastener") { return {}; }
+
+	// filter with lookup
+	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
+	TopoDS_Shape potentialShape = getObjectShapeFromMemEmpty(product, adjusted);
+
+	if (!potentialShape.IsNull()) { return potentialShape; }
 
 	IfcSchema::IfcRepresentation* ifc_representation = 0;
 	bool hasbody = false;

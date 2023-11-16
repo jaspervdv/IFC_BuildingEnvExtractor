@@ -176,6 +176,9 @@ private:
 	template<typename T>
 	void getAllTypePointsPtr(const T& typePtr, std::vector<gp_Pnt>* pointList, bool simple);
 
+	/// gets shapes from memory without checking for correct adjusted boolean
+	TopoDS_Shape getObjectShapeFromMemEmpty(IfcSchema::IfcProduct* product, bool adjusted);
+
 public:
 	/*
 	construct and populate a helper
@@ -257,6 +260,7 @@ public:
 
 	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
 
+	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
 	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, bool memorize = true);
 	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted = false);
 	void updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape);

@@ -31,6 +31,7 @@ private:
 	int zRelRange_;
 
 	int totalVoxels_;
+	std::mutex voxelGrowthMutex;
 
 	// x y z size of the voxels in the grid
 	double voxelSize_;
@@ -45,6 +46,7 @@ private:
 	std::vector<int> exteriorVoxelsIdx_;
 	// exterior voxel lookup map
 	std::map<int, voxel*> VoxelLookup_;
+	std::mutex voxelLookupMutex;
 
 	// container for surface group data
 	std::vector<std::vector<SurfaceGroup>> faceList_;
@@ -73,13 +75,18 @@ private:
 	BoostPoint3D relPointToWorld(const BoostPoint3D& p);
 	BoostPoint3D relPointToWorld(int px, int py, int pz);
 
+	void populatedVoxelGrid(helper* h);
+
 	// create a group of voxels representing a rough room
 	std::vector<int> growExterior(int startIndx, int roomnum, helper* h);
+	std::vector<int> growInterior(int startIndx, int roomnum, helper* h);
 
 	void markVoxelBuilding(int startIndx, int roomnum);
 
 	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	void addVoxel(int indx);
+	void addVoxel(int indx, helper* h);
+	void addVoxelPool(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount = nullptr);
+	void countVoxels(const int* voxelGrowthCount);
 
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(helper* h);

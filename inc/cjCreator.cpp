@@ -1164,11 +1164,7 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	hasGeoBase_ = true;
 
 	// sort surface groups based on the footprints
-	if (roofOutlineList_.size() == 1)
-	{
-		printTime(startTime, std::chrono::high_resolution_clock::now());
-		return;
-	}
+	if (roofOutlineList_.size() == 1) { return; }
 
 	startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Sort roofing structures" << std::endl;
@@ -1971,12 +1967,93 @@ BoostPoint3D CJGeoCreator::relPointToWorld(int px, int py, int pz)
 	return BoostPoint3D(xCoord, yCoord, zCoord);
 }
 
+void CJGeoCreator::populatedVoxelGrid(helper* h)
+{
+	// split the range over cores
+	int coreCount = std::thread::hardware_concurrency();
+	int coreUse = coreCount - 1;
+	int splitListSize = floor(totalVoxels_ / coreUse);
+	int voxelsGrown = 0;
 
-void CJGeoCreator::addVoxel(int indx)
+	std::vector<std::thread> threadList;
+
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		int beginIdx = i * splitListSize;
+		int endIdx = (i + 1) * splitListSize;
+
+		if (i == coreUse - 1) { endIdx = totalVoxels_; }
+
+		threadList.emplace_back([=, &voxelsGrown]() {
+			addVoxelPool(beginIdx, endIdx, h, &voxelsGrown); 
+		});
+	}
+
+	std::thread countThread([&]() { countVoxels(&voxelsGrown); });
+
+	for (size_t i = 0; i < threadList.size(); i++) { threadList[i].join(); }
+	countThread.join();
+
+	std::cout << "\t" << totalVoxels_ << " of " << totalVoxels_ << std::endl;
+}
+
+
+void CJGeoCreator::addVoxel(int indx, helper* h)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSizeZ_);
+
+	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
+	auto boxelGeo = boxel->getVoxelGeo();
+	std::vector<gp_Pnt> pointList = boxel->getCornerPoints(planeRotation_);
+
+	std::vector<Value> qResult;
+
+	qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+	h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
+
+	for (size_t k = 0; k < qResult.size(); k++)
+	{
+		lookupValue* lookup = h->getLookup(qResult[k].second);
+
+		if (boxel->checkIntersecting(*lookup, pointList, h))
+		{
+			boxel->addInternalProduct(qResult[k]);
+		}
+	}
+
+	std::unique_lock<std::mutex> voxelWriteLock(voxelLookupMutex);
 	VoxelLookup_.emplace(indx, boxel);
+	voxelWriteLock.unlock();
+	return;
+}
+
+void CJGeoCreator::addVoxelPool(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount)
+{
+	std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
+	voxelCountLock.unlock();
+
+	for (int i = beginIindx; i < endIdx; i++) {
+		addVoxel(i, h);
+		std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
+		(*voxelGrowthCount)++;
+		voxelCountLock.unlock();
+	}
+}
+
+void CJGeoCreator::countVoxels(const int* voxelGrowthCount)
+{
+	while (true)
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
+		int count = *voxelGrowthCount;
+		voxelCountLock.unlock();
+
+		if (count == totalVoxels_) { return; }
+		std::cout.flush();
+		std::cout << "\t" << count << " of " << totalVoxels_ << "\r";
+	}
 }
 
 
@@ -3050,7 +3127,6 @@ CJGeoCreator::CJGeoCreator(helper* h, double vSize)
 		std::cout << anchor_.Y() << std::endl;
 		std::cout << anchor_.Z() << std::endl;
 
-
 		std::cout << xRange << std::endl;
 		std::cout << yRange << std::endl;
 		std::cout << zRange << std::endl;
@@ -3063,21 +3139,12 @@ CJGeoCreator::CJGeoCreator(helper* h, double vSize)
 	}
 
 	std::cout << "- Populate Grid" << std::endl;
-	for (int i = 0; i < totalVoxels_; i++) {
+	populatedVoxelGrid(h);
 
-		if (i % 1000 == 0)
-		{
-			std::cout.flush();
-			std::cout << "\t" << i << " of " << totalVoxels_ << "\r";
-		}
-
-		addVoxel(i);
-	}
-	std::cout << "\t" << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 	std::cout << "- Exterior space growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
-		if (!VoxelLookup_[i]->getIsIntersecting())
+		if (!VoxelLookup_[i]->getIsIntersecting()) //TODO: improve this
 		{
 			exteriorVoxelsIdx_ = growExterior(i, 0, h);
 			break;
@@ -3128,49 +3195,13 @@ std::vector<int> CJGeoCreator::growExterior(int startIndx, int roomnum, helper* 
 			int currentIdx = buffer[j];
 			voxel* currentBoxel = VoxelLookup_[currentIdx];
 
-			// find potential intersecting objects
-
-
 			if (currentBoxel->getIsIntersecting())
 			{
 				continue;
 			}
 
-			if (!currentBoxel->getHasEvalIntt())
-			{
-				currentBoxel->getCenterPoint();
-				// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
-				auto boxelGeo = currentBoxel->getVoxelGeo();
-				std::vector<gp_Pnt> pointList = currentBoxel->getCornerPoints(planeRotation_);
-
-				bool intt = false;
-				std::vector<Value> qResult;
-
-				qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-				h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
-
-				//if (qResult.size() == 0) { continue; }
-
-				for (size_t k = 0; k < qResult.size(); k++)
-				{
-					lookupValue* lookup = h->getLookup(qResult[k].second);
-
-					if (currentBoxel->checkIntersecting(*lookup, pointList, h))
-					{
-						currentBoxel->addInternalProduct(qResult[k]);
-						intt = true;
-					}
-				}
-
-				if (intt)
-				{
-					continue;
-				}
-			}
-
 			// find neighbours
 			std::vector<int> neighbourIndx = getNeighbours(currentIdx);
-			//std::cout << neighbourIndx.size() << std::endl;
 
 			if (neighbourIndx.size() < 26) { isOutSide = true; }
 
