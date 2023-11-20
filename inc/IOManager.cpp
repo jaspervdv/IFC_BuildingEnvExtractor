@@ -680,6 +680,10 @@ void IOManager::printSummary()
 		if (makeFootPrint_) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
 
+		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
+		if (makeRoofPrint_) { std::cout << "    Yes" << std::endl; }
+		else { std::cout << "    No" << std::endl; }
+
 		if (makeFootPrint_)
 		{
 			std::cout << "- Footprint Elevation:" << std::endl;

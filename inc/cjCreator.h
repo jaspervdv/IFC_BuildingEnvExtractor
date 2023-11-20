@@ -60,6 +60,9 @@ private:
 	// if true the roofoutlines are used to create the geometry
 	bool useRoofOutline_ = true;
 
+	/// mutex that keeps the injection of objects into the rtree in check
+	std::mutex indexInjectMutex_;
+
 	// list containing all the roof outlines
 	std::vector<TopoDS_Face> roofOutlineList_; 
 

@@ -2167,8 +2167,13 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 		{
 			if (!helperFunctions::isOverlappingCompletely(objectFaces[j], *shapeList, *shapeIdx))
 			{
-				shapeIdx->insert(std::make_pair(helperFunctions::createBBox(objectFaces[j].getFace()), shapeList->size()));
+				auto rtreePair = std::make_pair(helperFunctions::createBBox(objectFaces[j].getFace()), shapeList->size());
+
+				std::unique_lock<std::mutex> rtreeLock(indexInjectMutex_);
+				shapeIdx->insert(rtreePair);
 				shapeList->emplace_back(objectFaces[j]);
+				rtreeLock.unlock();
+
 				hasTopFaces_ = true;
 			}
 		}
