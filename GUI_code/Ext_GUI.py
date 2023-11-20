@@ -46,6 +46,8 @@ def runCode(input_path,
             make_lod32,
             make_lod50,
             make_lod51,
+            make_footprint,
+            make_roofprint,
             bool_igoreproxy,
             bool_useDefault,
             bool_customEnabled,
@@ -81,6 +83,10 @@ def runCode(input_path,
         make_lod12 and not make_lod13 and not make_lod22 and not
         make_lod32 and not make_lod50 and not make_lod51):
         tkinter.messagebox.showerror("Settings Error",  "Error: no LoD output selected")
+        return
+
+    if(make_lod02 and not make_footprint and not make_roofprint):
+        tkinter.messagebox.showerror("Settings Error", "Error: no LoD0.2 footprint or roofoutline selected")
         return
 
     # check paths
@@ -119,6 +125,17 @@ def runCode(input_path,
         lod_list.append(0.0)
     if (make_lod02):
         lod_list.append(0.2)
+
+        if(make_footprint):
+            json_dictionary["Generate footprint"] = 1
+        else:
+            json_dictionary["Generate footprint"] = 0
+
+        if(make_roofprint):
+            json_dictionary["Generate roof outline"] = 1
+        else:
+            json_dictionary["Generate roof outline"] = 0
+
     if (make_lod10):
         lod_list.append(1.0)
     if (make_lod12):
@@ -288,15 +305,22 @@ button_browse2.pack(side=tkinter.LEFT, padx=4)
 separator = ttk.Separator(main_window, orient='horizontal')
 separator.pack(fill='x', pady=10)
 
+# make a frame to split the two different lod input settings
+frame_lod_settings_complete = tkinter.Frame(main_window)
+frame_lod_settings_complete.pack()
+
 # the LoD levels that are desired to be output
-text_lod_settings = tkinter.Label(main_window, text="Desired LoD generation:")
+frame_lod_settings_gen = tkinter.Frame(frame_lod_settings_complete)
+frame_lod_settings_gen.pack(side=tkinter.LEFT, padx=5)
+
+text_lod_settings = tkinter.Label(frame_lod_settings_gen, text="Desired LoD generation:")
 text_lod_settings.pack()
 
-frame_lod_settings1 = tkinter.Frame(main_window)
+frame_lod_settings1 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings1.pack()
-frame_lod_settings2 = tkinter.Frame(main_window)
+frame_lod_settings2 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings2.pack()
-frame_lod_settings3 = tkinter.Frame(main_window)
+frame_lod_settings3 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings3.pack()
 
 bool_lod00 = tkinter.IntVar(value=1)
@@ -306,6 +330,8 @@ toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    text="LoD0.2",
                                    variable=bool_lod02,
                                    command= lambda : [toggleEnableEntry(entry_footprint, {bool_lod02.get()}),
+                                                      toggleEnableEntry(toggle_makefootprint, {bool_lod02.get()}),
+                                                      toggleEnableEntry(toggle_makeroofprint, {bool_lod02.get()}),
                                                       toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
                                                                                           bool_lod32.get(),
                                                                                           bool_lod50.get(),
@@ -359,6 +385,29 @@ toggle_makelod22.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 toggle_makelod51.pack(side=tkinter.LEFT)
+
+# makeSplit
+frame_lod_settings_sep = ttk.Separator(frame_lod_settings_complete, orient=tkinter.VERTICAL)
+frame_lod_settings_sep.pack(side=tkinter.LEFT, expand=True)
+
+separator_lod_settings = ttk.Separator(frame_lod_settings_sep, orient=tkinter.VERTICAL)
+separator_lod_settings.pack(fill='y', pady=40, padx=5, expand=True)
+
+# toggle if footprint or roofoutline is desired
+frame_lod_settings_foot = tkinter.Frame(frame_lod_settings_complete)
+frame_lod_settings_foot.pack(side=tkinter.RIGHT)
+
+text_lod_settings = tkinter.Label(frame_lod_settings_foot, text="Footprint/Roofoutline (LoD0.2 only):")
+text_lod_settings.pack()
+
+bool_make_footprint = tkinter.IntVar(value=1)
+toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint", variable=bool_make_footprint)
+
+bool_make_roofprint = tkinter.IntVar(value=1)
+toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline", variable=bool_make_roofprint)
+
+toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X, pady=(0, 20))
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
 separator2.pack(fill='x', pady=10)
@@ -464,6 +513,8 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     bool_lod32.get(),
     bool_lod50.get(),
     bool_lod51.get(),
+    bool_make_footprint.get(),
+    bool_make_roofprint.get(),
     bool_igoreproxy.get(),
     bool_useDefault.get(),
     bool_enableCustom.get(),

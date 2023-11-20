@@ -1104,31 +1104,14 @@ void CJGeoCreator::sortRoofStructures() {
 void CJGeoCreator::initializeBasic(helper* cluster) {
 	std::cout << "- Pre proccessing" << std::endl;
 	// generate data required for most exports
-	std::vector<TopoDS_Shape> filteredFaces = getTopObjects(cluster);
+	std::vector<TopoDS_Shape> filteredObjects = getTopObjects(cluster);
 
-	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Reduce surfaces" << std::endl;
-
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx;
 	std::vector<SurfaceGroup> shapeList;
+	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 
-	for (size_t i = 0; i < filteredFaces.size(); i++)
-	{
-		std::vector<SurfaceGroup>  objectFaces = getXYFaces(filteredFaces[i]);
-		for (size_t j = 0; j < objectFaces.size(); j++)
-		{
-			if (!helperFunctions::isOverlappingCompletely(objectFaces[j], shapeList, shapeIdx))
-			{
-				shapeIdx.insert(std::make_pair(helperFunctions::createBBox(objectFaces[j].getFace()), shapeList.size()));
-				shapeList.emplace_back(objectFaces[j]);
-				hasTopFaces_ = true;
-			}
-		}
-	}
-
-	printTime(startTime, std::chrono::high_resolution_clock::now());
-
-	startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Fine filtering of roofing structures" << std::endl;
 	// get the faces visible from the top 
 	faceList_.emplace_back(std::vector<SurfaceGroup>());
@@ -1322,6 +1305,13 @@ void CJGeoCreator::makeFootprint(helper* h)
 
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
+	if (productLookupValues.size() <= 0) 
+	{
+		std::cout << "\tUnsuccessful" << std::endl;
+		throw std::invalid_argument("Footprint extraction failed");
+		return; 
+	}
+
 	// create unique index
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
 	for (size_t i = 0; i < productLookupValues.size(); i++)
@@ -1338,6 +1328,12 @@ void CJGeoCreator::makeFootprint(helper* h)
 
 	// get all edges that meet the cutting plane
 	std::vector<TopoDS_Edge> rawEdgeList = section2edges(productLookupValues, h, floorlvl);
+	if (rawEdgeList.size() <= 0)
+	{
+		std::cout << "\tUnsuccessful" << std::endl;
+		throw std::invalid_argument("Footprint extraction failed");
+		return;
+	}
 	
 	// prepare and clean the edges for ray cast
 	std::vector<Edge> uniqueEdges = getUniqueEdges(rawEdgeList);
@@ -2130,6 +2126,56 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 }
 
 
+void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList)
+{
+	auto startTime = std::chrono::high_resolution_clock::now();
+
+	// split the range over cores
+	int coreCount = std::thread::hardware_concurrency();
+	int coreUse = coreCount - 1;
+	int splitListSize = floor(inputShapes.size() / coreUse);
+	int voxelsGrown = 0;
+
+	std::vector<std::thread> threadList;
+
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		auto startIdx = inputShapes.begin() + i * splitListSize;
+		auto endIdx = (i == coreUse - 1) ? inputShapes.end() : startIdx + splitListSize;
+
+		std::vector<TopoDS_Shape> sublist(startIdx, endIdx);
+
+		threadList.emplace_back([=, &voxelsGrown]() {reduceSurface(sublist, shapeIdx, shapeList); });
+	}
+
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
+	}
+
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+}
+
+
+void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList)
+{
+	for (size_t i = 0; i < inputShapes.size(); i++)
+	{
+		std::vector<SurfaceGroup>  objectFaces = getXYFaces(inputShapes[i]);
+		for (size_t j = 0; j < objectFaces.size(); j++)
+		{
+			if (!helperFunctions::isOverlappingCompletely(objectFaces[j], *shapeList, *shapeIdx))
+			{
+				shapeIdx->insert(std::make_pair(helperFunctions::createBBox(objectFaces[j].getFace()), shapeList->size()));
+				shapeList->emplace_back(objectFaces[j]);
+				hasTopFaces_ = true;
+			}
+		}
+	}
+}
+
+
 std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
 	std::vector<int> voxelIndx;
@@ -2264,7 +2310,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::CityCollec
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
-	if (!hasTopFaces_ || !hasGeoBase_) { return std::vector< CJT::GeoObject*>(); }
+	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject*>(); }
 
 	std::vector< CJT::GeoObject*> geoObjectList;
 
@@ -2276,16 +2322,19 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::CityCollec
 
 	gp_Pnt urr = h->getUrrPoint();
 
-	for (size_t i = 0; i < roofOutlineList_.size(); i++)
+	if (useRoofprints_)
 	{
-		TopoDS_Shape movedShape = roofOutlineList_[i].Moved(h->getObjectTranslation().Inverted());
-		gp_Trsf trs;
-		trs.SetTranslation(gp_Vec(0, 0, urr.Z()));
+		for (size_t i = 0; i < roofOutlineList_.size(); i++)
+		{
+			TopoDS_Shape movedShape = roofOutlineList_[i].Moved(h->getObjectTranslation().Inverted());
+			gp_Trsf trs;
+			if (hasFootprints_) { trs.SetTranslation(gp_Vec(0, 0, urr.Z())); }
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
-		geoObject->appendSurfaceData(semanticRoofData);
-		geoObject->appendSurfaceTypeValue(0);
-		geoObjectList.emplace_back(geoObject);
+			CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
+			geoObject->appendSurfaceData(semanticRoofData);
+			geoObject->appendSurfaceTypeValue(0);
+			geoObjectList.emplace_back(geoObject);
+		}
 	}
 
 	if (!hasFootprints_) 

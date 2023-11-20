@@ -54,7 +54,7 @@ private:
 	// flags representing the eval state of the creator
 	bool hasTopFaces_ = false;
 	bool hasFootprints_ = false;
-	bool useFootprints_ = false;
+	bool useRoofprints_ = false;
 	bool hasGeoBase_ = false;
 
 	// if true the roofoutlines are used to create the geometry
@@ -90,6 +90,10 @@ private:
 
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(helper* h);
+
+	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
+	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
+	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
 
 	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
@@ -237,6 +241,9 @@ public:
 
 	/// computes and internalizes the data that is required to do footprint related city scale output
 	void makeFootprint(helper* h);
+
+	/// store the roofoutline data to LoD 02
+	void useroofprint0() { useRoofprints_ = true; }
 
 	/// generates an LoD0.0 object
 	CJT::GeoObject* makeLoD00(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);

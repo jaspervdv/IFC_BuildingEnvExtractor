@@ -28,6 +28,8 @@ private:
 	bool makeV_ = true;
 
 	bool makeOutlines_ = true;
+	bool makeFootPrint_ = true;
+	bool makeRoofPrint_ = true;
 
 	bool writeReport_ = true;
 
@@ -136,6 +138,9 @@ public:
 	bool makeLoD22() { return make22_; }
 	bool makeLoD32() { return make32_; }
 	bool makeV() { return makeV_; }
+
+	bool makeFootprint() { return makeFootPrint_; }
+	bool makeRoofOutline() { return makeRoofPrint_; }
 
 	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
 		"IFCSLAB",

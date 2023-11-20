@@ -482,13 +482,27 @@ bool IOManager::getJSONValues()
 
 		makeOutlines_ = false;
 
+
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { make00_ = true; }
 			else if (lodList[i] == 0.2) 
 			{ 
 				make02_ = true; 
-				makeOutlines_ = true;
+
+				if (json.contains("Footprint elevation"))
+				{
+					footprintElevation_ = json["Footprint elevation"];
+				}
+				if (json.contains("Generate footprint"))
+				{
+					makeFootPrint_ = (int)json["Generate footprint"];
+				}
+				if (json.contains("Generate roof outline"))
+				{
+					makeRoofPrint_ = (int)json["Generate roof outline"];
+					if (makeRoofPrint_) { makeOutlines_ = true; }
+				}
 			}
 			else if (lodList[i] == 1.0) 
 			{ 
@@ -519,14 +533,6 @@ bool IOManager::getJSONValues()
 			{ 
 				makeV_ = true; 
 			}
-		}
-	}
-
-	if (make02_)
-	{
-		if (json.contains("Footprint elevation"))
-		{
-			footprintElevation_ = json["Footprint elevation"];
 		}
 	}
 
@@ -667,10 +673,18 @@ void IOManager::printSummary()
 	std::cout << "- Voxel size:" << std::endl;
 	std::cout << "    " << voxelSize_ << std::endl;
 
+
 	if (make02_)
 	{
-		std::cout << "- footprint Elevation:" << std::endl;
-		std::cout << "    " << footprintElevation_ << std::endl;
+		std::cout << "- Create footprint:" << std::endl;
+		if (makeFootPrint_) { std::cout << "    Yes" << std::endl; }
+		else { std::cout << "    No" << std::endl; }
+
+		if (makeFootPrint_)
+		{
+			std::cout << "- Footprint Elevation:" << std::endl;
+			std::cout << "    " << footprintElevation_ << std::endl;
+		}
 	}
 
 
@@ -721,7 +735,12 @@ nlohmann::json IOManager::settingsToJSON()
 	settingsJSON["Space bounding objects"] = DivList;
 	settingsJSON["Voxel size"] = voxelSize_;
 
-	if (make02_) { settingsJSON["Footprint elevation"] = footprintElevation_; }
+	if (make02_) 
+	{ 
+		settingsJSON["Footprint elevation"] = footprintElevation_; 
+		settingsJSON["Generate footprint"] = makeFootPrint_;
+		settingsJSON["Generate roof outline"] = makeRoofPrint_;
+	}
 	
 	std::vector<std::string> LoDList;
 	if (make00_) { LoDList.emplace_back("0.0"); }
@@ -731,6 +750,8 @@ nlohmann::json IOManager::settingsToJSON()
 	if (make13_) { LoDList.emplace_back("1.3"); }
 	if (make22_) { LoDList.emplace_back("2.2"); }
 	if (make32_) { LoDList.emplace_back("3.2"); }
+
+	settingsJSON["Desired LoD output"] = LoDList;
 
 	return settingsJSON;
 }
@@ -854,7 +875,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (make02_) // TODO: make better bool
+	if (make02_ && makeFootPrint_)
 	{
 		try
 		{
@@ -865,6 +886,12 @@ bool IOManager::run()
 			ErrorList_.emplace_back("Footprint creation failed");
 		}
 	}
+
+	if (makeRoofPrint_)
+	{
+		geoCreator.useroofprint0();
+	}
+
 	if (makeLoD00())
 	{
 		try
