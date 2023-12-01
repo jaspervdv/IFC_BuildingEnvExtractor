@@ -64,6 +64,7 @@ struct helperFunctions{
 	///	Rotate Boost point around 0,0,0
 	static BoostPoint3D rotatePointWorld(const BoostPoint3D& p, double angle);
 
+	/// Rotate OpenCascade point p around point anchorP
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, double angle);
 
 	static bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double angle, double secondAngle = 0);
@@ -107,6 +108,9 @@ struct helperFunctions{
 	/// check is boost box has a volume
 	static bool hasVolume(const bg::model::box <BoostPoint3D>& box);
 
+	/// compute the area of a face
+	static double computeArea(const TopoDS_Face& theFace);
+
 	/// check if value is in vector T1
 	template<typename T1, typename T2>
 	static bool isInList(const T1& list, const T2& value);
@@ -136,6 +140,12 @@ struct helperFunctions{
 
 	/// creates a planar face between lll and urr with a rotation
 	static TopoDS_Face createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle);
+
+	/// creates a planar face by connecting the 4 points, make sure the 4 points are on a single plane
+	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
+
+	/// creates a planar copy of input face at input height
+	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 
 	/// get the intersection between two linear lines, returns 0 if not intersection
 	static gp_Pnt* linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);

@@ -26,6 +26,8 @@
 #include <STEPControl_StepModelType.hxx>
 #include <TopoDS.hxx>
 
+#include <BRepBuilderAPI_GTransform.hxx>
+
 
 void helperFunctions::WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition) {
 	std::string path = "D:/Documents/Uni/Thesis/sources/Models/exports/step" + addition + ".stp";
@@ -434,6 +436,7 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 	return normal;
 }
 
+
 std::vector<TopoDS_Face> helperFunctions::shape2FaceList(const TopoDS_Shape& shape)
 {
 	std::vector<TopoDS_Face> faceList;
@@ -589,7 +592,14 @@ gp_Vec helperFunctions::getDirEdge(const TopoDS_Edge& edge) {
 }
 
 
-TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire) { 
+double helperFunctions::computeArea(const TopoDS_Face& theFace)
+{
+	GProp_GProps gprops;
+	BRepGProp::SurfaceProperties(theFace, gprops); // Stores results in gprops
+	return gprops.Mass();
+}
+
+TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire) {
 	gp_Pnt connectionPoint1 = getFirstPointShape(baseWire);
 	gp_Pnt connectionPoint2 = getLastPointShape(baseWire);
 
@@ -805,12 +815,7 @@ TopoDS_Face helperFunctions::createHorizontalFace(double x, double y, double z) 
 	gp_Pnt p2(x, y, z);
 	gp_Pnt p3(x, -y, z);
 
-	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
-	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
-	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
-	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
-
-	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
+	return createPlanarFace(p0, p1, p2, p3);
 }
 
 TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle) {
@@ -819,6 +824,12 @@ TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pn
 	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
 	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
 
+	return createPlanarFace(p0, p1, p2, p3);
+}
+
+
+TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3) {
+
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
 	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
@@ -826,6 +837,24 @@ TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pn
 
 	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
 }
+
+
+TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double height) {
+	
+	gp_GTrsf trsf;
+	trsf.SetVectorialPart(
+		gp_Mat(
+			1.0, 0.0, 0.0,
+			0.0, 1.0, 0.0, 
+			0.0, 0.0, 0.0
+		)
+	);
+	trsf.SetTranslationPart(gp_XYZ(0, 0, height));
+
+	TopoDS_Shape flatFace = BRepBuilderAPI_GTransform(theFace, trsf, true).Shape();
+	return TopoDS::Face(flatFace);
+}
+
 
 
 gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer) {

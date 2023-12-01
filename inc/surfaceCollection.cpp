@@ -72,127 +72,13 @@ bool SurfaceGroup::overlap(SurfaceGroup other) {
 
 
 void SurfaceGroup::projectFace() {
-	BRep_Builder brepBuilder;
-	BRepBuilderAPI_MakeFace faceBuilder;
-	TopExp_Explorer expl;
-	TopExp_Explorer expl2;
+	
+	theProjectedFace_ = helperFunctions::projectFaceFlat(theFace_, 0);
 
-	bool isInner = false;
-	bool invalidFace = false;
-	gp_Pnt lastPoint;
-
-	bool isFlat = true;
-	double z = 0;
-	for (expl.Init(theFace_, TopAbs_WIRE); expl.More(); expl.Next()) {
-		TopTools_ListOfShape edgeList;
-		TopoDS_Wire faceWire;
-		TopoDS_Wire wire = TopoDS::Wire(expl.Current());
-
-		bool invalidEdge = false;
-		int counter = 0;
-		int surfSize = 0;
-
-		for (expl2.Init(wire, TopAbs_VERTEX); expl2.More(); expl2.Next()) {
-			counter++;
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl2.Current());
-			gp_Pnt point = BRep_Tool::Pnt(vertex);
-
-			if (surfSize == 0)
-			{
-				z = point.Z();
-			}
-			else if (z != point.Z())
-			{
-				isFlat = false;
-			}
-
-			point = gp_Pnt(point.X(), point.Y(), 0);
-
-			if (counter % 2 == 0)
-			{
-				if (point.IsEqual(lastPoint, 0.0001))
-				{
-					invalidEdge = true;
-					continue;
-				}
-				surfSize++;
-				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(lastPoint, point);
-				edgeList.Append(edge);
-			}
-
-			if (invalidEdge)
-			{
-				invalidEdge = false;
-			}
-			else {
-				lastPoint = point;
-			}
-		}
-
-		if (surfSize < 3 && !isInner)
-		{
-			invalidFace = true;
-			break;
-		}
-
-		if (surfSize < 3)
-		{
-			continue;
-		}
-
-		BRepBuilderAPI_MakeWire wireBuilder;
-		wireBuilder.Add(edgeList);
-		wireBuilder.Build();
-
-		if (wireBuilder.Error() != BRepBuilderAPI_WireDone && !isInner)
-		{
-			invalidFace = true;
-			break;
-		}
-
-		if (wireBuilder.Error() != BRepBuilderAPI_WireDone)
-		{
-			continue;
-		}
-
-		faceWire = wireBuilder.Wire();
-
-		if (!isInner)
-		{
-			faceBuilder = BRepBuilderAPI_MakeFace(faceWire);
-		}
-		else
-		{
-			faceBuilder.Add(faceWire);
-		}
-
-		isInner = true;
-	}
-
-	TopoDS_Face tempFace;
-
-	if (invalidFace)
-	{
-		theProjectedFace_ = tempFace;
-		theFlatFace_ = tempFace;
-		return;
-	}
-
-	TopoDS_Face projectedFace = faceBuilder.Face();
-	theProjectedFace_ = projectedFace;
-
-	if (isFlat)
-	{
-		theFlatFace_ = theFace_;
-		return;
-	}
-
-	theFlatFace_ = projectedFace;
-
-	gp_Vec v(0, 0, getTopHeight());
-	gp_Trsf t;
-	t.SetTranslation(v);
-	theFlatFace_.Move(t);
+	theFlatFace_ = helperFunctions::projectFaceFlat(
+		theFace_, 
+		helperFunctions::getHighestPoint(theFace_).Z()
+	);
 }
 
 

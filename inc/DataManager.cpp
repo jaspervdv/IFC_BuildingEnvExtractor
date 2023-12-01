@@ -177,9 +177,6 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 		pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
 	}
 
-	std::cout << "\tssSuccessfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s\n" << std::endl;
-
-
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
 	double rotation = 0;
@@ -1132,6 +1129,73 @@ void helper::applyVoids()
 	}
 }
 
+
+std::map<std::string, std::string> helper::getProductPropertySet(const std::string& productGui, int fileNum)
+{
+	std::map<std::string, std::string> productPoperties;
+	IfcSchema::IfcRelDefinesByProperties::list::ptr ODevList = datacollection_[fileNum]->getFilePtr()->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
+
+
+	for (auto pSetIt = ODevList->begin(); pSetIt != ODevList->end(); ++pSetIt)
+	{
+		bool defFloor = false;
+		IfcSchema::IfcRelDefinesByProperties* dProp = *pSetIt;
+
+#ifdef USE_IFC4
+		IfcSchema::IfcObjectDefinition::list::ptr oDefList = dProp->RelatedObjects();
+#else
+		IfcSchema::IfcObject::list::ptr oDefList = dProp->RelatedObjects();
+#endif // USE_IFC4
+
+		for (auto oDefIt = oDefList->begin(); oDefIt != oDefList->end(); ++oDefIt)
+		{
+
+#ifdef USE_IFC4
+			IfcSchema::IfcObjectDefinition* oDef = *oDefIt;
+#else
+			IfcSchema::IfcObject* oDef = *oDefIt;
+#endif // USE_IFC4
+
+			if (oDef->GlobalId() == productGui) 
+			{
+				defFloor = true; 
+				break;
+			}
+		}
+
+		if (!defFloor) { continue; }
+
+#ifdef USE_IFC4
+		IfcSchema::IfcPropertySetDefinitionSelect* pDef = dProp->RelatingPropertyDefinition();
+#else
+		IfcSchema::IfcPropertySetDefinition* pDef = dProp->RelatingPropertyDefinition();
+#endif // USE_IFC4
+
+		if (pDef->data().type()->name() == "IfcElementQuantity")
+		{
+			IfcSchema::IfcElementQuantity* eQantCollection = pDef->as<IfcSchema::IfcElementQuantity>();
+			auto physicsQuantities = eQantCollection->Quantities();
+
+			for (auto pQuanIt = physicsQuantities->begin(); pQuanIt != physicsQuantities->end(); ++pQuanIt)
+			{
+				IfcSchema::IfcPhysicalQuantity* pQuan = *pQuanIt;
+
+				auto valueList = pQuan->data().attributes();
+				try
+				{
+					productPoperties[pQuan->Name().c_str()] = pQuan->data().attributes()[3]->toString();
+				}
+				catch (const std::exception&)
+				{
+					continue;
+				}
+			}
+		}
+
+	}
+
+	return productPoperties;
+}
 
 template <typename T>
 void helper::voidShapeAdjust(T products)

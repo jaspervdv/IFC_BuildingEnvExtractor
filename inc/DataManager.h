@@ -229,6 +229,8 @@ public:
 	// returns a pointer to the kernel
 	IfcGeom::Kernel* getKernel(int i) const { return datacollection_[i].get()->getKernelPtr(); }
 
+	double getScaler(int i) const { return datacollection_[i].get()->getLengthMultiplier(); }
+
 	bool getHasGeo() { return hasGeo_; }
 
 	double getProxyNum() { return proxyCount_; }
@@ -268,6 +270,8 @@ public:
 
 	std::vector<std::vector<gp_Pnt>> triangulateProduct(IfcSchema::IfcProduct* product);
 	std::vector<std::vector<gp_Pnt>> triangulateShape(const TopoDS_Shape& shape);
+
+	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);
 
 	template <typename T>
 	void voidShapeAdjust(T products);

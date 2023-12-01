@@ -480,9 +480,6 @@ bool IOManager::getJSONValues()
 		make32_ = false;
 		makeV_ = false;
 
-		makeOutlines_ = false;
-
-
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { make00_ = true; }
@@ -501,7 +498,7 @@ bool IOManager::getJSONValues()
 				if (json.contains("Generate roof outline"))
 				{
 					makeRoofPrint_ = (int)json["Generate roof outline"];
-					if (makeRoofPrint_) { makeOutlines_ = true; }
+					if (!makeRoofPrint_) { makeOutlines_ = false; }
 				}
 			}
 			else if (lodList[i] == 1.0) 
@@ -771,8 +768,8 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	if (!isSilent_)
 	{
 		std::wcout << "============================================================= \n" << std::endl;
-		std::cout << "		IFC_BuildingEnvExtractor" << std::endl;
-		std::cout << "    Experimental building envelope extractor/approximation\n" << std::endl;
+		std::cout << "		IFC_BuildingEnvExtractor " << buildVersion << std::endl;
+		std::cout << "    Experimental building shell extractor/approximation\n" << std::endl;
 		std::wcout << "=============================================================" << std::endl;
 		std::cout << std::endl;
 	}
@@ -852,16 +849,31 @@ bool IOManager::run()
 	collectionPtr->setMetaData(metaData);
 	collectionPtr->setVersion("1.1");
 
-	CJT::CityObject cityObject;
+	// Set up objects and their relationships
+	CJT::CityObject cityBuildingObject;
+	CJT::CityObject cityShellObject;
+	CJT::CityObject cityInnerShellObject;
+
 	std::string BuildingName = internalHelper_.get()->getBuildingName();
 	if (BuildingName == "") { BuildingName = internalHelper_.get()->getProjectName(); }
 
-	cityObject.setName(BuildingName);
-	cityObject.setType(CJT::Building_Type::Building);
+	cityBuildingObject.setName(BuildingName);
+	cityBuildingObject.setType(CJT::Building_Type::Building);
+
+	cityShellObject.setName("Outer Shell");
+	cityShellObject.setType(CJT::Building_Type::BuildingPart);
+
+	cityInnerShellObject.setName("Inner Shell");
+	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
+
+	cityBuildingObject.addChild(&cityShellObject);
+	cityBuildingObject.addChild(&cityInnerShellObject);
+
+
 	CJT::Kernel kernel = CJT::Kernel(collectionPtr);
 
 	std::map<std::string, std::string> buildingAttributes = internalHelper_.get()->getBuildingInformation();
-	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityObject.addAttribute(iter->first, iter->second); }
+	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
 
 	// make the geometrycreator and voxelgrid
 	CJGeoCreator geoCreator(internalHelper_.get(), voxelSize_);
@@ -891,6 +903,18 @@ bool IOManager::run()
 		}
 	}
 
+	if (true) //TODO: get proper bool
+	{
+		try
+		{
+			geoCreator.makeFloorSectionCollection(internalHelper_.get());
+		}
+		catch (const std::exception&)
+		{
+			ErrorList_.emplace_back("storey creation failed");
+		}
+	}
+
 	if (makeRoofPrint_)
 	{
 		geoCreator.useroofprint0();
@@ -901,8 +925,8 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject* geo00 = geoCreator.makeLoD00(internalHelper_.get(), collectionPtr, &kernel, 1);
-			cityObject.addGeoObject(*geo00);
+			CJT::GeoObject* geo00 = geoCreator.makeLoD00(internalHelper_.get(), &kernel, 1);
+			cityShellObject.addGeoObject(*geo00);
 			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.0 creation failed"); }
@@ -910,22 +934,40 @@ bool IOManager::run()
 	}
 	if (makeLoD02())
 	{
+		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 		try
 		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(internalHelper_.get(), collectionPtr, &kernel, 1);
-			for (size_t i = 0; i < geo02.size(); i++) { cityObject.addGeoObject(*geo02[i]); }
-			timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+			std::vector<CJT::GeoObject*> geo02 = geoCreator.makeLoD02(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo02.size(); i++) { cityShellObject.addGeoObject(*geo02[i]); }
+			
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.2 creation failed"); }
+
+		if (true) //TODO: get proper bool
+		{
+			std::vector<CJT::CityObject> geo02Storeys = geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo02Storeys.size(); i++) {
+				CJT::CityObject currentStoreyObject = geo02Storeys[i];
+				currentStoreyObject.addParent(&cityInnerShellObject);
+				collectionPtr->addCityObject(currentStoreyObject);
+			}
+
+			for (size_t i = 0; i < geo02Storeys.size(); i++)
+			{
+
+			}
+
+		}
+		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+
 	}
 	if (makeLoD10())
 	{
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject* geo10 = geoCreator.makeLoD10(internalHelper_.get(), collectionPtr, &kernel, 1);
-			cityObject.addGeoObject(*geo10);
+			CJT::GeoObject* geo10 = geoCreator.makeLoD10(internalHelper_.get(), &kernel, 1);
+			cityShellObject.addGeoObject(*geo10);
 			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.0 creation failed"); }
@@ -935,8 +977,8 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(internalHelper_.get(), collectionPtr, &kernel, 1);
-			for (size_t i = 0; i < geo12.size(); i++) { cityObject.addGeoObject(*geo12[i]); }
+			std::vector<CJT::GeoObject*> geo12 = geoCreator.makeLoD12(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo12.size(); i++) { cityShellObject.addGeoObject(*geo12[i]); }
 			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.2 creation failed"); }
@@ -946,8 +988,8 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(internalHelper_.get(), collectionPtr, &kernel, 1);
-			for (size_t i = 0; i < geo13.size(); i++) { cityObject.addGeoObject(*geo13[i]); }
+			std::vector<CJT::GeoObject*> geo13 = geoCreator.makeLoD13(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo13.size(); i++) { cityShellObject.addGeoObject(*geo13[i]); }
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.3 creation failed"); }
@@ -957,8 +999,8 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(internalHelper_.get(), collectionPtr, &kernel, 1);
-			for (size_t i = 0; i < geo22.size(); i++) { cityObject.addGeoObject(*geo22[i]); }
+			std::vector<CJT::GeoObject*> geo22 = geoCreator.makeLoD22(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo22.size(); i++) { cityShellObject.addGeoObject(*geo22[i]); }
 			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD2.2 creation failed"); }
@@ -968,8 +1010,8 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(internalHelper_.get(), collectionPtr, &kernel, 1);
-			for (size_t i = 0; i < geo32.size(); i++) { cityObject.addGeoObject(*geo32[i]); }
+			std::vector<CJT::GeoObject*> geo32 = geoCreator.makeLoD32(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo32.size(); i++) { cityShellObject.addGeoObject(*geo32[i]); }
 			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD3.2 creation failed"); }
@@ -977,15 +1019,15 @@ bool IOManager::run()
 	if (makeV())
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(internalHelper_.get(), collectionPtr, &kernel, 1);
-		for (size_t i = 0; i < geoV.size(); i++) { cityObject.addGeoObject(*geoV[i]); }
+		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(internalHelper_.get(), &kernel, 1);
+		for (size_t i = 0; i < geoV.size(); i++) { cityShellObject.addGeoObject(*geoV[i]); }
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	}
 
-	//TODO: bake voxelshape
-
-	collectionPtr->addCityObject(cityObject);
-	collectionPtr->CleanVertices();
+	collectionPtr->addCityObject(cityBuildingObject);
+	collectionPtr->addCityObject(cityShellObject);
+	collectionPtr->addCityObject(cityInnerShellObject);
+	collectionPtr->cullDuplicatedVerices();
 	cityCollection_ = std::move(collection);
 
 	return true;

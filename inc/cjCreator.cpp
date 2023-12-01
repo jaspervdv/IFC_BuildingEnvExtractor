@@ -25,6 +25,10 @@
 #include <Geom_Surface.hxx>
 #include <TopoDS.hxx>
 
+#include <BRepBuilderAPI_Transform.hxx>
+#include <BRepTools_WireExplorer.hxx>
+#include <TopExp.hxx>
+
 #include <CJToKernel.h>
 
 
@@ -1111,22 +1115,10 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	std::vector<SurfaceGroup> shapeList;
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 
-	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Fine filtering of roofing structures" << std::endl;
-	// get the faces visible from the top 
-	faceList_.emplace_back(std::vector<SurfaceGroup>());
-	std::vector<SurfaceGroup> cleanedShapeList;
-	for (size_t i = 0; i < shapeList.size(); i++)
-	{
-		SurfaceGroup currentSurfaceGroup = shapeList[i];
-		if (currentSurfaceGroup.testIsVisable(shapeList, true))
-		{
-			faceList_[0].emplace_back(currentSurfaceGroup);
-		}
-	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	FinefilterSurfaces(shapeList);
 
-	startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Construct roof outlines" << std::endl;
 	std::vector<Edge> edgeList = makeJumbledGround();
 
@@ -1252,39 +1244,32 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 
 TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, const TopoDS_Face& splittingFace, double splittingFaceHeight)
 {
-	BRepPrimAPI_MakePrism sweeper(evalFace, gp_Vec(0, 0, -10000), Standard_True);
-	sweeper.Build();
-	TopoDS_Shape extrudedShape = sweeper.Shape();
+	BRep_Builder brepBuilder;
+	BRepBuilderAPI_Sewing brepSewer;
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid solidShape;
+	brepBuilder.MakeSolid(solidShape);
 
-	BOPAlgo_Splitter aSplitter;
-	aSplitter.AddTool(splittingFace);
-	aSplitter.SetRunParallel(Standard_True);
-	aSplitter.SetNonDestructive(Standard_True);
-	aSplitter.AddArgument(extrudedShape);
-	aSplitter.Perform();
+	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
+	brepSewer.Add(evalFace);
+	brepSewer.Add(projectedFace);
 
-	const TopoDS_Shape& aResult = aSplitter.Shape();
+	TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE);
 
-	// find top solid after the split
-	for (TopExp_Explorer expl(aResult, TopAbs_SOLID); expl.More(); expl.Next()) {
-		bool above = false;
-		for (TopExp_Explorer expl2(TopoDS::Solid(expl.Current()), TopAbs_VERTEX); expl2.More(); expl2.Next()) {
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl2.Current());
-			if (BRep_Tool::Pnt(vertex).Z() > splittingFaceHeight)
-			{
-				above = true;
-				break;
-			}
-			if (BRep_Tool::Pnt(vertex).Z() < splittingFaceHeight)
-			{
-				break;
-			}
-		}
-		if (above) 
-		{ 
-			return TopoDS::Solid(expl.Current()); 
-		}
+	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+
+		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
+
+		brepSewer.Add(sideFace);
 	}
+	brepSewer.Perform();
+	brepBuilder.Add(solidShape, brepSewer.SewedShape());
+
+	return solidShape;
 }
 
 
@@ -1295,8 +1280,80 @@ void CJGeoCreator::makeFootprint(helper* h)
 	std::cout << "- Corse filtering footprint at z = " << floorlvl << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
+	try
+	{
+		footprintList_ = makeFloorSection(h, floorlvl);
+
+	}
+	catch (const std::exception&)
+	{
+		std::cout << "\tUnsuccessful" << std::endl;
+		throw std::invalid_argument("Footprint extraction failed");
+		return;
+	}
+
+	hasFootprints_ = true;
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+	std::cout << std::endl;
+	return;
+}
+
+
+void CJGeoCreator::makeFloorSectionCollection(helper* h)
+{
+	//TODO: find out where to take the storeys from
+	std::cout << "- Storey extraction" << std::endl;
+	auto startTime = std::chrono::high_resolution_clock::now();
+	double storeyBuffer = 0.15;
+	double floorElev = h->getfootprintEvalLvl() * h->getScaler(0);
+
+	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
+
+	std::vector<IfcSchema::IfcBuildingStorey*> ifcStoreyList;
+	std::vector<std::map<std::string, std::string>> storeyAttributeList;
+	for (auto it = storeyList->begin(); it != storeyList->end(); ++it) 
+	{
+		IfcSchema::IfcBuildingStorey* storeyObject = *it;
+		double storeyElevation = storeyObject->Elevation() * h->getScaler(0);
+
+		std::cout << "\t Floorlevel at z = " << storeyElevation << std::endl;
+
+		try
+		{
+			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation - storeyBuffer);
+
+			std::map<std::string, std::string> semanticStoreyData;
+			semanticStoreyData.emplace("type", "BuildingStorey");
+			if (storeyObject->hasName()) { semanticStoreyData.emplace("IFC_Name", storeyObject->Name()); }
+			if (storeyObject->hasLongName()) { semanticStoreyData.emplace("IFC_LongName", storeyObject->LongName()); }
+			semanticStoreyData.emplace("IFC_Elevation", std::to_string(storeyObject->Elevation() * h->getScaler(0)));
+			semanticStoreyData.emplace("IFC_Guid", storeyObject->GlobalId());
+
+			std::map<std::string, std::string> storeyAttributeCollection = h->getProductPropertySet(storeyObject->GlobalId(), 0);
+
+			for (const auto& pair : storeyAttributeCollection) {
+				semanticStoreyData.emplace("IFC_" + pair.first, pair.second);
+			}
+
+			storeyPrintList_.emplace_back(FloorOutlineObject(storeySurface, semanticStoreyData, storeyObject->GlobalId()));
+			hasStoreyPrints_ = true;
+		}
+		catch (const std::exception&)
+		{
+			std::cout << "\tUnsuccessful" << std::endl;
+			throw std::invalid_argument("storey extraction failed");
+			continue;
+		}
+	}
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+	std::cout << std::endl;
+}
+
+
+std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectionHeight)
+{
 	// get plate of voxels at groundplane height
-	std::vector<int> exteriorLvlVoxelsIdx = getVoxelPlate(floorlvl);
+	std::vector<int> exteriorLvlVoxelsIdx = getVoxelPlate(sectionHeight);
 
 	std::vector<Value> productLookupValues;
 	std::vector<int> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
@@ -1305,11 +1362,10 @@ void CJGeoCreator::makeFootprint(helper* h)
 
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
-	if (productLookupValues.size() <= 0) 
+	if (productLookupValues.size() <= 0)
 	{
-		std::cout << "\tUnsuccessful" << std::endl;
-		throw std::invalid_argument("Footprint extraction failed");
-		return; 
+		throw std::invalid_argument("floorprint extraction failed");
+		return{};
 	}
 
 	// create unique index
@@ -1327,27 +1383,23 @@ void CJGeoCreator::makeFootprint(helper* h)
 	);
 
 	// get all edges that meet the cutting plane
-	std::vector<TopoDS_Edge> rawEdgeList = section2edges(productLookupValues, h, floorlvl);
+	std::vector<TopoDS_Edge> rawEdgeList = section2edges(productLookupValues, h, sectionHeight);
 	if (rawEdgeList.size() <= 0)
 	{
-		std::cout << "\tUnsuccessful" << std::endl;
-		throw std::invalid_argument("Footprint extraction failed");
-		return;
+		throw std::invalid_argument("floorprint extraction failed");
+		return{};
 	}
-	
+
 	// prepare and clean the edges for ray cast
 	std::vector<Edge> uniqueEdges = getUniqueEdges(rawEdgeList);
 	std::vector<Edge> cleanedEdges = mergeOverlappingEdges(uniqueEdges, false);
 	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
 
 	// raycast
-	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, floorlvl);
-	footprintList_ = outerEdges2Shapes(outerFootPrintList);
-	hasFootprints_ = true;
-	printTime(startTime, std::chrono::high_resolution_clock::now());
-	std::cout << std::endl;
-	return;
+	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
+	return outerEdges2Shapes(outerFootPrintList);
 }
+
 
 
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
@@ -1987,8 +2039,10 @@ void CJGeoCreator::populatedVoxelGrid(helper* h)
 
 	std::thread countThread([&]() { countVoxels(&voxelsGrown); });
 
-	for (size_t i = 0; i < threadList.size(); i++) { threadList[i].join(); }
-	countThread.join();
+	for (size_t i = 0; i < threadList.size(); i++) { 
+		if (threadList[i].joinable()) { threadList[i].join(); }
+	}
+	if (countThread.joinable()) { countThread.join(); }
 
 	std::cout << "\t" << totalVoxels_ << " of " << totalVoxels_ << std::endl;
 }
@@ -2180,6 +2234,52 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 	}
 }
 
+void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList)
+{
+	auto startTime = std::chrono::high_resolution_clock::now();
+
+	// split the range over cores
+	int coreCount = std::thread::hardware_concurrency();
+	int coreUse = coreCount - 1;
+	int splitListSize = floor(shapeList.size() / coreUse);
+	int voxelsGrown = 0;
+
+	std::vector<std::thread> threadList;
+	faceList_.emplace_back(std::vector<SurfaceGroup>());
+
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		auto startIdx = shapeList.begin() + i * splitListSize;
+		auto endIdx = (i == coreUse - 1) ? shapeList.end() : startIdx + splitListSize;
+
+		std::vector<SurfaceGroup> sublist(startIdx, endIdx);
+		threadList.emplace_back([=]() {FinefilterSurface(sublist); });
+	}
+
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
+	}
+
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+}
+
+void CJGeoCreator::FinefilterSurface(const std::vector<SurfaceGroup>& shapeList)
+{
+	// get the faces visible from the top 
+	std::vector<SurfaceGroup> cleanedShapeList;
+	for (size_t i = 0; i < shapeList.size(); i++)
+	{
+		SurfaceGroup currentSurfaceGroup = shapeList[i];
+		if (currentSurfaceGroup.testIsVisable(shapeList, true))
+		{
+			std::lock_guard<std::mutex> faceLock(faceListMutex_);
+			faceList_[0].emplace_back(currentSurfaceGroup);
+		}
+	}
+}
+
 
 std::vector<int> CJGeoCreator::getTopBoxelIndx() {
 
@@ -2290,7 +2390,7 @@ std::vector<SurfaceGroup> CJGeoCreator::getXYFaces(const TopoDS_Shape& shape) {
 }
 
 
-CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.0 Model" << std::endl;
@@ -2311,13 +2411,13 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::CityCollection* cjCollec
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
 	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject*>(); }
 
-	std::vector< CJT::GeoObject*> geoObjectList;
+	std::vector< CJT::GeoObject*> geoObjectCollection;
 
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace("type", "RoofSurface");
@@ -2328,7 +2428,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::CityCollec
 	gp_Pnt urr = h->getUrrPoint();
 
 	if (useRoofprints_)
-	{
+	{	 // make the roof
 		for (size_t i = 0; i < roofOutlineList_.size(); i++)
 		{
 			TopoDS_Shape movedShape = roofOutlineList_[i].Moved(h->getObjectTranslation().Inverted());
@@ -2338,30 +2438,68 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::CityCollec
 			CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
 			geoObject->appendSurfaceData(semanticRoofData);
 			geoObject->appendSurfaceTypeValue(0);
-			geoObjectList.emplace_back(geoObject);
+			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
 
-	if (!hasFootprints_) 
+	if (hasFootprints_) 
 	{ 
-		printTime(startTime, std::chrono::high_resolution_clock::now());
-		return geoObjectList;
+		// make the footprint
+		for (size_t i = 0; i < footprintList_.size(); i++)
+		{
+			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i].Moved(h->getObjectTranslation().Inverted()), "0.2");
+			geoObject->appendSurfaceData(semanticFootData);
+			geoObject->appendSurfaceTypeValue(0);
+			geoObjectCollection.emplace_back(geoObject);
+		}
 	}
-
-	for (size_t i = 0; i < footprintList_.size(); i++)
-	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i].Moved(h->getObjectTranslation().Inverted()), "0.2");
-		geoObject->appendSurfaceData(semanticFootData);
-		geoObject->appendSurfaceTypeValue(0);
-		geoObjectList.emplace_back(geoObject);
-	}
-
 	printTime(startTime, std::chrono::high_resolution_clock::now());
-	return geoObjectList;
+	return geoObjectCollection;
 }
 
 
-CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, int unitScale) {
+
+	std::vector < CJT::CityObject> storeyCityObjectList;
+
+	if (hasStoreyPrints_)
+	{
+		for (size_t i = 0; i < storeyPrintList_.size(); i++)
+		{
+			std::vector<TopoDS_Face> currentStoreyGeo = storeyPrintList_[i].getOutlines();
+			std::map<std::string, std::string> currentStoreySemantic = storeyPrintList_[i].getSemanticInfo();
+
+			CJT::CityObject cityStoreyObject;
+			cityStoreyObject.setName(currentStoreySemantic["IFC_Name"]);
+			cityStoreyObject.setType(CJT::Building_Type::BuildingStorey);
+
+			for (const auto& semanticPair : currentStoreySemantic) {
+				cityStoreyObject.addAttribute(semanticPair.first, semanticPair.second);
+			}
+
+			for (size_t j = 0; j < currentStoreyGeo.size(); j++)
+			{
+				TopoDS_Face currentFace = currentStoreyGeo[j];
+
+				std::map<std::string, std::string> currentGeoSemantic;
+				currentGeoSemantic.emplace("EnvEx_Section", std::to_string(j));
+
+				double area = helperFunctions::computeArea(currentFace);
+				currentGeoSemantic.emplace("EnvEx_Area", std::to_string(area));
+
+				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(h->getObjectTranslation().Inverted()), "0.2");
+				geoObject->appendSurfaceData(currentGeoSemantic);
+				geoObject->appendSurfaceTypeValue(0);
+				cityStoreyObject.addGeoObject(*geoObject);
+			}
+			storeyCityObjectList.emplace_back(cityStoreyObject);
+		}
+	}
+	return storeyCityObjectList;
+}
+
+
+CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
@@ -2435,7 +2573,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::CityCollection* cjCollec
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.2 Model" << std::endl;
@@ -2483,7 +2621,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::CityCollec
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.3 Model" << std::endl;
@@ -2523,7 +2661,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::CityCollec
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale) 
+std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 2.2 Model" << std::endl;
@@ -2563,7 +2701,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::CityCollec
 }
 
 
-std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 3.2 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -2675,7 +2813,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::CityCollect
 }
 
 
-std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -3356,4 +3494,16 @@ void CJGeoCreator::markVoxelBuilding(int startIndx, int buildnum) {
 		potentialBuildingVoxels.clear();
 	}
 	return;
+}
+
+FloorOutlineObject::FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)
+{
+	outlineList_ = outlineList;
+	semanticInformation_ = semanticInformation;
+}
+
+FloorOutlineObject::FloorOutlineObject(const TopoDS_Face& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)
+{
+	outlineList_ = std::vector<TopoDS_Face>{ outlineList };
+	semanticInformation_ = semanticInformation;
 }

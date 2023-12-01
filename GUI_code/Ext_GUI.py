@@ -48,6 +48,7 @@ def runCode(input_path,
             make_lod51,
             make_footprint,
             make_roofprint,
+            make_interior,
             bool_igoreproxy,
             bool_useDefault,
             bool_customEnabled,
@@ -111,6 +112,11 @@ def runCode(input_path,
     json_dictionary["Footprint elevation"] = float(footprint_elevation)
     json_dictionary["Output report"] = make_report
 
+    if (make_interior):
+        json_dictionary["Generate interior"] = 1
+    else:
+        json_dictionary["Generate interior"] = 0
+
     if not bool_customEnabled:
         json_dictionary["Default div"] = bool_useDefault
         json_dictionary["Ignore Proxy"] = bool_igoreproxy
@@ -161,10 +167,9 @@ def runCode(input_path,
     for path in input_path_list:
         counter = 0
         for line in open(path):
-            if "FILE_SCHEMA(('IFC2X3'))" in line:
+            if "FILE_SCHEMA(('IFC2X3'))" in line or "FILE_SCHEMA (('IFC2X3'))" in line:
                 is_ifc4 = False
                 break
-
             if  "FILE_SCHEMA(('IFC4'))" in line:
                 break
 
@@ -397,17 +402,21 @@ separator_lod_settings.pack(fill='y', pady=40, padx=5, expand=True)
 frame_lod_settings_foot = tkinter.Frame(frame_lod_settings_complete)
 frame_lod_settings_foot.pack(side=tkinter.RIGHT)
 
-text_lod_settings = tkinter.Label(frame_lod_settings_foot, text="Footprint/Roofoutline (LoD0.2 only):")
+text_lod_settings = tkinter.Label(frame_lod_settings_foot, text="Additional settings")
 text_lod_settings.pack()
 
 bool_make_footprint = tkinter.IntVar(value=1)
-toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint", variable=bool_make_footprint)
+toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint (LoD0.2 only)", variable=bool_make_footprint)
 
 bool_make_roofprint = tkinter.IntVar(value=1)
-toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline", variable=bool_make_roofprint)
+toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline (LoD0.2 only)", variable=bool_make_roofprint)
+
+bool_make_interior = tkinter.IntVar(value=0)
+toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors (Detailed LoD only)", variable=bool_make_interior)
 
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
-toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X, pady=(0, 20))
+toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
 separator2.pack(fill='x', pady=10)
@@ -515,6 +524,7 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     bool_lod51.get(),
     bool_make_footprint.get(),
     bool_make_roofprint.get(),
+    bool_make_interior.get(),
     bool_igoreproxy.get(),
     bool_useDefault.get(),
     bool_enableCustom.get(),

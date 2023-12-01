@@ -17,6 +17,21 @@
 #ifndef CJGEOCREATOR_CJGEOCREATOR_H
 #define CJGEOCREATOR_CJGEOCREATOR_H
 
+class FloorOutlineObject {
+private:
+	std::vector<TopoDS_Face> outlineList_;
+	std::map<std::string, std::string> semanticInformation_;
+	std::string ifc_guid;
+public:
+	FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid);
+	FloorOutlineObject(const TopoDS_Face& outlineList, const std::map<std::string, std::string>& semanticInformationconst, const std::string& guid );
+
+	std::vector<TopoDS_Face> getOutlines() { return outlineList_; }
+	std::map<std::string, std::string> getSemanticInfo() { return semanticInformation_; }
+
+};
+
+
 class CJGeoCreator {
 private:
 	// default spatial index tree depth
@@ -50,10 +65,12 @@ private:
 
 	// container for surface group data
 	std::vector<std::vector<SurfaceGroup>> faceList_;
+	std::mutex faceListMutex_;
 
 	// flags representing the eval state of the creator
 	bool hasTopFaces_ = false;
 	bool hasFootprints_ = false;
+	bool hasStoreyPrints_ = false;
 	bool useRoofprints_ = false;
 	bool hasGeoBase_ = false;
 
@@ -68,6 +85,9 @@ private:
 
 	// list containing all the footprints
 	std::vector<TopoDS_Face> footprintList_;
+
+	// list containing all the floor outlines;
+	std::vector<FloorOutlineObject> storeyPrintList_;
 
 	/// get a list of idx representing the neighbours of the input voxel indx
 	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
@@ -97,6 +117,10 @@ private:
 	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
 	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
 	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
+
+	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
+	void FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList);
+	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList);
 
 	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
@@ -245,28 +269,33 @@ public:
 	/// computes and internalizes the data that is required to do footprint related city scale output
 	void makeFootprint(helper* h);
 
+	void makeFloorSectionCollection(helper* h);
+	std::vector<TopoDS_Face> makeFloorSection(helper* h, double sectionHeight);
+
 	/// store the roofoutline data to LoD 02
 	void useroofprint0() { useRoofprints_ = true; }
 
 	/// generates an LoD0.0 object
-	CJT::GeoObject* makeLoD00(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject* makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
-	std::vector< CJT::GeoObject*> makeLoD02(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector < CJT::CityObject> makeLoD02Storeys(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector < CJT::CityObject> makeLoD02Apartments(helper* h, CJT::Kernel* kernel, std::string guid, int unitScale);
 	/// generates a list of LoD0.3 objects
 	// TODO: implement
-	std::vector< CJT::GeoObject*> makeLoD03(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
-	CJT::GeoObject* makeLoD10(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject* makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.2 objects
-	std::vector< CJT::GeoObject*> makeLoD12(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.3 objects
-	std::vector< CJT::GeoObject*> makeLoD13(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
-	std::vector< CJT::GeoObject*> makeLoD22(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
-	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
-	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::CityCollection* cjCollection, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 
