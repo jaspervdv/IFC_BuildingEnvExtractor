@@ -199,7 +199,7 @@ The settings json has a very simple structure. An example can be found below:
             "path to IFC file",
             "Potential path to other IFC file"
         ],
-        "Output" : "path to export folder"
+        "Output" : "path to export (City)JSON file"
     },
     "voxelSize" : {
         "xy" : 1
@@ -227,7 +227,7 @@ The json has mandatory and optional inputs. If the mandatory inputs are missing 
 Mandatory:
 
 * The "Filepaths" "Input" is an array including 1 to ∞ input paths representing all the files constructing a single building.
-* The "Filepaths" "Output" is a string representing the output **folder**path and not the desired filepath. The tool will automatically generate a file name based on the input file.
+* The "Filepaths" "Output" is a string representing the output filepath.
 
 Optional:
 

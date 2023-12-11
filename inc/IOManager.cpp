@@ -9,6 +9,8 @@
 #include <sys/stat.h>
 #include <direct.h>
 
+#include <boost/filesystem.hpp>
+
 bool IOManager::yesNoQuestion()
 {
 	std::string cont = "";
@@ -116,26 +118,38 @@ bool IOManager::getOutputPathList() {
 
 	while (true)
 	{
-		std::cout << "Enter target folderpath of the CityJSON file" << std::endl;
+		std::cout << "Enter target filepath of the CityJSON file" << std::endl;
 		std::cout << "Path: ";
 		std::string singlepath = "";
 		std::getline(std::cin, singlepath);
 
-		struct stat info;
-		if (stat(singlepath.c_str(), &info) != 0)
+		if (!hasExtension(singlepath, "json"))
 		{
-			std::cout << "[INFO] Folder path " << singlepath << " does not exist." << std::endl;
-			std::cout << "do you want to create a new folder (Y/N) " << std::endl;
+			std::cout << "[WARNING] not a valid CityJSON file path" << std::endl;
+			std::cout << "[INFO] CityJSON files have a .json or .city.json extension" << std::endl;
+			continue;
+		}
+
+		boost::filesystem::path targetFilePath(singlepath);
+		boost::filesystem::path targetFolderPath = targetFilePath.parent_path();
+
+		if (!boost::filesystem::exists(targetFolderPath))
+		{
+			std::cout << "[INFO] Folder path " << targetFolderPath.string() << " does not exist." << std::endl;
+			std::cout << "do you want to create a new folder at: " << targetFolderPath.string() << std::endl;
+			std::cout <<"(Y/N) " << std::endl;
 
 			if (yesNoQuestion())
 			{
-				std::cout << "[INFO] Export folder is created at: " << singlepath << std::endl;
-				int status = mkdir(singlepath.c_str());
-				break;
+				std::cout << "[INFO] Export folder is created at: " << targetFolderPath.string() << std::endl;
+				if (boost::filesystem::create_directory(targetFilePath)) { break; }
+				std::cout << "[WARNING] Export folder has not been succesfully created" << std::endl;
+				return false;
 			}
 			continue;
 		}
-		outputFolderPath_ = singlepath;
+
+		outputPath_ = singlepath;
 		return true;
 	}
 
@@ -146,14 +160,15 @@ bool IOManager::getUseDefaultSettings()
 	std::cout << "Use default process/export settings? (Y/N):";
 	if (!yesNoQuestion()) { return false; }
 
-	// get default export path
-	size_t pos = inputPathList_[0].find_last_of("\\/");
-	outputFolderPath_ = (std::string)inputPathList_[0].substr(0, pos) + "/" + "_exports";
+	boost::filesystem::path targetFilePath(inputPathList_[0]);
+	boost::filesystem::path targetFolderPath = targetFilePath.parent_path().string() + "/_exports";
+
+	outputPath_ = targetFolderPath.string() + "/evnBuilding.city.json";
 	struct stat info;
-	if (stat(outputFolderPath_.c_str(), &info) != 0)
+	if (!boost::filesystem::exists(targetFolderPath))
 	{
-		std::cout << "[INFO] Export folder is created at: " << outputFolderPath_ << std::endl;
-		int status = mkdir(outputFolderPath_.c_str());
+		std::cout << "[INFO] Export folder is created at: " << targetFolderPath.string() << std::endl;
+		if (!boost::filesystem::create_directory(targetFilePath)) { return false; }
 	}
 	return true;
 }
@@ -464,9 +479,19 @@ bool IOManager::getJSONValues()
 		throw std::string("JSON file does not contain valid output path entry, output filepath entry should be string");
 	}
 
-	outputFolderPath_ = filePaths["Output"];
+	outputPath_ = filePaths["Output"];
 
+	if (!hasExtension(outputPath_, "json"))
+	{
+		throw std::string("JSON file does not contain valid output path, output path should end on .json or .city.json");
+	}
 
+	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(outputPath_)).parent_path();
+
+	if (!boost::filesystem::exists(outputFolderPath))
+	{
+		throw std::string("Target filepath folder does not exist");
+	}
 
 	if (json.contains("LoD output"))
 	{
@@ -650,8 +675,8 @@ void IOManager::printSummary()
 
 	std::cout << "- Input File(s):" << std::endl;
 	for (size_t i = 0; i < inputPathList_.size(); i++) { std::cout << "    " << inputPathList_[i] << std::endl; }
-	std::cout << "- Output Folder:" << std::endl;
-	std::cout << "    " << outputFolderPath_ << std::endl;
+	std::cout << "- Output File:" << std::endl;
+	std::cout << "    " << outputPath_ << std::endl;
 	std::cout << "- Create Report:" << std::endl;
 	if (writeReport_) { std::cout << "    yes" << std::endl; }
 	else { std::cout << "    no" << std::endl; }
@@ -716,8 +741,7 @@ nlohmann::json IOManager::settingsToJSON()
 	nlohmann::json settingsJSON;
 
 	settingsJSON["Input IFC file"] = inputPathList_;
-	settingsJSON["Output folder"] = outputFolderPath_;
-	settingsJSON["Output IFC file"] = getOutputPath() + "\\" + internalHelper_->getFileName() + ".city.json";
+	settingsJSON["Output CityJSON file"] = getOutputPath();
 	settingsJSON["Create report"] = "true";
 	if (isJsonInput_) { settingsJSON["JSON input"] = "true"; }
 	else if (!isJsonInput_) { settingsJSON["JSON input"] = "false"; }
@@ -1035,7 +1059,7 @@ bool IOManager::run()
 
 bool IOManager::write()
 {
-	cityCollection_.get()->dumpJson(getOutputPath() + "\\" + internalHelper_.get()->getFileName() + ".city.json");
+	cityCollection_.get()->dumpJson(getOutputPath());
 
 	if (!writeReport_) { return true; }
 	nlohmann::json report;
@@ -1068,7 +1092,16 @@ bool IOManager::write()
 	report["Errors"] = ErrorList_;
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
-	std::ofstream reportFile(getOutputPath() + "\\" + internalHelper_.get()->getFileName() + "_report.city.json");
+	const std::string extension1 = ".json";
+
+	boost::filesystem::path filePath(getOutputPath());
+	filePath.replace_extension("");
+	if (hasExtension(filePath.string(), "city")) { filePath.replace_extension(""); }
+
+	std::cout << filePath.string() + "_report.json" << std::endl;
+
+	boost::filesystem::path filePathWithoutExtension = boost::filesystem::path(getOutputPath()).stem();
+	std::ofstream reportFile(filePath.string() + "_report.json");
 	reportFile << report;
 	reportFile.close();
 }

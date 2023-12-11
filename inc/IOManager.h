@@ -15,7 +15,7 @@ private:
 	bool isJsonInput_ = false;
 
 	std::vector<std::string> inputPathList_ = {};
-	std::string outputFolderPath_ = "";
+	std::string outputPath_ = "";
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = true;
@@ -126,7 +126,7 @@ public:
 	double voxelSize() { return voxelSize_; }
 	bool makeReport() { return writeReport_; }
 
-	const std::string& getOutputPath() { return outputFolderPath_; }
+	const std::string& getOutputPath() { return outputPath_; }
 
 	helper* getHelper() { return internalHelper_.get(); }
 

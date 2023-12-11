@@ -98,7 +98,7 @@ def runCode(input_path,
             tkinter.messagebox.showerror("Settings Error",  "Error: No Valid input file supplied")
             return
 
-    if(not os.path.isdir(output_path) and not len(output_path) == 0):
+    if(not os.path.isdir(os.path.dirname(output_path)) and not len(output_path) == 0):
         tkinter.messagebox.showerror("Settings Error", "Error: No Valid output folder supplied\n (GUI can not create new folders)")
         return
 
@@ -194,9 +194,15 @@ def browse_(box, is_folder, window):
     folder_path = ""
 
     if (not is_folder):
-        folder_path =  filedialog.askopenfilenames()
+        folder_path =  filedialog.askopenfilenames(
+            filetypes=[("IFC file", ".ifc")],
+            defaultextension=".ifc"
+        )
     else:
-        folder_path = filedialog.askdirectory()
+        folder_path = filedialog.asksaveasfilename(
+            filetypes=[("JSON file", ".json"), ("CityJSON file", ".city.json")],
+            defaultextension=".json"
+        )
 
     if len(folder_path) == 0:
         return
@@ -297,7 +303,7 @@ separator = ttk.Separator(main_window, orient='horizontal')
 separator.pack(fill='x', pady=10)
 
 # the entry functions for the output file
-text_folder_browse = tkinter.Label(main_window, text="Output folder path:")
+text_folder_browse = tkinter.Label(main_window, text="Output file path:")
 text_folder_browse.pack()
 frame_folder_browse = tkinter.Frame(main_window)
 frame_folder_browse.pack(fill=tkinter.X)
