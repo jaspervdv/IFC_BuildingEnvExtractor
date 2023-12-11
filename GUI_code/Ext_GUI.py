@@ -4,6 +4,8 @@ from tkinter import ttk, filedialog, messagebox
 import json
 import subprocess
 
+from pathlib import Path
+
 def getDefaultDivObjects():
     return "IfcWall\tIfcCurtainWall\tIfcWallStandardCase\tIfcRoof\tIfcSlab\tIfcWindow\tIfcColumn\tIfcBeam\tIfcDoor\tIfcCovering\tIfcMember\tIfcPlate"
 
@@ -190,7 +192,7 @@ def runCode(input_path,
 
     return
 
-def browse_(box, is_folder, window):
+def browse_(box, is_folder, window, initial_file):
     folder_path = ""
 
     if (not is_folder):
@@ -199,9 +201,12 @@ def browse_(box, is_folder, window):
             defaultextension=".ifc"
         )
     else:
+        # get the inital filename
+        initial_file_name =  Path(initial_file).name
         folder_path = filedialog.asksaveasfilename(
             filetypes=[("JSON file", ".json"), ("CityJSON file", ".city.json")],
-            defaultextension=".json"
+            defaultextension="city.json",
+            initialfile=Path(initial_file_name).stem + ".json"
         )
 
     if len(folder_path) == 0:
@@ -296,7 +301,7 @@ frame_file_browse.pack(fill=tkinter.X)
 entry_inputpath = tkinter.Entry(frame_file_browse, text= "Input path")
 entry_inputpath.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=4)
 button_browse = tkinter.Button(frame_file_browse, text="Browse", width=size_button_normal,
-                               command= lambda: browse_(entry_inputpath, False, main_window))
+                               command= lambda: browse_(entry_inputpath, False, main_window, ""))
 button_browse.pack(side=tkinter.LEFT, padx=4)
 
 separator = ttk.Separator(main_window, orient='horizontal')
@@ -310,7 +315,7 @@ frame_folder_browse.pack(fill=tkinter.X)
 entry_outputpath = tkinter.Entry(frame_folder_browse, text= "Output path")
 entry_outputpath.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=4)
 button_browse2 = tkinter.Button(frame_folder_browse, text="Browse" , width=size_button_normal,
-                                command= lambda: browse_(entry_outputpath, True, main_window))
+                                command= lambda: browse_(entry_outputpath, True, main_window, entry_inputpath.get()))
 button_browse2.pack(side=tkinter.LEFT, padx=4)
 
 separator = ttk.Separator(main_window, orient='horizontal')
