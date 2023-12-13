@@ -17,6 +17,8 @@ private:
 	std::vector<std::string> inputPathList_ = {};
 	std::string outputPath_ = "";
 
+	std::unordered_set<double> LoDWInterior_ = { 0.2 };
+
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = true;
 	bool make02_ = true;
@@ -27,9 +29,10 @@ private:
 	bool make32_ = true;
 	bool makeV_ = true;
 
-	bool makeOutlines_ = true;
-	bool makeFootPrint_ = true;
+	bool makeOutlines_ = false;
+	bool makeFootPrint_ = false;
 	bool makeRoofPrint_ = true;
+	bool makeInterior_ = false;
 
 	bool writeReport_ = true;
 

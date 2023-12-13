@@ -505,6 +505,18 @@ bool IOManager::getJSONValues()
 		make32_ = false;
 		makeV_ = false;
 
+		for (size_t i = 0; i < lodList.size(); i++) // check if interior generation is required
+		{
+			if (LoDWInterior_.find(lodList[i]) == LoDWInterior_.end()) { continue; }
+
+			if (json.contains("Generate interior"))
+			{
+				makeInterior_ = (int)json["Generate interior"];
+			}
+
+			break;
+		}
+
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { make00_ = true; }
@@ -523,13 +535,12 @@ bool IOManager::getJSONValues()
 				if (json.contains("Generate roof outline"))
 				{
 					makeRoofPrint_ = (int)json["Generate roof outline"];
-					if (!makeRoofPrint_) { makeOutlines_ = false; }
+					if (makeRoofPrint_) { makeOutlines_ = true; }
 				}
 			}
 			else if (lodList[i] == 1.0) 
 			{ 
 				make10_ = true; 
-				makeOutlines_ = true;
 			}
 			else if (lodList[i] == 1.2) 
 			{ 
@@ -927,7 +938,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (true) //TODO: get proper bool
+	if (makeInterior_)
 	{
 		try
 		{
@@ -967,7 +978,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.2 creation failed"); }
 
-		if (true) //TODO: get proper bool
+		if (makeInterior_)
 		{
 			std::vector<CJT::CityObject> geo02Storeys = geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, 1);
 			for (size_t i = 0; i < geo02Storeys.size(); i++) {
@@ -975,12 +986,6 @@ bool IOManager::run()
 				currentStoreyObject.addParent(&cityInnerShellObject);
 				collectionPtr->addCityObject(currentStoreyObject);
 			}
-
-			for (size_t i = 0; i < geo02Storeys.size(); i++)
-			{
-
-			}
-
 		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 
@@ -1097,8 +1102,6 @@ bool IOManager::write()
 	boost::filesystem::path filePath(getOutputPath());
 	filePath.replace_extension("");
 	if (hasExtension(filePath.string(), "city")) { filePath.replace_extension(""); }
-
-	std::cout << filePath.string() + "_report.json" << std::endl;
 
 	boost::filesystem::path filePathWithoutExtension = boost::filesystem::path(getOutputPath()).stem();
 	std::ofstream reportFile(filePath.string() + "_report.json");
