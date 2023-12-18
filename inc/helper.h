@@ -45,6 +45,11 @@ struct helperFunctions{
 	/// Output shape to step file (for development only)
 	static void WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition);
 	static void WriteToSTEP(const TopoDS_Shape& shape, const std::string& addition);
+	static void WriteToSTEP(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
+
+	/// Ouptu shape to txt file (for development only)
+	static void WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
+	static void WriteToTxt(const std::vector<TopoDS_Solid>& shapeList, const std::string& addition);
 
 	/// Print point to console (for development only)
 	static void printPoint(const gp_Pnt& p);
@@ -90,6 +95,9 @@ struct helperFunctions{
 	/// compute the face normal 
 	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
 
+	/// check if edges overlap by checking the endpoints
+	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
+
 	static std::vector<TopoDS_Face> shape2FaceList(const TopoDS_Shape& shape);
 	static std::vector<gp_Pnt> shape2PointList(const TopoDS_Shape& shape);
 
@@ -133,7 +141,9 @@ struct helperFunctions{
 	/// construct a bbox from a shape or list of shapes
 	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Shape>& shape);
-	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2);
+	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
+
+	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
 
 	/// creates face with middlepont 0,0,0 ranging from -x to x and -y to y at z
 	static TopoDS_Face createHorizontalFace(double x, double y, double z);

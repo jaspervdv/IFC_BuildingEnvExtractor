@@ -10,6 +10,7 @@
 #include <BRepBndLib.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
@@ -71,12 +72,13 @@ std::vector<Edge> CJGeoCreator::getUniqueEdges(const std::vector<TopoDS_Edge>& f
 
 
 std::vector<TopoDS_Face> CJGeoCreator::getUniqueFaces(const std::vector<TopoDS_Face>& faceList) {
-	std::vector<TopoDS_Face> cleanedFaceList;
-	// check if surfaces overlap
+	std::vector<TopoDS_Face> uniqueFaces;
+	
+	// get unique faces
 	for (size_t i = 0; i < faceList.size(); i++)
 	{
 		bool dub = false;
-		for (size_t j = 0; j < faceList.size(); j++)
+		for (size_t j = 0; j < uniqueFaces.size(); j++)
 		{
 			if (j == i)
 			{
@@ -92,10 +94,11 @@ std::vector<TopoDS_Face> CJGeoCreator::getUniqueFaces(const std::vector<TopoDS_F
 
 		if (!dub)
 		{
-			cleanedFaceList.emplace_back(faceList[i]);
+			uniqueFaces.emplace_back(faceList[i]);
 		}
 	}
-	return cleanedFaceList;
+
+	return uniqueFaces;
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::getEncompassedFaces(const std::vector<TopoDS_Face>& faceList)
@@ -1402,7 +1405,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
+std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
 	TopoDS_Face splittingFace = helperFunctions::createHorizontalFace(1000,1000, 0);
@@ -1412,8 +1415,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 	{
 		if (faceList_[i].size() == 0) { continue; }
 
-		TopTools_ListOfShape aLSFuseObjects;
-		TopExp_Explorer expl;
+		BOPAlgo_Builder aBuilder;
 		for (size_t j = 0; j < faceList_[i].size(); j++)
 		{
 			SurfaceGroup currentRoof = faceList_[i][j];
@@ -1423,48 +1425,66 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat)
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
 			else { currentFace = currentRoof.getFlatFace(); }
 
-			aLSFuseObjects.Append(extrudeFaceDW(currentFace, splittingFace, 0));
+			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, 0);
+			aBuilder.AddArgument(extrudedShape);
 		}
 
-		BOPAlgo_Builder aBuilder;
-		aBuilder.SetArguments(aLSFuseObjects);
+		//create a bbbox
+		TopoDS_Shape outerbb = helperFunctions::createBBOXOCCT(h->getLllPoint(), h->getUrrPoint(), 5);
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(outerbb);
+		p0.Rotate(gp::OZ(), -h->getRotation());
+
+		gp_Trsf myTrsf;
+		myTrsf.SetRotation(gp::OZ(), - h->getRotation());
+		BRepBuilderAPI_Transform xform(outerbb, myTrsf);
+
+		aBuilder.AddArgument(xform.Shape());
 		aBuilder.SetFuzzyValue(1e-7);
 		aBuilder.SetRunParallel(Standard_True);
 		aBuilder.Perform();
 
-		std::vector<TopoDS_Face> ObjectFaceList;
-		for (expl.Init(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-			ObjectFaceList.emplace_back(TopoDS::Face(expl.Current()));
+		bool exteriorFound = false;
+
+		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_SOLID); expl.More(); expl.Next()) {
+
+			TopoDS_Solid currentSolid = TopoDS::Solid(expl.Current());
+
+			for (TopExp_Explorer expl2(currentSolid, TopAbs_VERTEX); expl2.More(); expl2.Next()) {
+				TopoDS_Vertex currentVertex = TopoDS::Vertex(expl2.Current());
+				gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+				if (!p0.IsEqual(currentPoint,1e-6)) { continue; }
+				exteriorFound = true;
+				break;
+			}
+			if (!exteriorFound) { continue; }
+
+			for (TopExp_Explorer expl2(currentSolid, TopAbs_SHELL); expl2.More(); expl2.Next()) {
+				TopoDS_Shell currentShape = TopoDS::Shell(expl2.Current());
+
+				// filter the outer bb solid away
+				exteriorFound = false;
+				for (TopExp_Explorer expl3(currentShape, TopAbs_VERTEX); expl3.More(); expl3.Next()) {
+					TopoDS_Vertex currentVertex = TopoDS::Vertex(expl3.Current());
+					gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+					if (p0.IsEqual(currentPoint, 1e-6)) { 
+						exteriorFound = true;
+						break; 
+					}
+				}
+
+				if (exteriorFound) { continue; }
+
+				// filter the presumably odd shapes away
+				GProp_GProps props;
+				BRepGProp::VolumeProperties(currentShape, props);
+				if (abs(props.Mass()) < 15) { continue; }
+
+				prismList.emplace_back(simplefySolid(currentShape));
+			}
+
 		}
-
-		if (ObjectFaceList.size() == 0) { continue; }
-
-		// check if surfaces overlap
-		std::vector<TopoDS_Face> cleanedFaceList = getUniqueFaces(ObjectFaceList);
-
-		BRep_Builder brepBuilder;
-		BRepBuilderAPI_Sewing brepSewer;
-		TopoDS_Shell shell;
-		brepBuilder.MakeShell(shell);
-		TopoDS_Solid solidShape;
-		brepBuilder.MakeSolid(solidShape);
-
-		std::vector<TopoDS_Face> encompassedFaces = getEncompassedFaces(cleanedFaceList);
-		if (!encompassedFaces.size()) { return prismList; }
-
-		for (size_t j = 0; j < encompassedFaces.size(); j++) { brepSewer.Add(encompassedFaces[j]); }
-
-		brepSewer.Perform();
-		if (brepSewer.SewedShape().ShapeType() == TopAbs_COMPOUND)
-		{
-			prismList.emplace_back(brepSewer.SewedShape());
-			allSolids = false;
-			continue;
-		}
-
-		brepBuilder.Add(solidShape, brepSewer.SewedShape());
-		TopoDS_Shape cleanedSolid = simplefySolid(solidShape);
-		prismList.emplace_back(cleanedSolid);
 	}
 	if (!allSolids)
 	{
@@ -2636,7 +2656,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 		return geoObjectList;
 	}
 
-	std::vector<TopoDS_Shape> prismList = computePrisms(true);
+	std::vector<TopoDS_Shape> prismList = computePrisms(true, h);
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
@@ -2676,7 +2696,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 		return geoObjectList;
 	}
 	
-	std::vector<TopoDS_Shape> prismList = computePrisms(false);
+	std::vector<TopoDS_Shape> prismList = computePrisms(false, h);
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{

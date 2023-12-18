@@ -448,7 +448,7 @@ entry_voxelsize.pack(side=tkinter.LEFT)
 
 button_min_voxelsize = tkinter.Button(frame_voxel, text="-", width=size_button_small,
                                       command= lambda : decrement(entry_voxelsize, 0.1))
-button_min_voxelsize.pack(side=tkinter.LEFT)
+button_min_voxelsize.pack(side=tkinter.LEFT, padx=(5,0))
 button_plus_voxelsize = tkinter.Button(frame_voxel, text="+", width=size_button_small,
                                        command= lambda : increment(entry_voxelsize, 0.1))
 button_plus_voxelsize.pack(side=tkinter.LEFT)
@@ -466,7 +466,7 @@ entry_footprint.pack(side=tkinter.LEFT)
 
 button_min_footprint = tkinter.Button(frame_footprint, text="-", width=size_button_small,
                                       command= lambda : decrement(entry_footprint, 0.01))
-button_min_footprint.pack(side=tkinter.LEFT)
+button_min_footprint.pack(side=tkinter.LEFT, padx=(5,0))
 button_plus_footprint = tkinter.Button(frame_footprint, text="+", width=size_button_small,
                                        command= lambda : increment(entry_footprint, 0.01))
 button_plus_footprint.pack(side=tkinter.LEFT)
@@ -521,6 +521,7 @@ separator3.pack(fill='x', pady=10)
 
 frame_other = tkinter.Frame(main_window)
 frame_other.pack()
+
 run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, command=lambda: runCode(
     entry_inputpath.get(),
     entry_outputpath.get(),
@@ -544,9 +545,9 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     entry_voxelsize.get(),
     message_div_objects.get('1.0', tkinter.END)
 ))
-run_button.pack(side=tkinter.LEFT)
+run_button.pack(side=tkinter.LEFT, padx=(5,0))
 
 close_button = tkinter.Button(frame_other, text="Close", width=size_button_normal, command= lambda : main_window.destroy())
-close_button.pack(side=tkinter.LEFT)
+close_button.pack(side=tkinter.RIGHT, padx=(0,5))
 
 main_window.mainloop()

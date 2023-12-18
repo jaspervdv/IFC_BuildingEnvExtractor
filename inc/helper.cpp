@@ -59,6 +59,64 @@ void helperFunctions::WriteToSTEP(const TopoDS_Shape& shape, const std::string& 
 }
 
 
+void helperFunctions::WriteToSTEP(const std::vector<TopoDS_Face>& shapeList, const std::string& addition)
+{
+	std::string path = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".stp";
+
+	STEPControl_Writer writer;
+	writer.SetTolerance(1e-100);
+
+	for (TopoDS_Shape shape : shapeList)
+	{
+		writer.Transfer(shape, STEPControl_AsIs);
+	}
+	IFSelect_ReturnStatus stat = writer.Write(path.c_str());
+
+}
+
+void helperFunctions::WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& addition)
+{
+	std::ofstream outputFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".txt");
+
+	for (TopoDS_Face shape: shapeList)
+	{
+		outputFile << "new" << std::endl;
+		for (TopExp_Explorer expl(shape, TopAbs_VERTEX); expl.More(); expl.Next())
+		{
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+			outputFile << p.X() << ", " << p.Y() << ", " << p.Z() << std::endl;
+		}
+	}
+
+	outputFile.close();
+}
+
+
+void helperFunctions::WriteToTxt(const std::vector<TopoDS_Solid>& shapeList, const std::string& addition)
+{
+	std::ofstream outputFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".txt");
+
+	for (TopoDS_Solid shape : shapeList)
+	{
+		for (TopExp_Explorer explFace(shape, TopAbs_FACE); explFace.More(); explFace.Next())
+		{
+			outputFile << "new" << std::endl;
+			for (TopExp_Explorer expl(TopoDS::Face(explFace.Current()), TopAbs_VERTEX); expl.More(); expl.Next())
+			{
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+				outputFile << p.X() << ", " << p.Y() << ", " << p.Z() << std::endl;
+			}
+		}
+	}
+
+	outputFile.close();
+}
+
+
 void helperFunctions::printPoint(const gp_Pnt& p) {
 	std::cout << p.X() << ", " << p.Y() << ", " << p.Z() << "\n";
 }
@@ -437,6 +495,21 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 }
 
 
+bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge)
+{
+	gp_Pnt cP0 = getFirstPointShape(currentEdge);
+	gp_Pnt cP1 = getLastPointShape(currentEdge);
+	gp_Pnt oP0 = getFirstPointShape(otherEdge);
+	gp_Pnt oP1 = getLastPointShape(otherEdge);
+
+
+	if (cP0.IsEqual(oP0, 1e-6) && cP1.IsEqual(oP1, 1e-6)) { return true; }
+	if (cP1.IsEqual(oP0, 1e-6) && cP0.IsEqual(oP1, 1e-6)) { return true; }
+
+	return false;
+}
+
+
 std::vector<TopoDS_Face> helperFunctions::shape2FaceList(const TopoDS_Shape& shape)
 {
 	std::vector<TopoDS_Face> faceList;
@@ -742,44 +815,20 @@ bg::model::box <BoostPoint3D> helperFunctions::createBBox(const std::vector<Topo
 }
 
 
-bg::model::box <BoostPoint3D>  helperFunctions::createBBox(const gp_Pnt& p1, const gp_Pnt& p2) {
-
-	gp_Pnt lll;
-	gp_Pnt urr;
+bg::model::box <BoostPoint3D>  helperFunctions::createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer) {
 
 	// get proper order for the bbox
-	if (p1.X() > p2.X())
-	{
-		lll.SetX(p2.X());
-		urr.SetX(p1.X());
-	}
-	else
-	{
-		lll.SetX(p1.X());
-		urr.SetX(p2.X());
-	}
+	gp_Pnt lll(
+		std::min(p1.X(), p2.X()),
+		std::min(p1.Y(), p2.Y()),
+		std::min(p1.Z(), p2.Z())
+	);
 
-	if (p1.Y() > p2.Y())
-	{
-		lll.SetY(p2.Y());
-		urr.SetY(p1.Y());
-	}
-	else
-	{
-		lll.SetY(p1.Y());
-		urr.SetY(p2.Y());
-	}
-
-	if (p1.Z() > p2.Z())
-	{
-		lll.SetZ(p2.Z());
-		urr.SetZ(p1.Z());
-	}
-	else
-	{
-		lll.SetZ(p1.Z());
-		urr.SetZ(p2.Z());
-	}
+	gp_Pnt urr(
+		std::max(p1.X(), p2.X()),
+		std::max(p1.Y(), p2.Y()),
+		std::max(p1.Z(), p2.Z())
+	);
 
 	if ((lll.X() - urr.X()) < 0.05)
 	{
@@ -799,12 +848,64 @@ bg::model::box <BoostPoint3D>  helperFunctions::createBBox(const gp_Pnt& p1, con
 		urr.SetZ(urr.Z() + 0.05);
 	}
 
-	BoostPoint3D boostlllPoint = BoostPoint3D(lll.X(), lll.Y(), lll.Z());
-	BoostPoint3D boosturrPoint = BoostPoint3D(urr.X(), urr.Y(), urr.Z());
+	BoostPoint3D boostlllPoint = BoostPoint3D(lll.X() - buffer, lll.Y() - buffer, lll.Z() - buffer);
+	BoostPoint3D boosturrPoint = BoostPoint3D(urr.X() + buffer, urr.Y() + buffer, urr.Z() + buffer);
 
 	bg::model::box <BoostPoint3D> box = bg::model::box < BoostPoint3D >(boostlllPoint, boosturrPoint);
 
 	return box;
+}
+
+
+TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& urr, double buffer) {
+	BRep_Builder brepBuilder;
+	BRepBuilderAPI_Sewing brepSewer;
+
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid outerbb;
+	brepBuilder.MakeSolid(outerbb);
+
+	gp_Pnt p0 = gp_Pnt(lll.X() - buffer, lll.Y() - buffer, lll.Z() - buffer);
+	gp_Pnt p4 = gp_Pnt(urr.X() + buffer, urr.Y() + buffer, urr.Z() + buffer);
+
+	gp_Pnt p1 = gp_Pnt(p0.X(), p4.Y(), p0.Z());
+	gp_Pnt p2 = gp_Pnt(p4.X(), p4.Y(), p0.Z());
+	gp_Pnt p3 = gp_Pnt(p4.X(), p0.Y(), p0.Z());
+	gp_Pnt p5 = gp_Pnt(p0.X(), p4.Y(), p4.Z());
+	gp_Pnt p6 = gp_Pnt(p0.X(), p0.Y(), p4.Z());
+	gp_Pnt p7 = gp_Pnt(p4.X(), p0.Y(), p4.Z());
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
+	TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
+	TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
+	TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
+
+	TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
+	TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
+	TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
+	TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
+
+	std::vector<TopoDS_Face> faceList;
+
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
+	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
+
+	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
+
+	brepSewer.Perform();
+	brepBuilder.Add(outerbb, brepSewer.SewedShape());
+
+	return outerbb;
 }
 
 

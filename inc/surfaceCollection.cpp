@@ -77,7 +77,7 @@ void SurfaceGroup::projectFace() {
 
 	theFlatFace_ = helperFunctions::projectFaceFlat(
 		theFace_, 
-		helperFunctions::getHighestPoint(theFace_).Z()
+		helperFunctions::getHighestPoint(theFace_).Z() //TODO: make this smarter, might not work with non-flat surfaces
 	);
 }
 

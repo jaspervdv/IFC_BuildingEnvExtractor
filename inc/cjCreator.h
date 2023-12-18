@@ -188,7 +188,7 @@ private:
 	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, const TopoDS_Face& splittingFace, double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
-	std::vector<TopoDS_Shape> computePrisms(bool isFlat = false);
+	std::vector<TopoDS_Shape> computePrisms(bool isFlat, helper* h);
 
 	/// remove redundant edges from a solid shape
 	TopoDS_Shape simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap = false);
