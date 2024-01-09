@@ -3,6 +3,7 @@ import tkinter
 from tkinter import ttk, filedialog, messagebox
 import json
 import subprocess
+import re
 
 from pathlib import Path
 
@@ -93,9 +94,12 @@ def runCode(input_path,
         return
 
     # check paths
-    input_path_list = input_path.split(" ")
+
+    input_path_list = re.split(r'(?<!{) (?![^{]*})', input_path)
+    input_path_list = [part.replace('{', '').replace('}', '') for part in input_path_list]
 
     for path in input_path_list:
+        print(path)
         if(not os.path.isfile(path)):
             tkinter.messagebox.showerror("Settings Error",  "Error: No Valid input file supplied")
             return

@@ -36,32 +36,10 @@ class CJGeoCreator {
 private:
 	// default spatial index tree depth
 	static const int treeDepth_ = 25;
-
-	// world space data
-	gp_Pnt anchor_;
-
-	// relative space data related to the voxel grid
-	int xRelRange_;
-	int yRelRange_;
-	int zRelRange_;
-
-	int totalVoxels_;
-	std::mutex voxelGrowthMutex;
-
-	// x y z size of the voxels in the grid
-	double voxelSize_;
-	double voxelSizeZ_;
+	VoxelGrid* voxelGrid_ = nullptr;
 
 	// rotation of the voxelgrid (or inverse rotation of the objects)
 	double planeRotation_ = 0;
-
-	// assignment of the voxels (should be removed) -1 is intersected 0 is not assigned 1..n is room assignement;
-	std::vector<int> Assignment_;
-	// exterior voxels;
-	std::vector<int> exteriorVoxelsIdx_;
-	// exterior voxel lookup map
-	std::map<int, voxel*> VoxelLookup_;
-	std::mutex voxelLookupMutex;
 
 	// container for surface group data
 	std::vector<std::vector<SurfaceGroup>> faceList_;
@@ -89,27 +67,10 @@ private:
 	// list containing all the floor outlines;
 	std::vector<FloorOutlineObject> storeyPrintList_;
 
-	/// get a list of idx representing the neighbours of the input voxel indx
-	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
-
-	// transform coordinates
-	template<typename T>
-	T linearToRelative(int i);
-	BoostPoint3D relPointToWorld(const BoostPoint3D& p);
-	BoostPoint3D relPointToWorld(int px, int py, int pz);
-
-	void populatedVoxelGrid(helper* h);
-
 	// create a group of voxels representing a rough room
 	std::vector<int> growExterior(int startIndx, int roomnum, helper* h);
-	std::vector<int> growInterior(int startIndx, int roomnum, helper* h);
 
 	void markVoxelBuilding(int startIndx, int roomnum);
-
-	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	void addVoxel(int indx, helper* h);
-	void addVoxelPool(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount = nullptr);
-	void countVoxels(const int* voxelGrowthCount);
 
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(helper* h);
@@ -121,9 +82,6 @@ private:
 	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
 	void FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList);
 	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList);
-
-	/// @brief get the top layer of voxels
-	std::vector<int> getTopBoxelIndx();
 
 	/// @brief get the surfaces that have an area when flattened
 	std::vector<SurfaceGroup> getXYFaces(const TopoDS_Shape& shape);
@@ -160,7 +118,7 @@ private:
 	std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 		const std::vector<Edge>& edgeList,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<int>& originVoxels,
+		const std::vector<voxel*>& originVoxels,
 		double floorlvl);
 
 	/// @brief get the footprint shapes from the collection of outer edges
@@ -215,9 +173,9 @@ private:
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
 		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
-		std::vector<int>* originVoxels, 
+		std::vector<voxel*>* originVoxels,
 		std::vector<Value>* productLookupValues, 
-		const std::vector<int>& exteriorVoxels
+		const std::vector<voxel*> exteriorVoxels
 	);
 
 	/// remove objects that are completely encapsulated by other objects
@@ -232,7 +190,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<int>& originVoxels,
+		const std::vector<voxel*>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		double gridDistance,
 		double buffer
@@ -244,7 +202,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<int>& originVoxels,
+		const std::vector<voxel*>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		double gridDistance,
 		double buffer
@@ -255,7 +213,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<int>& originVoxels,
+		const std::vector<voxel*>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		const gp_Pnt& point,
 		const double& buffer);
