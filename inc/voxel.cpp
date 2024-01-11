@@ -274,6 +274,7 @@ void voxel::setTransFace(const int& dirNum)
 void VoxelGrid::addVoxel(int indx, helper* h)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
+
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSize_);
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
@@ -427,7 +428,7 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 	}
 	if (countThread.joinable()) { countThread.join(); }
 
-	std::cout << "\t" << totalVoxels_ << " of " << totalVoxels_ << std::endl;
+	std::cout << std::endl;
 }
 
 void VoxelGrid::countVoxels(const int* voxelGrowthCount)
@@ -439,9 +440,10 @@ void VoxelGrid::countVoxels(const int* voxelGrowthCount)
 		int count = *voxelGrowthCount;
 		voxelCountLock.unlock();
 
-		if (count == totalVoxels_) { return; }
 		std::cout.flush();
 		std::cout << "\t" << count << " of " << totalVoxels_ << "\r";
+
+		if (count == totalVoxels_) { return; }
 	}
 }
 
@@ -515,22 +517,20 @@ std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 
 template<typename T>
 T VoxelGrid::linearToRelative(int i) {
-	double x = i % xRelRange_;
-	double z = round(i / (xRelRange_ * yRelRange_)) - round(i / (xRelRange_ * yRelRange_) % 1);
-	double y = (i - x) / xRelRange_ - z * yRelRange_;
+	int x = i % xRelRange_;
+	int y = floor((i / xRelRange_) % yRelRange_);
+	int z = floor(i / (xRelRange_ * yRelRange_));
 
 	return T(x, y, z);
 }
 
 
 int VoxelGrid::relativeToLinear(const BoostPoint3D& p) {
-	double x = p.get<0>();
-	double y = p.get<1>();
-	double z = p.get<2>();
+	int x = static_cast<int>(std::round(p.get<0>()));
+	int y = static_cast<int>(std::round(p.get<1>()));
+	int z = static_cast<int>(std::round(p.get<2>()));
 
-	int i = static_cast<int>(x) +
-		static_cast<int>(y * xRelRange_) +
-		static_cast<int>(z * xRelRange_ * yRelRange_);
+	int i = z * xRelRange_ * yRelRange_ +  y * xRelRange_ + x;
 
 	return i;
 }
@@ -676,6 +676,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 
 			if (currentBoxel->getIsIntersecting())
 			{
+				currentBoxel->setIsShell();
 				continue;
 			}
 

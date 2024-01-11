@@ -2573,11 +2573,12 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	// evaluate which exterior voxel has a transitional face
 	//setTransitionalFaces();
 
-	std::vector<voxel*> intersectingVoxelList = voxelGrid_->getIntersectingVoxels();
+	std::vector<voxel*> intersectingVoxelList = voxelGrid_->getIntersectingVoxels(); //TODO: make smarter
 
 	for (auto voxelIt = intersectingVoxelList.begin(); voxelIt != intersectingVoxelList.end(); voxelIt++)
 	{
 		voxel* currentVoxel = *voxelIt;
+		if (!currentVoxel->getIsShell()) { continue; }
 
 		int currentBuildingNum = currentVoxel->getBuildingNum();
 		if (pairedFaceList.size() < currentBuildingNum + 1)
@@ -2602,7 +2603,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 		{
 			int neighbourVoxelIdx = neighbourVoxelIdxList[j];
 			voxel neighbourVoxel = voxelGrid_->getVoxel(neighbourVoxelIdx);
-
 
 			if (neighbourVoxel.getIsInside() || neighbourVoxel.getIsIntersecting()) { continue; }
 

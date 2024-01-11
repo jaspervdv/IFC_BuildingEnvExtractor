@@ -16,6 +16,7 @@ private:
 	bool isIntersecting_ = false;
 	bool hasEvalIntt_ = false;
 	bool isInside_ = true;
+	bool isShell_ = false;
 	int buildingNum_ = -1;
 	int roomNum_ = -1;
 
@@ -46,6 +47,11 @@ public:
 
 	/// sets number representing to which building the voxel belongs
 	void setBuildingNum(int num) { buildingNum_ = num; }
+
+	/// sets flag signifying if voxel is part of the exterior shell
+	void setIsShell() { isShell_ = true; }
+
+	bool getIsShell() { return isShell_; }
 
 	/// set flag notifying if the voxel is part of the outside of a building 
 	void setOutside() { isInside_ = false; }
