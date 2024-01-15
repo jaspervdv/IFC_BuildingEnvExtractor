@@ -570,7 +570,7 @@ std::vector<int> VoxelGrid::getNeighbours(int voxelIndx, bool connect6)
 
 		if (!connect6)
 		{
-			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ - 1); }
+			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ + 1); }
 			if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ + 1); }
 			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ + 1); }
 			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ + 1); }
@@ -672,28 +672,31 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 			}
 
 			int currentIdx = buffer[j];
-			voxel* currentBoxel = VoxelLookup_[currentIdx];
-
-			if (currentBoxel->getIsIntersecting())
-			{
-				currentBoxel->setIsShell();
-				continue;
-			}
 
 			// find neighbours
-			std::vector<int> neighbourIndx = getNeighbours(currentIdx);
+			std::vector<int> neighbourIndxList = getNeighbours(currentIdx);
 
-			if (neighbourIndx.size() < 26) { isOutSide = true; }
+			if (neighbourIndxList.size() < 26) { isOutSide = true; }
 
-			for (size_t k = 0; k < neighbourIndx.size(); k++)
+			for (size_t k = 0; k < neighbourIndxList.size(); k++)
 			{
+				int neighbourIdx = neighbourIndxList[k];
+				voxel* neighbourVoxel = VoxelLookup_[neighbourIdx];
+
+				if (neighbourVoxel->getIsIntersecting())
+				{
+					neighbourVoxel->setIsShell();
+					continue;
+				}
+
+
 				// exlude if already assigned
-				if (Assignment_[neighbourIndx[k]] == 0) {
+				if (Assignment_[neighbourIdx] == 0) {
 					bool dupli = false;
 					for (size_t l = 0; l < tempBuffer.size(); l++)
 					{
 						// exlude if already in buffer
-						if (neighbourIndx[k] == tempBuffer[l])
+						if (neighbourIdx == tempBuffer[l])
 						{
 							dupli = true;
 							break;
@@ -701,24 +704,24 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 					}
 					if (!dupli)
 					{
-						tempBuffer.emplace_back(neighbourIndx[k]);
-						totalRoom.emplace_back(neighbourIndx[k]);
-						Assignment_[neighbourIndx[k]] = 1;
+						tempBuffer.emplace_back(neighbourIdx);
+						totalRoom.emplace_back(neighbourIdx);
+						Assignment_[neighbourIdx] = 1;
 					}
 				}
-				else if (Assignment_[neighbourIndx[k]] == -1) {
+				else if (Assignment_[neighbourIdx] == -1) {
 					bool dupli = false;
 
 					for (size_t l = 0; l < totalRoom.size(); l++)
 					{
-						if (neighbourIndx[k] == totalRoom[l]) {
+						if (neighbourIdx == totalRoom[l]) {
 							dupli = true;
 						}
 					}
 					if (!dupli)
 					{
-						totalRoom.emplace_back(neighbourIndx[k]);
-						tempBuffer.emplace_back(neighbourIndx[k]);
+						totalRoom.emplace_back(neighbourIdx);
+						tempBuffer.emplace_back(neighbourIdx);
 					}
 				}
 			}
@@ -783,11 +786,3 @@ void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
 	return;
 }
 
-//void CJGeoCreator::setTransitionalFaces()
-//{
-//	for (auto i = exteriorVoxelsIdx_.begin(); i != exteriorVoxelsIdx_.end(); ++i)
-//	{
-//		voxel* currentVoxel = VoxelLookup_[*i];
-//
-//	}
-//}

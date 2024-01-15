@@ -2570,9 +2570,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
 	std::vector<std::vector<TopoDS_Face>> pairedFaceList;
 
-	// evaluate which exterior voxel has a transitional face
-	//setTransitionalFaces();
-
 	std::vector<voxel*> intersectingVoxelList = voxelGrid_->getIntersectingVoxels(); //TODO: make smarter
 
 	for (auto voxelIt = intersectingVoxelList.begin(); voxelIt != intersectingVoxelList.end(); voxelIt++)
