@@ -160,6 +160,7 @@ public:
 
 	/// get a list of idx representing the neighbours of the input voxel
 	std::vector<int> getNeighbours(voxel* boxel, bool connect6 = false);
+	int getLowerNeighbour(int voxelIndx, bool connect6 = false);
 
 	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
@@ -170,6 +171,7 @@ public:
 	// returns a plate in full x an y but 1 z the closes at the input platelvl 
 	std::vector<voxel*> getVoxelPlate(double platelvl);
 	std::vector<voxel*> getIntersectingVoxels();
+	std::vector<voxel*> getExternalVoxels();
 
 	gp_Pnt getAnchor() { return anchor_; }
 

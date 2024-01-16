@@ -463,6 +463,22 @@ std::vector<voxel*> VoxelGrid::getIntersectingVoxels()
 	return intersectingVoxels;
 }
 
+
+std::vector<voxel*> VoxelGrid::getExternalVoxels()
+{
+	std::vector<voxel*> externalVoxels;
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		voxel* currentVoxel = i->second;
+
+		if (currentVoxel->getIsInside()) { continue; }
+
+		externalVoxels.emplace_back(currentVoxel);
+	}
+	return externalVoxels;
+}
+
+
 std::vector<int> VoxelGrid::getTopBoxelIndx() {
 
 	std::vector<int> voxelIndx;
@@ -630,6 +646,18 @@ std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
 	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
 	int voxelInt = relativeToLinear(relativePoint);
 	return getNeighbours(voxelInt, connect6);
+}
+
+int VoxelGrid::getLowerNeighbour(int voxelIndx, bool connect6)
+{
+	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
+
+	bool zSmall = loc3D.Z() - 1 >= 0;
+
+	if (!zSmall) { return -1; }
+
+	return voxelIndx - (xRelRange_) * (yRelRange_);
+
 }
 
 BoostPoint3D VoxelGrid::relPointToWorld(const BoostPoint3D& p)

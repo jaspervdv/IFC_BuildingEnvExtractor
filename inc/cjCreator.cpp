@@ -1885,66 +1885,47 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 	std::cout << "- Coarse filtering of roofing structures" << std::endl;
 
 	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx(); //TODO: this can be written more pretty 
-	std::vector<IfcSchema::IfcProduct*> topProducts;
+	std::vector<Value> topValues;
 	std::vector<TopoDS_Shape> topObjects;
 
 	for (size_t i = 0; i < boxelIdx.size(); i++)
 	{
-		double step = 2;
-		double downstep = 2;
-		bool found = false;
-
-		int idx = boxelIdx[i];
-		voxel boxel = voxelGrid_->getVoxel(idx);
-		std::vector<gp_Pnt> pointList = boxel.getCornerPoints(0);
+		int currentVoxelIdx = boxelIdx[i];
 		while (true)
 		{
-			BoostPoint3D lll(pointList[0].X(), pointList[0].Y(), pointList[0].Z() - downstep);
-			BoostPoint3D urr(pointList[4].X(), pointList[4].Y(), pointList[4].Z());
-			bg::model::box<BoostPoint3D> boostBoxel = bg::model::box<BoostPoint3D>(lll, urr);
+			voxel currentVoxel = voxelGrid_->getVoxel(currentVoxelIdx);
+			std::vector<Value> internalValueList= currentVoxel.getInternalProductList();
 
-			std::vector<Value> qResult;
-			qResult.clear();
-			h->getIndexPointer()->query(bgi::intersects(boostBoxel), std::back_inserter(qResult));
-
-			if (qResult.size() > 0)
+			if (internalValueList.size())
 			{
-				found = true;
-			}
-
-			for (size_t k = 0; k < qResult.size(); k++)
-			{
-				bool dub = false;
-
-				lookupValue* lookup = h->getLookup(qResult[k].second);
-				IfcSchema::IfcProduct* product = lookup->getProductPtr();
-
-				for (size_t l = 0; l < topProducts.size(); l++)
+				for (size_t j = 0; j < internalValueList.size(); j++)
 				{
-					IfcSchema::IfcProduct* otherproduct = topProducts[l];
+					double dub = false;
+					Value internalValue = internalValueList[j];
 
-					if (otherproduct == product)
+					for (size_t k = 0; k < topValues.size(); k++)
 					{
-						dub = true;
-						break;
+						if (topValues[k].second == internalValue.second)
+						{
+							dub = true;
+							break;
+						}
 					}
-				}
+					if (dub) { continue; }
 
-				if (!dub)
-				{
-					TopoDS_Shape shape;
-					if (lookup->hasCBox()) { shape = lookup->getCBox(); }
-					else { shape = h->getObjectShape(lookup->getProductPtr(), true); }
-					topProducts.emplace_back(product);
-					topObjects.emplace_back(shape);
+					lookupValue* lookup = h->getLookup(internalValue.second);
+					TopoDS_Shape currentShape;
+
+					if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
+					else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
+
+					topValues.emplace_back(internalValue);
+					topObjects.emplace_back(currentShape);
 				}
+				break;
 			}
-
-			if (found) { break; }
-
-			downstep = downstep + step;
-
-			if (pointList[0].Z() - (downstep + step) < h->getLllPoint().Z()) { break; }
+			currentVoxelIdx = voxelGrid_->getLowerNeighbour(currentVoxelIdx);
+			if (currentVoxelIdx == -1) { break; }
 		}
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2006,13 +1987,12 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 	}
 }
 
-void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList)
+void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList) //TODO: monitor this
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
-
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
-	int coreUse = coreCount - 1;
+	int coreUse = 1; //coreCount - 1;
 	int splitListSize = floor(shapeList.size() / coreUse);
 	int voxelsGrown = 0;
 
@@ -2504,7 +2484,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
 		lookupValue* lookup = h->getLookup(productLookupValues[i].second);
-		//std::cout << std::get<0>(lookup)->data().toString() << std::endl;
 
 		TopoDS_Shape currentShape;
 
@@ -2859,7 +2838,6 @@ bool CJGeoCreator::isWireVisible(
 		correctedOuterWire = TopoDS::Wire(expl.Current());
 		break;
 	}
-	//std::cout << "b" << std::endl;
 
 	if (correctedOuterWire.IsNull()) { return false; }
 

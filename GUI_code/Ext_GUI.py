@@ -154,7 +154,7 @@ def runCode(input_path,
         lod_list.append(1.2)
     if (make_lod13):
         lod_list.append(1.3)
-    if (make_lod00):
+    if (make_lod22):
         lod_list.append(2.2)
     if (make_lod32):
         lod_list.append(3.2)

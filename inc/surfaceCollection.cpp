@@ -171,17 +171,15 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 
 			if (intersector.NbPnt() > 0)
 			{
-
-				//printPoint(currentEvalPoint->getPoint());
 				currentEvalPoint->setInvisible();
 				continue;
 			}
 
-			TopExp_Explorer expl;
-			for (expl.Init(otherFace, TopAbs_EDGE); expl.More(); expl.Next())
+			for (TopExp_Explorer expl(otherFace, TopAbs_EDGE); expl.More(); expl.Next())
 			{
 				TopoDS_Edge otherEdge = TopoDS::Edge(expl.Current());
 				BRepExtrema_DistShapeShape distanceCalc(otherEdge, currentEvalPoint->getEvalEdge());
+
 
 				if (distanceCalc.Value() < 0.001)
 				{
