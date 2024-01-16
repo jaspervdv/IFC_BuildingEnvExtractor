@@ -2455,7 +2455,9 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	std::vector<voxel*> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 
-	const std::vector<voxel*> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
+	std::vector<voxel*> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
+	std::vector<voxel*> externalVoxel = voxelGrid_->getExternalVoxels();
+	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
 
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
 	productLookupValues = makeUniqueValueList(productLookupValues);
@@ -2499,6 +2501,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
 			if (isWireVisible(
 				h,
 				currentShape,
@@ -2519,7 +2522,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 				currentShape, 
 				currentFace, 
 				voxelIndex, 
-				originVoxels, 
+				originVoxels,
 				exteriorProductIndex, 
 				gridDistance, 
 				buffer)
@@ -2857,7 +2860,6 @@ bool CJGeoCreator::isWireVisible(
 		for (double u = uStart; u < uEnd; u += uStep){
 			gp_Pnt point;
 			curveAdaptor.D0(u, point);
-			//printPoint(point);
 			if (pointIsVisible(h, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
 			{
 				return true;
@@ -2888,6 +2890,7 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 		),
 		std::back_inserter(qResult)
 	);
+
 	for (size_t j = 0; j < qResult.size(); j++)
 	{
 		bool intersecting = false;
