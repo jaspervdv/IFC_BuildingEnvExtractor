@@ -2462,7 +2462,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
-	double gridDistance = 1.5;
+	double gridDistance = voxelGrid_->getVoxelSize();
 
 	// create unique index
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
@@ -2554,78 +2554,35 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 
 	std::vector<voxel*> intersectingVoxelList = voxelGrid_->getIntersectingVoxels(); //TODO: make smarter
 
-	for (auto voxelIt = intersectingVoxelList.begin(); voxelIt != intersectingVoxelList.end(); voxelIt++)
+	BRepBuilderAPI_Sewing brepSewer;
+	for (size_t i = 0; i < 6; i++)
 	{
-		voxel* currentVoxel = *voxelIt;
-		if (!currentVoxel->getIsShell()) { continue; }
+		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, planeRotation_);
 
-		int currentBuildingNum = currentVoxel->getBuildingNum();
-		if (pairedFaceList.size() < currentBuildingNum + 1)
+		for (size_t j = 0; j < faceList.size(); j++)
 		{
-			for (size_t j = 0; j < currentBuildingNum + 1 - pairedFaceList.size(); j++)
+			std::vector<TopoDS_Wire> wireList = growWires(faceList[j]);
+			std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+			std::vector<TopoDS_Face> cleanFaceList = wireCluster2Faces(cleanWireList);
+
+			for (size_t j = 0; j < cleanFaceList.size(); j++)
 			{
-				std::vector<TopoDS_Face> tempList;
-				pairedFaceList.emplace_back(tempList);
+				brepSewer.Add(cleanFaceList[j]);
 			}
 		}
-
-		std::vector<int> neighbourVoxelIdxList = voxelGrid_->getNeighbours(currentVoxel, true);
-
-		if (neighbourVoxelIdxList.size() != 6) { 
-			std::cout << "\t[WARNING] Unable to create voxelized shape, encountered complex case" << std::endl;			
-			return {};
-		} //TODO: something with this
-
-		std::vector<TopoDS_Edge> edgeList;
-
-		for (size_t j = 0; j < neighbourVoxelIdxList.size(); j++) // get the valid faces of the voxels
-		{
-			int neighbourVoxelIdx = neighbourVoxelIdxList[j];
-			voxel neighbourVoxel = voxelGrid_->getVoxel(neighbourVoxelIdx);
-
-			if (neighbourVoxel.getIsInside() || neighbourVoxel.getIsIntersecting()) { continue; }
-
-			std::vector<int> face;
-			if (j == 0) { face = currentVoxel->getVoxelFaces()[3]; }
-			if (j == 1) { face = currentVoxel->getVoxelFaces()[1]; }
-			if (j == 2) { face = currentVoxel->getVoxelFaces()[0]; }
-			if (j == 3) { face = currentVoxel->getVoxelFaces()[2]; }
-			if (j == 4) { face = currentVoxel->getVoxelFaces()[5]; }
-			if (j == 5) { face = currentVoxel->getVoxelFaces()[4]; }
-
-			std::vector<gp_Pnt> cornerPoints = currentVoxel->getCornerPoints(planeRotation_);
-
-			TopoDS_Face voxelFace = BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(
-				BRepBuilderAPI_MakeEdge(cornerPoints[face[0]], cornerPoints[face[1]]),
-				BRepBuilderAPI_MakeEdge(cornerPoints[face[1]], cornerPoints[face[2]]),
-				BRepBuilderAPI_MakeEdge(cornerPoints[face[2]], cornerPoints[face[3]]),
-				BRepBuilderAPI_MakeEdge(cornerPoints[face[3]], cornerPoints[face[0]])
-			));
-
-			pairedFaceList[currentBuildingNum].emplace_back(voxelFace);
-		}
 	}
 
-	for (size_t i = 0; i < pairedFaceList.size(); i++)
-	{
-		BRepBuilderAPI_Sewing brepSewer;
-		for (size_t j = 0; j < pairedFaceList[i].size(); j++)
-		{
-			brepSewer.Add(pairedFaceList[i][j]);
-		}
+	brepSewer.Perform();
+	BRep_Builder brepBuilder;
+	TopoDS_Shell shell;
+	brepBuilder.MakeShell(shell);
+	TopoDS_Solid voxelSolid;
+	brepBuilder.MakeSolid(voxelSolid);
+	brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
+	auto test = simplefySolid(voxelSolid);
 
-		brepSewer.Perform();
-		BRep_Builder brepBuilder;
-		TopoDS_Shell shell;
-		brepBuilder.MakeShell(shell);
-		TopoDS_Solid voxelSolid;
-		brepBuilder.MakeSolid(voxelSolid);
-		brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
-		auto test = simplefySolid(voxelSolid);
-
-		CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(h->getObjectTranslation().Inverted()), "5.0");
-		geoObjectList.emplace_back(geoObject);
-	}
+	CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(h->getObjectTranslation().Inverted()), "5.0");
+	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;

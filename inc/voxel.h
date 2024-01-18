@@ -23,12 +23,12 @@ private:
 	std::vector<Value> internalProducts_;
 
 	// transitional faces (faces between different types of voxels)
-	bool hasFace0 = false;
-	bool hasFace1 = false;
-	bool hasFace2 = false;
-	bool hasFace3 = false;
-	bool hasFace4 = false;
-	bool hasFace5 = false;
+	bool hasFace0_ = false; // -x
+	bool hasFace1_ = false; // +x
+	bool hasFace2_ = false; // -y
+	bool hasFace3_ = false; // +y
+	bool hasFace4_ = false; // -z
+	bool hasFace5_ = false; // +z
 
 public:
 	/// greates an axis aligned voxel
@@ -91,10 +91,16 @@ public:
 	std::vector<Value> getInternalProductList() { return internalProducts_; }
 
 	/// returns boolean if the face in that direction is present, if no number input returns if any face is present
-	bool hasFace(const int* dirNum = nullptr);
+	/// 0 = -X
+	/// 1 = +X
+	/// 2 = -Y
+	/// 3 = +Y
+	/// 4 = -Z
+	/// 5 = +Z
+	bool hasFace(int dirNum = -1);
 
 	/// sets a transitionalface
-	void setTransFace(const int& dirNum);
+	void setTransFace(int dirNum);
 };
 #endif // VOXEL_VOXEL_H
 
@@ -154,6 +160,11 @@ private:
 	/// get a list of idx representing the neighbours of the input voxel indx
 	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
 
+	/// get a list of idx representing the dir of the neighbor in -/+ x, y, z dir 
+	std::vector<int> getDirNeighbours(int voxelIndx);
+
+	std::vector<TopoDS_Edge> getTransitionalEdges(int dirIndx, int voxelIndx);
+
 
 public:
 	VoxelGrid(helper* h, double voxelSize );
@@ -172,8 +183,11 @@ public:
 	std::vector<voxel*> getVoxelPlate(double platelvl);
 	std::vector<voxel*> getIntersectingVoxels();
 	std::vector<voxel*> getExternalVoxels();
+	std::vector<voxel*> getVoxels();
 
 	gp_Pnt getAnchor() { return anchor_; }
+
+	std::vector<std::vector<TopoDS_Edge>> getDirectionalFaces(int dirIndx, double angle);
 
 };
 

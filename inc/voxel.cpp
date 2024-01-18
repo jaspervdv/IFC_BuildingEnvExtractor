@@ -83,12 +83,12 @@ std::vector<std::vector<int>> voxel::getVoxelTriangles()
 std::vector<std::vector<int>> voxel::getVoxelFaces()
 {
 	return {
-	{ 0, 1, 5, 6 }, // side	
-	{ 1, 2, 4, 5 },
-	{ 2, 3, 7, 4 },
-	{ 3, 0, 6, 7 },
-	{ 6, 5, 4, 7 }, // top
-	{ 0, 3, 2, 1 }, // buttom
+		{ 1, 2, 4, 5 },
+		{ 3, 0, 6, 7 },
+		{ 2, 3, 7, 4 },
+		{ 0, 1, 5, 6 },
+		{ 6, 5, 4, 7 }, // top
+		{ 0, 3, 2, 1 }
 	};
 }
 
@@ -236,38 +236,38 @@ bool voxel::linearEqIntersection(const std::vector<gp_Pnt>& productPoints, const
 	return false;
 }
 
-bool voxel::hasFace(const int* dirNum)
+bool voxel::hasFace(int dirNum)
 {
-	if (dirNum == nullptr) // check if there is any face
+	if (dirNum == -1) // check if there is any face
 	{
-		if (!hasFace0 && !hasFace1 && !hasFace2 && !hasFace3 && !hasFace4 && !hasFace5) { return false; }
+		if (!hasFace0_ && !hasFace1_ && !hasFace2_ && !hasFace3_ && !hasFace4_ && !hasFace5_) { return false; }
 		return true;
 	}
 
-	if (*dirNum == 0 && !hasFace0) { return false; }
-	if (*dirNum == 1 && !hasFace1) { return false; }
-	if (*dirNum == 2 && !hasFace2) { return false; }
-	if (*dirNum == 3 && !hasFace3) { return false; }
-	if (*dirNum == 4 && !hasFace4) { return false; }
-	if (*dirNum == 5 && !hasFace5) { return false; }
+	if (dirNum == 0 && !hasFace0_) { return false; }
+	if (dirNum == 1 && !hasFace1_) { return false; }
+	if (dirNum == 2 && !hasFace2_) { return false; }
+	if (dirNum == 3 && !hasFace3_) { return false; }
+	if (dirNum == 4 && !hasFace4_) { return false; }
+	if (dirNum == 5 && !hasFace5_) { return false; }
 
 	return true;
 }
 
 
-void voxel::setTransFace(const int& dirNum)
+void voxel::setTransFace(int dirNum)
 {
 	if (dirNum < 0 || dirNum > 6)
 	{
 		throw std::invalid_argument("dirNum arguments must be a value of 0 to 6");
 	}
 
-	if (dirNum == 0) { hasFace0 = true; }
-	if (dirNum == 1) { hasFace1 = true; }
-	if (dirNum == 2) { hasFace2 = true; }
-	if (dirNum == 3) { hasFace3 = true; }
-	if (dirNum == 4) { hasFace4 = true; }
-	if (dirNum == 5) { hasFace5 = true; }
+	if (dirNum == 0) { hasFace0_ = true; }
+	if (dirNum == 1) { hasFace1_ = true; }
+	if (dirNum == 2) { hasFace2_ = true; }
+	if (dirNum == 3) { hasFace3_ = true; }
+	if (dirNum == 4) { hasFace4_ = true; }
+	if (dirNum == 5) { hasFace5_ = true; }
 }
 
 
@@ -479,6 +479,203 @@ std::vector<voxel*> VoxelGrid::getExternalVoxels()
 }
 
 
+std::vector<voxel*> VoxelGrid::getVoxels()
+{
+	std::vector<voxel*> externalVoxels;
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		voxel* currentVoxel = i->second;
+		externalVoxels.emplace_back(currentVoxel);
+	}
+	return externalVoxels;
+}
+
+std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx, double angle)
+{
+	std::vector<std::vector<TopoDS_Edge>> clusteredEdges = {};
+
+	std::vector<int> evaluated(VoxelLookup_.size());
+	std::vector<int> allowedNeighbourDir = {};
+
+	if (dirIndx == 0 || dirIndx == 1) { allowedNeighbourDir = { 2,3,4,5 }; }
+	if (dirIndx == 2 || dirIndx == 3) { allowedNeighbourDir = { 0,1,4,5 }; }
+	if (dirIndx == 4 || dirIndx == 5) { allowedNeighbourDir = { 0,1,2,3 }; }
+
+	while (true)
+	{
+		// find the start of the face growth
+		std::vector<int> buffer = {};
+
+		for (size_t i = 0; i < VoxelLookup_.size(); i++)
+		{
+			voxel* potentialVoxel = VoxelLookup_[i];
+
+			if (evaluated[i] == 1) { continue; }
+			if (!potentialVoxel->getIsIntersecting()) { continue; }
+			if (!potentialVoxel->hasFace(dirIndx)) { continue; }
+
+			buffer.emplace_back(i);
+			evaluated[i] = 1;
+			break;
+		}
+
+		if (!buffer.size()) { break; }
+
+		// find edges for faces
+		std::vector<TopoDS_Edge> edgeList = {};
+
+		while (buffer.size())
+		{
+			// growth
+			std::vector<int> tempBuffer = {};
+			for (auto bufferIT = buffer.begin(); bufferIT != buffer.end(); bufferIT++)
+			{
+				int bufferIndx = *bufferIT;
+				voxel* currentVoxel = VoxelLookup_[bufferIndx];
+
+				bool isEdge = false;
+
+				std::vector<int> neighbourIndxList = getDirNeighbours(bufferIndx);
+
+				for (size_t i = 0; i < 4; i++)
+				{
+					int neighbourIndx = neighbourIndxList[allowedNeighbourDir[i]];
+					voxel* neighbourVoxel = VoxelLookup_[neighbourIndx];
+
+					// find neighbour to grow into 
+					if (neighbourVoxel->hasFace(dirIndx)) {
+						if (evaluated[neighbourIndx] == 1) { continue; }
+						evaluated[neighbourIndx] = 1;
+						tempBuffer.emplace_back(neighbourIndx);
+						continue;
+					}
+
+					std::vector<gp_Pnt> voxelPoints = currentVoxel->getCornerPoints(planeRotation_);
+					// create edge based on the normal dir
+					if (dirIndx == 0)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[1]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[4]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[2]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[5]));
+						}
+					}
+					else if (dirIndx == 1)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[6]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[3]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[0]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[7]));
+						}
+					}
+					else if (dirIndx == 2)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[7]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[2]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[3]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[4]));
+						}
+					}
+					else if (dirIndx == 3)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[0]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[5]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[1]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[6]));
+						}
+					}
+					else if (dirIndx == 4)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[6]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[4]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[6]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[7]));
+						}
+					}
+					else if (dirIndx == 5)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[3]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[2]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[1]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[3]));
+						}
+					}
+				}
+			}
+			buffer = tempBuffer;
+		}
+		clusteredEdges.emplace_back(edgeList);
+	}
+	return clusteredEdges;
+}
+
+
 std::vector<int> VoxelGrid::getTopBoxelIndx() {
 
 	std::vector<int> voxelIndx;
@@ -640,6 +837,44 @@ std::vector<int> VoxelGrid::getNeighbours(int voxelIndx, bool connect6)
 	return neightbours;
 }
 
+std::vector<int> VoxelGrid::getDirNeighbours(int voxelIndx)
+{
+	std::vector<int> neightbours;
+	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
+
+	bool xSmall = loc3D.X() - 1 >= 0;
+	bool xBig = loc3D.X() + 1 < xRelRange_;
+
+	bool ySmall = loc3D.Y() - 1 >= 0;
+	bool yBig = loc3D.Y() + 1 < yRelRange_;
+
+	bool zSmall = loc3D.Z() - 1 >= 0;
+	bool zBig = loc3D.Z() + 1 < zRelRange_;
+
+	// connectivity
+	if (xSmall) { neightbours.emplace_back(voxelIndx - 1); }
+	else { neightbours.emplace_back(-1); }
+	if (xBig) { neightbours.emplace_back(voxelIndx + 1); }
+	else { neightbours.emplace_back(-1); }
+	if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_); }
+	else { neightbours.emplace_back(-1); }
+	if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_); }
+	else { neightbours.emplace_back(-1); }
+	if (zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)); }
+	else { neightbours.emplace_back(-1); }
+	if (zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)); }
+	else { neightbours.emplace_back(-1); }
+
+	return neightbours;
+
+}
+
+std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelIndx)
+{
+
+	return std::vector<TopoDS_Edge>();
+}
+
 std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
 {
 	BoostPoint3D middlePoint = boxel->getCenterPoint();
@@ -693,7 +928,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 		std::vector<int> tempBuffer;
 		for (size_t j = 0; j < buffer.size(); j++)
 		{
-			if (j % 1000 == 0)
+			if (totalRoom.size() % 1000 == 0)
 			{
 				std::cout.flush();
 				std::cout << "\tSize: " << totalRoom.size() << "\r";
@@ -702,21 +937,26 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 			int currentIdx = buffer[j];
 
 			// find neighbours
-			std::vector<int> neighbourIndxList = getNeighbours(currentIdx);
-
-			if (neighbourIndxList.size() < 26) { isOutSide = true; }
+			std::vector<int> neighbourIndxList = getDirNeighbours(currentIdx);
 
 			for (size_t k = 0; k < neighbourIndxList.size(); k++)
 			{
 				int neighbourIdx = neighbourIndxList[k];
+
+				if (neighbourIdx == -1) 
+				{
+					isOutSide = true;
+					continue; 
+				}
+
 				voxel* neighbourVoxel = VoxelLookup_[neighbourIdx];
 
 				if (neighbourVoxel->getIsIntersecting())
 				{
 					neighbourVoxel->setIsShell();
+					neighbourVoxel->setTransFace(k);
 					continue;
 				}
-
 
 				// exlude if already assigned
 				if (Assignment_[neighbourIdx] == 0) {
@@ -757,7 +997,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 		buffer.clear();
 		buffer = tempBuffer;
 	}
-	if (isOutSide)
+	if (isOutSide) //TODO: this should be smarter
 	{
 		std::vector<int> exterior;
 
