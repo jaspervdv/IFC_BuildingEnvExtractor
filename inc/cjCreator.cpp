@@ -32,6 +32,9 @@
 
 #include <CJToKernel.h>
 
+#include <STEPControl_Writer.hxx>
+#include <STEPControl_StepModelType.hxx>
+
 
 void flipPoints(gp_Pnt* p1, gp_Pnt* p2) {
 	gp_Pnt tempPoint = *p1;
@@ -938,10 +941,11 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 	std::vector<TopoDS_Face> faceList;
 	gp_Vec normal;
 	gp_Pnt originPoint;
+	gp_Vec castingVector;
 
 	for (size_t i = 0; i < wireList.size(); i++)
 	{
-		if (i == 0)
+		if (i == 0) // use the first face to compute normal dir 
 		{
 			gp_Vec vec1;
 			gp_Vec vec2;
@@ -966,6 +970,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 			}
 			normal = vec1.Crossed(vec2);
 			normal.Normalize();
+			castingVector = vec1;
 		}
 		faceBuilder = BRepBuilderAPI_MakeFace(
 			gp_Pln(originPoint, normal),
@@ -975,6 +980,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
 	if (faceList.size() == 1) { return faceList; }
+
 	// test which surfaces are inner loops
 	std::vector<double> areaList;
 	std::vector<TopoDS_Face> correctedFaceList;
@@ -1034,7 +1040,12 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 				gp_Pnt p = BRep_Tool::Pnt(vertex);
 
-				TopoDS_Edge evalEdge = BRepBuilderAPI_MakeEdge(p, gp_Pnt(p.X() + 1000, p.Y(), p.Z()));
+				TopoDS_Edge evalEdge = BRepBuilderAPI_MakeEdge(
+					p, gp_Pnt(
+						p.X() + abs(castingVector.X()) * 10000,
+						p.Y() + abs(castingVector.Y()) * 10000,
+						p.Z() + abs(castingVector.Z()) * 10000
+					));
 
 				int intersectionCount = 0;
 				TopExp_Explorer edgeExplorer(orderedFootprintList[i], TopAbs_EDGE);
@@ -1043,6 +1054,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 
 					BRepExtrema_DistShapeShape distanceCalc1(evalEdge, currentEdge); //TODO: speed up with linear intersection function?
 					distanceCalc1.Perform();
+
 					if (distanceCalc1.Value() < 1e-6) { intersectionCount++; }
 				}
 				if (intersectionCount % 2 == 1)
@@ -2549,10 +2561,10 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
-	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
-	std::vector<std::vector<TopoDS_Face>> pairedFaceList;
+	std::vector<voxel*> intt = voxelGrid_->getIntersectingVoxels();
 
-	std::vector<voxel*> intersectingVoxelList = voxelGrid_->getIntersectingVoxels(); //TODO: make smarter
+	//std::string path = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step_test.stp";
+	//STEPControl_Writer writer;
 
 	BRepBuilderAPI_Sewing brepSewer;
 	for (size_t i = 0; i < 6; i++)
@@ -2568,20 +2580,36 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 			for (size_t j = 0; j < cleanFaceList.size(); j++)
 			{
 				brepSewer.Add(cleanFaceList[j]);
+				//writer.Transfer(cleanFaceList[j], STEPControl_AsIs);
 			}
 		}
 	}
 
+
+//	IFSelect_ReturnStatus stat = writer.Write(path.c_str());
+	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
+
 	brepSewer.Perform();
+	TopoDS_Shape sewedShape = brepSewer.SewedShape();	
+	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
+	{
+		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
+
+		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape.Moved(h->getObjectTranslation().Inverted()), "5.0");
+		geoObjectList.emplace_back(geoObject);
+
+		return geoObjectList;
+	}
+
 	BRep_Builder brepBuilder;
 	TopoDS_Shell shell;
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid voxelSolid;
 	brepBuilder.MakeSolid(voxelSolid);
 	brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
-	auto test = simplefySolid(voxelSolid);
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(test.Moved(h->getObjectTranslation().Inverted()), "5.0");
+
+	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(h->getObjectTranslation().Inverted()), "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
