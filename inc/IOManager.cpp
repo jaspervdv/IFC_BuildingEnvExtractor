@@ -911,7 +911,9 @@ bool IOManager::run()
 	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
 
 	// make the geometrycreator and voxelgrid
+	auto voxelTime = std::chrono::high_resolution_clock::now();
 	CJGeoCreator geoCreator(internalHelper_.get(), voxelSize_);
+	timeVoxel_ = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
 	if (makeOutlines_)
 	{
@@ -1072,6 +1074,7 @@ bool IOManager::write()
 
 	nlohmann::json timeReport;
 	addTimeToJSON(&timeReport, "Internalizing", timeInternalizing_);
+	addTimeToJSON(&timeReport, "Voxel creation", timeVoxel_);
 	addTimeToJSON(&timeReport, "LoD0.0 generation", timeLoD00_);
 	addTimeToJSON(&timeReport, "LoD0.2 generation", timeLoD02_);
 	addTimeToJSON(&timeReport, "LoD1.0 generation", timeLoD10_);
@@ -1082,6 +1085,7 @@ bool IOManager::write()
 	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
 	addTimeToJSON(&timeReport, "Total Processing",
 		timeInternalizing_ +
+		timeVoxel_ +
 		timeLoD00_ +
 		timeLoD02_ +
 		timeLoD10_ +

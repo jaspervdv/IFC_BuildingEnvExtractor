@@ -55,6 +55,8 @@ private:
 	double timeInternalizing_ = -1;
 	double timeInternalizingIsS_ = false;
 
+	double timeVoxel_ = -1;
+
 	double timeLoD00_ = -1;
 	bool timeLoD00IsS_ = false;
 	double timeLoD02_ = -1;

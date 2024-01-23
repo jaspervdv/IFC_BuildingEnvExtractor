@@ -67,7 +67,7 @@ public:
 	BoostPoint3D getCenterPoint(double angle) { return helperFunctions::rotatePointWorld(center_, -angle); }
 
 	/// check the intersection of a triangluted product and a voxel
-	bool checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, helper* h);
+	bool checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h);
 
 	/// check if any cornerpoints fall inside voxel
 	bool linearEqIntersection(const std::vector<gp_Pnt>& productPoints, const std::vector<gp_Pnt>& voxelPoints);

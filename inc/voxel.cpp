@@ -11,6 +11,7 @@
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>
 
+#include <BRepClass3d_SolidClassifier.hxx>
 
 voxel::voxel(const BoostPoint3D& center, double sizeXY, double sizeZ)
 {
@@ -112,7 +113,7 @@ std::vector<std::vector<int>> voxel::getVoxelEdges()
 }
 
 
-bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, helper* h)
+bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h)
 {
 	hasEvalIntt_ = true;
 	std::vector<std::vector<int>> vets = getVoxelEdges();
@@ -123,7 +124,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	if (productType == "IfcDoor" || productType == "IfcWindow")
 	{
-		if (!lookup.hasCBox())  { return false; }
+		if (!lookup.hasCBox()) { return false; }
 	}
 
 	std::vector<gp_Pnt> productPoints = h->getObjectPoints(product, true);
@@ -165,6 +166,23 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 				return true;
 			}
 		}
+	}
+
+	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 1000);
+	int counter = 0;
+
+	for (size_t i = 0; i < triangleMesh->size(); i++)
+	{
+		std::vector<gp_Pnt> triangle = triangleMesh->at(i);
+		if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, triangle))
+		{
+			counter++; 
+		}
+	}
+	if (counter%2 == 1)
+	{
+		isIntersecting_ = true;
+		return true;
 	}
 	return false;
 }
@@ -274,7 +292,6 @@ void voxel::setTransFace(int dirNum)
 void VoxelGrid::addVoxel(int indx, helper* h)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
-
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSize_);
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
@@ -289,8 +306,7 @@ void VoxelGrid::addVoxel(int indx, helper* h)
 	for (size_t k = 0; k < qResult.size(); k++)
 	{
 		lookupValue* lookup = h->getLookup(qResult[k].second);
-
-		if (boxel->checkIntersecting(*lookup, pointList, h))
+		if (boxel->checkIntersecting(*lookup, pointList, helperFunctions::Point3DBTO(midPoint), h))
 		{
 			boxel->addInternalProduct(qResult[k]);
 		}
