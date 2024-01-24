@@ -9,23 +9,23 @@ The software is able to extract multiple different LoD (Level of Detail) shells 
 Current possible output shells:
 
 * Lod0.0 (exterior only)
-* Lod0.2 (exterior roof outline & footprint, interior storeys) (WIP)
+* Lod0.2 (exterior roof outline, footprint & interior storeys) (WIP)
 * LoD1.0 (exterior only)
 * LoD1.2 (exterior only)
 * LoD1.3 (exterior only)
 * LoD2.2 (exterior only)
-* LoD3.2 (exterior only)
-* LoD5.0 (exterior only) (WIP)
+* LoD3.2 (exterior only) (WIP)
+* LoD5.0 (exterior only)
 
 For the extraction of the exterior shell the tool utilizes three different extraction methods that can be used on progressively more accurate models. Lower detail shells (LoD 0.0 & 1.0) can be extracted only based on the vertices present in a model. Middle level detail shells (Lod 0.2 w/o footprint, 1.2, 1.3, 2.2) can be extracted based on the model’s roofing structures. High level detail shells (Lod 0.2 w/ footprint and 3.2) can be extracted based on the model’s objects that are part of the building envelope. This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses. These features are often only present in models that are made manually.
 
 The extraction of interior shells relies more heavily on the source IFC file and does not scale like the exterior shells. For all interior export (Storeys, apartments/areas and rooms/spaces) a high quality input model is required with additional extra "special" semantic information to help the tool function.
 
-Below you can see a speed comparison between the software and manual processing. Note that the software creates the exterior shells for LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 while the manual processing only creates LoD 2.2. This example is sped up 5 times.
+Below you can see a speed comparison between the software and manual processing of the exterior shell. Note that in this comparison the software creates the exterior shells for LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 while the manual processing only creates LoD 2.2. This example is sped up 5 times.
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample2.gif "Speed comparison of the software making LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 vs making LoD 2.2 by hand.")
 
-This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users will also be utilized by this project.  
+This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users could also be utilized by this project.  
 
 ## Table of Content
 
@@ -84,7 +84,6 @@ The GUI can be accessed via two routes:
 <p align="center" width="100%">
     <img src="https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/GUI_example.JPG" alt= “” width="300">
 </p>
-Currently the GUI is still in an initial development state and does not expose all the settings that are available. Additionally it does also not supply the user with clear error messages if the tool fails.
 
 ## Input file requirements
 
@@ -157,13 +156,15 @@ To construct the LoD 1.3 shell all the filtered roofing surfaces are also projec
 
 To construct the LoD 2.2 shell all the filtered roofing surfaces are extruded in a negative x-direction towards the xy plane. The resulting solids are merged and converted to the LoD 2.2 shell.
 
-### High level shells
+### High level shells (WIP)
 
 The high level shells (Lod 0.2 w/ footprint and 3.2) are extracted via a voxelization system that is refined by ray casting. The voxelization process is inspired by the room growing process described by [Vaart et al., (2022)](#1). The starting point is a voxel that is outside of the building. Every object that intersects with the growing shape is stored. The surfaces of each found object are then filtered with the help of a ray casting system which casts rays from points on each surface to the center of the exterior voxels. The found objects are merged into the LoD3.2 shell when done in 3D. This process can also be executed in a 2D section at the ground floor level to create the footprints.
 
-### voxel shells (WIP)
+At this moment in time this extraction method is slow and does not return solids.
 
-Additionally the tool will also be able to export a voxel shell based on the input model. This will be stored as LoD5.0. LoD5.0 has only been partially implemented in the current tool and does not yet output reliable results (failing and slow simplification process).
+### voxel shells
+
+Additionally the tool will also be able to export a shell based on the voxelgrid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxelgrid that is used primairily for filtering and raycasting purposes. Possibly this will follow different rules than are anticipated.
 
 ## Inner shell generation Methods (Experimental/WIP)
 
