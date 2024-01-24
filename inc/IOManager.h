@@ -52,30 +52,30 @@ private:
 	std::unique_ptr<CJT::CityCollection> cityCollection_;
 
 	// time summary for the output
-	double timeInternalizing_ = -1;
+	double timeInternalizing_ = 0;
 	double timeInternalizingIsS_ = false;
 
-	double timeVoxel_ = -1;
+	double timeVoxel_ = 0;
 
-	double timeLoD00_ = -1;
+	double timeLoD00_ = 0;
 	bool timeLoD00IsS_ = false;
-	double timeLoD02_ = -1;
+	double timeLoD02_ = 0;
 	bool timeLoD02IsS_ = false;
-	double timeLoD10_ = -1;
+	double timeLoD10_ = 0;
 	bool timeLoD10IsS_ = false;
-	double timeLoD12_ = -1;
+	double timeLoD12_ = 0;
 	bool timeLoD12IsS_ = false;
-	double timeLoD13_ = -1;
+	double timeLoD13_ = 0;
 	bool timeLoD13IsS_ = false;
-	double timeLoD22_ = -1;
+	double timeLoD22_ = 0;
 	bool timeLoD22IsS_ = false;
-	double timeLoD32_ = -1;
+	double timeLoD32_ = 0;
 	bool timeLoD32IsS_ = false;
-	double timeV_ = -1;
+	double timeV_ = 0;
 	bool timeVIsS_ = false;
 
-	double timeProcess = -1;
-	double timeTotal = -1;
+	double timeProcess = 0;
+	double timeTotal = 0;
 
 	std::vector<std::string> ErrorList_;
 

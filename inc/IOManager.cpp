@@ -664,7 +664,7 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double durat
 	std::string timeUnitString = "Unit";
 	std::string timeDurationString = "Duration";
 	nlohmann::json timeSet;
-	if (duration == -1)  { return; }
+	if (duration == 0)  { return; }
 	else if (duration < 5000) 
 	{
 		timeSet[timeDurationString] = duration;
@@ -873,7 +873,7 @@ bool IOManager::run()
 	internalHelper_->internalizeGeo();
 	internalHelper_->indexGeo();
 
-	timeInternalizing_ = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
+	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
 	// create the cjt objects
 	std::unique_ptr<CJT::CityCollection> collection = std::make_unique<CJT::CityCollection>();
 	CJT::CityCollection* collectionPtr = collection.get();
@@ -913,7 +913,7 @@ bool IOManager::run()
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
 	CJGeoCreator geoCreator(internalHelper_.get(), voxelSize_);
-	timeVoxel_ = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
+	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
 	if (makeOutlines_)
 	{
