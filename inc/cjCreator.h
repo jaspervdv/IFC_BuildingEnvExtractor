@@ -136,6 +136,9 @@ private:
 	// divides the projected footprints over the seperate buildings
 	void sortRoofStructures();
 
+	// merges faces that are near eachother
+	void mergeRoofSurfaces();
+
 	// get a full xy section of voxels that is 1 voxel thick at the desired plate level
 	std::vector<int> getVoxelPlate(double platelvl);
 
@@ -254,6 +257,8 @@ public:
 	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
+
+	std::map<std::string, double> extractVoxelSummary(double footprintHeight);
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 

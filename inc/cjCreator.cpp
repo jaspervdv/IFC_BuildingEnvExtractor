@@ -1118,6 +1118,149 @@ void CJGeoCreator::sortRoofStructures() {
 	}
 }
 
+void CJGeoCreator::mergeRoofSurfaces()
+{
+	std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
+
+	for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
+	{
+		std::vector<SurfaceGroup > mergedFaceList;
+
+		std::vector<SurfaceGroup> faceList = *buildingFaceIt;
+
+		//TODO: further implement this
+
+		// compute the face normal
+		std::vector<gp_Vec> normalList = {};
+		for (auto faceIt = faceList.begin(); faceIt != faceList.end(); ++faceIt)
+		{
+			SurfaceGroup currentFace = *faceIt;
+			normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace.getFace()));
+		}
+
+		bool isDub = false;
+		// check if any face normal is equal to another
+		for (size_t i = 0; i < normalList.size(); ++i) {
+			for (size_t j = i + 1; j < normalList.size(); ++j) {
+				if (normalList[i].IsParallel(normalList[j], 1.0e-4)) {
+					isDub = true;
+					break;
+				}
+			}
+			if (isDub)
+			{
+				break;
+			}
+		}
+		if (!isDub) { return; }
+
+		// make index
+		bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
+		std::vector<bg::model::box <BoostPoint3D>> bboxList;
+		for (size_t i = 0; i < faceList.size(); i++)
+		{
+			TopoDS_Face currentFace = faceList[i].getProjectedFace();
+			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+			bboxList.emplace_back(bbox);
+			spatialIndex.insert(std::make_pair(bbox, (int)i));
+		}
+
+		// find mergable faces
+		std::vector<int> faceGroupList(faceList.size(), -1);
+		std::vector<int> bufferList = {0};
+		faceGroupList[0] = 1;
+		gp_Vec currentNormal = normalList[0];
+
+		std::vector<TopoDS_Face> mergeFaceList;
+
+		BOPAlgo_Builder aBuilder;
+		while (true)
+		{
+			std::vector<int> tempBuffer = {};
+			for (auto it = bufferList.begin(); it != bufferList.end(); ++it)
+			{
+				int faceIdx = *it;
+				mergeFaceList.emplace_back(faceList[faceIdx].getFace());
+
+				std::vector<Value> qResult;
+				spatialIndex.query(bgi::intersects(bboxList[faceIdx]), std::back_inserter(qResult));
+
+				for (size_t j = 0; j < qResult.size(); j++)
+				{
+					int otherFaceIndx = qResult[j].second;
+
+					if (faceGroupList[otherFaceIndx] != -1) { continue; }
+
+					if (!currentNormal.IsParallel(normalList[otherFaceIndx], 1e-4)) { continue; }
+
+					BRepExtrema_DistShapeShape distanceCalc(faceList[faceIdx].getFace(), faceList[otherFaceIndx].getFace());
+					distanceCalc.Perform();
+
+					if (!distanceCalc.IsDone()) { continue;  }
+					if (distanceCalc.Value() > 1e-4) { continue; }
+
+					tempBuffer.emplace_back(otherFaceIndx);
+					faceGroupList[otherFaceIndx] = 1;
+				}
+			}
+
+			if (tempBuffer.size() == 0)
+			{
+
+				if (mergeFaceList.size() > 1)
+				{
+					for (size_t i = 0; i < mergeFaceList.size(); i++)
+					{
+						aBuilder.AddArgument(mergeFaceList[i]);
+					}
+
+					aBuilder.SetRunParallel(Standard_True);
+					aBuilder.Perform();
+
+					std::vector<TopoDS_Face> mergeFaceList;
+					for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+						mergeFaceList.emplace_back(TopoDS::Face(expl.Current()));
+					}
+
+					TopoDS_Face mergedFace = mergeFaces(mergeFaceList);
+					SurfaceGroup mergedFaceGroup(mergedFace);
+					mergedFaceGroup.projectFace();
+					mergedFaceList.emplace_back(mergedFaceGroup);
+
+					//helperFunctions::printFaces(mergedFace);
+				}
+				else {
+					SurfaceGroup mergedFaceGroup(mergeFaceList[0]);
+					mergedFaceGroup.projectFace();
+					mergedFaceList.emplace_back(mergedFaceGroup);
+				}
+
+				mergeFaceList.clear();
+				bufferList.clear();
+				aBuilder.Clear();
+
+				for (int i = 0; i < faceGroupList.size(); i++)
+				{
+					if (faceGroupList[i] == -1)
+					{
+						bufferList = { i };
+						faceGroupList[i] = 1;
+						currentNormal = normalList[i];
+						break;
+					}
+				}
+				if (bufferList.size() == 0) { break; }
+				continue;
+			}
+
+			bufferList = tempBuffer;
+			tempBuffer.clear();
+		}
+		mergedFaceListBuilding.emplace_back(mergedFaceList);
+	}
+	faceList_ = mergedFaceListBuilding;
+}
+
 
 void CJGeoCreator::initializeBasic(helper* cluster) {
 	std::cout << "- Pre proccessing" << std::endl;
@@ -1153,12 +1296,16 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	hasGeoBase_ = true;
 
 	// sort surface groups based on the footprints
-	if (roofOutlineList_.size() == 1) { return; }
-
 	startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Sort roofing structures" << std::endl;
-	sortRoofStructures();
+	if (roofOutlineList_.size() != 1) { sortRoofStructures(); }
 	printTime(startTime, std::chrono::high_resolution_clock::now());
+
+	startTime = std::chrono::high_resolution_clock::now();
+	std::cout << "- merge roofing structures" << std::endl;
+	mergeRoofSurfaces();
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+
 	return;
 }
 
@@ -1402,7 +1549,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, 0);
 			aBuilder.AddArgument(extrudedShape);
 		}
-
 		//create a bbbox
 		TopoDS_Shape outerbb = helperFunctions::createBBOXOCCT(h->getLllPoint(), h->getUrrPoint(), 5);
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(outerbb);
@@ -1415,7 +1561,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		aBuilder.AddArgument(xform.Shape());
 		aBuilder.SetFuzzyValue(1e-7);
 		aBuilder.SetRunParallel(Standard_True);
-		aBuilder.Perform();
+		aBuilder.Perform(); //TODO: this is very slow for large models
 
 		bool exteriorFound = false;
 
@@ -1711,7 +1857,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 		gp_Pnt currentStartpoint = helperFunctions::getFirstPointShape(edgeList[i]);
 		gp_Pnt currentEndpoint = helperFunctions::getLastPointShape(edgeList[i]);
 
-		if (currentStartpoint.IsEqual(currentEndpoint, 1e-6)) { continue; }
+		if (currentStartpoint.IsEqual(currentEndpoint, 1e-4)) { continue; }
 
 		for (size_t j = 0; j < edgeList.size(); j++)
 		{
@@ -1720,8 +1866,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 			gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(edgeList[j]);
 			gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(edgeList[j]);
 
-			if (currentStartpoint.IsEqual(otherEndpoint, 1e-6) && currentEndpoint.IsEqual(otherStartpoint, 1e-6) ||
-				currentEndpoint.IsEqual(otherEndpoint, 1e-6) && currentStartpoint.IsEqual(otherStartpoint, 1e-6)) {
+			if (currentStartpoint.IsEqual(otherEndpoint, 1e-4) && currentEndpoint.IsEqual(otherStartpoint, 1e-4) ||
+				currentEndpoint.IsEqual(otherEndpoint, 1e-4) && currentStartpoint.IsEqual(otherStartpoint, 1e-4)) {
 				evalList[j] = 1;
 				dub = true;
 				break;
@@ -2614,6 +2760,69 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObjectList;
+}
+
+std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprintHeight)
+{
+	std::map<std::string, double> summaryMap;
+
+    std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
+
+	double voxelSize = voxelGrid_->getVoxelSize();
+	double voxelVolume = voxelSize * voxelSize * voxelSize;
+	double shellVolume = internalVoxels.size()* voxelVolume;
+
+	summaryMap.emplace("Env_ex Vvolume", shellVolume);
+
+	double lowerEvalHeight = footprintHeight - (0.5 * voxelSize);
+	double higherEvalHeight = footprintHeight + (0.5 * voxelSize);
+	double basementVolume = 0;
+
+	double shellArea = 0;
+	double basementArea = 0;
+	double overlapArea = 0;
+	double voxelArea = voxelSize * voxelSize;
+
+	for (size_t i = 0; i < internalVoxels.size(); i++)
+	{
+		voxel* currentVoxel = internalVoxels[i];
+		double zHeight = currentVoxel->getCenterPoint().get<2>();
+		
+		shellArea += currentVoxel->numberOfFaces() * voxelArea;
+
+		if (lowerEvalHeight >= zHeight)
+		{
+			// for sure building basement
+			basementVolume += voxelVolume;
+
+			for (size_t j = 0; j < 6; j++)
+			{
+				if (currentVoxel->hasFace(j)) { basementArea += voxelSize * voxelSize; }
+			}
+
+		}
+		else if (lowerEvalHeight < zHeight && zHeight < higherEvalHeight)
+		{
+			// partial building basement
+			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize) ;
+			overlapArea += voxelArea;
+
+			if (currentVoxel->hasFace(0)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
+			if (currentVoxel->hasFace(1)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
+			if (currentVoxel->hasFace(2)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
+			if (currentVoxel->hasFace(3)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
+			if (currentVoxel->hasFace(4)) { basementArea += voxelSize * voxelSize; }
+			if (currentVoxel->hasFace(5)) { basementArea += voxelSize * voxelSize; }
+		}
+	}
+	summaryMap.emplace("Env_ex Vvolume basement", basementVolume);
+	summaryMap.emplace("Env_ex Vvolume building", shellVolume - basementVolume);
+	summaryMap.emplace("Env_ex VArea ", shellArea);
+	summaryMap.emplace("Env_ex VArea basement", basementArea + overlapArea);
+	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + overlapArea);
+	summaryMap.emplace("Env_ex VArea grounPlane", overlapArea);
+
+	return summaryMap;
 }
 
 

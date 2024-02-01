@@ -1055,6 +1055,16 @@ bool IOManager::run()
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	}
 
+	
+	
+	cityBuildingObject.addAttribute("Env_ex footprint elevation", footprintElevation_);
+	cityBuildingObject.addAttribute("Env_ex voxelSize", voxelSize_);
+	cityBuildingObject.addAttribute(
+		geoCreator.extractVoxelSummary(
+			internalHelper_.get()->getfootprintEvalLvl()
+		)
+		);
+
 	collectionPtr->addCityObject(cityBuildingObject);
 	collectionPtr->addCityObject(cityShellObject);
 	collectionPtr->addCityObject(cityInnerShellObject);

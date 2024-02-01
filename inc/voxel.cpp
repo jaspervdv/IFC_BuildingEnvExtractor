@@ -168,6 +168,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 		}
 	}
 
+	// check if voxel is completely inside of object
 	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 1000);
 	int counter = 0;
 
@@ -270,6 +271,20 @@ bool voxel::hasFace(int dirNum)
 	if (dirNum == 5 && !hasFace5_) { return false; }
 
 	return true;
+}
+
+int voxel::numberOfFaces()
+{
+	int numFaces = 0;
+
+	if (hasFace0_) { numFaces++; }
+	if (hasFace1_) { numFaces++; }
+	if (hasFace2_) { numFaces++; }
+	if (hasFace3_) { numFaces++; }
+	if (hasFace4_) { numFaces++; }
+	if (hasFace5_) { numFaces++; }
+
+	return numFaces;
 }
 
 
@@ -494,6 +509,20 @@ std::vector<voxel*> VoxelGrid::getExternalVoxels()
 	return externalVoxels;
 }
 
+std::vector<voxel*> VoxelGrid::getInternalVoxels()
+{
+	std::vector<voxel*> internalVoxels;
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		voxel* currentVoxel = i->second;
+
+		if (!currentVoxel->getIsInside()) { continue; }
+
+		internalVoxels.emplace_back(currentVoxel);
+	}
+	return internalVoxels;
+}
+
 
 std::vector<voxel*> VoxelGrid::getVoxels()
 {
@@ -552,10 +581,10 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 				bool isEdge = false;
 
 				std::vector<int> neighbourIndxList = getDirNeighbours(bufferIndx);
-
 				for (size_t i = 0; i < 4; i++)
 				{
 					int neighbourIndx = neighbourIndxList[allowedNeighbourDir[i]];
+					if (neighbourIndx == -1) { continue; }
 					voxel* neighbourVoxel = VoxelLookup_[neighbourIndx];
 
 					// find neighbour to grow into 

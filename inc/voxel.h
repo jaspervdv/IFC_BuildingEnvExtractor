@@ -99,6 +99,9 @@ public:
 	/// 5 = +Z
 	bool hasFace(int dirNum = -1);
 
+	/// returns the number of transfaces
+	int numberOfFaces();
+
 	/// sets a transitionalface
 	void setTransFace(int dirNum);
 };
@@ -183,6 +186,7 @@ public:
 	std::vector<voxel*> getVoxelPlate(double platelvl);
 	std::vector<voxel*> getIntersectingVoxels();
 	std::vector<voxel*> getExternalVoxels();
+	std::vector<voxel*> getInternalVoxels();
 	std::vector<voxel*> getVoxels();
 
 	gp_Pnt getAnchor() { return anchor_; }
