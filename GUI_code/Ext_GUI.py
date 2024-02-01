@@ -349,13 +349,9 @@ bool_lod02 = tkinter.IntVar(value=1)
 toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    text="LoD0.2",
                                    variable=bool_lod02,
-                                   command= lambda : [toggleEnableEntry(entry_footprint, {bool_lod02.get()}),
-                                                      toggleEnableEntry(toggle_makefootprint, {bool_lod02.get()}),
+                                   command= lambda : [toggleEnableEntry(toggle_makefootprint, {bool_lod02.get()}),
                                                       toggleEnableEntry(toggle_makeroofprint, {bool_lod02.get()}),
-                                                      toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                          bool_lod32.get(),
-                                                                                          bool_lod50.get(),
-                                                                                          bool_lod51.get()])]
+                                                      toggleEnableEntry(toggle_makeinterior, {bool_lod02.get()})]
                                    )
 bool_lod10 = tkinter.IntVar(value=1)
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings1, text="LoD1.0", variable=bool_lod10)
@@ -368,33 +364,18 @@ toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=
 bool_lod32 = tkinter.IntVar(value=0)
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
-                                   variable=bool_lod32,
-                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                         bool_lod32.get(),
-                                                                                         bool_lod50.get(),
-                                                                                         bool_lod51.get()])
+                                   variable=bool_lod32
                                    )
 bool_lod50 = tkinter.IntVar(value=0)
 toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoDV.0",
-                                   variable=bool_lod50,
-                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                         bool_lod32.get(),
-                                                                                         bool_lod50.get(),
-                                                                                         bool_lod51.get()
-                                                                                         ])
+                                   variable=bool_lod50
                                    )
 bool_lod51 = tkinter.IntVar(value=0)
 toggle_makelod51 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoDV.1",
-                                   variable=bool_lod51,
-                                   command= lambda : toggleEnableEntry(entry_voxelsize, [bool_lod02.get(),
-                                                                                         bool_lod32.get(),
-                                                                                         bool_lod50.get(),
-                                                                                         bool_lod51.get()
-                                                                                         ])
+                                   variable=bool_lod51
                                    )
-
 
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)

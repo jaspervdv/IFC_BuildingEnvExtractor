@@ -517,6 +517,11 @@ bool IOManager::getJSONValues()
 			break;
 		}
 
+		if (json.contains("Footprint elevation"))
+		{
+			footprintElevation_ = json["Footprint elevation"];
+		}
+
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { make00_ = true; }
@@ -524,10 +529,6 @@ bool IOManager::getJSONValues()
 			{ 
 				make02_ = true; 
 
-				if (json.contains("Footprint elevation"))
-				{
-					footprintElevation_ = json["Footprint elevation"];
-				}
 				if (json.contains("Generate footprint"))
 				{
 					makeFootPrint_ = (int)json["Generate footprint"];
@@ -716,14 +717,10 @@ void IOManager::printSummary()
 		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
 		if (makeRoofPrint_) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
-
-		if (makeFootPrint_)
-		{
-			std::cout << "- Footprint Elevation:" << std::endl;
-			std::cout << "    " << footprintElevation_ << std::endl;
-		}
 	}
 
+	std::cout << "- Footprint Elevation:" << std::endl;
+	std::cout << "    " << footprintElevation_ << std::endl;
 
 	std::cout << "=============================================================" << std::endl;
 }

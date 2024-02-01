@@ -2817,7 +2817,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprint
 	}
 	summaryMap.emplace("Env_ex Vvolume basement", basementVolume);
 	summaryMap.emplace("Env_ex Vvolume building", shellVolume - basementVolume);
-	summaryMap.emplace("Env_ex VArea ", shellArea);
+	summaryMap.emplace("Env_ex VArea", shellArea);
 	summaryMap.emplace("Env_ex VArea basement", basementArea + overlapArea);
 	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + overlapArea);
 	summaryMap.emplace("Env_ex VArea grounPlane", overlapArea);
