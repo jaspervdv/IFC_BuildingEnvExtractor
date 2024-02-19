@@ -1529,7 +1529,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
-	TopoDS_Face splittingFace = helperFunctions::createHorizontalFace(1000,1000, 0);
+	TopoDS_Face splittingFace = helperFunctions::createHorizontalFace(1000,1000, h->getLllPoint().Z());
 
 	bool allSolids = true;
 	for (size_t i = 0; i < faceList_.size(); i++)
@@ -1546,7 +1546,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
 			else { currentFace = currentRoof.getFlatFace(); }
 
-			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, 0);
+			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, h->getLllPoint().Z());
 			aBuilder.AddArgument(extrudedShape);
 		}
 		//create a bbbox
@@ -2298,7 +2298,10 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 	double rotationAngle = h->getRotation();
 	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, rotationAngle);
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
+	gp_Trsf trs;
+	trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+
+	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(trs), "0.0");
 
 	std::map<std::string, std::string> semanticData;
 	semanticData.emplace("type", "RoofSurface");
@@ -2332,6 +2335,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 			TopoDS_Shape movedShape = roofOutlineList_[i];
 			gp_Trsf trs;
 			if (hasFootprints_) { trs.SetTranslation(gp_Vec(0, 0, urr.Z())); }
+			else { trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl())); }
 
 			CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
 			geoObject->appendSurfaceData(semanticRoofData);
@@ -2343,9 +2347,12 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 	if (hasFootprints_) 
 	{ 
 		// make the footprint
+		gp_Trsf trs;
+		trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
-			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i], "0.2");
+			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i].Moved(trs), "0.2");
 			geoObject->appendSurfaceData(semanticFootData);
 			geoObject->appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
@@ -2412,10 +2419,12 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	TopoDS_Solid bbox;
 	brepBuilder.MakeSolid(bbox);
 
-	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), -rotationAngle);
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), -rotationAngle);
-	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
+	double footprintHeight = h->getfootprintEvalLvl();
+
+	gp_Pnt p0 = helperFunctions::rotatePointWorld(lll, -rotationAngle);
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
+	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -rotationAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -rotationAngle);
 
 	gp_Pnt p4(helperFunctions::rotatePointWorld(urr, -rotationAngle));
 	gp_Pnt p5 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -rotationAngle);
@@ -2483,11 +2492,14 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 		return geoObjectList;
 	}
 
-	double height = h->getUrrPoint().Z();
+	double height = h->getUrrPoint().Z() - h->getLllPoint().Z();
+	gp_Trsf trs;
+	trs.SetTranslation(gp_Vec(0, 0, h->getLllPoint().Z()));
 	
 	for (size_t i = 0; i < roofOutlineList_.size(); i++)
 	{
 		TopoDS_Face currentFootprint = roofOutlineList_[i];
+		currentFootprint.Move(trs);
 
 		BRepPrimAPI_MakePrism sweeper(currentFootprint, gp_Vec(0, 0, height), Standard_True);
 		sweeper.Build();
