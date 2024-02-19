@@ -1120,6 +1120,8 @@ void CJGeoCreator::sortRoofStructures() {
 
 void CJGeoCreator::mergeRoofSurfaces()
 {
+	return; //TODO: fix issue with inner loops
+
 	std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
 
 	for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
@@ -1128,7 +1130,7 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 		std::vector<SurfaceGroup> faceList = *buildingFaceIt;
 
-		//TODO: further implement this
+
 
 		// compute the face normal
 		std::vector<gp_Vec> normalList = {};
@@ -2762,7 +2764,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	return geoObjectList;
 }
 
-std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprintHeight)
+std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, double footprintHeight)
 {
 	std::map<std::string, double> summaryMap;
 
@@ -2783,6 +2785,8 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprint
 	double overlapArea = 0;
 	double voxelArea = voxelSize * voxelSize;
 
+	double windowArea = 0;
+
 	for (size_t i = 0; i < internalVoxels.size(); i++)
 	{
 		voxel* currentVoxel = internalVoxels[i];
@@ -2797,11 +2801,28 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprint
 
 			for (size_t j = 0; j < 6; j++)
 			{
-				if (currentVoxel->hasFace(j)) { basementArea += voxelSize * voxelSize; }
+				if (currentVoxel->hasFace(j)) { basementArea += voxelArea; }
 			}
-
+			continue;
 		}
-		else if (lowerEvalHeight < zHeight && zHeight < higherEvalHeight)
+
+		if (currentVoxel->hasFace())
+		{
+			std::vector<Value> intersectingValues = currentVoxel->getInternalProductList();
+			for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
+			{
+				std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+
+				if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+				{
+					//std::cout << "t" << std::endl;
+					windowArea += voxelArea; // TODO: make this work
+					break;
+				}
+			}
+		}
+
+		if (lowerEvalHeight < zHeight && zHeight < higherEvalHeight)
 		{
 			// partial building basement
 			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize) ;
@@ -2811,8 +2832,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprint
 			if (currentVoxel->hasFace(1)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(2)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(3)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
-			if (currentVoxel->hasFace(4)) { basementArea += voxelSize * voxelSize; }
-			if (currentVoxel->hasFace(5)) { basementArea += voxelSize * voxelSize; }
+			if (currentVoxel->hasFace(5)) { basementArea += voxelArea; } //TODO: why is this reversed?
 		}
 	}
 	summaryMap.emplace("Env_ex Vvolume basement", basementVolume);
@@ -2821,6 +2841,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(double footprint
 	summaryMap.emplace("Env_ex VArea basement", basementArea + overlapArea);
 	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + overlapArea);
 	summaryMap.emplace("Env_ex VArea grounPlane", overlapArea);
+	summaryMap.emplace("Env_ex VArea Facade Openings", windowArea);
 
 	return summaryMap;
 }

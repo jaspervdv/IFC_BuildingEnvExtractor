@@ -258,7 +258,8 @@ public:
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
 
-	std::map<std::string, double> extractVoxelSummary(double footprintHeight);
+	/// computes data related to the voxel shape such as volume and shell area
+	std::map<std::string, double> extractVoxelSummary(helper* h, double footprintHeight);
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 

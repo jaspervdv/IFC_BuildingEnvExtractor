@@ -494,9 +494,9 @@ TopoDS_Solid helper::makeSolidBox(const gp_Pnt& lll, const gp_Pnt& urr, double a
 	double yCoord = p0.Y();
 	double zCoord = p0.Z();
 	for (const auto& p : { p1, p2, p3, p4, p5, p6, p7 }) {
-		if (abs(p.X() - xCoord) > 0.1) { sameXCoordinate = false; }
-		if (abs(p.Y() - yCoord) > 0.1) { sameYCoordinate = false; }
-		if (abs(p.Z() - zCoord) > 0.1) { sameZCoordinate = false; }
+		if (abs(p.X() - xCoord) > 0.01) { sameXCoordinate = false; }
+		if (abs(p.Y() - yCoord) > 0.01) { sameYCoordinate = false; }
+		if (abs(p.Z() - zCoord) > 0.01) { sameZCoordinate = false; }
 
 		if (!sameXCoordinate && !sameYCoordinate && !sameZCoordinate) { break; }
 	}
@@ -622,7 +622,6 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	// compute horizontal rotaion
 	gp_Pnt p1 = horizontalMaxEdge[0];
 	gp_Pnt p2 = horizontalMaxEdge[1];
-
 	double angleFlat = 0;
 
 	if (abs(p1.Y() - p2.Y()) > 0.00001)
@@ -666,6 +665,35 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	return makeSolidBox(lllPoint, urrPoint, angleFlat, angleVert);
 }
 
+void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData)
+{
+#ifdef USE_IFC4
+	std::map<std::string, std::string> projectionMapMap;
+
+
+	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
+	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
+
+	if (mapList->size() == 0)
+	{
+		return;
+	}
+
+	if (mapList->size() > 1)
+	{
+		std::cout << "[WARNING] multiple map projections detected" << std::endl;
+	}
+
+	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
+	transformation->setTranslation(mapConversion->Eastings(), mapConversion->Northings(), mapConversion->OrthogonalHeight());
+	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
+	transformation->setScale(*transformation->getScale() * mapConversion->Scale());
+
+	//TODO: make this work
+
+	return;
+#endif // !USE_IFC4
+}
 
 std::map<std::string, std::string> helper::getBuildingInformation()
 {
@@ -861,12 +889,12 @@ void helper::addObjectToIndex(const T& object) {
 
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
-			if (!isInWall(box)) { cbbox = boxSimplefy(shape); }
+			//if (!isInWall(box)) { cbbox = boxSimplefy(shape); }
+			cbbox = boxSimplefy(shape);
 		}
 
 		index_.insert(std::make_pair(box, (int)index_.size()));
 		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);
-
 		lookupValue* lookup = new lookupValue(product, triangleMeshList, cbbox);
 		productLookup_.emplace_back(lookup);
 	}

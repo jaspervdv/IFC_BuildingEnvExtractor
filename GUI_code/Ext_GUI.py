@@ -52,6 +52,7 @@ def runCode(input_path,
             make_footprint,
             make_roofprint,
             make_interior,
+            summary_voxel,
             bool_igoreproxy,
             bool_useDefault,
             bool_customEnabled,
@@ -164,6 +165,8 @@ def runCode(input_path,
         lod_list.append(5.1)
 
     json_dictionary["LoD output"] = lod_list
+
+    json_dictionary["Voxel summary"] = summary_voxel
 
     with open(json_path, "w") as outfile:
         json.dump(json_dictionary, outfile)
@@ -293,7 +296,7 @@ size_button_normal = 8
 
 # setup the window and the grid
 main_window = tkinter.Tk()
-main_window.geometry('500x525')
+main_window.geometry('500x545')
 main_window.resizable(1,0)
 main_window.title("IfcEnvExtactor GUI")
 
@@ -410,9 +413,13 @@ toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roo
 bool_make_interior = tkinter.IntVar(value=0)
 toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors (Detailed LoD only)", variable=bool_make_interior)
 
+bool_summary_voxels = tkinter.IntVar(value=0)
+toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate areas and volumes", variable=bool_summary_voxels)
+
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_summaryvoxel.pack(side=tkinter.TOP, fill=tkinter.X)
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
 separator2.pack(fill='x', pady=10)
@@ -442,7 +449,7 @@ button_plus_voxelsize.pack(side=tkinter.LEFT)
 frame_footprint = tkinter.Frame(frame_foot_voxel)
 frame_footprint.pack(side=tkinter.LEFT)
 
-text_footprint_settings = tkinter.Label(frame_footprint, text="footprint elevation:")
+text_footprint_settings = tkinter.Label(frame_footprint, text="Footprint elevation:")
 text_footprint_settings.pack()
 
 entry_footprint = tkinter.Entry(frame_footprint, text= "footprint elevation", width=size_entry_small)
@@ -479,7 +486,7 @@ igoreproxy_toggle.pack(side=tkinter.LEFT, padx=30)
 
 bool_useDefault = tkinter.IntVar(value=1)
 useDefault_toggle = ttk.Checkbutton(frame_div_objects,
-                                    text="Use Default div objects",
+                                    text="Use default div objects",
                                     variable=bool_useDefault,
                                     command= lambda : updateDivMessage(message_div_objects, bool_useDefault, bool_igoreproxy))
 useDefault_toggle.pack(side=tkinter.LEFT)
@@ -522,6 +529,7 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     bool_make_footprint.get(),
     bool_make_roofprint.get(),
     bool_make_interior.get(),
+    bool_summary_voxels.get(),
     bool_igoreproxy.get(),
     bool_useDefault.get(),
     bool_enableCustom.get(),

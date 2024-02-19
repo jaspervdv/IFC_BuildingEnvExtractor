@@ -433,6 +433,11 @@ bool IOManager::getJSONValues()
 		if (json["Output report"] == 0) { writeReport_ = false; }
 	}
 
+	if (json.contains("Voxel summary"))
+	{
+		if (json["Voxel summary"] == 1) { summaryVoxels_ = true; }
+	}
+
 	if (!json.contains("Filepaths"))
 	{
 		throw std::string("JSON file does not contain Filpaths Entry");
@@ -877,6 +882,9 @@ bool IOManager::run()
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle(internalHelper_.get()->getFileName() + " Auto export from IfcEnvExtractor");
+	
+	internalHelper_.get()->getProjectionData(&transformation, &metaData);
+
 	collectionPtr->setTransformation(transformation);
 	collectionPtr->setMetaData(metaData);
 	collectionPtr->setVersion("1.1");
@@ -1051,16 +1059,21 @@ bool IOManager::run()
 		for (size_t i = 0; i < geoV.size(); i++) { cityShellObject.addGeoObject(*geoV[i]); }
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	}
+	
+	cityShellObject.addAttribute("Env_ex footprint elevation", footprintElevation_);
+	cityShellObject.addAttribute("Env_ex buildingHeight", internalHelper_.get()->getUrrPoint().Z() - footprintElevation_);
 
-	
-	
-	cityBuildingObject.addAttribute("Env_ex footprint elevation", footprintElevation_);
-	cityBuildingObject.addAttribute("Env_ex voxelSize", voxelSize_);
-	cityBuildingObject.addAttribute(
-		geoCreator.extractVoxelSummary(
-			internalHelper_.get()->getfootprintEvalLvl()
-		)
+	if (summaryVoxel())
+	{
+		cityShellObject.addAttribute("Env_ex voxelSize", voxelSize_);
+		cityShellObject.addAttribute(
+			geoCreator.extractVoxelSummary(
+				internalHelper_.get(),
+				internalHelper_.get()->getfootprintEvalLvl()
+			)
 		);
+
+	}
 
 	collectionPtr->addCityObject(cityBuildingObject);
 	collectionPtr->addCityObject(cityShellObject);

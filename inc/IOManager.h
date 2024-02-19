@@ -34,6 +34,7 @@ private:
 	bool makeRoofPrint_ = true;
 	bool makeInterior_ = false;
 
+	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
 
 	// variables set the deviding objects
@@ -130,6 +131,7 @@ public:
 
 	double voxelSize() { return voxelSize_; }
 	bool makeReport() { return writeReport_; }
+	bool summaryVoxel() { return summaryVoxels_; }
 
 	const std::string& getOutputPath() { return outputPath_; }
 

@@ -207,6 +207,8 @@ public:
 	// makes a spatial index for the geometry
 	void indexGeo();
 
+	/// gets the projectiodata if present
+	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData);
 	/// gets the generic building information
 	std::map<std::string, std::string> getBuildingInformation();
 	/// gets the building name

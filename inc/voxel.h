@@ -95,8 +95,8 @@ public:
 	/// 1 = +X
 	/// 2 = -Y
 	/// 3 = +Y
-	/// 4 = -Z
-	/// 5 = +Z
+	/// 4 = +Z
+	/// 5 = -Z
 	bool hasFace(int dirNum = -1);
 
 	/// returns the number of transfaces
