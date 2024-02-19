@@ -1130,8 +1130,6 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 		std::vector<SurfaceGroup> faceList = *buildingFaceIt;
 
-
-
 		// compute the face normal
 		std::vector<gp_Vec> normalList = {};
 		for (auto faceIt = faceList.begin(); faceIt != faceList.end(); ++faceIt)
@@ -2300,7 +2298,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 	double rotationAngle = h->getRotation();
 	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, rotationAngle);
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(h->getObjectTranslation().Inverted()), "0.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
 
 	std::map<std::string, std::string> semanticData;
 	semanticData.emplace("type", "RoofSurface");
@@ -2331,7 +2329,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 	{	 // make the roof
 		for (size_t i = 0; i < roofOutlineList_.size(); i++)
 		{
-			TopoDS_Shape movedShape = roofOutlineList_[i].Moved(h->getObjectTranslation().Inverted());
+			TopoDS_Shape movedShape = roofOutlineList_[i];
 			gp_Trsf trs;
 			if (hasFootprints_) { trs.SetTranslation(gp_Vec(0, 0, urr.Z())); }
 
@@ -2347,7 +2345,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 		// make the footprint
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
-			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i].Moved(h->getObjectTranslation().Inverted()), "0.2");
+			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i], "0.2");
 			geoObject->appendSurfaceData(semanticFootData);
 			geoObject->appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
@@ -2387,7 +2385,7 @@ std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Ke
 				double area = helperFunctions::computeArea(currentFace);
 				currentGeoSemantic.emplace("EnvEx_Area", std::to_string(area));
 
-				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(h->getObjectTranslation().Inverted()), "0.2");
+				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
 				geoObject->appendSurfaceData(currentGeoSemantic);
 				geoObject->appendSurfaceTypeValue(0);
 				cityStoreyObject.addGeoObject(*geoObject);
@@ -2451,7 +2449,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	brepSewer.Perform();
 	brepBuilder.Add(bbox, brepSewer.SewedShape());
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox.Moved(h->getObjectTranslation().Inverted()), "1.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
 	std::map<std::string, std::string> grMap;
 	grMap.emplace("type", "GroundSurface");
 	std::map<std::string, std::string> wMap;
@@ -2495,7 +2493,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 		sweeper.Build();
 		TopoDS_Shape extrudedShape = sweeper.Shape();
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape.Moved(h->getObjectTranslation().Inverted()), "1.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape, "1.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2540,7 +2538,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(h->getObjectTranslation().Inverted()), "1.3");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "1.3");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2580,7 +2578,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(h->getObjectTranslation().Inverted()), "2.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "2.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2696,7 +2694,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	//myfile.close();
 	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i].Moved(h->getObjectTranslation().Inverted()), "3.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i], "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2743,7 +2741,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	{
 		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape.Moved(h->getObjectTranslation().Inverted()), "5.0");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
 		return geoObjectList;
@@ -2757,7 +2755,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
 
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(h->getObjectTranslation().Inverted()), "5.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2782,7 +2780,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, doubl
 
 	double shellArea = 0;
 	double basementArea = 0;
-	double overlapArea = 0;
+	double footprintArea = 0;
 	double voxelArea = voxelSize * voxelSize;
 
 	double windowArea = 0;
@@ -2826,7 +2824,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, doubl
 		{
 			// partial building basement
 			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize) ;
-			overlapArea += voxelArea;
+			footprintArea += voxelArea;
 
 			if (currentVoxel->hasFace(0)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(1)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
@@ -2838,9 +2836,9 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, doubl
 	summaryMap.emplace("Env_ex Vvolume basement", basementVolume);
 	summaryMap.emplace("Env_ex Vvolume building", shellVolume - basementVolume);
 	summaryMap.emplace("Env_ex VArea", shellArea);
-	summaryMap.emplace("Env_ex VArea basement", basementArea + overlapArea);
-	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + overlapArea);
-	summaryMap.emplace("Env_ex VArea grounPlane", overlapArea);
+	summaryMap.emplace("Env_ex VArea basement", basementArea + footprintArea);
+	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + footprintArea);
+	summaryMap.emplace("Env_ex VArea footprint", footprintArea);
 	summaryMap.emplace("Env_ex VArea Facade Openings", windowArea);
 
 	return summaryMap;
