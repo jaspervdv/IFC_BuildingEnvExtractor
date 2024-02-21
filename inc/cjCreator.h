@@ -40,6 +40,7 @@ private:
 
 	// rotation of the voxelgrid (or inverse rotation of the objects)
 	double planeRotation_ = 0;
+	gp_Trsf geoRefRotation_;
 
 	// container for surface group data
 	std::vector<std::vector<SurfaceGroup>> faceList_;
@@ -257,6 +258,8 @@ public:
 	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
+
+	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 
 	/// computes data related to the voxel shape such as volume and shell area
 	std::map<std::string, double> extractVoxelSummary(helper* h, double footprintHeight);

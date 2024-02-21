@@ -2299,7 +2299,8 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, rotationAngle);
 
 	gp_Trsf trs;
-	trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl()));
 
 	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(trs), "0.0");
 
@@ -2334,8 +2335,10 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 		{
 			TopoDS_Shape movedShape = roofOutlineList_[i];
 			gp_Trsf trs;
-			if (hasFootprints_) { trs.SetTranslation(gp_Vec(0, 0, urr.Z())); }
-			else { trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl())); }
+			trs.SetRotation(geoRefRotation_.GetRotation());
+			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
+			else { trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl())); }
+
 
 			CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
 			geoObject->appendSurfaceData(semanticRoofData);
@@ -2348,7 +2351,8 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 	{ 
 		// make the footprint
 		gp_Trsf trs;
-		trs.SetTranslation(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+		trs.SetRotation(geoRefRotation_.GetRotation());
+		trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl()));
 
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
@@ -2366,6 +2370,9 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, int unitScale) {
 
 	std::vector < CJT::CityObject> storeyCityObjectList;
+
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
 
 	if (hasStoreyPrints_)
 	{
@@ -2392,7 +2399,7 @@ std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Ke
 				double area = helperFunctions::computeArea(currentFace);
 				currentGeoSemantic.emplace("EnvEx_Area", std::to_string(area));
 
-				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
+				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(trs), "0.2");
 				geoObject->appendSurfaceData(currentGeoSemantic);
 				geoObject->appendSurfaceTypeValue(0);
 				cityStoreyObject.addGeoObject(*geoObject);
@@ -2410,7 +2417,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
-	double rotationAngle = h->getRotation();
+	double rotationAngle = h->getRotation() - geoRefRotation_.GetRotation().GetRotationAngle();
 
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
@@ -2494,7 +2501,8 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 
 	double height = h->getUrrPoint().Z() - h->getLllPoint().Z();
 	gp_Trsf trs;
-	trs.SetTranslation(gp_Vec(0, 0, h->getLllPoint().Z()));
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	trs.SetTranslationPart(gp_Vec(0, 0, h->getLllPoint().Z()));
 	
 	for (size_t i = 0; i < roofOutlineList_.size(); i++)
 	{
@@ -2548,9 +2556,12 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 
 	std::vector<TopoDS_Shape> prismList = computePrisms(true, h);
 
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "1.3");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(trs), "1.3");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2588,9 +2599,12 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 	
 	std::vector<TopoDS_Shape> prismList = computePrisms(false, h);
 
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i], "2.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(trs), "2.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2649,8 +2663,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	);
 
 	std::vector<TopoDS_Face> rawFaces;
-	//ofstream myfile;
-	//myfile.open("C:/Users/Jasper/Desktop/test.txt");
 
 	// evaluate which surfaces are visible
 	for (size_t i = 0; i < productLookupValues.size(); i++)
@@ -2703,10 +2715,12 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 		}
 	}
 
-	//myfile.close();
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+
 	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i], "3.2");
+		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i].Moved(trs), "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2766,8 +2780,9 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	brepBuilder.MakeSolid(voxelSolid);
 	brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
 
-
-	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(trs), "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());

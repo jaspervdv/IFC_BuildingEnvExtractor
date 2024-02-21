@@ -290,9 +290,9 @@ void helper::internalizeGeo()
 {
 	std::cout << "[INFO] Internalizing Geometry of Construction Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
-	gp_Vec objectTranslation;
-	computeObjectTranslation(&objectTranslation);
-	objectTranslation_.SetTranslationPart(objectTranslation);
+	gp_Vec accuracyObjectTranslation;
+	computeObjectTranslation(&accuracyObjectTranslation);
+	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
 	computeBoundingData(&lllPoint_, &urrPoint_, &originRot_);
 
@@ -665,7 +665,7 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	return makeSolidBox(lllPoint, urrPoint, angleFlat, angleVert);
 }
 
-void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData)
+void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
 {
 	gp_XYZ transTranslation = getObjectTranslation().Inverted().TranslationPart();
 	transformation->setTranslation(transTranslation.X(), transTranslation.Y(), transTranslation.Z());
@@ -697,6 +697,14 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 	transformation->setScale(*transformation->getScale() * mapConversion->Scale());
 
 	//TODO: make this work
+	double XAO = mapConversion->XAxisOrdinate();
+	double XAA = mapConversion->XAxisAbscissa();
+
+	trsf->SetValues(
+		XAA, -XAO, 0, 0,
+		XAO, XAA, 0, 0,
+		0, 0, 1, 0
+	);
 
 	return;
 #endif // !USE_IFC4

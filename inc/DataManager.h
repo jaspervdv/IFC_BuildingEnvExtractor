@@ -114,6 +114,8 @@ private:
 
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
+
+	// translation needed for accuracy if object is very far away from origin 
 	gp_Trsf objectTranslation_;
 
 	// The needed rotation for the model to be aligned to the world axis!
@@ -208,7 +210,7 @@ public:
 	void indexGeo();
 
 	/// gets the projectiodata if present
-	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData);
+	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf);
 	/// gets the generic building information
 	std::map<std::string, std::string> getBuildingInformation();
 	/// gets the building name

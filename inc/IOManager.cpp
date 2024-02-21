@@ -879,11 +879,12 @@ bool IOManager::run()
 	// create the cjt objects
 	std::unique_ptr<CJT::CityCollection> collection = std::make_unique<CJT::CityCollection>();
 	CJT::CityCollection* collectionPtr = collection.get();
+	gp_Trsf geoRefRotation;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle(internalHelper_.get()->getFileName() + " Auto export from IfcEnvExtractor");
 	
-	internalHelper_.get()->getProjectionData(&transformation, &metaData);
+	internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 
 	collectionPtr->setTransformation(transformation);
 	collectionPtr->setMetaData(metaData);
@@ -961,6 +962,8 @@ bool IOManager::run()
 	{
 		geoCreator.useroofprint0();
 	}
+
+	geoCreator.setRefRotation(geoRefRotation);
 
 	if (makeLoD00())
 	{
