@@ -667,9 +667,6 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 
 void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
 {
-	gp_XYZ transTranslation = getObjectTranslation().Inverted().TranslationPart();
-	transformation->setTranslation(transTranslation.X(), transTranslation.Y(), transTranslation.Z());
-
 #ifdef USE_IFC4
 	std::map<std::string, std::string> projectionMapMap;
 
@@ -689,14 +686,13 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
 	transformation->setTranslation(
-		transTranslation.X() + mapConversion->Eastings(),
-		transTranslation.Y() + mapConversion->Northings(),
-		transTranslation.Z() + mapConversion->OrthogonalHeight()
+		mapConversion->Eastings(),
+		mapConversion->Northings(),
+		mapConversion->OrthogonalHeight()
 	);
 	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
 	transformation->setScale(*transformation->getScale() * mapConversion->Scale());
 
-	//TODO: make this work
 	double XAO = mapConversion->XAxisOrdinate();
 	double XAA = mapConversion->XAxisAbscissa();
 

@@ -2302,6 +2302,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 	trs.SetRotation(geoRefRotation_.GetRotation());
 	trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl()));
 
+	floorProjection.Move(h->getObjectTranslation().Inverted());
 	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(trs), "0.0");
 
 	std::map<std::string, std::string> semanticData;
@@ -2333,7 +2334,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 	{	 // make the roof
 		for (size_t i = 0; i < roofOutlineList_.size(); i++)
 		{
-			TopoDS_Shape movedShape = roofOutlineList_[i];
+			TopoDS_Shape movedShape = roofOutlineList_[i].Moved(h->getObjectTranslation().Inverted());
 			gp_Trsf trs;
 			trs.SetRotation(geoRefRotation_.GetRotation());
 			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
@@ -2356,7 +2357,9 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
-			CJT::GeoObject* geoObject = kernel->convertToJSON(footprintList_[i].Moved(trs), "0.2");
+			TopoDS_Shape currentFace = footprintList_[i].Moved(h->getObjectTranslation().Inverted());
+
+			CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(trs), "0.2");
 			geoObject->appendSurfaceData(semanticFootData);
 			geoObject->appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
@@ -2399,6 +2402,7 @@ std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Ke
 				double area = helperFunctions::computeArea(currentFace);
 				currentGeoSemantic.emplace("EnvEx_Area", std::to_string(area));
 
+				currentFace.Move(h->getObjectTranslation().Inverted());
 				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(trs), "0.2");
 				geoObject->appendSurfaceData(currentGeoSemantic);
 				geoObject->appendSurfaceTypeValue(0);
@@ -2415,8 +2419,8 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
-	gp_Pnt lll = h->getLllPoint();
-	gp_Pnt urr = h->getUrrPoint();
+	gp_Pnt lll = h->getLllPoint().Transformed(h->getObjectTranslation().Inverted());
+	gp_Pnt urr = h->getUrrPoint().Transformed(h->getObjectTranslation().Inverted());
 	double rotationAngle = h->getRotation() - geoRefRotation_.GetRotation().GetRotationAngle();
 
 	BRep_Builder brepBuilder;
@@ -2507,6 +2511,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 	for (size_t i = 0; i < roofOutlineList_.size(); i++)
 	{
 		TopoDS_Face currentFootprint = roofOutlineList_[i];
+		currentFootprint.Move(h->getObjectTranslation().Inverted());
 		currentFootprint.Move(trs);
 
 		BRepPrimAPI_MakePrism sweeper(currentFootprint, gp_Vec(0, 0, height), Standard_True);
@@ -2561,7 +2566,8 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(trs), "1.3");
+		TopoDS_Shape currentShape = prismList[i].Moved(h->getObjectTranslation().Inverted());
+		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape.Moved(trs), "1.3");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2604,7 +2610,8 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(prismList[i].Moved(trs), "2.2");
+		TopoDS_Shape currentShape = prismList[i].Moved(h->getObjectTranslation().Inverted());
+		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape.Moved(trs), "2.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
@@ -2720,7 +2727,8 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 
 	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
-		CJT::GeoObject* geoObject = kernel->convertToJSON(rawFaces[i].Moved(trs), "3.2");
+		TopoDS_Shape currentFace = rawFaces[i].Moved(h->getObjectTranslation().Inverted());
+		CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace.Moved(trs), "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2782,7 +2790,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
-	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(trs), "5.0");
+	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(h->getObjectTranslation().Inverted()).Moved(trs), "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
