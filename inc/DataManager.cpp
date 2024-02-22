@@ -1236,6 +1236,7 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 	return productPoperties;
 }
 
+
 template <typename T>
 void helper::voidShapeAdjust(T products)
 {

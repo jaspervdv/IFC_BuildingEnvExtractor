@@ -2797,7 +2797,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	return geoObjectList;
 }
 
-std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, double footprintHeight)
+void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
 {
 	std::map<std::string, double> summaryMap;
 
@@ -2807,7 +2807,7 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, doubl
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 	double shellVolume = internalVoxels.size()* voxelVolume;
 
-	summaryMap.emplace("Env_ex Vvolume", shellVolume);
+	shellObject->addAttribute("Env_ex Vvolume", shellVolume);
 
 	double lowerEvalHeight = footprintHeight - (0.5 * voxelSize);
 	double higherEvalHeight = footprintHeight + (0.5 * voxelSize);
@@ -2868,15 +2868,18 @@ std::map<std::string, double> CJGeoCreator::extractVoxelSummary(helper* h, doubl
 			if (currentVoxel->hasFace(5)) { basementArea += voxelArea; } //TODO: why is this reversed?
 		}
 	}
-	summaryMap.emplace("Env_ex Vvolume basement", basementVolume);
-	summaryMap.emplace("Env_ex Vvolume building", shellVolume - basementVolume);
-	summaryMap.emplace("Env_ex VArea", shellArea);
-	summaryMap.emplace("Env_ex VArea basement", basementArea + footprintArea);
-	summaryMap.emplace("Env_ex VArea building", shellArea - basementArea + footprintArea);
-	summaryMap.emplace("Env_ex VArea footprint", footprintArea);
-	summaryMap.emplace("Env_ex VArea Facade Openings", windowArea);
+	shellObject->addAttribute("Env_ex Vvolume basement", basementVolume);
+	shellObject->addAttribute("Env_ex Vvolume building", shellVolume - basementVolume);
+	shellObject->addAttribute("Env_ex VArea", shellArea);
+	shellObject->addAttribute("Env_ex VArea basement", basementArea + footprintArea);
+	shellObject->addAttribute("Env_ex VArea building", shellArea - basementArea + footprintArea);
+	shellObject->addAttribute("Env_ex VArea footprint", footprintArea);
+	shellObject->addAttribute("Env_ex VArea Facade Openings", windowArea);
+	shellObject->addAttribute("Env_ex voxelSize", voxelSize);
 
-	return summaryMap;
+	gp_Pnt anchor = voxelGrid_->getAnchor();
+	shellObject->addAttribute("Env_ex voxelGrid Anchor", (anchor.X(), anchor.Y(), anchor.Z() ) );
+	shellObject->addAttribute("Env_ex voxelGrid rotation", voxelGrid_->getRotation() + geoRot);
 }
 
 

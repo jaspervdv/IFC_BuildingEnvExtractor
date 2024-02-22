@@ -260,9 +260,10 @@ public:
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
 
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
+	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
 	/// computes data related to the voxel shape such as volume and shell area
-	std::map<std::string, double> extractVoxelSummary(helper* h, double footprintHeight);
+	void extractVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 

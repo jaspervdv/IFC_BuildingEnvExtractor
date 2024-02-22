@@ -190,6 +190,7 @@ public:
 	std::vector<voxel*> getVoxels();
 
 	gp_Pnt getAnchor() { return anchor_; }
+	double getRotation() { return planeRotation_; }
 
 	std::vector<std::vector<TopoDS_Edge>> getDirectionalFaces(int dirIndx, double angle);
 

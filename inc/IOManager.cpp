@@ -886,10 +886,6 @@ bool IOManager::run()
 	
 	internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 
-	collectionPtr->setTransformation(transformation);
-	collectionPtr->setMetaData(metaData);
-	collectionPtr->setVersion("1.1");
-
 	// Set up objects and their relationships
 	CJT::CityObject cityBuildingObject;
 	CJT::CityObject cityShellObject;
@@ -909,7 +905,6 @@ bool IOManager::run()
 
 	cityBuildingObject.addChild(&cityShellObject);
 	cityBuildingObject.addChild(&cityInnerShellObject);
-
 
 	CJT::Kernel kernel = CJT::Kernel(collectionPtr);
 
@@ -1063,19 +1058,47 @@ bool IOManager::run()
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	}
 	
+	collectionPtr->setTransformation(transformation);
+	collectionPtr->setVersion("1.1");
+
+	// compute the extends
+	gp_Trsf ExtenstTranslation;
+	ExtenstTranslation.SetTranslationPart(gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2]));
+
+
+	gp_Pnt lll = internalHelper_.get()->getLllPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
+	gp_Pnt urr = internalHelper_.get()->getUrrPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
+
+	gp_Trsf trs;
+	trs.SetRotation(geoCreator.getRefRotation().GetRotation());
+	trs.SetTranslationPart(
+		gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2]
+		)
+	);
+
+	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(trs);
+	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
+
+	extents.min_corner();
+
+	metaData.setExtend(
+		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
+		CJT::CJTPoint(extents.max_corner().get<0>(), extents.max_corner().get<1>(), extents.max_corner().get<2>())
+	);
+
+	collectionPtr->setMetaData(metaData);
+
 	cityShellObject.addAttribute("Env_ex footprint elevation", footprintElevation_);
 	cityShellObject.addAttribute("Env_ex buildingHeight", internalHelper_.get()->getUrrPoint().Z() - footprintElevation_);
 
 	if (summaryVoxel())
 	{
-		cityShellObject.addAttribute("Env_ex voxelSize", voxelSize_);
-		cityShellObject.addAttribute(
-			geoCreator.extractVoxelSummary(
-				internalHelper_.get(),
-				internalHelper_.get()->getfootprintEvalLvl()
-			)
+		geoCreator.extractVoxelSummary(
+			&cityShellObject,
+			internalHelper_.get(),
+			internalHelper_.get()->getfootprintEvalLvl(),
+			geoRefRotation.GetRotation().GetRotationAngle()
 		);
-
 	}
 
 	collectionPtr->addCityObject(cityBuildingObject);
