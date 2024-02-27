@@ -2775,6 +2775,8 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	{
 		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
 
+		//writer.Transfer(cleanFaceList[j], STEPControl_AsIs);
+
 		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
@@ -2799,6 +2801,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 
 void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
 {
+	double windowSearchDepth = 0.3;
 	std::map<std::string, double> summaryMap;
 
     std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
@@ -2841,16 +2844,54 @@ void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, 
 
 		if (currentVoxel->hasFace())
 		{
-			std::vector<Value> intersectingValues = currentVoxel->getInternalProductList();
-			for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
-			{
-				std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+			// get a beam
+			double voxelJump = voxelSize;
+			std::vector<voxel*> voxelBeam;
 
-				if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+			voxel* loopingCurrentVoxel = currentVoxel;
+			voxelBeam.emplace_back(currentVoxel);
+
+			for (size_t i = 0; i < 6; i++)
+			{
+				if (!loopingCurrentVoxel->hasFace(i))
 				{
-					//std::cout << "t" << std::endl;
-					windowArea += voxelArea; // TODO: make this work
-					break;
+					continue;
+				}
+
+				while (true)
+				{
+					int loopingCurrentIndx = voxelGrid_->getNeighbour(loopingCurrentVoxel, i);
+					if (loopingCurrentIndx == -1) { break; }
+
+					loopingCurrentVoxel = voxelGrid_->getVoxelPtr(loopingCurrentIndx);
+					if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
+
+					voxelBeam.emplace_back(loopingCurrentVoxel);
+					voxelJump += voxelSize;
+					if (windowSearchDepth < voxelJump) { break; }
+				}
+
+				bool windowFound = false;
+				for (size_t j = 0; j < voxelBeam.size(); j++)
+				{
+					std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
+					for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
+					{
+						std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+
+						if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+						{
+							//helperFunctions::printPoint(voxelBeam[j]->getCenterPoint());
+							//std::cout << "t" << std::endl;
+							windowArea += voxelArea; // TODO: make this work
+							windowFound = true;
+							break;
+						}
+					}
+					if (windowFound)
+					{
+						break;
+					}
 				}
 			}
 		}

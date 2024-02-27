@@ -883,8 +883,8 @@ bool IOManager::run()
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle(internalHelper_.get()->getFileName() + " Auto export from IfcEnvExtractor");
-	
 	internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
+	transformation.setScale(*transformation.getScale()); //TODO: fix cjt to make this not required.
 
 	// Set up objects and their relationships
 	CJT::CityObject cityBuildingObject;

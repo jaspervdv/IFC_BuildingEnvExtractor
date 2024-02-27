@@ -174,6 +174,8 @@ public:
 
 	/// get a list of idx representing the neighbours of the input voxel
 	std::vector<int> getNeighbours(voxel* boxel, bool connect6 = false);
+	int getNeighbour(voxel* boxel, int dir);
+
 	int getLowerNeighbour(int voxelIndx, bool connect6 = false);
 
 	/// @brief get the top layer of voxels
@@ -181,6 +183,7 @@ public:
 
 	double getVoxelSize() { return voxelSize_; }
 	const voxel& getVoxel(int i) { return *VoxelLookup_[i]; }
+	voxel* getVoxelPtr(int i) { return VoxelLookup_[i]; }
 
 	// returns a plate in full x an y but 1 z the closes at the input platelvl 
 	std::vector<voxel*> getVoxelPlate(double platelvl);

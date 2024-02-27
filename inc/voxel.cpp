@@ -928,6 +928,21 @@ std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
 	return getNeighbours(voxelInt, connect6);
 }
 
+int VoxelGrid::getNeighbour(voxel* boxel, int dir)
+{
+	BoostPoint3D middlePoint = boxel->getCenterPoint();
+	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
+	int voxelInt = relativeToLinear(relativePoint);
+	std::vector<int> neighbours = getDirNeighbours(voxelInt);
+
+	if (neighbours.size() == 0)
+	{
+		return -1;
+	}
+
+	return neighbours[dir];
+}
+
 int VoxelGrid::getLowerNeighbour(int voxelIndx, bool connect6)
 {
 	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
