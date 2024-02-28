@@ -41,6 +41,9 @@ private:
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
 
+	// use 3 planes instead of volumetric voxel intersections
+	bool planeIntersection_ = false;
+
 	double voxelSize_ = 0.5;
 
 	double footprintElevation_ = 0;

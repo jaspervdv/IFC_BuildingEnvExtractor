@@ -598,6 +598,14 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	if (json.contains("voxel planes"))
+	{
+		if (json["voxel planes"] == 1)
+		{
+			planeIntersection_ = true;
+		}
+	}
+
 	if (json.contains("Div objects"))
 	{
 		std::vector<std::string> stringDivList = json["Div objects"];
@@ -862,6 +870,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	internalHelperPtr->setName(getFileName(inputPathList_[0]));
 	internalHelperPtr->setfootprintLvl(footprintElevation_);
 	internalHelperPtr->setUseProxy(useProxy_);
+	internalHelperPtr->setUseVoxelPlanes(planeIntersection_);
 
 	return true;
 }

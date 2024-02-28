@@ -61,6 +61,38 @@ std::vector<gp_Pnt> voxel::getCornerPoints(double angle)
 	return pointList;
 }
 
+std::vector<gp_Pnt> voxel::getPlanePoints(double angle)
+{
+	auto boxelGeo = getVoxelGeo();
+
+	auto minPoint = helperFunctions::Point3DBTO(boxelGeo.min_corner());
+	auto maxPoint = helperFunctions::Point3DBTO(boxelGeo.max_corner());
+
+	std::vector<gp_Pnt> pointList;
+	double offset = sizeXY_ / 2;
+	// x plane
+	pointList.emplace_back(minPoint.X() + offset, minPoint.Y(), minPoint.Z());
+	pointList.emplace_back(minPoint.X() + offset, minPoint.Y(), maxPoint.Z());
+	pointList.emplace_back(minPoint.X() + offset, maxPoint.Y(), maxPoint.Z());
+	pointList.emplace_back(minPoint.X() + offset, maxPoint.Y(), minPoint.Z());
+	// y plane
+	pointList.emplace_back(minPoint.X(), minPoint.Y() + offset, minPoint.Z());
+	pointList.emplace_back(maxPoint.X(), minPoint.Y() + offset, minPoint.Z());
+	pointList.emplace_back(maxPoint.X(), minPoint.Y() + offset, maxPoint.Z());
+	pointList.emplace_back(minPoint.X(), minPoint.Y() + offset, maxPoint.Z());
+	// z plane
+	pointList.emplace_back(minPoint.X(), minPoint.Y(), minPoint.Z()+ offset);
+	pointList.emplace_back(maxPoint.X(), minPoint.Y(), minPoint.Z()+ offset);
+	pointList.emplace_back(maxPoint.X(), maxPoint.Y(), minPoint.Z()+ offset);
+	pointList.emplace_back(minPoint.X(), maxPoint.Y(), minPoint.Z()+ offset);
+
+	for (size_t i = 0; i < pointList.size(); i++)
+	{
+		pointList[i] = helperFunctions::rotatePointWorld(pointList[i], -angle);
+	}
+	return pointList;
+}
+
 
 std::vector<std::vector<int>> voxel::getVoxelTriangles()
 {
@@ -77,6 +109,18 @@ std::vector<std::vector<int>> voxel::getVoxelTriangles()
 	{ 6, 4, 7 },
 	{ 0, 3, 2 }, // buttom
 	{ 0, 2, 1 }
+	};
+}
+
+std::vector<std::vector<int>> voxel::getplaneTriangles()
+{
+	return {
+		{0, 1, 3},
+		{1, 2, 3},
+		{4, 5, 7},
+		{5, 6, 7},
+		{8, 9, 11},
+		{9, 10, 11}
 	};
 }
 
@@ -112,33 +156,53 @@ std::vector<std::vector<int>> voxel::getVoxelEdges()
 	};
 }
 
+std::vector<std::vector<int>> voxel::getPlaneEdges()
+{
+	return {
+		{ 0, 1},
+		{ 1, 2},
+		{ 2, 3},
+		{ 3, 0},
+		{ 4, 5},
+		{ 5, 6},
+		{ 6, 7},
+		{ 7, 4},
+		{ 8, 9},
+		{ 9, 10},
+		{ 10, 11},
+		{ 11, 8}
+	};
+}
 
-bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h)
+
+bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, bool planeIntersection)
 {
 	hasEvalIntt_ = true;
-	std::vector<std::vector<int>> vets = getVoxelEdges();
-
+	// get the product
 	IfcSchema::IfcProduct* product = lookup.getProductPtr();
-
 	std::string productType = product->data().type()->name();
-
-	if (productType == "IfcDoor" || productType == "IfcWindow")
+	if (productType == "IfcDoor" || productType == "IfcWindow") // only use simplefied opening geo
 	{
 		if (!lookup.hasCBox()) { return false; }
 	}
 
-	std::vector<gp_Pnt> productPoints = h->getObjectPoints(product, true);
-
 	// check if any cornerpoints fall inside voxel
-	if (linearEqIntersection(productPoints, voxelPoints))
+	std::vector<gp_Pnt> productPoints = h->getObjectPoints(product, true);
+	if (!planeIntersection) // plane intersection is not volumetric, so not required if used
 	{
-		isIntersecting_ = true;
-		return true;
+		if (linearEqIntersection(productPoints, voxelPoints))
+		{
+			isIntersecting_ = true;
+			return true;
+		}
 	}
 
-	std::vector<std::vector<int>> triangleVoxels = getVoxelTriangles();
-
 	// check if any object edges itersect with the voxel
+	std::vector<std::vector<int>> triangleVoxels;
+	if (planeIntersection) { triangleVoxels = getplaneTriangles(); }
+	else { triangleVoxels = getVoxelTriangles(); }
+
+
 	for (size_t i = 0; i < triangleVoxels.size(); i++)
 	{
 		std::vector<gp_Pnt> voxelTriangle = { voxelPoints[triangleVoxels[i][0]], voxelPoints[triangleVoxels[i][1]], voxelPoints[triangleVoxels[i][2]] };
@@ -154,6 +218,10 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	}
 
 	// check with triangulated object
+	std::vector<std::vector<int>> vets;
+	if (planeIntersection) { vets = getPlaneEdges(); }
+	else { vets = getVoxelEdges(); }
+	
 	std::vector<std::vector<gp_Pnt>>* triangleMesh = lookup.getTriangluatedShape();
 	for (size_t i = 0; i < triangleMesh->size(); i++)
 	{
@@ -307,11 +375,16 @@ void voxel::setTransFace(int dirNum)
 void VoxelGrid::addVoxel(int indx, helper* h)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
+	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
 	voxel* boxel = new voxel(midPoint, voxelSize_, voxelSize_);
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
 	auto boxelGeo = boxel->getVoxelGeo();
-	std::vector<gp_Pnt> pointList = boxel->getCornerPoints(planeRotation_);
+	
+	std::vector<gp_Pnt> pointList; 
+	if (planeIntersection_) { pointList = boxel->getPlanePoints(planeRotation_); }
+	else { pointList = boxel->getCornerPoints(planeRotation_); }
+
 
 	std::vector<Value> qResult;
 
@@ -321,7 +394,7 @@ void VoxelGrid::addVoxel(int indx, helper* h)
 	for (size_t k = 0; k < qResult.size(); k++)
 	{
 		lookupValue* lookup = h->getLookup(qResult[k].second);
-		if (boxel->checkIntersecting(*lookup, pointList, helperFunctions::Point3DBTO(midPoint), h))
+		if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, planeIntersection_))
 		{
 			boxel->addInternalProduct(qResult[k]);
 		}
@@ -376,6 +449,7 @@ VoxelGrid::VoxelGrid(helper* h, double voxelSize)
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
 
 	planeRotation_ = h->getRotation();
+	planeIntersection_ = h->getUseVoxelPlanes();
 
 	if (false)
 	{

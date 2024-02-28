@@ -136,6 +136,8 @@ private:
 	std::map < std::string, TopoDS_Shape > shapeLookup_;
 	std::map < std::string, TopoDS_Shape > adjustedshapeLookup_;
 
+	bool planeIntersection_ = false;
+
 	bool useProxy_ = false;
 	std::list<std::string>* roomBoundingObjects_ = {};
 	bool useCustom_ = false;
@@ -285,6 +287,9 @@ public:
 	void setName(const std::string& name) { fileName_ = name; }
 
 	void setUseProxy(bool b) { useProxy_ = b; }
+
+	void setUseVoxelPlanes(bool b) { planeIntersection_ = b; }
+	bool getUseVoxelPlanes() { return planeIntersection_; }
 
 	void setfootprintLvl(double lvl) { footprintEvalLvl_ = lvl; }
 };

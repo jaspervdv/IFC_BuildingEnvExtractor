@@ -39,11 +39,17 @@ public:
 
 	/// return the cornerpoints of a voxel based on the angle
 	std::vector<gp_Pnt> getCornerPoints(double angle);
+	/// return the points represeinging the three intersection planes of a voxel based on the angle
+	std::vector<gp_Pnt> getPlanePoints(double angle);
 
 	/// returns integers with that comply with the getCornerPoints output
 	std::vector<std::vector<int>> getVoxelTriangles();
 	std::vector<std::vector<int>> getVoxelFaces();
 	std::vector<std::vector<int>> getVoxelEdges();
+
+	/// returns integers with that comply with the getPlanePoints output
+	std::vector<std::vector<int>> getplaneTriangles();
+	std::vector<std::vector<int>> getPlaneEdges();
 
 	/// sets number representing to which building the voxel belongs
 	void setBuildingNum(int num) { buildingNum_ = num; }
@@ -67,7 +73,7 @@ public:
 	BoostPoint3D getCenterPoint(double angle) { return helperFunctions::rotatePointWorld(center_, -angle); }
 
 	/// check the intersection of a triangluted product and a voxel
-	bool checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h);
+	bool checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, bool planeIntersection = false);
 
 	/// check if any cornerpoints fall inside voxel
 	bool linearEqIntersection(const std::vector<gp_Pnt>& productPoints, const std::vector<gp_Pnt>& voxelPoints);
@@ -137,6 +143,9 @@ private:
 
 	// assignment of the voxels (should be removed) -1 is intersected 0 is not assigned 1..n is room assignement;
 	std::vector<int> Assignment_;
+
+	// the way the voxel intersection has to be executed
+	bool planeIntersection_ = false;
 
 	/// create the voxelgrid and find intersections of voxels
 	void populatedVoxelGrid(helper* h);
