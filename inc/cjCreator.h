@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "DataManager.h"
+#include "settingsCollection.h"
 #include "voxel.h"
+#include "voxelGrid.h"
 
 #include <chrono>
 #include <CJToKernel.h>
@@ -28,12 +30,13 @@ public:
 
 	std::vector<TopoDS_Face> getOutlines() { return outlineList_; }
 	std::map<std::string, std::string> getSemanticInfo() { return semanticInformation_; }
-
 };
 
 
 class CJGeoCreator {
 private:
+	std::shared_ptr<SettingsCollection> sudoSettings_;
+
 	// default spatial index tree depth
 	static const int treeDepth_ = 25;
 	VoxelGrid* voxelGrid_ = nullptr;
@@ -173,6 +176,8 @@ private:
 	bool checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_Shape& shape);
 	bool checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face);
 
+	// returns true if beam casted from voxel intersects with a facade opening
+	bool voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, double voxelSize);
 
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
@@ -223,7 +228,7 @@ private:
 		const double& buffer);
 
 public:
-	explicit CJGeoCreator(helper* h, double vSize);
+	explicit CJGeoCreator(helper* h, std::shared_ptr<SettingsCollection> settings, double vSize);
 
 	/// computes and internalizes the data that is required to do the basic city scale output
 	void initializeBasic(helper* h);
@@ -258,12 +263,16 @@ public:
 	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, int unitScale);
 
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
+	TopoDS_Shape voxels2Shape(int roomNum);
+
 	/// computes data related to the voxel shape such as volume and shell area
-	void extractVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);
+	void extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);
+	void extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h);
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 

@@ -1,5 +1,6 @@
 #include "helper.h"
 #include "cjCreator.h"
+#include "settingsCollection.h"
 
 #include <unordered_set>
 #include <string>
@@ -8,48 +9,9 @@
 
 class IOManager {
 private:
-	// if true no comminucation is pushed to console
-	bool isSilent_ = false;
-
-	// if programm is instructed by a json file = true
-	bool isJsonInput_ = false;
-
-	std::vector<std::string> inputPathList_ = {};
-	std::string outputPath_ = "";
-
-	std::unordered_set<double> LoDWInterior_ = { 0.2 };
-
-	// sets which LoD envelopes are attampted to be created
-	bool make00_ = true;
-	bool make02_ = true;
-	bool make10_ = true;
-	bool make12_ = true;
-	bool make13_ = true;
-	bool make22_ = true;
-	bool make32_ = true;
-	bool makeV_ = true;
-
-	bool makeOutlines_ = false;
-	bool makeFootPrint_ = false;
-	bool makeRoofPrint_ = true;
-	bool makeInterior_ = false;
-
-	bool summaryVoxels_ = false;
-	bool writeReport_ = true;
-
-	// variables set the deviding objects
-	bool useDefaultDiv_ = true;
-	bool useProxy_ = false;
-
-	// use 3 planes instead of volumetric voxel intersections
-	bool planeIntersection_ = false;
-
-	double voxelSize_ = 0.5;
-
-	double footprintElevation_ = 0;
-
-	// how many proxy objects are present in the input
-	int proxyCount_ = 0;
+	// the settings that are available for all processing classes
+	SettingsCollection sudoSettingsInstance_;
+	std::shared_ptr<SettingsCollection> sudoSettingsPtr_ = std::make_shared<SettingsCollection>(sudoSettingsInstance_);
 
 	std::unique_ptr<helper> internalHelper_;
 
@@ -132,25 +94,25 @@ public:
 
 	// temp data
 
-	double voxelSize() { return voxelSize_; }
-	bool makeReport() { return writeReport_; }
-	bool summaryVoxel() { return summaryVoxels_; }
+	double voxelSize() { return sudoSettingsPtr_->voxelSize_; }
+	bool makeReport() { return sudoSettingsPtr_->writeReport_; }
+	bool summaryVoxel() { return sudoSettingsPtr_->summaryVoxels_; }
 
-	const std::string& getOutputPath() { return outputPath_; }
+	const std::string& getOutputPath() { return sudoSettingsPtr_->outputPath_; }
 
 	helper* getHelper() { return internalHelper_.get(); }
 
-	bool makeLoD00() { return make00_; }
-	bool makeLoD02() { return make02_; }
-	bool makeLoD10() { return make10_; }
-	bool makeLoD12() { return make12_; }
-	bool makeLoD13() { return make13_; }
-	bool makeLoD22() { return make22_; }
-	bool makeLoD32() { return make32_; }
-	bool makeV() { return makeV_; }
+	bool makeLoD00() { return sudoSettingsPtr_->make00_; }
+	bool makeLoD02() { return sudoSettingsPtr_->make02_; }
+	bool makeLoD10() { return sudoSettingsPtr_->make10_; }
+	bool makeLoD12() { return sudoSettingsPtr_->make12_; }
+	bool makeLoD13() { return sudoSettingsPtr_->make13_; }
+	bool makeLoD22() { return sudoSettingsPtr_->make22_; }
+	bool makeLoD32() { return sudoSettingsPtr_->make32_; }
+	bool makeV() { return sudoSettingsPtr_->makeV_; }
 
-	bool makeFootprint() { return makeFootPrint_; }
-	bool makeRoofOutline() { return makeRoofPrint_; }
+	bool makeFootprint() { return sudoSettingsPtr_->makeFootPrint_; }
+	bool makeRoofOutline() { return sudoSettingsPtr_->makeRoofPrint_; }
 
 	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
 		"IFCSLAB",

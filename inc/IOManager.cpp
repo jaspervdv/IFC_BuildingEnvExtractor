@@ -74,7 +74,7 @@ bool IOManager::getTargetPathList()
 		std::string singlepath = "";
 		std::getline(std::cin, singlepath);
 
-		if (singlepath.size() == 0 && inputPathList_.size() == 0)
+		if (singlepath.size() == 0 && sudoSettingsPtr_->inputPathList_.size() == 0)
 		{
 			std::cout << "[INFO] No filepath has been supplied" << std::endl;
 			std::cout << "Enter filepath of the JSON or IFC input file (if multiplefile sperate path with enter):" << std::endl;
@@ -100,16 +100,16 @@ bool IOManager::getTargetPathList()
 
 		if (hasExtension(singlepath, "json"))
 		{
-			isJsonInput_ = true;
-			if (inputPathList_.size() > 1)
+			sudoSettingsPtr_->isJsonInput_ = true;
+			if (sudoSettingsPtr_->inputPathList_.size() > 1)
 			{
 				return false;
 			}
 		}
-		inputPathList_.emplace_back(singlepath);
+		sudoSettingsPtr_->inputPathList_.emplace_back(singlepath);
 	}
 
-	if (inputPathList_.size() > 0) { return true; }
+	if (sudoSettingsPtr_->inputPathList_.size() > 0) { return true; }
 	return false;
 }
 
@@ -149,7 +149,7 @@ bool IOManager::getOutputPathList() {
 			continue;
 		}
 
-		outputPath_ = singlepath;
+		sudoSettingsPtr_->outputPath_ = singlepath;
 		return true;
 	}
 
@@ -160,10 +160,10 @@ bool IOManager::getUseDefaultSettings()
 	std::cout << "Use default process/export settings? (Y/N):";
 	if (!yesNoQuestion()) { return false; }
 
-	boost::filesystem::path targetFilePath(inputPathList_[0]);
+	boost::filesystem::path targetFilePath(sudoSettingsPtr_->inputPathList_[0]);
 	boost::filesystem::path targetFolderPath = targetFilePath.parent_path().string() + "/_exports";
 
-	outputPath_ = targetFolderPath.string() + "/evnBuilding.city.json";
+	sudoSettingsPtr_->outputPath_ = targetFolderPath.string() + "/evnBuilding.city.json";
 	struct stat info;
 	if (!boost::filesystem::exists(targetFolderPath))
 	{
@@ -183,13 +183,13 @@ std::string IOManager::getFileName(const std::string& stringPath)
 
 bool IOManager::getDesiredLoD()
 {
-	make00_ = false;
-	make02_ = false;
-	make10_ = false;
-	make12_ = false;
-	make13_ = false;
-	make22_ = false;
-	make32_ = false;
+	sudoSettingsPtr_->make00_ = false;
+	sudoSettingsPtr_->make02_ = false;
+	sudoSettingsPtr_->make10_ = false;
+	sudoSettingsPtr_->make12_ = false;
+	sudoSettingsPtr_->make13_ = false;
+	sudoSettingsPtr_->make22_ = false;
+	sudoSettingsPtr_->make32_ = false;
 
 	std::cout << "Please select the desired output LoD" << std::endl;
 	std::cout << "Can be a single string (e.g. 123 -> LoD0.1, 0.2, 1.0)" << std::endl;
@@ -226,21 +226,21 @@ bool IOManager::getDesiredLoD()
 
 		for (size_t i = 0; i < stringNum.size(); i++)
 		{
-			if (stringNum[i] == '1') { make00_ = true; }
-			if (stringNum[i] == '2') { make02_ = true; }
-			if (stringNum[i] == '3') { make10_ = true; }
-			if (stringNum[i] == '4') { make12_ = true; }
-			if (stringNum[i] == '5') { make13_ = true; }
-			if (stringNum[i] == '6') { make22_ = true; }
-			if (stringNum[i] == '7') { make32_ = true; }
+			if (stringNum[i] == '1') { sudoSettingsPtr_->make00_ = true; }
+			if (stringNum[i] == '2') { sudoSettingsPtr_->make02_ = true; }
+			if (stringNum[i] == '3') { sudoSettingsPtr_->make10_ = true; }
+			if (stringNum[i] == '4') { sudoSettingsPtr_->make12_ = true; }
+			if (stringNum[i] == '5') { sudoSettingsPtr_->make13_ = true; }
+			if (stringNum[i] == '6') { sudoSettingsPtr_->make22_ = true; }
+			if (stringNum[i] == '7') { sudoSettingsPtr_->make32_ = true; }
 			if (stringNum[i] == '8') {
-				make00_ = true;
-				make02_ = true;
-				make10_ = true;
-				make12_ = true;
-				make13_ = true;
-				make22_ = true;
-				make32_ = true;
+				sudoSettingsPtr_->make00_ = true;
+				sudoSettingsPtr_->make02_ = true;
+				sudoSettingsPtr_->make10_ = true;
+				sudoSettingsPtr_->make12_ = true;
+				sudoSettingsPtr_->make13_ = true;
+				sudoSettingsPtr_->make22_ = true;
+				sudoSettingsPtr_->make32_ = true;
 			}
 		}
 		return true;
@@ -267,13 +267,13 @@ bool IOManager::getBoudingRules()
 
 		if (ruleNum == 2)
 		{
-			useProxy_ = true;
+			sudoSettingsPtr_->useProxy_ = true;
 			return true;
 		}
 
 		if (ruleNum == 3 || ruleNum == 4)
 		{
-			if (ruleNum == 3) { useDefaultDiv_ = false; }
+			if (ruleNum == 3) { sudoSettingsPtr_->useDefaultDiv_ = false; }
 
 			std::cout << std::endl;
 			std::cout << "Please enter the desired IfcTypes" << std::endl;
@@ -347,7 +347,7 @@ bool IOManager::getVoxelSize()
 
 		if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
 		{
-			voxelSize_ = val;
+			sudoSettingsPtr_->voxelSize_ = val;
 			break;
 		}
 
@@ -369,7 +369,7 @@ bool IOManager::getFootprintElev()
 
 		if (!iElev.fail() && iElev.eof())
 		{
-			footprintElevation_ = dEleve;
+			sudoSettingsPtr_->footprintElevation_ = dEleve;
 			return true;
 		}
 
@@ -393,7 +393,7 @@ bool IOManager::getUserValues()
 
 	std::cout << std::endl;
 	std::cout << "Create report file (Y/N): ";
-	writeReport_ = yesNoQuestion();
+	sudoSettingsPtr_->writeReport_ = yesNoQuestion();
 
 	std::cout << std::endl;
 	if (!getDesiredLoD()) { return false; }
@@ -408,7 +408,7 @@ bool IOManager::getUserValues()
 	std::cout << "Desired voxel size? : ";
 	if (!getVoxelSize()) { return false; }
 
-	if (make02_)
+	if (sudoSettingsPtr_->make02_)
 	{
 		std::cout << std::endl;
 		getFootprintElev();
@@ -418,10 +418,10 @@ bool IOManager::getUserValues()
 
 bool IOManager::getJSONValues()
 {
-	std::ifstream f(inputPathList_[0]);
+	std::ifstream f(sudoSettingsPtr_->inputPathList_[0]);
 	nlohmann::json json = nlohmann::json::parse(f);
 
-	inputPathList_.clear();
+	sudoSettingsPtr_->inputPathList_.clear();
 
 	if (json.contains("Output report"))
 	{
@@ -430,12 +430,12 @@ bool IOManager::getJSONValues()
 			throw std::string("JSON file does not contain a valid output report entry");
 		}
 
-		if (json["Output report"] == 0) { writeReport_ = false; }
+		if (json["Output report"] == 0) { sudoSettingsPtr_->writeReport_ = false; }
 	}
 
 	if (json.contains("Voxel summary"))
 	{
-		if (json["Voxel summary"] == 1) { summaryVoxels_ = true; }
+		if (json["Voxel summary"] == 1) { sudoSettingsPtr_->summaryVoxels_ = true; }
 	}
 
 	if (!json.contains("Filepaths"))
@@ -471,7 +471,7 @@ bool IOManager::getJSONValues()
 
 		if (hasExtension(inputPath, "ifc") && isValidPath(inputPath))
 		{
-			inputPathList_.emplace_back(inputPaths[i]);
+			sudoSettingsPtr_->inputPathList_.emplace_back(inputPaths[i]);
 		}
 		else
 		{
@@ -484,14 +484,14 @@ bool IOManager::getJSONValues()
 		throw std::string("JSON file does not contain valid output path entry, output filepath entry should be string");
 	}
 
-	outputPath_ = filePaths["Output"];
+	sudoSettingsPtr_->outputPath_ = filePaths["Output"];
 
-	if (!hasExtension(outputPath_, "json"))
+	if (!hasExtension(sudoSettingsPtr_->outputPath_, "json"))
 	{
 		throw std::string("JSON file does not contain valid output path, output path should end on .json or .city.json");
 	}
 
-	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(outputPath_)).parent_path();
+	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(sudoSettingsPtr_->outputPath_)).parent_path();
 
 	if (!boost::filesystem::exists(outputFolderPath))
 	{
@@ -501,76 +501,75 @@ bool IOManager::getJSONValues()
 	if (json.contains("LoD output"))
 	{
 		nlohmann::json lodList = json["LoD output"];
-		make00_ = false;
-		make02_ = false;
-		make10_ = false;
-		make12_ = false;
-		make13_ = false;
-		make22_ = false;
-		make32_ = false;
-		makeV_ = false;
+		sudoSettingsPtr_->make00_ = false;
+		sudoSettingsPtr_->make02_ = false;
+		sudoSettingsPtr_->make10_ = false;
+		sudoSettingsPtr_->make12_ = false;
+		sudoSettingsPtr_->make13_ = false;
+		sudoSettingsPtr_->make22_ = false;
+		sudoSettingsPtr_->make32_ = false;
+		sudoSettingsPtr_->makeV_ = false;
 
 		for (size_t i = 0; i < lodList.size(); i++) // check if interior generation is required
 		{
-			if (LoDWInterior_.find(lodList[i]) == LoDWInterior_.end()) { continue; }
+			if (sudoSettingsPtr_->LoDWInterior_.find(lodList[i]) == sudoSettingsPtr_->LoDWInterior_.end()) { continue; }
 
 			if (json.contains("Generate interior"))
 			{
-				makeInterior_ = (int)json["Generate interior"];
+				sudoSettingsPtr_->makeInterior_ = (int)json["Generate interior"];
 			}
-
 			break;
 		}
 
 		if (json.contains("Footprint elevation"))
 		{
-			footprintElevation_ = json["Footprint elevation"];
+			sudoSettingsPtr_->footprintElevation_ = json["Footprint elevation"];
 		}
 
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
-			if (lodList[i] == 0.0) { make00_ = true; }
+			if (lodList[i] == 0.0) { sudoSettingsPtr_->make00_ = true; }
 			else if (lodList[i] == 0.2) 
 			{ 
-				make02_ = true; 
+				sudoSettingsPtr_->make02_ = true;
 
 				if (json.contains("Generate footprint"))
 				{
-					makeFootPrint_ = (int)json["Generate footprint"];
+					sudoSettingsPtr_->makeFootPrint_ = (int)json["Generate footprint"];
 				}
 				if (json.contains("Generate roof outline"))
 				{
-					makeRoofPrint_ = (int)json["Generate roof outline"];
-					if (makeRoofPrint_) { makeOutlines_ = true; }
+					sudoSettingsPtr_->makeRoofPrint_ = (int)json["Generate roof outline"];
+					if (sudoSettingsPtr_->makeRoofPrint_) { sudoSettingsPtr_->makeOutlines_ = true; }
 				}
 			}
 			else if (lodList[i] == 1.0) 
 			{ 
-				make10_ = true; 
+				sudoSettingsPtr_->make10_ = true;
 			}
 			else if (lodList[i] == 1.2) 
 			{ 
-				make12_ = true; 
-				makeOutlines_ = true;
+				sudoSettingsPtr_->make12_ = true;
+				sudoSettingsPtr_->makeOutlines_ = true;
 			}
 			else if (lodList[i] == 1.3) 
 			{ 
-				make13_ = true; 
-				makeOutlines_ = true;
+				sudoSettingsPtr_->make13_ = true;
+				sudoSettingsPtr_->makeOutlines_ = true;
 			}
 			else if (lodList[i] == 2.2) 
 			{ 
-				make22_ = true;
-				makeOutlines_ = true;
+				sudoSettingsPtr_->make22_ = true;
+				sudoSettingsPtr_->makeOutlines_ = true;
 			}
 			else if (lodList[i] == 3.2) 
 			{ 
-				make32_ = true; 
-				makeOutlines_ = true;
+				sudoSettingsPtr_->make32_ = true;
+				sudoSettingsPtr_->makeOutlines_ = true;
 			}
 			else if (lodList[i] == 5.0) 
 			{ 
-				makeV_ = true; 
+				sudoSettingsPtr_->makeV_ = true;
 			}
 		}
 	}
@@ -579,14 +578,14 @@ bool IOManager::getJSONValues()
 	{
 		nlohmann::json voxelData = json["voxelSize"];
 
-		if (voxelData.contains("xy")) { voxelSize_ = voxelData["xy"]; }
+		if (voxelData.contains("xy")) { sudoSettingsPtr_->voxelSize_ = voxelData["xy"]; }
 	}
 
 	if (json.contains("Default div"))
 	{
 		if (json["Default div"] == 0)
 		{
-			useDefaultDiv_ = false;
+			sudoSettingsPtr_->useDefaultDiv_ = false;
 		}
 	}
 
@@ -594,7 +593,7 @@ bool IOManager::getJSONValues()
 	{
 		if (json["Ignore proxy"] == 1)
 		{
-			useProxy_ = true;
+			sudoSettingsPtr_->useProxy_ = true;
 		}
 	}
 
@@ -602,7 +601,7 @@ bool IOManager::getJSONValues()
 	{
 		if (json["voxel planes"] == 1)
 		{
-			planeIntersection_ = true;
+			sudoSettingsPtr_->planeIntersection_ = true;
 		}
 	}
 
@@ -699,41 +698,41 @@ void IOManager::printSummary()
 	std::cout << "[INFO] Used settings: " << std::endl;
 
 	std::cout << "- Input File(s):" << std::endl;
-	for (size_t i = 0; i < inputPathList_.size(); i++) { std::cout << "    " << inputPathList_[i] << std::endl; }
+	for (size_t i = 0; i < sudoSettingsPtr_->inputPathList_.size(); i++) { std::cout << "    " << sudoSettingsPtr_->inputPathList_[i] << std::endl; }
 	std::cout << "- Output File:" << std::endl;
-	std::cout << "    " << outputPath_ << std::endl;
+	std::cout << "    " << sudoSettingsPtr_->outputPath_ << std::endl;
 	std::cout << "- Create Report:" << std::endl;
-	if (writeReport_) { std::cout << "    yes" << std::endl; }
+	if (sudoSettingsPtr_->writeReport_) { std::cout << "    yes" << std::endl; }
 	else { std::cout << "    no" << std::endl; }
 	std::cout << "- LoD export enabled:" << std::endl;
 	std::cout << "    " << getLoDEnabled() << std::endl;
 	std::cout << "- Space dividing objects: " << std::endl;
-	if (useDefaultDiv_)
+	if (sudoSettingsPtr_->useDefaultDiv_)
 	{
 		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	}
-	if (useProxy_)
+	if (sudoSettingsPtr_->useProxy_)
 	{
 		std::cout << "    IFCBUILDINGELEMENTPROXY" << std::endl;
 	}
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	std::cout << "- Voxel size:" << std::endl;
-	std::cout << "    " << voxelSize_ << std::endl;
+	std::cout << "    " << sudoSettingsPtr_->voxelSize_ << std::endl;
 
 
-	if (make02_)
+	if (sudoSettingsPtr_->make02_)
 	{
 		std::cout << "- Create footprint:" << std::endl;
-		if (makeFootPrint_) { std::cout << "    Yes" << std::endl; }
+		if (sudoSettingsPtr_->makeFootPrint_) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
 
 		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
-		if (makeRoofPrint_) { std::cout << "    Yes" << std::endl; }
+		if (sudoSettingsPtr_->makeRoofPrint_) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
 	}
 
 	std::cout << "- Footprint Elevation:" << std::endl;
-	std::cout << "    " << footprintElevation_ << std::endl;
+	std::cout << "    " << sudoSettingsPtr_->footprintElevation_ << std::endl;
 
 	std::cout << "=============================================================" << std::endl;
 }
@@ -742,13 +741,13 @@ std::string IOManager::getLoDEnabled()
 {
 	std::string summaryString = "";
 
-	if (make00_) { summaryString += ", 0.0"; }
-	if (make02_) { summaryString += ", 0.2"; }
-	if (make12_) { summaryString += ", 1.2"; }
-	if (make13_) { summaryString += ", 1.3"; }
-	if (make22_) { summaryString += ", 2.2"; }
-	if (make32_) { summaryString += ", 3.2"; }
-	if (makeV_) { summaryString += ", 5.0 (V)"; }
+	if (sudoSettingsPtr_->make00_) { summaryString += ", 0.0"; }
+	if (sudoSettingsPtr_->make02_) { summaryString += ", 0.2"; }
+	if (sudoSettingsPtr_->make12_) { summaryString += ", 1.2"; }
+	if (sudoSettingsPtr_->make13_) { summaryString += ", 1.3"; }
+	if (sudoSettingsPtr_->make22_) { summaryString += ", 2.2"; }
+	if (sudoSettingsPtr_->make32_) { summaryString += ", 3.2"; }
+	if (sudoSettingsPtr_->makeV_) { summaryString += ", 5.0 (V)"; }
 
 	summaryString.erase(0, 2);
 
@@ -761,41 +760,41 @@ nlohmann::json IOManager::settingsToJSON()
 {
 	nlohmann::json settingsJSON;
 
-	settingsJSON["Input IFC file"] = inputPathList_;
+	settingsJSON["Input IFC file"] = sudoSettingsPtr_->inputPathList_;
 	settingsJSON["Output CityJSON file"] = getOutputPath();
 	settingsJSON["Create report"] = "true";
-	if (isJsonInput_) { settingsJSON["JSON input"] = "true"; }
-	else if (!isJsonInput_) { settingsJSON["JSON input"] = "false"; }
+	if (sudoSettingsPtr_->isJsonInput_) { settingsJSON["JSON input"] = "true"; }
+	else if (!sudoSettingsPtr_->isJsonInput_) { settingsJSON["JSON input"] = "false"; }
 
 	std::vector<std::string> DivList;
 
-	if (useDefaultDiv_)
+	if (sudoSettingsPtr_->useDefaultDiv_)
 	{
 		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	}
-	if (useProxy_)
+	if (sudoSettingsPtr_->useProxy_)
 	{
 		DivList.emplace_back("IFCBUILDINGELEMENTPROXY");
 	}
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	settingsJSON["Space bounding objects"] = DivList;
-	settingsJSON["Voxel size"] = voxelSize_;
+	settingsJSON["Voxel size"] = sudoSettingsPtr_->voxelSize_;
 
-	if (make02_) 
+	if (sudoSettingsPtr_->make02_)
 	{ 
-		settingsJSON["Footprint elevation"] = footprintElevation_; 
-		settingsJSON["Generate footprint"] = makeFootPrint_;
-		settingsJSON["Generate roof outline"] = makeRoofPrint_;
+		settingsJSON["Footprint elevation"] = sudoSettingsPtr_->footprintElevation_;
+		settingsJSON["Generate footprint"] = sudoSettingsPtr_->makeFootPrint_;
+		settingsJSON["Generate roof outline"] = sudoSettingsPtr_->makeRoofPrint_;
 	}
 	
 	std::vector<std::string> LoDList;
-	if (make00_) { LoDList.emplace_back("0.0"); }
-	if (make02_) { LoDList.emplace_back("0.2"); }
-	if (make10_) { LoDList.emplace_back("1.0"); }
-	if (make12_) { LoDList.emplace_back("1.2"); }
-	if (make13_) { LoDList.emplace_back("1.3"); }
-	if (make22_) { LoDList.emplace_back("2.2"); }
-	if (make32_) { LoDList.emplace_back("3.2"); }
+	if (sudoSettingsPtr_->make00_) { LoDList.emplace_back("0.0"); }
+	if (sudoSettingsPtr_->make02_) { LoDList.emplace_back("0.2"); }
+	if (sudoSettingsPtr_->make10_) { LoDList.emplace_back("1.0"); }
+	if (sudoSettingsPtr_->make12_) { LoDList.emplace_back("1.2"); }
+	if (sudoSettingsPtr_->make13_) { LoDList.emplace_back("1.3"); }
+	if (sudoSettingsPtr_->make22_) { LoDList.emplace_back("2.2"); }
+	if (sudoSettingsPtr_->make32_) { LoDList.emplace_back("3.2"); }
 
 	settingsJSON["Desired LoD output"] = LoDList;
 
@@ -827,27 +826,27 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 	else if (hasExtension(inputPathList, "ifc") && isValidPath(inputPathList)) // If all files are IFC copy the path list and ask user for info
 	{
-		inputPathList_ = inputPathList;
+		sudoSettingsPtr_->inputPathList_ = inputPathList;
 		if (!isSilent_)
 		{
 			std::cout << "[INFO] Input file path(s):" << std::endl;
-			for (size_t i = 0; i < inputPathList_.size(); i++) { std::cout << inputPathList_[i] << std::endl; }
+			for (size_t i = 0; i < sudoSettingsPtr_->inputPathList_.size(); i++) { std::cout << sudoSettingsPtr_->inputPathList_[i] << std::endl; }
 			std::cout << std::endl;
 		}
 		hasDirectInterface = true;
 	}
 	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
-		isJsonInput_ = true;
-		inputPathList_ = inputPathList;
+		sudoSettingsPtr_->isJsonInput_ = true;
+		sudoSettingsPtr_->inputPathList_ = inputPathList;
 	}
-	if (!isJsonInput_)
+	if (!sudoSettingsPtr_->isJsonInput_)
 	{
 		if (!getUserValues()) { return false; } // attempt to ask user for data		 
 	}
 	else
 	{
 		if (inputPathList.size() > 1) { return false; }
-		isJsonInput_ = true;
+		sudoSettingsPtr_->isJsonInput_ = true;
 
 		try { getJSONValues(); }
 		catch (const std::string& exceptionString)
@@ -863,14 +862,10 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 	auto internalizingTime = std::chrono::high_resolution_clock::now(); // Time Collection Starts
 	
-	internalHelper_ = std::make_unique<helper>(inputPathList_);
+	internalHelper_ = std::make_unique<helper>(sudoSettingsPtr_->inputPathList_, sudoSettingsPtr_);
 	helper* internalHelperPtr = internalHelper_.get();
 	if (!internalHelperPtr->isPopulated()) { return 0; }
 	if (!internalHelperPtr->hasSetUnits()) { return 0; }
-	internalHelperPtr->setName(getFileName(inputPathList_[0]));
-	internalHelperPtr->setfootprintLvl(footprintElevation_);
-	internalHelperPtr->setUseProxy(useProxy_);
-	internalHelperPtr->setUseVoxelPlanes(planeIntersection_);
 
 	return true;
 }
@@ -891,7 +886,7 @@ bool IOManager::run()
 	gp_Trsf geoRefRotation;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
-	metaData.setTitle(internalHelper_.get()->getFileName() + " Auto export from IfcEnvExtractor");
+	metaData.setTitle("Auto export from IfcEnvExtractor");
 	internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 	transformation.setScale(*transformation.getScale()); //TODO: fix cjt to make this not required.
 
@@ -922,10 +917,10 @@ bool IOManager::run()
 
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
-	CJGeoCreator geoCreator(internalHelper_.get(), voxelSize_);
+	CJGeoCreator geoCreator(internalHelper_.get(), sudoSettingsPtr_, sudoSettingsPtr_->voxelSize_);
 	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
-	if (makeOutlines_)
+	if (sudoSettingsPtr_->makeOutlines_)
 	{
 		try
 		{
@@ -938,7 +933,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (make02_ && makeFootPrint_)
+	if (sudoSettingsPtr_->make02_ && sudoSettingsPtr_->makeFootPrint_)
 	{
 		try
 		{
@@ -950,7 +945,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (makeInterior_)
+	if (sudoSettingsPtr_->makeInterior_)
 	{
 		try
 		{
@@ -962,7 +957,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (makeRoofPrint_)
+	if (sudoSettingsPtr_->makeRoofPrint_)
 	{
 		geoCreator.useroofprint0();
 	}
@@ -991,16 +986,6 @@ bool IOManager::run()
 			
 		}
 		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.2 creation failed"); }
-
-		if (makeInterior_)
-		{
-			std::vector<CJT::CityObject> geo02Storeys = geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo02Storeys.size(); i++) {
-				CJT::CityObject currentStoreyObject = geo02Storeys[i];
-				currentStoreyObject.addParent(&cityInnerShellObject);
-				collectionPtr->addCityObject(currentStoreyObject);
-			}
-		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 
 	}
@@ -1065,6 +1050,34 @@ bool IOManager::run()
 		std::vector<CJT::GeoObject*> geoV = geoCreator.makeV(internalHelper_.get(), &kernel, 1);
 		for (size_t i = 0; i < geoV.size(); i++) { cityShellObject.addGeoObject(*geoV[i]); }
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		
+		
+	}
+
+	if (sudoSettingsPtr_->makeInterior_)
+	{
+		// storeys
+		if (makeLoD02())
+		{
+			std::vector<CJT::CityObject> geo02Storeys = geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo02Storeys.size(); i++) {
+				CJT::CityObject currentStoreyObject = geo02Storeys[i];
+				currentStoreyObject.addParent(&cityInnerShellObject);
+				collectionPtr->addCityObject(currentStoreyObject);
+			}
+		}
+
+		// rooms
+		if (makeV())
+		{
+			std::vector<CJT::CityObject> roomsV = geoCreator.makeVRooms(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < roomsV.size(); i++)
+			{
+				CJT::CityObject currentStoreyObject = roomsV[i];
+				currentStoreyObject.addParent(&cityInnerShellObject);
+				collectionPtr->addCityObject(currentStoreyObject);
+			}
+		}
 	}
 	
 	collectionPtr->setTransformation(transformation);
@@ -1097,16 +1110,21 @@ bool IOManager::run()
 
 	collectionPtr->setMetaData(metaData);
 
-	cityShellObject.addAttribute("Env_ex footprint elevation", footprintElevation_);
-	cityShellObject.addAttribute("Env_ex buildingHeight", internalHelper_.get()->getUrrPoint().Z() - footprintElevation_);
+	cityShellObject.addAttribute("Env_ex footprint elevation", sudoSettingsPtr_->footprintElevation_);
+	cityShellObject.addAttribute("Env_ex buildingHeight", internalHelper_.get()->getUrrPoint().Z() - sudoSettingsPtr_->footprintElevation_);
 
 	if (summaryVoxel())
 	{
-		geoCreator.extractVoxelSummary(
+		geoCreator.extractOuterVoxelSummary(
 			&cityShellObject,
 			internalHelper_.get(),
-			internalHelper_.get()->getfootprintEvalLvl(),
+			sudoSettingsPtr_->footprintElevation_,
 			geoRefRotation.GetRotation().GetRotationAngle()
+		);
+
+		geoCreator.extractInnerVoxelSummary(
+			&cityInnerShellObject,
+			internalHelper_.get()
 		);
 	}
 
@@ -1123,7 +1141,7 @@ bool IOManager::write()
 {
 	cityCollection_.get()->dumpJson(getOutputPath());
 
-	if (!writeReport_) { return true; }
+	if (!sudoSettingsPtr_->writeReport_) { return true; }
 	nlohmann::json report;
 	report["Settings"] = settingsToJSON();
 

@@ -577,7 +577,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 	}
 
 	// raycast
-	double distance = 2 * voxelGrid_->getVoxelSize();
+	double distance = 2 * sudoSettings_->voxelSize_;
 
 	std::vector<TopoDS_Edge> outerFootPrintList;
 	for (size_t i = 0; i < edgeList.size(); i++)
@@ -1400,7 +1400,7 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, const Topo
 void CJGeoCreator::makeFootprint(helper* h)
 {
 	// get footprint
-	double floorlvl = h->getfootprintEvalLvl();
+	double floorlvl = sudoSettings_->footprintElevation_;
 	std::cout << "- Corse filtering footprint at z = " << floorlvl << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -1429,7 +1429,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 	std::cout << "- Storey extraction" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 	double storeyBuffer = 0.15;
-	double floorElev = h->getfootprintEvalLvl() * h->getScaler(0);
+	double floorElev = sudoSettings_->footprintElevation_ * h->getScaler(0);
 
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
 
@@ -2020,6 +2020,55 @@ bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS
 	return false;
 }
 
+bool CJGeoCreator::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, double voxelSize)
+{
+	double windowSearchDepth = 0.3;
+	double windowArea = 0;
+	
+	// get a beam
+	double voxelJump = voxelSize;
+	std::vector<voxel*> voxelBeam;
+
+	voxel* loopingCurrentVoxel = currentVoxel;
+	voxelBeam.emplace_back(currentVoxel);
+
+	bool windowFound = false;
+	for (size_t i = 0; i < 6; i++)
+	{
+		if (!loopingCurrentVoxel->hasFace(i))
+		{
+			continue;
+		}
+		while (true)
+		{
+			int loopingCurrentIndx = voxelGrid_->getNeighbour(loopingCurrentVoxel, i);
+			if (loopingCurrentIndx == -1) { break; }
+
+			loopingCurrentVoxel = voxelGrid_->getVoxelPtr(loopingCurrentIndx);
+			if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
+
+			voxelBeam.emplace_back(loopingCurrentVoxel);
+			voxelJump += voxelSize;
+			if (windowSearchDepth < voxelJump) { break; }
+		}
+
+		for (size_t j = 0; j < voxelBeam.size(); j++)
+		{
+			std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
+			for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
+			{
+				std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+
+				if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 
 TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vector<int>& pointFaceIndx) {
 	gp_Pnt p0(voxelPointList[pointFaceIndx[0]]);
@@ -2300,7 +2349,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
-	trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+	trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
 
 	floorProjection.Move(h->getObjectTranslation().Inverted());
 	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection.Moved(trs), "0.0");
@@ -2338,7 +2387,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 			gp_Trsf trs;
 			trs.SetRotation(geoRefRotation_.GetRotation());
 			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
-			else { trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl())); }
+			else { trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_)); }
 
 
 			CJT::GeoObject* geoObject = kernel->convertToJSON(movedShape.Moved(trs), "0.2");
@@ -2353,7 +2402,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 		// make the footprint
 		gp_Trsf trs;
 		trs.SetRotation(geoRefRotation_.GetRotation());
-		trs.SetTranslationPart(gp_Vec(0, 0, h->getfootprintEvalLvl()));
+		trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
 
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
@@ -2430,7 +2479,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	TopoDS_Solid bbox;
 	brepBuilder.MakeSolid(bbox);
 
-	double footprintHeight = h->getfootprintEvalLvl();
+	double footprintHeight = sudoSettings_->footprintElevation_;
 
 	gp_Pnt p0 = helperFunctions::rotatePointWorld(lll, -rotationAngle);
 	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
@@ -2639,7 +2688,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
 
-	double buffer = 1 * voxelGrid_->getVoxelSize(); // set the distance from the bb of the evaluated object
+	double buffer = 1 * sudoSettings_->voxelSize_; // set the distance from the bb of the evaluated object
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
 
 	std::vector<Value> productLookupValues;
@@ -2653,7 +2702,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
-	double gridDistance = voxelGrid_->getVoxelSize();
+	double gridDistance = sudoSettings_->voxelSize_;
 
 	// create unique index
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
@@ -2740,43 +2789,12 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
+	TopoDS_Shape sewedShape = voxels2Shape(0);
 
-	std::vector<voxel*> intt = voxelGrid_->getIntersectingVoxels();
-
-	//std::string path = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step_test.stp";
-	//STEPControl_Writer writer;
-
-	BRepBuilderAPI_Sewing brepSewer;
-	for (size_t i = 0; i < 6; i++)
-	{
-		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, planeRotation_);
-
-		for (size_t j = 0; j < faceList.size(); j++)
-		{
-			std::vector<TopoDS_Wire> wireList = growWires(faceList[j]);
-			std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
-			std::vector<TopoDS_Face> cleanFaceList = wireCluster2Faces(cleanWireList);
-
-			for (size_t j = 0; j < cleanFaceList.size(); j++)
-			{
-				brepSewer.Add(cleanFaceList[j]);
-				//writer.Transfer(cleanFaceList[j], STEPControl_AsIs);
-			}
-		}
-	}
-
-
-//	IFSelect_ReturnStatus stat = writer.Write(path.c_str());
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
-
-	brepSewer.Perform();
-	TopoDS_Shape sewedShape = brepSewer.SewedShape();	
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
 		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
-
-		//writer.Transfer(cleanFaceList[j], STEPControl_AsIs);
-
 		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
@@ -2788,7 +2806,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid voxelSolid;
 	brepBuilder.MakeSolid(voxelSolid);
-	brepBuilder.Add(voxelSolid, brepSewer.SewedShape());
+	brepBuilder.Add(voxelSolid, sewedShape);
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
@@ -2799,14 +2817,79 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	return geoObjectList;
 }
 
-void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
+std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	double windowSearchDepth = 0.3;
+	std::cout << "- Computing LoD 5.0 Model" << std::endl;
+	auto startTime = std::chrono::high_resolution_clock::now();
+
+	std::vector<CJT::CityObject> roomObjectList; // final output collection
+
+	for (size_t i = 1; i < voxelGrid_->getRoomSize(); i++)
+	{
+		CJT::CityObject roomObject;
+		roomObject.setName("Room " + std::to_string(i));
+		roomObject.setType(CJT::Building_Type::BuildingRoom);
+
+		TopoDS_Shape sewedShape = voxels2Shape(i);
+
+		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
+		{
+			std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
+			CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
+			roomObject.addGeoObject(*geoObject);
+			continue;
+		}
+
+		BRep_Builder brepBuilder;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid voxelSolid;
+		brepBuilder.MakeSolid(voxelSolid);
+		brepBuilder.Add(voxelSolid, sewedShape);
+
+		gp_Trsf trs;
+		trs.SetRotation(geoRefRotation_.GetRotation());
+		CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid.Moved(h->getObjectTranslation().Inverted()).Moved(trs), "5.0");
+		roomObject.addGeoObject(*geoObject);
+
+		roomObjectList.emplace_back(roomObject);
+	}
+
+	printTime(startTime, std::chrono::high_resolution_clock::now());
+	return roomObjectList;
+}
+
+TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
+{
+	BRepBuilderAPI_Sewing brepSewer;
+	for (size_t i = 0; i < 6; i++)
+	{
+		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, planeRotation_, roomNum);
+
+		for (size_t j = 0; j < faceList.size(); j++)
+		{
+			std::vector<TopoDS_Wire> wireList = growWires(faceList[j]);
+			std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+			std::vector<TopoDS_Face> cleanFaceList = wireCluster2Faces(cleanWireList);
+
+			for (size_t j = 0; j < cleanFaceList.size(); j++)
+			{
+				brepSewer.Add(cleanFaceList[j]);
+			}
+		}
+	}
+	brepSewer.Perform();
+	
+	return brepSewer.SewedShape();
+}
+
+void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
+{
 	std::map<std::string, double> summaryMap;
 
     std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
 
-	double voxelSize = voxelGrid_->getVoxelSize();
+	double voxelSize = sudoSettings_->voxelSize_;
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 	double shellVolume = internalVoxels.size()* voxelVolume;
 
@@ -2826,15 +2909,17 @@ void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, 
 	for (size_t i = 0; i < internalVoxels.size(); i++)
 	{
 		voxel* currentVoxel = internalVoxels[i];
+		bool isOuterShell = currentVoxel->getIsShell();
 		double zHeight = currentVoxel->getCenterPoint().get<2>();
-		
-		shellArea += currentVoxel->numberOfFaces() * voxelArea;
+
+		if (isOuterShell) { shellArea += currentVoxel->numberOfFaces() * voxelArea; }
 
 		if (lowerEvalHeight >= zHeight)
 		{
 			// for sure building basement
 			basementVolume += voxelVolume;
 
+			if (!isOuterShell) { continue; }
 			for (size_t j = 0; j < 6; j++)
 			{
 				if (currentVoxel->hasFace(j)) { basementArea += voxelArea; }
@@ -2842,73 +2927,27 @@ void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, 
 			continue;
 		}
 
-		if (currentVoxel->hasFace())
-		{
-			// get a beam
-			double voxelJump = voxelSize;
-			std::vector<voxel*> voxelBeam;
-
-			voxel* loopingCurrentVoxel = currentVoxel;
-			voxelBeam.emplace_back(currentVoxel);
-
-			for (size_t i = 0; i < 6; i++)
-			{
-				if (!loopingCurrentVoxel->hasFace(i))
-				{
-					continue;
-				}
-
-				while (true)
-				{
-					int loopingCurrentIndx = voxelGrid_->getNeighbour(loopingCurrentVoxel, i);
-					if (loopingCurrentIndx == -1) { break; }
-
-					loopingCurrentVoxel = voxelGrid_->getVoxelPtr(loopingCurrentIndx);
-					if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
-
-					voxelBeam.emplace_back(loopingCurrentVoxel);
-					voxelJump += voxelSize;
-					if (windowSearchDepth < voxelJump) { break; }
-				}
-
-				bool windowFound = false;
-				for (size_t j = 0; j < voxelBeam.size(); j++)
-				{
-					std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
-					for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
-					{
-						std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
-
-						if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
-						{
-							//helperFunctions::printPoint(voxelBeam[j]->getCenterPoint());
-							//std::cout << "t" << std::endl;
-							windowArea += voxelArea; // TODO: make this work
-							windowFound = true;
-							break;
-						}
-					}
-					if (windowFound)
-					{
-						break;
-					}
-				}
-			}
-		}
-
 		if (lowerEvalHeight < zHeight && zHeight < higherEvalHeight)
 		{
 			// partial building basement
-			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize) ;
+			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize);
+
+			if (!isOuterShell) { continue; }
+
 			footprintArea += voxelArea;
 
 			if (currentVoxel->hasFace(0)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(1)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(2)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(3)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
-			if (currentVoxel->hasFace(5)) { basementArea += voxelArea; } //TODO: why is this reversed?
+			if (currentVoxel->hasFace(5)) { basementArea += voxelArea; }
 		}
+
+		if (!isOuterShell) { continue; }
+		if (!voxelBeamWindowIntersection(h, currentVoxel, voxelSize)) { continue; }
+		windowArea += voxelArea;
 	}
+
 	shellObject->addAttribute("Env_ex Vvolume basement", basementVolume);
 	shellObject->addAttribute("Env_ex Vvolume building", shellVolume - basementVolume);
 	shellObject->addAttribute("Env_ex VArea", shellArea);
@@ -2921,6 +2960,29 @@ void CJGeoCreator::extractVoxelSummary(CJT::CityObject* shellObject, helper* h, 
 	gp_Pnt anchor = voxelGrid_->getAnchor();
 	shellObject->addAttribute("Env_ex voxelGrid Anchor", (anchor.X(), anchor.Y(), anchor.Z() ) );
 	shellObject->addAttribute("Env_ex voxelGrid rotation", voxelGrid_->getRotation() + geoRot);
+}
+
+void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h)
+{
+	double totalRoomVolume = 0;
+
+	double voxelSize =  sudoSettings_->voxelSize_;
+	double voxelVolume = voxelSize * voxelSize * voxelSize;
+
+	std::vector<voxel*> voxelList = voxelGrid_->getVoxels();
+
+	for (auto i = voxelList.begin(); i != voxelList.end(); i++)
+	{
+		voxel* currentVoxel = *i;
+		if (currentVoxel->getRoomNum() > 0)
+		{
+			totalRoomVolume += voxelVolume;
+		}
+	}
+
+
+	shellObject->addAttribute("Env_ex Vvolume rooms", totalRoomVolume);
+
 }
 
 
@@ -3250,11 +3312,8 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 }
 
 
-CJGeoCreator::CJGeoCreator(helper* h, double vSize)
+CJGeoCreator::CJGeoCreator(helper* h, std::shared_ptr<SettingsCollection> settings, double vSize)
 {
-	double xySize;
-	double zSize;
-
 	// ask user for desired voxel dimensions
 	if (vSize == -1)
 	{
@@ -3292,17 +3351,12 @@ CJGeoCreator::CJGeoCreator(helper* h, double vSize)
 		}
 
 		std::cout << std::endl;
-		xySize = std::stod(stringXYSize);
-		zSize = std::stod(stringZSize);
-	}
-	else
-	{
-		xySize = vSize;
-		zSize = vSize;
+		sudoSettings_->voxelSize_= std::stod(stringXYSize);
 	}
 
 	// compute generic voxelfield data
-	voxelGrid_ = new VoxelGrid(h, xySize);
+	sudoSettings_ = settings;
+	voxelGrid_ = new VoxelGrid(h, sudoSettings_);
 }
 
 FloorOutlineObject::FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)

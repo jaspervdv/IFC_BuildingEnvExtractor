@@ -1,4 +1,5 @@
 #include "helper.h"
+#include "settingsCollection.h"
 
 // Boost includes
 #include <boost/algorithm/string.hpp>
@@ -100,9 +101,9 @@ public:
 class helper
 {
 private:
-	double objectCount_ = 0;
+	std::shared_ptr<SettingsCollection> sudoSettings_;
 
-	double footprintEvalLvl_ = -0.15;
+	double objectCount_ = 0;
 
 	bool hasGeo_ = false;
 	bool isPopulated_ = false;
@@ -121,9 +122,6 @@ private:
 	// The needed rotation for the model to be aligned to the world axis!
 	double originRot_;
 
-	std::string path_;
-	std::string fileName_;
-
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	double dataCollectionSize_ = 0;
 
@@ -136,9 +134,6 @@ private:
 	std::map < std::string, TopoDS_Shape > shapeLookup_;
 	std::map < std::string, TopoDS_Shape > adjustedshapeLookup_;
 
-	bool planeIntersection_ = false;
-
-	bool useProxy_ = false;
 	std::list<std::string>* roomBoundingObjects_ = {};
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
@@ -190,7 +185,7 @@ public:
 	creates and stores the file and kernel for quick acess
 	*/
 	explicit helper() {};
-	explicit helper(const std::vector<std::string>& path);
+	explicit helper(const std::vector<std::string>& path, std::shared_ptr<SettingsCollection> settings);
 
 	~helper() {
 		for (size_t i = 0; i < productLookup_.size(); i++)
@@ -221,13 +216,6 @@ public:
 	std::string getBuildingLongName();
 	/// gets the project name
 	std::string getProjectName();
-
-	// returns the floor evalLvl
-	double getfootprintEvalLvl() { return footprintEvalLvl_; }
-
-	const std::string& getFileName() const { return fileName_; }
-
-	const std::string& getPath() const { return path_; }
 
 	// returns a pointer to the sourcefile
 	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
@@ -281,17 +269,6 @@ public:
 
 	template <typename T>
 	void voidShapeAdjust(T products);
-
-	void setPath(const std::string& path) { path_ = path; }
-
-	void setName(const std::string& name) { fileName_ = name; }
-
-	void setUseProxy(bool b) { useProxy_ = b; }
-
-	void setUseVoxelPlanes(bool b) { planeIntersection_ = b; }
-	bool getUseVoxelPlanes() { return planeIntersection_; }
-
-	void setfootprintLvl(double lvl) { footprintEvalLvl_ = lvl; }
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

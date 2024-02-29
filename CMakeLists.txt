@@ -59,8 +59,10 @@ inc/cjCreator.cpp
 inc/dataManager.cpp
 inc/helper.cpp
 inc/ioManager.cpp
+inc/settingsCollection.cpp
 inc/surfaceCollection.cpp
 inc/voxel.cpp
+inc/voxelGrid.cpp
 )
 
 foreach(LIB ${IFC_LIBRARIES})

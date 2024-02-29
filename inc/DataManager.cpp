@@ -7,7 +7,7 @@
 #include <thread>
 
 
-helper::helper(const std::vector<std::string>& pathList) {
+helper::helper(const std::vector<std::string>& pathList, std::shared_ptr<SettingsCollection> settings) {
 	for (size_t i = 0; i < pathList.size(); i++)
 	{
 		std::string path = pathList[i];
@@ -27,6 +27,9 @@ helper::helper(const std::vector<std::string>& pathList) {
 		dataCollectionSize_++;
 		isPopulated_ = true;
 	}
+
+	sudoSettings_ = settings;
+
 	return;
 }
 
@@ -377,7 +380,7 @@ void helper::indexGeo()
 				addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
 			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
-			if (useProxy_)
+			if (sudoSettings_->useProxy_)
 			{
 				startTime = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < dataCollectionSize_; i++) 
