@@ -670,22 +670,13 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 
 void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
 {
-#ifdef USE_IFC4
-	std::map<std::string, std::string> projectionMapMap;
-
-
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
+
+#ifdef USE_IFC4
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
 
-	if (mapList->size() == 0)
-	{
-		return;
-	}
-
-	if (mapList->size() > 1)
-	{
-		std::cout << "[WARNING] multiple map projections detected" << std::endl;
-	}
+	if (mapList->size() == 0) { return; }
+	if (mapList->size() > 1) { std::cout << "[WARNING] multiple map projections detected" << std::endl; }
 
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
 	transformation->setTranslation(
@@ -704,9 +695,103 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 		XAO, XAA, 0, 0,
 		0, 0, 1, 0
 	);
+#else
+	IfcSchema::IfcSite::list::ptr ifcSiteList = fileObejct->instances_by_type<IfcSchema::IfcSite>();
 
-	return;
+	if (ifcSiteList->size() == 0) { return; }
+	if (ifcSiteList->size() > 1) { std::cout << "[WARNING] multiple sites detected" << std::endl; }
+
+	IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
+	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
+
+	double Eastings = 0;
+	double Northings = 0;
+	double OrthogonalHeight = 0;
+
+	double XAO = 0;
+	double XAA = 0;
+
+	int mapConvCounter = 0;
+	for (auto relIt = relDefinesList->begin(); relIt != relDefinesList->end(); ++relIt)
+	{
+		IfcSchema::IfcRelDefines* relDefinesObject = *relIt;
+		int targetId = std::stoi(relDefinesObject->get("RelatingPropertyDefinition")->toString().erase(0, 1));
+		IfcSchema::IfcPropertySet* propertySet = fileObejct->instance_by_id(targetId)->as<IfcSchema::IfcPropertySet>();
+
+		if (propertySet->Name() != "ePSet_MapConversion") { continue; }
+
+		IfcSchema::IfcProperty::list::ptr propertyList = propertySet->HasProperties();
+		for (auto propIt = propertyList->begin(); propIt != propertyList->end(); ++propIt)
+		{
+			IfcSchema::IfcPropertySingleValue* propertyObject = (*propIt)->as<IfcSchema::IfcPropertySingleValue>();
+			std::string propertyName = propertyObject->Name();
+
+			if (propertyName == "TargetCRS")
+			{
+				IfcSchema::IfcLabel* crsLabel = propertyObject->NominalValue()->as<IfcSchema::IfcLabel>();
+				std::string stringcrs = crsLabel->data().getArgument(0)->toString();
+				metaData->setReferenceSystem(stringcrs.substr(1, stringcrs.size() - 2));
+				mapConvCounter++;
+			}
+			else if (propertyName == "Scale")
+			{
+				IfcSchema::IfcReal* scaleReal = propertyObject->NominalValue()->as<IfcSchema::IfcReal>();
+				transformation->setScale(*transformation->getScale() * double(*scaleReal->data().getArgument(0)));
+				mapConvCounter++;
+			}
+			else if (propertyName == "Eastings")
+			{
+				IfcSchema::IfcLengthMeasure* lengthValue = propertyObject->NominalValue()->as<IfcSchema::IfcLengthMeasure>();
+				Eastings = double(*lengthValue->data().getArgument(0));
+				mapConvCounter++;
+			}
+			else if (propertyName == "Northings")
+			{
+				IfcSchema::IfcLengthMeasure* lengthValue = propertyObject->NominalValue()->as<IfcSchema::IfcLengthMeasure>();
+				Northings = double(*lengthValue->data().getArgument(0));
+				mapConvCounter++;
+			}
+			else if (propertyName == "OrthogonalHeight")
+			{
+				IfcSchema::IfcLengthMeasure* lengthValue = propertyObject->NominalValue()->as<IfcSchema::IfcLengthMeasure>();
+				OrthogonalHeight = double(*lengthValue->data().getArgument(0));
+				mapConvCounter++;
+			}
+			else if (propertyName == "XAxisAbscissa")
+			{
+				IfcSchema::IfcReal* abReal = propertyObject->NominalValue()->as<IfcSchema::IfcReal>();
+				XAA = double(*abReal->data().getArgument(0));
+				mapConvCounter++;
+			}
+			else if (propertyName == "XAxisOrdinate")
+			{
+				IfcSchema::IfcReal* sordReal = propertyObject->NominalValue()->as<IfcSchema::IfcReal>();
+				XAO = double(*sordReal->data().getArgument(0));
+				mapConvCounter++;
+			}
+		}
+	}
+
+	if (mapConvCounter != 7)
+	{
+		std::cout << "[WARNING] no valid georeferencing found" << std::endl;
+		return;
+	}
+
+
+	trsf->SetValues(
+		XAA, -XAO, 0, 0,
+		XAO, XAA, 0, 0,
+		0, 0, 1, 0
+	);
+
+	transformation->setTranslation(
+		Eastings,
+		Northings,
+		OrthogonalHeight
+	);
 #endif // !USE_IFC4
+	return;
 }
 
 std::map<std::string, std::string> helper::getBuildingInformation()

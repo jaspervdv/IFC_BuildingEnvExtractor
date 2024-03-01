@@ -4,6 +4,8 @@
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 
 struct SettingsCollection {
+	// Input settings
+
 	// if true no comminucation is pushed to console
 	bool isSilent_ = false;
 
@@ -46,5 +48,7 @@ struct SettingsCollection {
 
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;
+
+	// generated settings
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

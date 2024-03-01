@@ -755,7 +755,6 @@ std::string IOManager::getLoDEnabled()
 }
 
 
-
 nlohmann::json IOManager::settingsToJSON()
 {
 	nlohmann::json settingsJSON;
