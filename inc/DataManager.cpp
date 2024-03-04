@@ -778,7 +778,6 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 		return;
 	}
 
-
 	trsf->SetValues(
 		XAA, -XAO, 0, 0,
 		XAO, XAA, 0, 0,

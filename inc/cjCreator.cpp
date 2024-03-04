@@ -2893,7 +2893,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 	double shellVolume = internalVoxels.size()* voxelVolume;
 
-	shellObject->addAttribute("Env_ex Vvolume", shellVolume);
+	shellObject->addAttribute("Env_ex V shell volume", shellVolume);
 
 	double lowerEvalHeight = footprintHeight - (0.5 * voxelSize);
 	double higherEvalHeight = footprintHeight + (0.5 * voxelSize);
@@ -2948,13 +2948,13 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 		windowArea += voxelArea;
 	}
 
-	shellObject->addAttribute("Env_ex Vvolume basement", basementVolume);
-	shellObject->addAttribute("Env_ex Vvolume building", shellVolume - basementVolume);
-	shellObject->addAttribute("Env_ex VArea", shellArea);
-	shellObject->addAttribute("Env_ex VArea basement", basementArea + footprintArea);
-	shellObject->addAttribute("Env_ex VArea building", shellArea - basementArea + footprintArea);
-	shellObject->addAttribute("Env_ex VArea footprint", footprintArea);
-	shellObject->addAttribute("Env_ex VArea Facade Openings", windowArea);
+	shellObject->addAttribute("Env_ex V basement shell volume", basementVolume);
+	shellObject->addAttribute("Env_ex V building shell volume", shellVolume - basementVolume);
+	shellObject->addAttribute("Env_ex V shell area", shellArea);
+	shellObject->addAttribute("Env_ex V basement shell area", basementArea + footprintArea);
+	shellObject->addAttribute("Env_ex V building shell area", shellArea - basementArea + footprintArea);
+	shellObject->addAttribute("Env_ex V footprint area", footprintArea);
+	shellObject->addAttribute("Env_ex V facade opening area", windowArea);
 	shellObject->addAttribute("Env_ex voxelSize", voxelSize);
 
 	gp_Pnt anchor = voxelGrid_->getAnchor();

@@ -15,7 +15,7 @@ Current possible output shells:
 * LoD1.3 (exterior only)
 * LoD2.2 (exterior only)
 * LoD3.2 (exterior only) (WIP)
-* LoD5.0 (exterior only)
+* LoD5.0 (exterior and interior rooms) (WIP)
 
 For the extraction of the exterior shell the tool utilizes three different extraction methods that can be used on progressively more accurate models. Lower detail shells (LoD 0.0 & 1.0) can be extracted only based on the vertices present in a model. Middle level detail shells (Lod 0.2 w/o footprint, 1.2, 1.3, 2.2) can be extracted based on the model’s roofing structures. High level detail shells (Lod 0.2 w/ footprint and 3.2) can be extracted based on the model’s objects that are part of the building envelope. This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses. These features are often only present in models that are made manually.
 
@@ -29,8 +29,8 @@ This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestion
 
 ## Table of Content
 
-* [How to Execute](#how-to-execute)
-* [How to Build](#how-to-build)
+* [How to execute](#how-to-execute)
+* [How to build](#how-to-build)
 * [GUI](#gui)
 * [Input file requirements](#input-file-requirements)
 * [Output file structure](#output-file-structure)
@@ -44,9 +44,12 @@ This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestion
   * [Room/space extraction](#roomspace-extraction)
   * [Apartment/area extraction](#apartmentarea-extraction)
 * [Settings JSON](#settings-json)
+* [Additional stored attributes](#additional-stored-attributes)
+    * [Georeferencing](#georeferencing)
+    * [Voxel summary values](#voxel-summary-values)
 * [References](#references)
 
-## How to Execute
+## How to execute
 
 The tool can be used directly with the executables located in the Pre_Build folder. The folder should contain three executables:
 
@@ -58,7 +61,7 @@ The _Ifc_Envelope_Extractor_ifc2x3.exe_ or _Ifc_Envelope_Extractor_ifc4.exe_ can
 
 If a more direct (human) user friendly approach is desired both the aforementioned .exe can be called with the help of the _Ext_GUI.exe_ ([more info](#gui)).
 
-## How to Build
+## How to build
 
 If it is desired to compile the code locally the following libraries are required:
 
@@ -164,9 +167,9 @@ At this moment in time this extraction method is slow and does not return solids
 
 ### voxel shells
 
-Additionally the tool will also be able to export a shell based on the voxelgrid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxelgrid that is used primairily for filtering and raycasting purposes. Possibly this will follow different rules than are anticipated.
+Additionally the tool will also be able to export a shell based on the voxelgrid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxelgrid that is used primarily for filtering and raycasting purposes. Possibly this will follow different rules than are anticipated.
 
-## Inner shell generation Methods (Experimental/WIP)
+## Inner shell generation methods (Experimental/WIP)
 
 **THIS EXTRACTION IS NOT YET PROPERLY IMPLEMENTED; THIS SECTION WILL NOT BE ACCURATE**.
 
@@ -219,7 +222,9 @@ The settings json has a very simple structure. An example can be found below:
         1.2,
         1.3,
         2.2
-    ]
+    ],
+    "Voxel summary": 0,
+    "voxel planes" : 0
 }
 ```
 
@@ -238,12 +243,36 @@ Optional:
 * "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
 * "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
 * "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
-* "Generate interior" is an int/bool (ether 0 or 1) to enable interior shapes to be stored to the exported file.
-* "Generate footprint" is an int/bool (ether 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
-* "Generate roof outline" is an int/bool (ether 0 or 1) to enable the roof outline export for LoD0.2
+* "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
+* "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
+* "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
 * "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
+* "Voxel summary" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes.
+* "voxel planes" is an int/bool (either 0 or 1) that can toggle a alternative rule system for voxel intersection. If toggled on 3 planes centralized planes are used for intersection instead of the full voxel geometry.
 
 more options will be added in the future.
+
+## Additional stored attributes
+
+### Georeferencing
+
+The CityJSON output can be properly georeferenced if the input IFC file has a proper georeferencing. For IFC4 the method described [here](https://www.buildingsmart.org/wp-content/uploads/2020/02/User-Guide-for-Geo-referencing-in-IFC-v2.0.pdf) is adhered to. For IFC2x3 a custom method is apply that is used by the [ifcgref](https://github.com/tudelft3d/ifcgref) tool. If these methods are not followed the output JSON is either not georeferenced or incorrectly georeferenced.
+
+### Voxel summary values
+
+The EnvExtractor allows the voxel shell to be used for the approximation of a set of building output variables. Current computed values are the:
+
+* Shell area
+* Basement shell area
+* Building shell area
+* Footprint area
+* Facade opening area
+* Shell volume
+* Basement shell volume
+* Building shell volume
+
+These attributes are prefaced with "Env_ex V" to highlight that these values are approximated utilizing the voxel grid. The accuracy of these variables are heavily dependent on the size of the utilized voxels and the shape of the buildings. If the proper voxel size is selected the volume approximations and the footprint area can be very accurate. However, the shell area computations area extremely unreliable regardless of the input variables.
+
 
 ## References
 
