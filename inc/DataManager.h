@@ -31,22 +31,15 @@ class lookupValue
 {
 private:
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
-	std::unique_ptr<std::vector<std::vector<gp_Pnt>>> triangulatedShape_;
 	TopoDS_Shape cBox_;
 
 public:
-	lookupValue(IfcSchema::IfcProduct* productPtr, const std::vector<std::vector<gp_Pnt>>& triangulatedShape, const TopoDS_Shape& cBox);
+	lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& cBox);
 
 	~lookupValue() {
 	}
 
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
-
-	bool hasTraingulatedShape();
-
-	std::vector<std::vector<gp_Pnt>>* getTriangluatedShape() { return triangulatedShape_.get(); }
-
-	void setTriangluatedShape(const std::vector<std::vector<gp_Pnt>>& triangulatedShape) { triangulatedShape_ = std::make_unique<std::vector<std::vector<gp_Pnt>>>(triangulatedShape); }
 
 	bool hasCBox() { return !cBox_.IsNull(); }
 
@@ -250,7 +243,6 @@ public:
 	bool hasIndex() { return hasIndex_; }
 
 	lookupValue* getLookup(int i) { return productLookup_.at(i); }
-	void updateLookupTriangle(const std::vector<std::vector<gp_Pnt>>& triangleMeshList, int i) { productLookup_.at(i)->setTriangluatedShape(triangleMeshList); }
 
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 
@@ -259,11 +251,7 @@ public:
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
 	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, bool memorize = true);
 	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted = false);
-	void updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
 	void applyVoids();
-
-	std::vector<std::vector<gp_Pnt>> triangulateProduct(IfcSchema::IfcProduct* product);
-	std::vector<std::vector<gp_Pnt>> triangulateShape(const TopoDS_Shape& shape);
 
 	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);
 

@@ -569,6 +569,12 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 	return productList;
 }
 
+void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
+{
+	auto hasTriangles = BRepTools::Triangulation(shape, 0.01);
+	if (!hasTriangles) { auto mesh = BRepMesh_IncrementalMesh(shape, 0.01); }
+}
+
 
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
 	BoostPoint3D p1(vertices[0].X() - vertices[1].X(), vertices[0].Y() - vertices[1].Y(), vertices[0].Z() - vertices[1].Z());

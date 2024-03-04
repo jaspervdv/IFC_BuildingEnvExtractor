@@ -913,47 +913,6 @@ std::string helper::getProjectName()
 }
 
 
-std::vector<std::vector<gp_Pnt>> helper::triangulateProduct(IfcSchema::IfcProduct* product)
-{
-	return triangulateShape(getObjectShapeFromMem(product, true));
-}
-
-
-std::vector<std::vector<gp_Pnt>> helper::triangulateShape(const TopoDS_Shape& shape)
-{
-	std::vector<TopoDS_Face> faceList = helperFunctions::shape2FaceList(shape);
-	std::vector<std::vector<gp_Pnt>> triangleMeshList;
-
-	for (size_t i = 0; i < faceList.size(); i++)
-	{
-		BRepMesh_IncrementalMesh faceMesh = BRepMesh_IncrementalMesh(faceList[i], 0.004);
-
-		TopLoc_Location loc;
-		auto mesh = BRep_Tool::Triangulation(faceList[i], loc);
-		const gp_Trsf& trsf = loc.Transformation();
-
-		if (mesh.IsNull()) //TODO warning
-		{
-			continue;
-		}
-
-		for (size_t j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: find out if there is use to keep the opencascade structure
-		{
-			const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
-			std::vector<gp_Pnt> trianglePoints;
-			for (size_t k = 1; k <= 3; k++)
-			{
-				gp_Pnt p = mesh->Nodes().Value(theTriangle(k)).Transformed(trsf);
-				trianglePoints.emplace_back(p);
-			}
-			triangleMeshList.emplace_back(trianglePoints);
-		}
-	}
-	return triangleMeshList;
-}
-
-
 template <typename T>
 void helper::addObjectToIndex(const T& object) {
 	for (auto it = object->begin(); it != object->end(); ++it) {
@@ -992,8 +951,7 @@ void helper::addObjectToIndex(const T& object) {
 		}
 
 		index_.insert(std::make_pair(box, (int)index_.size()));
-		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);
-		lookupValue* lookup = new lookupValue(product, triangleMeshList, cbbox);
+		lookupValue* lookup = new lookupValue(product, cbbox);
 		productLookup_.emplace_back(lookup);
 	}
 }
@@ -1171,6 +1129,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	comp = brep->geometry().as_compound();
 	comp.Move(trsf * placement); // location in global space
 	comp.Move(objectTranslation_);
+	helperFunctions::triangulateShape(comp);
 
 	if (hasHoles)
 	{
@@ -1181,6 +1140,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		simpleComp = brep->geometry().as_compound();
 		simpleComp.Move(trsf * placement); // location in global space
 		simpleComp.Move(objectTranslation_);
+		helperFunctions::triangulateShape(simpleComp);
 	}
 
 	if (memorize) { shapeLookup_[product->GlobalId()] = comp; }
@@ -1198,6 +1158,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted)
 {
 	if (!product->hasRepresentation()) { return; }
+
+	helperFunctions::triangulateShape(shape);
 
 	// filter with lookup
 	if (!adjusted)
@@ -1218,28 +1180,6 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 			return;
 		}
 		adjustedshapeLookup_[product->GlobalId()] = shape;
-	}
-}
-
-
-void helper::updateIndex(IfcSchema::IfcProduct* product, TopoDS_Shape shape) {
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-	auto base = helperFunctions::rotatedBBoxDiagonal(getObjectPoints(product), &lllPoint, &urrPoint, 0);
-
-	std::vector<Value> qResult;
-	boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(helperFunctions::Point3DOTB(lllPoint), helperFunctions::Point3DOTB(urrPoint));
-
-	index_.query(bgi::intersects(qBox), std::back_inserter(qResult));
-	for (size_t i = 0; i < qResult.size(); i++)
-	{
-		lookupValue* lookup = getLookup(qResult[i].second);
-		IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
-
-		if (qProduct->data().id() != product->data().id()) { continue; }
-
-		std::vector<std::vector<gp_Pnt>> triangleMeshList = triangulateProduct(product);
-		updateLookupTriangle(triangleMeshList, qResult[i].second);
 	}
 }
 
@@ -1403,7 +1343,6 @@ void helper::voidShapeAdjust(T products)
 		{
 			TopoDS_Shape finalShape = getObjectShape(wallProduct, false);
 			updateShapeLookup(wallProduct, finalShape, true);
-			updateIndex(wallProduct, finalShape);
 		}
 
 		else if (validVoidShapes.size() > 0 && voidElementList->size() > 0) 
@@ -1461,24 +1400,15 @@ void helper::voidShapeAdjust(T products)
 				}
 			}
 			updateShapeLookup(wallProduct, finalShape, true);
-			updateIndex(wallProduct, finalShape);
 		}
 	}
 }
 
 
-lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const std::vector<std::vector<gp_Pnt>>& triangulatedShape, const TopoDS_Shape& cBox)
+lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& cBox)
 {
 	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
-	setTriangluatedShape(triangulatedShape);
 	cBox_ = cBox;
-}
-
-
-bool lookupValue::hasTraingulatedShape()
-{
-	if (triangulatedShape_.get()->size() > 0) { return true; }
-	return false;
 }
 
 

@@ -105,7 +105,7 @@ struct helperFunctions{
 	static std::vector<IfcSchema::IfcProduct*> getNestedProducts(IfcSchema::IfcProduct* product);
 
 	/// get a nested list represeting the triangulation of an object
-	static std::vector<std::vector<gp_Pnt>> triangulateShape(const TopoDS_Shape& shape);
+	static void triangulateShape(const TopoDS_Shape& shape);
 
 	/// get the signed volume
 	static double tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices);

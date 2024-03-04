@@ -221,33 +221,65 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	std::vector<std::vector<int>> vets;
 	if (planeIntersection) { vets = getPlaneEdges(); }
 	else { vets = getVoxelEdges(); }
-	
-	std::vector<std::vector<gp_Pnt>>* triangleMesh = lookup.getTriangluatedShape();
-	for (size_t i = 0; i < triangleMesh->size(); i++)
+
+	TopoDS_Shape productShape = h->getObjectShape(product, true);
+	for (TopExp_Explorer expl(productShape, TopAbs_FACE); expl.More(); expl.Next())
 	{
-		std::vector<gp_Pnt> triangle = triangleMesh->at(i);
-		for (size_t k = 0; k < vets.size(); k++)
+		TopoDS_Face productFace = TopoDS::Face(expl.Current());
+
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(productFace, loc);
+
+		for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
 		{
-			if (helperFunctions::triangleIntersecting({ voxelPoints[vets[k][0]], voxelPoints[vets[k][1]] }, triangle))
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+
+			std::vector<gp_Pnt> trianglePoints{
+				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+			};
+
+			for (size_t k = 0; k < vets.size(); k++)
 			{
-				isIntersecting_ = true;
-				return true;
+				if (helperFunctions::triangleIntersecting({ voxelPoints[vets[k][0]], voxelPoints[vets[k][1]] }, trianglePoints))
+				{
+					isIntersecting_ = true;
+					return true;
+				}
 			}
 		}
 	}
+
 
 	// check if voxel is completely inside of object
 	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 1000);
 	int counter = 0;
 
-	for (size_t i = 0; i < triangleMesh->size(); i++)
+	for (TopExp_Explorer expl(productShape, TopAbs_FACE); expl.More(); expl.Next())
 	{
-		std::vector<gp_Pnt> triangle = triangleMesh->at(i);
-		if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, triangle))
+		TopoDS_Face productFace = TopoDS::Face(expl.Current());
+
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(productFace, loc);
+
+		for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
 		{
-			counter++; 
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+
+			std::vector<gp_Pnt> trianglePoints{
+				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+			};
+
+			if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
+			{
+				counter++;
+			}
 		}
 	}
+
 	if (counter%2 == 1)
 	{
 		isIntersecting_ = true;
