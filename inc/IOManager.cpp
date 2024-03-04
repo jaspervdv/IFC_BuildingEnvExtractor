@@ -888,7 +888,6 @@ bool IOManager::run()
 	// internalize the helper data
 	internalHelper_->internalizeGeo();
 	internalHelper_->indexGeo();
-
 	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
 	// create the cjt objects
 	std::unique_ptr<CJT::CityCollection> collection = std::make_unique<CJT::CityCollection>();

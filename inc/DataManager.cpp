@@ -674,18 +674,21 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 
 #ifdef USE_IFC4
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
-
 	if (mapList->size() == 0) { return; }
 	if (mapList->size() > 1) { std::cout << "[WARNING] multiple map projections detected" << std::endl; }
-
+	
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
+
 	transformation->setTranslation(
 		mapConversion->Eastings(),
 		mapConversion->Northings(),
 		mapConversion->OrthogonalHeight()
 	);
+
 	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
-	transformation->setScale(*transformation->getScale() * mapConversion->Scale());
+
+	if (mapConversion->hasScale()) { transformation->setScale(*transformation->getScale() * mapConversion->Scale()); }
+	if (!mapConversion->hasXAxisAbscissa() || !mapConversion->hasXAxisOrdinate()) { return; }
 
 	double XAO = mapConversion->XAxisOrdinate();
 	double XAA = mapConversion->XAxisAbscissa();
