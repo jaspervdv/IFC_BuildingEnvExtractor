@@ -627,6 +627,17 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	// set generated settings
+	if (sudoSettingsPtr_->make00_ || sudoSettingsPtr_->make10_)
+	{
+		if (!sudoSettingsPtr_->make02_ && !sudoSettingsPtr_->make12_ && 
+			!sudoSettingsPtr_->make13_ && !sudoSettingsPtr_->make22_ && 
+			!sudoSettingsPtr_->make32_)
+		{
+			sudoSettingsPtr_->requireVoxels_ = false;
+		}
+	}
+
 	return true;
 }
 

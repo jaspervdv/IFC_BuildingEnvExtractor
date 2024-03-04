@@ -50,5 +50,8 @@ struct SettingsCollection {
 	int proxyCount_ = 0;
 
 	// generated settings
+
+	// if LoD0.0 and 1.0 is generated only no voxels are required
+	bool requireVoxels_ = true;
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

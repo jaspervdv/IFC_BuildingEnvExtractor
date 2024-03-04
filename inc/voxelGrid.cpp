@@ -101,6 +101,8 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 		std::cout << totalVoxels_ << std::endl;
 	}
 
+	if (!sudoSettings_->requireVoxels_) { return; } // no voxels needed for lod0.0 and 1.0 only
+
 	std::cout << "- Populate Grid" << std::endl;
 	populatedVoxelGrid(h);
 
@@ -148,6 +150,8 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	}
 	std::cout << "\tVoxel pairing succesful" << std::endl;
 	std::cout << "\t" << buildingNum << " buildings(s) found" << std::endl << std::endl;
+
+	return;
 }
 
 void VoxelGrid::populatedVoxelGrid(helper* h)
