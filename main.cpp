@@ -24,6 +24,7 @@
 #endif
 
 
+
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::string issueEncounterString = "[INFO] encountered an issue";
@@ -60,9 +61,15 @@ int main(int argc, char** argv) {
 	if (!success)
 	{
 		std::cout << "[WARNING] unable to process file(s)" << std::endl;
-		return 0;
+		return 1;
 	}
-	manager.run();
+
+	if (!manager.run())
+	{
+		std::cout << "[WARNING] unable to process file(s)" << std::endl;
+		manager.write();
+		return 1;
+	}
 	manager.write();
 	
 	return 0;

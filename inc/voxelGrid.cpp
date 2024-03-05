@@ -2,10 +2,13 @@
 #include "voxelGrid.h"
 #include "voxel.h"
 
-void VoxelGrid::addVoxel(int indx, helper* h)
+bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
+
+	//helperFunctions::printPoint(midPointOCCT);
+
 	voxel* boxel = new voxel(midPoint, sudoSettings_->voxelSize_, sudoSettings_->voxelSize_);
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
@@ -15,40 +18,62 @@ void VoxelGrid::addVoxel(int indx, helper* h)
 	if (sudoSettings_->planeIntersection_) { pointList = boxel->getPlanePoints(planeRotation_); }
 	else { pointList = boxel->getCornerPoints(planeRotation_); }
 
+	bool isIntersecting = false;
 
-	std::vector<Value> qResult;
-
-	qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-	h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
-
-	for (size_t k = 0; k < qResult.size(); k++)
+	if (checkIfInt)
 	{
-		lookupValue* lookup = h->getLookup(qResult[k].second);
-		if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->planeIntersection_))
+		std::vector<Value> qResult;
+		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+		h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
+		for (size_t k = 0; k < qResult.size(); k++)
 		{
-			boxel->addInternalProduct(qResult[k]);
+			lookupValue* lookup = h->getLookup(qResult[k].second);
+			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->planeIntersection_))
+			{
+				boxel->addInternalProduct(qResult[k]);
+				isIntersecting = true;
+			}
 		}
 	}
 
 	std::unique_lock<std::mutex> voxelWriteLock(voxelLookupMutex);
 	VoxelLookup_.emplace(indx, boxel);
 	voxelWriteLock.unlock();
-	return;
+	return isIntersecting;
 }
 
-void VoxelGrid::addVoxelPool(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount)
+
+void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount)
 {
 	std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
 	voxelCountLock.unlock();
 
-	for (int i = beginIindx; i < endIdx; i++) {
-		addVoxel(i, h);
-		std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
-		(*voxelGrowthCount)++;
-		voxelCountLock.unlock();
+	int plate = (zRelRange_ -1) * xRelRange_  * yRelRange_ ;
+
+	for (int i = beginIindx; i < endIdx; i++)
+	{
+		int voxelIndx = plate + i;
+		bool intersect = true;
+		while (true)
+		{
+			if (
+				addVoxel(voxelIndx, h, intersect) &&
+				!sudoSettings_->requireFullVoxels_
+				)
+			{
+				intersect = false;
+			}
+
+			std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
+			(*voxelGrowthCount)++;
+			voxelCountLock.unlock();
+
+			voxelIndx = getLowerNeighbour(voxelIndx);
+
+			if (voxelIndx == -1) { break; }
+		}
 	}
 }
-
 
 VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 {
@@ -101,15 +126,23 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 		std::cout << totalVoxels_ << std::endl;
 	}
 
-	if (!sudoSettings_->requireVoxels_) { return; } // no voxels needed for lod0.0 and 1.0 only
+	if (!sudoSettings_->requireVoxels_) { 
+		std::cout << "[INFO] No voxelization required "  << std::endl;
+		return; 
+	} // no voxels needed for lod0.0 and 1.0 only
 
 	std::cout << "- Populate Grid" << std::endl;
 	populatedVoxelGrid(h);
 
+	if (!sudoSettings_->requireFullVoxels_) { 
+		std::cout << "[INFO] No complete voxelization required " << std::endl;
+		return; 
+	}
+
 	std::cout << "- Exterior space growing" << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
-		if (!VoxelLookup_[i]->getIsIntersecting()) //TODO: improve this
+		if (!VoxelLookup_[i]->getIsIntersecting())
 		{
 			exteriorVoxelsIdx_ = growExterior(i, 0, h);
 			break;
@@ -159,7 +192,7 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
 	int coreUse = coreCount - 1;
-	int splitListSize = floor(totalVoxels_ / coreUse);
+	int splitListSize = floor(xRelRange_* yRelRange_ / coreUse);
 	int voxelsGrown = 0;
 
 	std::vector<std::thread> threadList;
@@ -169,10 +202,10 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 		int beginIdx = i * splitListSize;
 		int endIdx = (i + 1) * splitListSize;
 
-		if (i == coreUse - 1) { endIdx = totalVoxels_; }
+		if (i == coreUse - 1) { endIdx = xRelRange_ * yRelRange_; }
 
 		threadList.emplace_back([=, &voxelsGrown]() {
-			addVoxelPool(beginIdx, endIdx, h, &voxelsGrown);
+			addVoxelColumn(beginIdx, endIdx, h, &voxelsGrown);
 			});
 	}
 

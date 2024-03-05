@@ -36,8 +36,8 @@ private:
 	void populatedVoxelGrid(helper* h);
 
 	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	void addVoxel(int indx, helper* h);
-	void addVoxelPool(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount = nullptr);
+	bool addVoxel(int indx, helper* h, bool checkIfInt = true); /// returns true if intersects
+	void addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount = nullptr);
 	void countVoxels(const int* voxelGrowthCount);
 
 	// transform coordinates

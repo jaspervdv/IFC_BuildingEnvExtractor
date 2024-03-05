@@ -638,6 +638,15 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	if (!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->makeV_)
+	{
+		if (!sudoSettingsPtr_->makeFootPrint_ && !sudoSettingsPtr_->makeInterior_)
+		{
+			sudoSettingsPtr_->requireFullVoxels_ = false;
+		}
+	}
+
+
 	return true;
 }
 
@@ -885,6 +894,8 @@ bool IOManager::run()
 	// Time Collection Starts
 	auto internalizingTime = std::chrono::high_resolution_clock::now();
 	
+	int succesfullExit = 1;
+
 	// internalize the helper data
 	internalHelper_->internalizeGeo();
 	internalHelper_->indexGeo();
@@ -896,7 +907,10 @@ bool IOManager::run()
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle("Auto export from IfcEnvExtractor");
-	internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
+	if (sudoSettingsPtr_->geoReference_)
+	{
+		internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
+	}
 	transformation.setScale(*transformation.getScale()); //TODO: fix cjt to make this not required.
 
 	// Set up objects and their relationships
@@ -951,6 +965,7 @@ bool IOManager::run()
 		catch (const std::exception&)
 		{
 			ErrorList_.emplace_back("Footprint creation failed");
+			succesfullExit = 0;
 		}
 	}
 
@@ -963,6 +978,7 @@ bool IOManager::run()
 		catch (const std::exception&)
 		{
 			ErrorList_.emplace_back("storey creation failed");
+			succesfullExit = 0;
 		}
 	}
 
@@ -982,7 +998,11 @@ bool IOManager::run()
 			cityShellObject.addGeoObject(*geo00);
 			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.0 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD0.0 creation failed"); 
+			succesfullExit = 0;
+		}
 
 	}
 	if (makeLoD02())
@@ -994,7 +1014,11 @@ bool IOManager::run()
 			for (size_t i = 0; i < geo02.size(); i++) { cityShellObject.addGeoObject(*geo02[i]); }
 			
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD0.2 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD0.2 creation failed"); 			
+			succesfullExit = 0;
+		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 
 	}
@@ -1007,7 +1031,11 @@ bool IOManager::run()
 			cityShellObject.addGeoObject(*geo10);
 			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.0 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD1.0 creation failed");
+			succesfullExit = 0;
+		}
 	}
 	if (makeLoD12())
 	{
@@ -1018,7 +1046,11 @@ bool IOManager::run()
 			for (size_t i = 0; i < geo12.size(); i++) { cityShellObject.addGeoObject(*geo12[i]); }
 			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.2 creation failed"); }
+		catch (const std::exception&)
+		{ 
+			ErrorList_.emplace_back("LoD1.2 creation failed"); 
+			succesfullExit = 0;
+		}
 	}
 	if (makeLoD13())
 	{
@@ -1029,7 +1061,11 @@ bool IOManager::run()
 			for (size_t i = 0; i < geo13.size(); i++) { cityShellObject.addGeoObject(*geo13[i]); }
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD1.3 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD1.3 creation failed"); 
+			succesfullExit = 0;
+		}
 	}
 	if (makeLoD22())
 	{
@@ -1040,7 +1076,11 @@ bool IOManager::run()
 			for (size_t i = 0; i < geo22.size(); i++) { cityShellObject.addGeoObject(*geo22[i]); }
 			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD2.2 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD2.2 creation failed"); 
+			succesfullExit = 0;
+		}
 	}
 	if (makeLoD32())
 	{
@@ -1051,7 +1091,11 @@ bool IOManager::run()
 			for (size_t i = 0; i < geo32.size(); i++) { cityShellObject.addGeoObject(*geo32[i]); }
 			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
-		catch (const std::exception&) { ErrorList_.emplace_back("LoD3.2 creation failed"); }
+		catch (const std::exception&) 
+		{ 
+			ErrorList_.emplace_back("LoD3.2 creation failed"); 
+			succesfullExit = 0;
+		}
 	}
 	if (makeV())
 	{
@@ -1143,7 +1187,7 @@ bool IOManager::run()
 	collectionPtr->cullDuplicatedVerices();
 	cityCollection_ = std::move(collection);
 
-	return true;
+	return succesfullExit;
 }
 
 bool IOManager::write()

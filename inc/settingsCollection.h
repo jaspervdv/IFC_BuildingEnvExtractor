@@ -32,6 +32,8 @@ struct SettingsCollection {
 	bool makeRoofPrint_ = true;
 	bool makeInterior_ = false;
 
+	bool geoReference_ = true;
+
 	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
 
@@ -53,5 +55,8 @@ struct SettingsCollection {
 
 	// if LoD0.0 and 1.0 is generated only no voxels are required
 	bool requireVoxels_ = true;
+
+	// if Only roof outlines are required no full voxelization is needed.
+	bool requireFullVoxels_ = true;
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
