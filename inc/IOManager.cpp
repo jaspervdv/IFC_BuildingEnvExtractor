@@ -574,6 +574,14 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	if (json.contains("Georeference"))
+	{
+		if (json["Georeference"] == 0)
+		{
+			sudoSettingsPtr_->geoReference_ = false;
+		}		
+	}
+
 	if (json.contains("voxelSize"))
 	{
 		nlohmann::json voxelData = json["voxelSize"];

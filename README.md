@@ -215,6 +215,7 @@ The settings json has a very simple structure. An example can be found below:
     "Generate interior": 1,
     "Generate footprint": 1,
     "Generate roof outline": 1,
+    "Georeference" : 1,
     "LoD output": [
         0.0,
         0.2,
@@ -246,6 +247,7 @@ Optional:
 * "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
 * "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
 * "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
+* "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing.
 * "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
 * "Voxel summary" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes.
 * "Voxel planes" is an int/bool (either 0 or 1) that can toggle a alternative rule system for voxel intersection. If toggled on 3 planes centralized planes are used for intersection instead of the full voxel geometry.
@@ -272,7 +274,6 @@ The EnvExtractor allows the voxel shell to be used for the approximation of a se
 * Building shell volume
 
 These attributes are prefaced with "Env_ex V" to highlight that these values are approximated utilizing the voxel grid. The accuracy of these variables are heavily dependent on the size of the utilized voxels and the shape of the buildings. If the proper voxel size is selected the volume approximations and the footprint area can be very accurate. However, the shell area computations area extremely unreliable regardless of the input variables.
-
 
 ## References
 
