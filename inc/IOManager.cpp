@@ -597,9 +597,9 @@ bool IOManager::getJSONValues()
 		}
 	}
 
-	if (json.contains("voxel planes"))
+	if (json.contains("Voxel planes"))
 	{
-		if (json["voxel planes"] == 1)
+		if (json["Voxel planes"] == 1)
 		{
 			sudoSettingsPtr_->planeIntersection_ = true;
 		}

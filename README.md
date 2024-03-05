@@ -224,7 +224,7 @@ The settings json has a very simple structure. An example can be found below:
         2.2
     ],
     "Voxel summary": 0,
-    "voxel planes" : 0
+    "Voxel planes" : 0
 }
 ```
 
@@ -248,7 +248,7 @@ Optional:
 * "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
 * "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
 * "Voxel summary" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes.
-* "voxel planes" is an int/bool (either 0 or 1) that can toggle a alternative rule system for voxel intersection. If toggled on 3 planes centralized planes are used for intersection instead of the full voxel geometry.
+* "Voxel planes" is an int/bool (either 0 or 1) that can toggle a alternative rule system for voxel intersection. If toggled on 3 planes centralized planes are used for intersection instead of the full voxel geometry.
 
 more options will be added in the future.
 
