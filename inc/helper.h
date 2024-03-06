@@ -104,6 +104,11 @@ struct helperFunctions{
 	/// get the products nested in this object
 	static std::vector<IfcSchema::IfcProduct*> getNestedProducts(IfcSchema::IfcProduct* product);
 
+	/// translates objects back to original positions, transforms to coply with georeferencing, and translates objects back to corrected position
+	static void geoTransform(TopoDS_Shape* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
+	static void geoTransform(TopoDS_Face* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
+	static void geoTransform(gp_Pnt* point, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
+
 	/// get a nested list represeting the triangulation of an object
 	static void triangulateShape(const TopoDS_Shape& shape);
 

@@ -1148,14 +1148,16 @@ bool IOManager::run()
 	gp_Trsf ExtenstTranslation;
 	ExtenstTranslation.SetTranslationPart(gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2]));
 
-
 	gp_Pnt lll = internalHelper_.get()->getLllPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
 	gp_Pnt urr = internalHelper_.get()->getUrrPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
 
 	gp_Trsf trs;
 	trs.SetRotation(geoCreator.getRefRotation().GetRotation());
 	trs.SetTranslationPart(
-		gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2]
+		gp_Vec(
+			transformation.getTranslation()[0] + internalHelper_.get()->getObjectTranslation().TranslationPart().X(), 
+			transformation.getTranslation()[1] + internalHelper_.get()->getObjectTranslation().TranslationPart().Y(),
+			transformation.getTranslation()[2] + internalHelper_.get()->getObjectTranslation().TranslationPart().Z()
 		)
 	);
 

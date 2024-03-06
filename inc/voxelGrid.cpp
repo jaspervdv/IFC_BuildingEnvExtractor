@@ -105,7 +105,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
 
-	planeRotation_ = h->getRotation(); //tODO: make this centralized as well 
+	planeRotation_ = h->getRotation();
 
 	if (false)
 	{

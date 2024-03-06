@@ -165,14 +165,19 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 	{
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 
+		//std::cout << "1" << std::endl;
 		std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
+		//std::cout << "2" << std::endl;
 		std::vector<gp_Pnt> pointListWallSt = getAllTypePoints<IfcSchema::IfcWallStandardCase::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWallStandardCase>());
+		//std::cout << "3" << std::endl;
 		std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcRoof>());
+		//std::cout << "4" << std::endl;
 		std::vector<gp_Pnt> pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcSlab>());
+		//std::cout << "5" << std::endl;
 		std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWindow>());
+		//std::cout << "6" << std::endl;
 
 		pointList.reserve(pointListWall.size() + pointListWallSt.size() + pointListRoof.size() + pointLisSlab.size() + pointListWindow.size());
-
 		pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
 		pointList.insert(pointList.end(), pointListWallSt.begin(), pointListWallSt.end());
 		pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
@@ -222,6 +227,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 		angle = angle / 2;
 	}
 	*originRot = rotation;
+
 	return;
 }
 
@@ -679,12 +685,6 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 	
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
 
-	transformation->setTranslation(
-		mapConversion->Eastings(),
-		mapConversion->Northings(),
-		mapConversion->OrthogonalHeight()
-	);
-
 	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
 
 	if (mapConversion->hasScale()) { transformation->setScale(*transformation->getScale() * mapConversion->Scale()); }
@@ -697,6 +697,14 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 		XAA, -XAO, 0, 0,
 		XAO, XAA, 0, 0,
 		0, 0, 1, 0
+	);
+
+	gp_XYZ invertedObjectTrsf = objectTranslation_.Inverted().TranslationPart();
+
+	transformation->setTranslation(
+		mapConversion->Eastings() + invertedObjectTrsf.X(),
+		mapConversion->Northings() + invertedObjectTrsf.Y(),
+		mapConversion->OrthogonalHeight()
 	);
 #else
 	IfcSchema::IfcSite::list::ptr ifcSiteList = fileObejct->instances_by_type<IfcSchema::IfcSite>();

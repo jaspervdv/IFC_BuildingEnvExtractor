@@ -569,6 +569,29 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 	return productList;
 }
 
+void helperFunctions::geoTransform(TopoDS_Shape* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
+{
+	shape->Move(objectTrans.Inverted());
+	shape->Move(geoTrans);
+	shape->Move(objectTrans);
+}
+
+
+void helperFunctions::geoTransform(TopoDS_Face* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
+{
+	shape->Move(objectTrans.Inverted());
+	shape->Move(geoTrans);
+	shape->Move(objectTrans);
+}
+
+void helperFunctions::geoTransform(gp_Pnt* point, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
+{
+	point->Translate(objectTrans.Inverted().TranslationPart());
+	point = &helperFunctions::rotatePointWorld(*point, geoTrans.GetRotation().GetRotationAngle());
+	point->Translate(geoTrans.TranslationPart());
+	point->Translate(objectTrans.TranslationPart());
+}
+
 void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 {
 	auto hasTriangles = BRepTools::Triangulation(shape, 0.01);
