@@ -1145,26 +1145,25 @@ bool IOManager::run()
 	collectionPtr->setVersion("1.1");
 
 	// compute the extends
-	gp_Trsf ExtenstTranslation;
-	ExtenstTranslation.SetTranslationPart(gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2]));
+	gp_Pnt lll = internalHelper_.get()->getLllPoint();
+	gp_Pnt urr = internalHelper_.get()->getUrrPoint();
 
-	gp_Pnt lll = internalHelper_.get()->getLllPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
-	gp_Pnt urr = internalHelper_.get()->getUrrPoint().Transformed(internalHelper_.get()->getObjectTranslation().Inverted());
+	gp_Trsf originRotation;
+	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), - internalHelper_->getRotation()));
+
+	gp_Trsf originTranslation = internalHelper_->getObjectTranslation().Inverted();
+
+	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(originRotation).Moved(originTranslation);
 
 	gp_Trsf trs;
 	trs.SetRotation(geoCreator.getRefRotation().GetRotation());
 	trs.SetTranslationPart(
-		gp_Vec(
-			transformation.getTranslation()[0] + internalHelper_.get()->getObjectTranslation().TranslationPart().X(), 
-			transformation.getTranslation()[1] + internalHelper_.get()->getObjectTranslation().TranslationPart().Y(),
-			transformation.getTranslation()[2] + internalHelper_.get()->getObjectTranslation().TranslationPart().Z()
-		)
+		gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2])
+		 - originTranslation.TranslationPart()
 	);
 
-	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(trs);
+	bboxGeo = bboxGeo.Moved(trs);
 	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
-
-	extents.min_corner();
 
 	metaData.setExtend(
 		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
