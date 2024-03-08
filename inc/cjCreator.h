@@ -176,9 +176,6 @@ private:
 	bool checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_Shape& shape);
 	bool checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face);
 
-	// returns true if beam casted from voxel intersects with a facade opening
-	bool voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, double voxelSize);
-
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
 		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 

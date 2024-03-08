@@ -143,6 +143,9 @@ struct helperFunctions{
 	/// attempts to close an open wire
 	static TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire);
 
+	/// inverts the dirInx for neighbourSearching
+	static int invertDir(int dirIndx);
+
 	/// construct a bbox from a shape or list of shapes
 	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Shape>& shape);

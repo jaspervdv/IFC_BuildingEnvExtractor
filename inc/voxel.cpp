@@ -403,4 +403,83 @@ void voxel::setTransFace(int dirNum)
 	if (dirNum == 5) { hasFace5_ = true; }
 }
 
+void voxel::addRoofSemantic(int indx)
+{
+	if (faceMap_.count(indx))
+	{
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsRoof();
+		faceMap_[indx] = currentFace; //TODO: pointers
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsRoof();
+	faceMap_[indx] = newFace; //TODO: pointers
+	return;
+}
 
+void voxel::addWindowSemantic(int indx)
+{
+	if (faceMap_.count(indx))
+	{
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsWindow();
+		faceMap_[indx] = currentFace; //TODO: pointers
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsWindow();
+	faceMap_[indx] = newFace; //TODO: pointers
+	return;
+}
+
+bool voxel::hasWindow(int dirNum)
+{
+	if (faceMap_.size() == 0) { return false; }
+
+	if (dirNum == -1)
+	{
+		for (auto entry = faceMap_.begin(); entry != faceMap_.end(); entry++)
+		{
+			if (entry->second.isWindow())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	else {
+		if (faceMap_.count(dirNum))
+		{
+			if (faceMap_[dirNum].isWindow())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+
+
+}
+
+void voxelFace::setIsWall()
+{
+	isWall_ = true;
+	isWindow_ = false;
+	isRoof_ = false;
+}
+
+void voxelFace::setIsWindow()
+{
+	isWall_ = false;
+	isWindow_ = true;
+	isRoof_ = false;
+}
+
+void voxelFace::setIsRoof()
+{
+	isWall_ = false;
+	isWindow_ = false;
+	isRoof_ = true;
+}

@@ -32,6 +32,8 @@ private:
 	// assignment of the voxels (should be removed) -1 is intersected 0 is not assigned 1..n is room assignement;
 	std::vector<int> Assignment_;
 
+	bool hasSemanticSurfaces_ = false;
+
 	/// create the voxelgrid and find intersections of voxels
 	void populatedVoxelGrid(helper* h);
 
@@ -62,9 +64,14 @@ private:
 
 	std::vector<TopoDS_Edge> getTransitionalEdges(int dirIndx, int voxelIndx);
 
+	// returns true if beam casted from voxel intersects with a facade opening
+	bool voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int indxDir);
+
 
 public:
 	VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings);
+
+	void computeSurfaceSemantics(helper* h);
 
 	/// get a list of idx representing the neighbours of the input voxel
 	std::vector<int> getNeighbours(voxel* boxel, bool connect6 = false);

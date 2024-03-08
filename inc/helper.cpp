@@ -809,6 +809,13 @@ TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 }
 
 
+int helperFunctions::invertDir(int dirIndx) {
+
+	if (dirIndx % 2 == 1) { return dirIndx - 1; }
+	else { return dirIndx + 1; }
+}
+
+
 bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& shape) {
 
 	double buffer = 0.05;

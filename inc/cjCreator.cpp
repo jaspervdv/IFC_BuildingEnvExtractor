@@ -2020,55 +2020,6 @@ bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS
 	return false;
 }
 
-bool CJGeoCreator::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, double voxelSize)
-{
-	double windowSearchDepth = 0.3;
-	double windowArea = 0;
-	
-	// get a beam
-	double voxelJump = voxelSize;
-	std::vector<voxel*> voxelBeam;
-
-	voxel* loopingCurrentVoxel = currentVoxel;
-	voxelBeam.emplace_back(currentVoxel);
-
-	bool windowFound = false;
-	for (size_t i = 0; i < 6; i++)
-	{
-		if (!loopingCurrentVoxel->hasFace(i))
-		{
-			continue;
-		}
-		while (true)
-		{
-			int loopingCurrentIndx = voxelGrid_->getNeighbour(loopingCurrentVoxel, i);
-			if (loopingCurrentIndx == -1) { break; }
-
-			loopingCurrentVoxel = voxelGrid_->getVoxelPtr(loopingCurrentIndx);
-			if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
-
-			voxelBeam.emplace_back(loopingCurrentVoxel);
-			voxelJump += voxelSize;
-			if (windowSearchDepth < voxelJump) { break; }
-		}
-
-		for (size_t j = 0; j < voxelBeam.size(); j++)
-		{
-			std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
-			for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
-			{
-				std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
-
-				if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
-				{
-					return true;
-				}
-			}
-		}
-	}
-	return false;
-}
-
 
 TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vector<int>& pointFaceIndx) {
 	gp_Pnt p0(voxelPointList[pointFaceIndx[0]]);
@@ -2801,6 +2752,8 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
+
+	voxelGrid_->computeSurfaceSemantics(h);
 	TopoDS_Shape sewedShape = voxels2Shape(0);
 
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
@@ -2902,6 +2855,8 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 
 void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
 {
+	voxelGrid_->computeSurfaceSemantics(h);
+
 	std::map<std::string, double> summaryMap;
 
     std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
@@ -2961,7 +2916,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 		}
 
 		if (!isOuterShell) { continue; }
-		if (!voxelBeamWindowIntersection(h, currentVoxel, voxelSize)) { continue; }
+		if (!currentVoxel->hasWindow()) { continue; }
 		windowArea += voxelArea;
 	}
 

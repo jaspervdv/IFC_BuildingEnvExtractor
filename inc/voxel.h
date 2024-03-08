@@ -6,6 +6,23 @@
 #ifndef VOXEL_VOXEL_H
 #define VOXEL_VOXEL_H
 
+class voxelFace {
+private:
+	bool isWall_ = true;
+	bool isWindow_ = false;
+	bool isRoof_ = false;
+
+public:
+	void setIsWall();
+	void setIsWindow();
+	void setIsRoof();
+
+	bool isWall() { return isWall_; }
+	bool isWindow() { return isWindow_; }
+	bool isRoof() { return isRoof_; }
+};
+
+
 class voxel {
 private:
 	BoostPoint3D center_;
@@ -30,6 +47,9 @@ private:
 	bool hasFace3_ = false; // +y
 	bool hasFace4_ = false; // -z
 	bool hasFace5_ = false; // +z
+
+	// map containing the semantic voxel faces, the int signifies the dir
+	std::map<int, voxelFace> faceMap_ = {}; 
 
 public:
 	/// greates an axis aligned voxel
@@ -114,5 +134,10 @@ public:
 
 	void setRoomNum(int roomNum) { roomNum_ = roomNum; }
 	int getRoomNum() { return roomNum_; }
+
+	void addRoofSemantic(int indx);
+	void addWindowSemantic(int indx);
+
+	bool hasWindow(int dirNum = -1);
 };
 #endif // VOXEL_VOXEL_H

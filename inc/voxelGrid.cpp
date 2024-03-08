@@ -187,6 +187,46 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	return;
 }
 
+void VoxelGrid::computeSurfaceSemantics(helper* h)
+{
+	if (hasSemanticSurfaces_) { return; } // if already processed no reprocessing is needed
+	hasSemanticSurfaces_ = true;
+
+	// compute external surfaces
+	std::vector<voxel*> intersectingVoxels = getIntersectingVoxels();
+
+	for (size_t i = 0; i < intersectingVoxels.size(); i++)
+	{
+		voxel* currentVoxel = intersectingVoxels[i];
+
+		// find the roofs
+		if (currentVoxel->hasFace(4))
+		{
+			currentVoxel->addRoofSemantic(4);
+			
+		}
+
+		// find the windows
+		for (size_t indxdir = 0; indxdir < 6; indxdir++)
+		{
+			if (voxelBeamWindowIntersection(h, currentVoxel, indxdir)) //TODO: improve the logic
+			{
+				currentVoxel->addWindowSemantic(indxdir);
+
+				int cidxDir = helperFunctions::invertDir(indxdir);
+
+				int boundNeighbourIndx =  getNeighbour(currentVoxel, cidxDir);
+
+				if (boundNeighbourIndx == -1) { continue; }
+
+				voxel* boundNeighbour = VoxelLookup_[boundNeighbourIndx];
+				boundNeighbour->addWindowSemantic(cidxDir);
+
+			}
+		}	
+	}
+}
+
 void VoxelGrid::populatedVoxelGrid(helper* h)
 {
 	// split the range over cores
@@ -297,6 +337,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 	std::vector<std::vector<TopoDS_Edge>> clusteredEdges = {};
 
 	std::vector<int> evaluated(VoxelLookup_.size());
+	std::vector<int> evaluatedGrowth(VoxelLookup_.size());
 	std::vector<int> allowedNeighbourDir = {};
 
 	if (dirIndx == 0 || dirIndx == 1) { allowedNeighbourDir = { 2,3,4,5 }; }
@@ -307,6 +348,9 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 	{
 		// find the start of the face growth
 		std::vector<int> buffer = {};
+		bool searchWindow = false;
+
+		evaluatedGrowth = std::vector<int>(VoxelLookup_.size());
 
 		for (size_t i = 0; i < VoxelLookup_.size(); i++)
 		{
@@ -315,9 +359,10 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 			if (evaluated[i] == 1) { continue; }
 			if (potentialVoxel->getRoomNum() != roomNum) { continue; }
 			if (!potentialVoxel->hasFace(dirIndx)) { continue; }
-
+			//searchWindow = potentialVoxel->hasWindow(dirIndx);
 			buffer.emplace_back(i);
 			evaluated[i] = 1;
+			evaluatedGrowth[i] = 1;
 			break;
 		}
 		if (!buffer.size()) { break; }
@@ -345,10 +390,14 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 
 					// find neighbour to grow into 
 					if (neighbourVoxel->hasFace(dirIndx)) {
-						if (evaluated[neighbourIndx] == 1) { continue; }
-						evaluated[neighbourIndx] = 1;
-						tempBuffer.emplace_back(neighbourIndx);
-						continue;
+						if (evaluatedGrowth[neighbourIndx] == 1) { continue; }
+
+						//if (neighbourVoxel->hasWindow(dirIndx) == searchWindow)
+						//{
+							evaluatedGrowth[neighbourIndx] = 1;
+							tempBuffer.emplace_back(neighbourIndx);
+							continue;
+						//}
 					}
 
 					std::vector<gp_Pnt> voxelPoints = currentVoxel->getCornerPoints(planeRotation_);
@@ -471,7 +520,16 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 			}
 			buffer = tempBuffer;
 		}
-		clusteredEdges.emplace_back(edgeList);
+
+		for (size_t i = 0; i < evaluatedGrowth.size(); i++)
+		{
+			if (evaluated[i] == 0 && evaluatedGrowth[i] == 1) { evaluated[i] = 1; }
+		}
+
+		if (edgeList.size())
+		{
+			clusteredEdges.emplace_back(edgeList);
+		}
 	}
 	return clusteredEdges;
 }
@@ -674,6 +732,53 @@ std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelI
 {
 
 	return std::vector<TopoDS_Edge>();
+}
+
+bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int indxDir)
+{
+	double windowSearchDepth = 0.3;
+	double windowArea = 0;
+
+	// get a beam
+	double voxelJump = sudoSettings_->voxelSize_;
+	std::vector<voxel*> voxelBeam;
+
+	voxel* loopingCurrentVoxel = currentVoxel;
+	voxelBeam.emplace_back(currentVoxel);
+
+	bool windowFound = false;
+
+	if (!loopingCurrentVoxel->hasFace(indxDir))
+	{
+		return false;
+	}
+	while (true)
+	{
+		int loopingCurrentIndx = getNeighbour(loopingCurrentVoxel, indxDir);
+		if (loopingCurrentIndx == -1) { break; }
+
+		loopingCurrentVoxel = getVoxelPtr(loopingCurrentIndx);
+		if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
+
+		voxelBeam.emplace_back(loopingCurrentVoxel);
+		voxelJump += sudoSettings_->voxelSize_;
+		if (windowSearchDepth < voxelJump) { break; }
+	}
+
+	for (size_t j = 0; j < voxelBeam.size(); j++)
+	{
+		std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
+		for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
+		{
+			std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+
+			if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
