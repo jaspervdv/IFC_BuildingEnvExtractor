@@ -2786,16 +2786,51 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 
 std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	std::cout << "- Computing LoD 5.0 Model" << std::endl;
+	std::cout << "- Computing LoD 5.0 Rooms" << std::endl;
+
 	auto startTime = std::chrono::high_resolution_clock::now();
-
 	std::vector<CJT::CityObject> roomObjectList; // final output collection
-
 	for (size_t i = 1; i < voxelGrid_->getRoomSize(); i++)
 	{
 		CJT::CityObject roomObject;
-		roomObject.setName("Room " + std::to_string(i));
-		roomObject.setType(CJT::Building_Type::BuildingRoom);
+		gp_Pnt roomPoint = voxelGrid_->getPointInRoom(i);
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		h->getSpaceIndexPointer()->query(
+			bgi::intersects(
+				bg::model::box < BoostPoint3D >(
+					BoostPoint3D(roomPoint.X() - 0.01, roomPoint.Y() - 0.01, roomPoint.Z() - 0.01),
+					BoostPoint3D(roomPoint.X() + 0.01, roomPoint.Y() + 0.01, roomPoint.Z() + 0.01)
+					)
+			),
+			std::back_inserter(qResult)
+		);
+
+		for (size_t k = 0; k < qResult.size(); k++)
+		{
+			bool encapsulating = true;
+			lookupValue* lookup = h->getSpaceLookup(qResult[k].second);
+			IfcSchema::IfcProduct* product = lookup->getProductPtr();
+
+			TopoDS_Shape productShape = h->getObjectShape(product, true);
+			BRepClass3d_SolidClassifier solidClassifier;
+			solidClassifier.Load(productShape);
+			solidClassifier.Perform(roomPoint, 0.1);
+
+			if (!solidClassifier.State() == TopAbs_State::TopAbs_OUT) { continue; }
+
+			std::string longName = product->data().getArgument(7)->toString();
+			longName = longName.substr(1, longName.size() - 2);
+
+			if (product->hasName()) {
+
+				roomObject.setName(product->Name());
+				roomObject.addAttribute("Name", product->Name());
+			}
+
+			roomObject.addAttribute("NameLong", longName);
+		}
 
 		TopoDS_Shape sewedShape = voxels2Shape(i);
 
@@ -2820,6 +2855,9 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		brepBuilder.Add(voxelSolid, sewedShape);
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+
+
+		roomObject.setType(CJT::Building_Type::BuildingRoom);
 		roomObject.addGeoObject(*geoObject);
 
 		roomObjectList.emplace_back(roomObject);

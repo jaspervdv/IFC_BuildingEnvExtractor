@@ -120,7 +120,9 @@ private:
 
 	static const int treeDepth = 10;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
+	bgi::rtree<Value, bgi::rstar<treeDepth>> SpaceIndex_;
 	std::vector<lookupValue*> productLookup_;
+	std::vector<lookupValue*> SpaceLookup_;
 
 	bool hasIndex_ = false;
 
@@ -159,7 +161,7 @@ private:
 
 	/// adds all instances of an objectype to the spatial index
 	template <typename T>
-	void addObjectToIndex(const T& object);
+	void addObjectToIndex(const T& object, bool addToRoomIndx = false);
 
 	/// get all the points of all the instances of an objecttype
 	template <typename T>
@@ -238,11 +240,15 @@ public:
 
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
 
+	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &SpaceIndex_; }
+
 	void setRoomBoundingObjects(std::list<std::string>* objectList, bool custom, bool customFull) { roomBoundingObjects_ = objectList; useCustom_ = custom; useCustomFull_ = customFull; };
 
 	bool hasIndex() { return hasIndex_; }
 
 	lookupValue* getLookup(int i) { return productLookup_.at(i); }
+
+	lookupValue* getSpaceLookup(int i) { return SpaceLookup_.at(i); }
 
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 

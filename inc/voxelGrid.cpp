@@ -534,6 +534,20 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 	return clusteredEdges;
 }
 
+gp_Pnt VoxelGrid::getPointInRoom(int roomNum)
+{
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		voxel* currentVoxel = i->second;
+
+		if (currentVoxel->getRoomNum() == roomNum)
+		{
+			return currentVoxel->getOCCTCenterPoint();
+		}
+	}
+	return gp_Pnt();
+}
+
 
 std::vector<int> VoxelGrid::getTopBoxelIndx() {
 

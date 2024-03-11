@@ -419,6 +419,13 @@ void helper::indexGeo()
 				}
 			}
 		}
+		if (sudoSettings_->makeInterior_)
+		{
+			auto startTime = std::chrono::high_resolution_clock::now();
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+				addObjectToIndex<IfcSchema::IfcSpace::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSpace>(), true);
+			std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+		}
 		std::cout << std::endl;
 
 		// find valid voids
@@ -925,7 +932,7 @@ std::string helper::getProjectName()
 
 
 template <typename T>
-void helper::addObjectToIndex(const T& object) {
+void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 
@@ -961,9 +968,18 @@ void helper::addObjectToIndex(const T& object) {
 			cbbox = boxSimplefy(shape);
 		}
 
-		index_.insert(std::make_pair(box, (int)index_.size()));
 		lookupValue* lookup = new lookupValue(product, cbbox);
-		productLookup_.emplace_back(lookup);
+
+		if (addToRoomIndx)
+		{
+			SpaceIndex_.insert(std::make_pair(box, (int)SpaceIndex_.size()));
+			SpaceLookup_.emplace_back(lookup);
+		}
+		else
+		{
+			index_.insert(std::make_pair(box, (int)index_.size()));
+			productLookup_.emplace_back(lookup);
+		}
 	}
 }
 
@@ -1127,7 +1143,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	IfcGeom::IteratorSettings settings;
 
 	IfcGeom::BRepElement<double, double>* brep = nullptr;
-	try { brep = kernelObject->convert(settings, ifc_representation, product); }
+	try { brep = kernelObject->convert(settings, ifc_representation, product); } //This is slow
 	catch (const std::exception&) { return {}; }
 
 	if (brep == nullptr) {

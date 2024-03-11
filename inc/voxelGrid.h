@@ -99,6 +99,8 @@ public:
 
 	std::vector<std::vector<TopoDS_Edge>> getDirectionalFaces(int dirIndx, double angle, int roomNum);
 
+	gp_Pnt getPointInRoom(int roomNum);
+
 };
 
 #endif // VOXEL_VOXEL_H
