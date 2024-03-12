@@ -69,7 +69,7 @@ private:
 	std::vector<TopoDS_Face> footprintList_;
 
 	// list containing all the floor outlines;
-	std::vector<FloorOutlineObject> storeyPrintList_;
+	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
 	// create a group of voxels representing a rough room
 	std::vector<int> growExterior(int startIndx, int roomnum, helper* h);
@@ -239,11 +239,14 @@ public:
 	/// store the roofoutline data to LoD 02
 	void useroofprint0() { useRoofprints_ = true; }
 
+	/// generates the storey objects for the ifc storeys in a file
+	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(helper* h);
+
 	/// generates an LoD0.0 object
 	CJT::GeoObject* makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject*>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
-	std::vector < CJT::CityObject> makeLoD02Storeys(helper* h, CJT::Kernel* kernel, int unitScale);
+	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 	std::vector < CJT::CityObject> makeLoD02Apartments(helper* h, CJT::Kernel* kernel, std::string guid, int unitScale);
 	/// generates a list of LoD0.3 objects
 	// TODO: implement
@@ -260,7 +263,7 @@ public:
 	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
-	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 	gp_Trsf getRefRotation() { return geoRefRotation_; }

@@ -1429,11 +1429,9 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 	std::cout << "- Storey extraction" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 	double storeyBuffer = 0.15;
-	double floorElev = sudoSettings_->footprintElevation_ * h->getScaler(0);
 
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
 
-	std::vector<IfcSchema::IfcBuildingStorey*> ifcStoreyList;
 	std::vector<std::map<std::string, std::string>> storeyAttributeList;
 	for (auto it = storeyList->begin(); it != storeyList->end(); ++it) 
 	{
@@ -2288,6 +2286,33 @@ std::vector<SurfaceGroup> CJGeoCreator::getXYFaces(const TopoDS_Shape& shape) {
 }
 
 
+std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(helper* h)
+{
+	std::vector<std::shared_ptr<CJT::CityObject>> cityStoreyObjects;
+	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
+
+
+	for (auto it = storeyList->begin(); it != storeyList->end(); ++it)
+	{
+		IfcSchema::IfcBuildingStorey* storeyObject = *it;
+		double storeyElevation = storeyObject->Elevation() * h->getScaler(0);
+
+		CJT::CityObject cityStoreyObject;
+		cityStoreyObject.setType(CJT::Building_Type::BuildingStorey);
+
+		if (storeyObject->hasName()) 
+		{ 
+			cityStoreyObject.setName(storeyObject->Name());
+			cityStoreyObject.addAttribute("Name", storeyObject->Name());
+		}
+		if (storeyObject->hasLongName()) { cityStoreyObject.addAttribute("Name Long", storeyObject->LongName()); }
+		cityStoreyObject.addAttribute("IFC Guid", storeyObject->GlobalId());
+		cityStoreyObject.addAttribute("IFC Elevation", storeyObject->Elevation());
+		cityStoreyObjects.emplace_back(std::make_shared< CJT::CityObject>(cityStoreyObject));
+	}
+	return cityStoreyObjects;
+}
+
 CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -2372,10 +2397,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 }
 
 
-std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, int unitScale) {
-
-	std::vector < CJT::CityObject> storeyCityObjectList;
-
+void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale) {
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
 
@@ -2386,34 +2408,24 @@ std::vector < CJT::CityObject> CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Ke
 			std::vector<TopoDS_Face> currentStoreyGeo = storeyPrintList_[i].getOutlines();
 			std::map<std::string, std::string> currentStoreySemantic = storeyPrintList_[i].getSemanticInfo();
 
-			CJT::CityObject cityStoreyObject;
-			cityStoreyObject.setName(currentStoreySemantic["IFC_Name"]);
-			cityStoreyObject.setType(CJT::Building_Type::BuildingStorey);
-
-			for (const auto& semanticPair : currentStoreySemantic) {
-				cityStoreyObject.addAttribute(semanticPair.first, semanticPair.second);
-			}
-
-			for (size_t j = 0; j < currentStoreyGeo.size(); j++)
+			for (size_t j = 0; j < storeyCityObjects.size(); j++)
 			{
-				TopoDS_Face currentFace = currentStoreyGeo[j];
+				if (currentStoreySemantic["IFC_Guid"] != storeyCityObjects[j]->getAttributes()["IFC Guid"])
+				{
+					continue;
+				}
 
-				std::map<std::string, std::string> currentGeoSemantic;
-				currentGeoSemantic.emplace("EnvEx_Section", std::to_string(j));
-
-				double area = helperFunctions::computeArea(currentFace);
-				currentGeoSemantic.emplace("EnvEx_Area", std::to_string(area));
-
-				helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
-				CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
-				geoObject->appendSurfaceData(currentGeoSemantic);
-				geoObject->appendSurfaceTypeValue(0);
-				cityStoreyObject.addGeoObject(*geoObject);
+				for (size_t k = 0; k < currentStoreyGeo.size(); k++)
+				{
+					TopoDS_Face currentFace = currentStoreyGeo[k];
+					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
+					CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
+					geoObject->appendSurfaceTypeValue(0);
+					storeyCityObjects[j]->addGeoObject(*geoObject);
+				}
 			}
-			storeyCityObjectList.emplace_back(cityStoreyObject);
 		}
 	}
-	return storeyCityObjectList;
 }
 
 
@@ -2784,7 +2796,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	return geoObjectList;
 }
 
-std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale)
 {
 	std::cout << "- Computing LoD 5.0 Rooms" << std::endl;
 
@@ -2793,8 +2805,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 	for (size_t i = 1; i < voxelGrid_->getRoomSize(); i++)
 	{
 		CJT::CityObject roomObject;
-		gp_Pnt roomPoint = voxelGrid_->getPointInRoom(i);
-
+		gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(i), 0);
 		std::vector<Value> qResult;
 		qResult.clear();
 		h->getSpaceIndexPointer()->query(
@@ -2809,6 +2820,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 		for (size_t k = 0; k < qResult.size(); k++)
 		{
+			// find the room that point is located in
+
 			bool encapsulating = true;
 			lookupValue* lookup = h->getSpaceLookup(qResult[k].second);
 			IfcSchema::IfcProduct* product = lookup->getProductPtr();
@@ -2827,9 +2840,41 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 				roomObject.setName(product->Name());
 				roomObject.addAttribute("Name", product->Name());
+				roomObject.addAttribute("IFC Guid", product->GlobalId());
 			}
 
 			roomObject.addAttribute("NameLong", longName);
+			// find the storey that the room is located at
+
+#ifdef USE_IFC4
+			IfcSchema::IfcRelAggregates::list::ptr relDefByPropList = product->Decomposes();
+#else
+			IfcSchema::IfcRelDecomposes::list::ptr relDefByPropList = product->Decomposes();
+#endif // USE_IFC4
+
+			for (auto relPropIt = relDefByPropList->begin(); relPropIt != relDefByPropList->end(); ++relPropIt)
+			{
+
+#ifdef USE_IFC4
+				IfcSchema::IfcRelAggregates* relDefByProp = *relPropIt;
+#else
+				IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
+#endif // USE_IFC4
+
+				std::cout << relDefByProp->data().toString() << std::endl;
+				std::string targetStoreyGuid = relDefByProp->RelatingObject()->GlobalId();
+				for (size_t j = 0; j < storeyCityObjects.size(); j++)
+				{
+					std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
+
+					if (targetStoreyGuid != storeyCityObject->getAttributes()["IFC Guid"])
+					{
+						continue;
+					}
+					roomObject.addParent(storeyCityObject.get());
+				}
+			}
+			break;
 		}
 
 		TopoDS_Shape sewedShape = voxels2Shape(i);

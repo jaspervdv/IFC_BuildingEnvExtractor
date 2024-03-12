@@ -977,19 +977,6 @@ bool IOManager::run()
 		}
 	}
 
-	if (sudoSettingsPtr_->makeInterior_)
-	{
-		try
-		{
-			geoCreator.makeFloorSectionCollection(internalHelper_.get());
-		}
-		catch (const std::exception&)
-		{
-			ErrorList_.emplace_back("storey creation failed");
-			succesfullExit = 0;
-		}
-	}
-
 	if (sudoSettingsPtr_->makeRoofPrint_)
 	{
 		geoCreator.useroofprint0();
@@ -1117,27 +1104,40 @@ bool IOManager::run()
 
 	if (sudoSettingsPtr_->makeInterior_)
 	{
+		// get storey semantic objects
+		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalHelper_.get());
+
+		try
+		{
+			geoCreator.makeFloorSectionCollection(internalHelper_.get()); 		//TODO: rewrite this
+		}
+		catch (const std::exception&)
+		{
+			ErrorList_.emplace_back("storey creation failed");
+			succesfullExit = 0;
+		}
+
 		// storeys
 		if (makeLoD02())
 		{
-			std::vector<CJT::CityObject> geo02Storeys = geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo02Storeys.size(); i++) {
-				CJT::CityObject currentStoreyObject = geo02Storeys[i];
-				currentStoreyObject.addParent(&cityInnerShellObject);
-				collectionPtr->addCityObject(currentStoreyObject);
-			}
+			geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, storeyObjects, 1);
 		}
 
 		// rooms
 		if (makeV())
 		{
-			std::vector<CJT::CityObject> roomsV = geoCreator.makeVRooms(internalHelper_.get(), &kernel, 1);
+			std::vector<CJT::CityObject> roomsV = geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, 1);
 			for (size_t i = 0; i < roomsV.size(); i++)
 			{
 				CJT::CityObject currentStoreyObject = roomsV[i];
-				currentStoreyObject.addParent(&cityInnerShellObject);
 				collectionPtr->addCityObject(currentStoreyObject);
 			}
+		}
+
+		for (size_t i = 0; i < storeyObjects.size(); i++)
+		{
+			storeyObjects[i]->addParent(&cityInnerShellObject);
+			collectionPtr->addCityObject(*storeyObjects[i].get());
 		}
 	}
 	
