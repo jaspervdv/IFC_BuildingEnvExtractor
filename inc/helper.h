@@ -46,6 +46,7 @@ struct helperFunctions{
 	static void WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition);
 	static void WriteToSTEP(const TopoDS_Shape& shape, const std::string& addition);
 	static void WriteToSTEP(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
+	static void WriteToSTEP(const std::vector<TopoDS_Shape>& shapeList, const std::string& addition);
 
 	/// Ouptu shape to txt file (for development only)
 	static void WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
@@ -72,6 +73,7 @@ struct helperFunctions{
 	/// Rotate OpenCascade point p around point anchorP
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, double angle);
 
+	static bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer = 0);
 	static bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double angle, double secondAngle = 0);
 
 	/// Convert OpenCascade point to Boost point

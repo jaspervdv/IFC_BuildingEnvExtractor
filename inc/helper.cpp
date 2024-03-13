@@ -74,6 +74,21 @@ void helperFunctions::WriteToSTEP(const std::vector<TopoDS_Face>& shapeList, con
 
 }
 
+void helperFunctions::WriteToSTEP(const std::vector<TopoDS_Shape>& shapeList, const std::string& addition)
+{
+	std::string path = "C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".stp";
+
+	STEPControl_Writer writer;
+	writer.SetTolerance(1e-100);
+
+	for (TopoDS_Shape shape : shapeList)
+	{
+		writer.Transfer(shape, STEPControl_AsIs);
+	}
+	IFSelect_ReturnStatus stat = writer.Write(path.c_str());
+
+}
+
 void helperFunctions::WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& addition)
 {
 	std::ofstream outputFile("C:/Users/Jasper/Documents/1_projects/IFCEnvelopeExtraction/IFC_BuildingEnvExtractor/exports/step" + addition + ".txt");
@@ -232,6 +247,35 @@ gp_Pnt helperFunctions::rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP,
 	return rotatedP.Translated(gp_Vec(anchorP.X(), anchorP.Y(), anchorP.Z()));
 }
 
+
+bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer) {
+
+	bool isPSet = false;
+	for (size_t i = 0; i < pointList.size(); i++)
+	{
+		gp_Pnt point = pointList[i];
+
+		if (!isPSet)
+		{
+			isPSet = true;
+
+			*lllPoint = point;
+			*urrPoint = point;
+		}
+		else
+		{
+			if (point.X() < lllPoint->X()) { lllPoint->SetX(point.X() - buffer); }
+			if (point.Y() < lllPoint->Y()) { lllPoint->SetY(point.Y() - buffer); }
+			if (point.Z() < lllPoint->Z()) { lllPoint->SetZ(point.Z() - buffer); }
+
+			if (point.X() > urrPoint->X()) { urrPoint->SetX(point.X() + buffer); }
+			if (point.Y() > urrPoint->Y()) { urrPoint->SetY(point.Y() + buffer); }
+			if (point.Z() > urrPoint->Z()) { urrPoint->SetZ(point.Z() + buffer); }
+		}
+	}
+	if (lllPoint->IsEqual(*urrPoint, 0.01)) { return false; }
+	return true;
+}
 
 bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint , double angle, double secondAngle) {
 

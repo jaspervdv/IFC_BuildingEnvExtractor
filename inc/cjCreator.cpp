@@ -7,6 +7,8 @@
 
 #include <Bnd_Box.hxx>
 #include <BOPAlgo_Splitter.hxx>
+#include <BOPAlgo_Builder.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -1120,12 +1122,12 @@ void CJGeoCreator::sortRoofStructures() {
 
 void CJGeoCreator::mergeRoofSurfaces()
 {
-	return; //TODO: fix issue with inner loops
-
 	std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
 
 	for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
 	{
+		// loop per sub building
+
 		std::vector<SurfaceGroup > mergedFaceList;
 
 		std::vector<SurfaceGroup> faceList = *buildingFaceIt;
@@ -1206,7 +1208,6 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 			if (tempBuffer.size() == 0)
 			{
-
 				if (mergeFaceList.size() > 1)
 				{
 					for (size_t i = 0; i < mergeFaceList.size(); i++)
@@ -1226,8 +1227,6 @@ void CJGeoCreator::mergeRoofSurfaces()
 					SurfaceGroup mergedFaceGroup(mergedFace);
 					mergedFaceGroup.projectFace();
 					mergedFaceList.emplace_back(mergedFaceGroup);
-
-					//helperFunctions::printFaces(mergedFace);
 				}
 				else {
 					SurfaceGroup mergedFaceGroup(mergeFaceList[0]);
@@ -1249,7 +1248,9 @@ void CJGeoCreator::mergeRoofSurfaces()
 						break;
 					}
 				}
-				if (bufferList.size() == 0) { break; }
+				if (bufferList.size() == 0) { 
+					break; 
+				}
 				continue;
 			}
 
@@ -1543,66 +1544,31 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			TopoDS_Face currentFace;
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
 			else { currentFace = currentRoof.getFlatFace(); }
-
 			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, h->getLllPoint().Z());
 			aBuilder.AddArgument(extrudedShape);
 		}
-		//create a bbbox
-		TopoDS_Shape outerbb = helperFunctions::createBBOXOCCT(h->getLllPoint(), h->getUrrPoint(), 5);
-		gp_Pnt p0 = helperFunctions::getFirstPointShape(outerbb);
-		p0.Rotate(gp::OZ(), -h->getRotation());
 
-		gp_Trsf myTrsf;
-		myTrsf.SetRotation(gp::OZ(), - h->getRotation());
-		BRepBuilderAPI_Transform xform(outerbb, myTrsf);
-
-		aBuilder.AddArgument(xform.Shape());
 		aBuilder.SetFuzzyValue(1e-7);
 		aBuilder.SetRunParallel(Standard_True);
 		aBuilder.Perform(); //TODO: this is very slow for large models
 
-		bool exteriorFound = false;
+		BRepAlgoAPI_Fuse fuser;
+		fuser.SetFuzzyValue(1e-7);
+		fuser.SetRunParallel(Standard_True);
+		TopTools_ListOfShape toolList;
 
 		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_SOLID); expl.More(); expl.Next()) {
-
 			TopoDS_Solid currentSolid = TopoDS::Solid(expl.Current());
-
-			for (TopExp_Explorer expl2(currentSolid, TopAbs_VERTEX); expl2.More(); expl2.Next()) {
-				TopoDS_Vertex currentVertex = TopoDS::Vertex(expl2.Current());
-				gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-
-				if (!p0.IsEqual(currentPoint,1e-6)) { continue; }
-				exteriorFound = true;
-				break;
-			}
-			if (!exteriorFound) { continue; }
-
-			for (TopExp_Explorer expl2(currentSolid, TopAbs_SHELL); expl2.More(); expl2.Next()) {
-				TopoDS_Shell currentShape = TopoDS::Shell(expl2.Current());
-
-				// filter the outer bb solid away
-				exteriorFound = false;
-				for (TopExp_Explorer expl3(currentShape, TopAbs_VERTEX); expl3.More(); expl3.Next()) {
-					TopoDS_Vertex currentVertex = TopoDS::Vertex(expl3.Current());
-					gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-
-					if (p0.IsEqual(currentPoint, 1e-6)) { 
-						exteriorFound = true;
-						break; 
-					}
-				}
-
-				if (exteriorFound) { continue; }
-
-				// filter the presumably odd shapes away
-				GProp_GProps props;
-				BRepGProp::VolumeProperties(currentShape, props);
-				if (abs(props.Mass()) < 15) { continue; }
-
-				prismList.emplace_back(simplefySolid(currentShape));
-			}
-
+			toolList.Append(currentSolid);
 		}
+
+		TopTools_ListOfShape argumentList;
+		argumentList.Append(toolList.First());
+		fuser.SetArguments(argumentList);
+		fuser.SetTools(toolList);
+		fuser.Build();
+
+		prismList.emplace_back(simplefySolid(fuser.Shape()));
 	}
 	if (!allSolids)
 	{
@@ -1876,7 +1842,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 			cleanList.emplace_back(edgeList[i]);
 		}
 	}
-
 	if (cleanList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> wireList = growWires(cleanList);
 	if (wireList.size() == 0) { return TopoDS_Face(); }
@@ -2861,7 +2826,6 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 				IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
 #endif // USE_IFC4
 
-				std::cout << relDefByProp->data().toString() << std::endl;
 				std::string targetStoreyGuid = relDefByProp->RelatingObject()->GlobalId();
 				for (size_t j = 0; j < storeyCityObjects.size(); j++)
 				{

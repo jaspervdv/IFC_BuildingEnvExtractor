@@ -58,5 +58,8 @@ struct SettingsCollection {
 
 	// if Only roof outlines are required no full voxelization is needed.
 	bool requireFullVoxels_ = true;
+
+	// if LoD13 output is done and the same as LoD22, copy the data
+	bool Lod123IsFlat_ = false;
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
