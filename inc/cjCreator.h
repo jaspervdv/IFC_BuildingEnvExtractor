@@ -150,7 +150,7 @@ private:
 	std::vector<TopoDS_Edge> section2edges(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
-	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, const TopoDS_Face& splittingFace, double splittingFaceHeight = 0);
+	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat, helper* h);

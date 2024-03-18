@@ -1367,7 +1367,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 }
 
 
-TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, const TopoDS_Face& splittingFace, double splittingFaceHeight)
+TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double splittingFaceHeight)
 {
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
@@ -1380,20 +1380,25 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, const Topo
 	brepSewer.Add(evalFace);
 	brepSewer.Add(projectedFace);
 
-	TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE);
-
 	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
 		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
 		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
 
-		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
+		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight)
+		{
+			return TopoDS_Solid();
+		}
 
+		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
 		brepSewer.Add(sideFace);
 	}
-	brepSewer.Perform();
-	brepBuilder.Add(solidShape, brepSewer.SewedShape());
 
+	brepSewer.Perform();
+	if (brepSewer.SewedShape().Closed())
+	{
+		brepBuilder.Add(solidShape, brepSewer.SewedShape());
+	}
 	return solidShape;
 }
 
@@ -1528,7 +1533,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
-	TopoDS_Face splittingFace = helperFunctions::createHorizontalFace(1000,1000, h->getLllPoint().Z());
+	//std::vector<TopoDS_Shape> test;
 
 	bool allSolids = true;
 	for (size_t i = 0; i < faceList_.size(); i++)
@@ -1544,32 +1549,151 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			TopoDS_Face currentFace;
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
 			else { currentFace = currentRoof.getFlatFace(); }
-			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, splittingFace, h->getLllPoint().Z());
+			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
 			aBuilder.AddArgument(extrudedShape);
 		}
 
-		aBuilder.SetFuzzyValue(1e-7);
+		aBuilder.SetFuzzyValue(1e-6);
 		aBuilder.SetRunParallel(Standard_True);
+		aBuilder.SetUseOBB(Standard_True);
 		aBuilder.Perform(); //TODO: this is very slow for large models
 
+		Sleep(0.1); //TODO: find out why the pause is required
+
+		std::vector<TopoDS_Face> faceList;
+		bgi::rtree<Value, bgi::rstar<25>> faceIdx;
+
+		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+			TopoDS_Face currentFace = TopoDS::Face(expl.Current());
+			gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentFace);
+
+			if (abs(faceNormal.Z()) > 1e-4)
+			{
+				bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+
+				bool isDub = false;
+				for (size_t j = 0; j < faceList.size(); j++) //TODO: use index
+				{
+					if (currentFace.IsPartner(faceList[j]))
+					{
+						isDub = true;
+					}
+				}
+
+				if (!isDub)
+				{
+					faceIdx.insert(std::make_pair(bbox, faceList.size()));
+					faceList.emplace_back(currentFace);
+				}
+
+			}
+		}
+
+		aBuilder.Clear();
+		std::vector<TopoDS_Face> topTrimFaceList;
+		for (size_t j = 0; j < faceList.size(); j++)
+		{
+			TopoDS_Face currentFace = faceList[j];
+			bool isHidden = false;
+
+			gp_Pnt basePoint = helperFunctions::getPointOnFace(currentFace);
+			gp_Pnt topPoint = gp_Pnt(basePoint.X(), basePoint.Z(), basePoint.Z() + 100000);
+
+			TopoDS_Edge evalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
+
+			std::vector<Value> qResult;
+			qResult.clear();
+			faceIdx.query(bgi::intersects(
+				helperFunctions::createBBox(basePoint, topPoint, 0.2)), std::back_inserter(qResult));
+
+			for (size_t k = 0; k < qResult.size(); k++)
+			{
+				int otherFaceIdx = qResult[k].second;
+				if (j == otherFaceIdx)
+				{
+					continue;
+				}
+
+				BRepExtrema_DistShapeShape distanceWireCalc(evalLine, faceList[otherFaceIdx]);
+
+				if (distanceWireCalc.Value() < 0.00001)
+				{
+					isHidden = true;
+					break;
+				}
+			}
+
+			if (!isHidden)
+			{	
+				TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
+				if (!extrudedShape.IsNull())
+				{
+					aBuilder.AddArgument(extrudedShape);
+					topTrimFaceList.emplace_back(currentFace);
+					//test.emplace_back(currentFace);
+				}
+
+			}
+		}
+
+		aBuilder.Perform();
 		BRepAlgoAPI_Fuse fuser;
-		fuser.SetFuzzyValue(1e-7);
+		fuser.SetFuzzyValue(1e-6);
 		fuser.SetRunParallel(Standard_True);
+		fuser.SetUseOBB(Standard_True);
 		TopTools_ListOfShape toolList;
 
 		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_SOLID); expl.More(); expl.Next()) {
 			TopoDS_Solid currentSolid = TopoDS::Solid(expl.Current());
-			toolList.Append(currentSolid);
-		}
 
-		TopTools_ListOfShape argumentList;
-		argumentList.Append(toolList.First());
-		fuser.SetArguments(argumentList);
+			int overlapCount = 0;
+
+			for (size_t i = 0; i < topTrimFaceList.size(); i++)
+			{
+				bool allVerts = true;
+				for (TopExp_Explorer FaceVertExpl(topTrimFaceList[i], TopAbs_VERTEX); FaceVertExpl.More(); FaceVertExpl.Next())
+				{
+					bool vertFound = false;
+					TopoDS_Vertex vertex = TopoDS::Vertex(FaceVertExpl.Current());
+					gp_Pnt p = BRep_Tool::Pnt(vertex);
+
+					for (TopExp_Explorer SolidVertExpl(currentSolid, TopAbs_VERTEX); SolidVertExpl.More(); SolidVertExpl.Next())
+					{
+						TopoDS_Vertex solidDertex = TopoDS::Vertex(SolidVertExpl.Current());
+						gp_Pnt solidP = BRep_Tool::Pnt(solidDertex);
+
+						if (solidP.IsEqual(p, 1e-6))
+						{
+							vertFound = true;
+							break;
+						}
+					}
+
+					if (vertFound) { continue; }
+					allVerts = false;
+					break;
+				}
+
+				if (allVerts) { overlapCount++; }
+				if (overlapCount > 1) { break; }
+			}
+
+			if (overlapCount == 1)
+			{
+				toolList.Append(currentSolid);
+			}
+		}
+		//helperFunctions::WriteToSTEP(test, "top");
+
+
+		fuser.SetArguments(toolList);
 		fuser.SetTools(toolList);
 		fuser.Build();
 
 		prismList.emplace_back(simplefySolid(fuser.Shape()));
 	}
+
+
 	if (!allSolids)
 	{
 		std::cout << "	Not all shapes could be converted to solids, output might be incorrect or inaccurate!" << std::endl;
