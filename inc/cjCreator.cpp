@@ -28,6 +28,8 @@
 #include <Geom_Surface.hxx>
 #include <TopoDS.hxx>
 
+#include <Prs3d_ShapeTool.hxx>
+
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <TopExp.hxx>
@@ -1123,9 +1125,11 @@ void CJGeoCreator::sortRoofStructures() {
 void CJGeoCreator::mergeRoofSurfaces()
 {
 	std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
+	std::vector<TopoDS_Face> mergeFaceList;
 
 	for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
 	{
+		//std::cout << "in" << std::endl;
 		// loop per sub building
 
 		std::vector<SurfaceGroup > mergedFaceList;
@@ -1203,37 +1207,52 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 					tempBuffer.emplace_back(otherFaceIndx);
 					faceGroupList[otherFaceIndx] = 1;
+
 				}
 			}
-
 			if (tempBuffer.size() == 0)
 			{
+				// merge faces
 				if (mergeFaceList.size() > 1)
 				{
+					TopTools_ListOfShape toolList;
 					for (size_t i = 0; i < mergeFaceList.size(); i++)
 					{
-						aBuilder.AddArgument(mergeFaceList[i]);
+						toolList.Append(mergeFaceList[i]);
+					}
+					BRepAlgoAPI_Fuse fuser;
+					fuser.SetArguments(toolList);
+					fuser.SetTools(toolList);
+					fuser.SetFuzzyValue(1e-4);
+					fuser.Build();
+
+					std::vector<TopoDS_Edge> edgeList;
+
+					Prs3d_ShapeTool Tool(fuser.Shape());
+					for (Tool.InitCurve(); Tool.MoreCurve(); Tool.NextCurve())
+					{
+						const TopoDS_Edge& E = Tool.GetCurve();
+						if (Tool.FacesOfEdge().get()->Size() == 1) {
+							edgeList.emplace_back(E);
+						}
 					}
 
-					aBuilder.SetRunParallel(Standard_True);
-					aBuilder.Perform();
+					std::vector<TopoDS_Wire> wireList = growWires(edgeList);
+					std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+					std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
 
-					std::vector<TopoDS_Face> mergeFaceList;
-					for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-						mergeFaceList.emplace_back(TopoDS::Face(expl.Current()));
+					if (cleanedFaceList.size())
+					{
+						SurfaceGroup mergedFaceGroup(cleanedFaceList[0]);
+						mergedFaceGroup.projectFace();
+						mergedFaceList.emplace_back(mergedFaceGroup);
 					}
-
-					TopoDS_Face mergedFace = mergeFaces(mergeFaceList);
-					SurfaceGroup mergedFaceGroup(mergedFace);
-					mergedFaceGroup.projectFace();
-					mergedFaceList.emplace_back(mergedFaceGroup);
 				}
 				else {
 					SurfaceGroup mergedFaceGroup(mergeFaceList[0]);
 					mergedFaceGroup.projectFace();
 					mergedFaceList.emplace_back(mergedFaceGroup);
 				}
-
 				mergeFaceList.clear();
 				bufferList.clear();
 				aBuilder.Clear();
@@ -1253,7 +1272,6 @@ void CJGeoCreator::mergeRoofSurfaces()
 				}
 				continue;
 			}
-
 			bufferList = tempBuffer;
 			tempBuffer.clear();
 		}
@@ -1533,7 +1551,6 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
-	//std::vector<TopoDS_Shape> test;
 
 	bool allSolids = true;
 	for (size_t i = 0; i < faceList_.size(); i++)
@@ -1553,10 +1570,10 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			aBuilder.AddArgument(extrudedShape);
 		}
 
-		aBuilder.SetFuzzyValue(1e-6);
+		aBuilder.SetFuzzyValue(1e-7);
 		aBuilder.SetRunParallel(Standard_True);
 		aBuilder.SetUseOBB(Standard_True);
-		aBuilder.Perform(); //TODO: this is very slow for large models
+		aBuilder.Perform();
 
 		Sleep(0.1); //TODO: find out why the pause is required
 
@@ -1630,7 +1647,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				{
 					aBuilder.AddArgument(extrudedShape);
 					topTrimFaceList.emplace_back(currentFace);
-					//test.emplace_back(currentFace);
 				}
 
 			}
@@ -1683,8 +1699,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				toolList.Append(currentSolid);
 			}
 		}
-		//helperFunctions::WriteToSTEP(test, "top");
-
 
 		fuser.SetArguments(toolList);
 		fuser.SetTools(toolList);
@@ -1692,7 +1706,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 
 		prismList.emplace_back(simplefySolid(fuser.Shape()));
 	}
-
 
 	if (!allSolids)
 	{
