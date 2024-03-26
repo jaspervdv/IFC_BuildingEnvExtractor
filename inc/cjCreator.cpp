@@ -888,13 +888,12 @@ TopoDS_Wire CJGeoCreator::cleanWire(const TopoDS_Wire& wire) {
 		{
 			if (!startingVec.IsParallel(helperFunctions::getDirEdge(orderedEdgeList[i]), 1e-6))
 			{
-				connection = helperFunctions::getFirstPointShape(orderedEdgeList[i]);
 				std::rotate(orderedEdgeList.begin(), orderedEdgeList.begin() + i, orderedEdgeList.end());
 				break;
 			}
 		}
 	}
-
+	connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
 
 	for (size_t i = 0; i < orderedEdgeList.size(); i++) // merge parralel 
 	{
@@ -919,12 +918,6 @@ TopoDS_Wire CJGeoCreator::cleanWire(const TopoDS_Wire& wire) {
 			TopoDS_Edge otherEdge = orderedEdgeList[j];
 			gp_Vec otherVec = helperFunctions::getDirEdge(otherEdge);
 
-			if (j + 1 == orderedEdgeList.size())
-			{
-				endPoint = helperFunctions::getLastPointShape(otherEdge);
-				break;
-			}
-
 			if (otherVec.Magnitude() == 0)
 			{
 				merged[j] = 1;
@@ -934,6 +927,12 @@ TopoDS_Wire CJGeoCreator::cleanWire(const TopoDS_Wire& wire) {
 			if (currentVec.IsParallel(otherVec, 0.01)) { 
 				merged[j] = 1;
 				continue; 
+			}
+
+			if (j + 1 == orderedEdgeList.size())
+			{
+				endPoint = helperFunctions::getFirstPointShape(otherEdge);
+				break;
 			}
 
 			endPoint = helperFunctions::getFirstPointShape(otherEdge);
@@ -1736,7 +1735,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		}
 
 		brepSewer.Perform();
-		prismList.emplace_back(brepSewer.SewedShape());
+		prismList.emplace_back(simplefySolid(brepSewer.SewedShape()));
 	}
 
 	if (!allSolids)
