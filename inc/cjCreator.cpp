@@ -1179,7 +1179,11 @@ void CJGeoCreator::mergeRoofSurfaces()
 				break;
 			}
 		}
-		if (!isDub) { continue; }
+		if (!isDub) 
+		{
+			mergedFaceListBuilding.emplace_back(faceList);
+			continue; 
+		}
 
 		// make index
 		bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
@@ -1268,7 +1272,6 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 							TopoDS_Vertex vertex = TopoDS::Vertex(vertexExplorer.Current());
 							gp_Pnt point = BRep_Tool::Pnt(vertex);
-							//helperFunctions::printPoint(point);
 						}
 					}
 
@@ -1285,6 +1288,7 @@ void CJGeoCreator::mergeRoofSurfaces()
 					mergedFaceGroup.projectFace();
 					mergedFaceList.emplace_back(mergedFaceGroup);
 				}
+
 				neighbourFaceList.clear();
 				bufferList.clear();
 				aBuilder.Clear();
@@ -1309,6 +1313,7 @@ void CJGeoCreator::mergeRoofSurfaces()
 		}
 		mergedFaceListBuilding.emplace_back(mergedFaceList);
 	}
+
 	faceList_ = mergedFaceListBuilding;
 }
 
