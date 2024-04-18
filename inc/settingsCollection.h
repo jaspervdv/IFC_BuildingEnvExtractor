@@ -61,5 +61,7 @@ struct SettingsCollection {
 
 	// if LoD13 output is done and the same as LoD22, copy the data
 	bool Lod123IsFlat_ = false;
+
+	double originRot_ = 0;
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

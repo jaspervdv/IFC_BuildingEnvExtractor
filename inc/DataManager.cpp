@@ -304,6 +304,7 @@ void helper::internalizeGeo()
 	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
 	computeBoundingData(&lllPoint_, &urrPoint_, &originRot_);
+	sudoSettings_->originRot_ = originRot_;
 
 	std::cout << "\tSuccessfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s\n" << std::endl;
 

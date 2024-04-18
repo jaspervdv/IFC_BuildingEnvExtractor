@@ -42,7 +42,6 @@ private:
 	VoxelGrid* voxelGrid_ = nullptr;
 
 	// rotation of the voxelgrid (or inverse rotation of the objects)
-	double planeRotation_ = 0;
 	gp_Trsf geoRefRotation_;
 
 	// container for surface group data

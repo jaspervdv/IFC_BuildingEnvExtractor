@@ -18,7 +18,9 @@ ENDFOREACH()
 find_package(nlohmann_json REQUIRED)
 
 # Tbb
-find_package(tbb REQUIRED NO_DEFAULT_PATH)
+find_package(TBB REQUIRED NO_DEFAULT_PATH)
+SET(TBB_INCLUDE_DIR "tbb/include")
+message(STATUS "${INTERFACE_INCLUDE_DIRECTORIES}")
 
 # CJT
 find_package(CJT REQUIRED)
@@ -32,6 +34,7 @@ set(Boost_LIBRARY_DIR "C:/Program Files/boost/boost_1_77_0/lib64-msvc-14.2")
 set(OpenCASCADE_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/inc")
 set(OpenCASCADEC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/win64/lib")
 
+
 # set location for IFCOpenShell
 set(IFC_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/include")
 set(IFC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/lib")
@@ -41,8 +44,6 @@ link_directories("/usr/local/lib" ${Boost_LIBRARY_DIR} ${OpenCASCADEC_LIBRARY_DI
 
 file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.lib")
 file(GLOB OCC_LIBRARY_FILES "${OpenCASCADEC_LIBRARY_DIR}/*.lib")
-
-
 
 add_executable(${PROJECT_NAME} 
 main.cpp
@@ -68,8 +69,7 @@ foreach(LIB ${Boost_LIBRARIES})
     message(STATUS "Boost libraries are ${LIB}")
 endforeach()
 
-
-target_link_libraries(${PROJECT_NAME} ${OCC_LIBRARY_FILES} ${IFC_LIBRARY_FILES} ${Boost_LIBRARIES}  ${BCRYPT_LIBRARIES} ws2_32.lib CJT nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} ${OCC_LIBRARY_FILES} ${IFC_LIBRARY_FILES} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ws2_32.lib TBB::tbb CJT nlohmann_json::nlohmann_json)
 
 # Adjust runtime environment
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_ENVIRONMENT "PATH=$<$<CONFIG:DEBUG>:${OpenCASCADE_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${OpenCASCADE_BINARY_DIR}>;%PATH%;$<$<CONFIG:DEBUG>:${TBB_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${TBB_BINARY_DIR}>")

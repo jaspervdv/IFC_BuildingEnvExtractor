@@ -39,7 +39,6 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 
-
 void flipPoints(gp_Pnt* p1, gp_Pnt* p2) {
 	gp_Pnt tempPoint = *p1;
 	*p1 = *p2;
@@ -180,7 +179,7 @@ bool CJGeoCreator::isInList(const TopoDS_Edge& currentEdge, const std::vector<Ed
 
 std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project)
 {
-	double buffer = 0.01; //TODO: have it scale with units
+	double buffer = 0.001; //TODO: have it scale with units
 
 	// merge lines that are on the same plane
 	std::vector<Edge> cleanedEdgeList;
@@ -614,8 +613,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 			voxel currentBoxel = *originVoxels[qResult[j].second];
 
 			if (currentBoxel.getIsInside()) { continue; }
-
-			auto boostCastPoint = currentBoxel.getCenterPoint(planeRotation_);
+			auto boostCastPoint = currentBoxel.getCenterPoint(sudoSettings_->originRot_);
 			gp_Pnt castPoint(boostCastPoint.get<0>(), boostCastPoint.get<1>(), floorlvl);
 			TopoDS_Edge castRay = BRepBuilderAPI_MakeEdge(centerPoint, castPoint);
 
@@ -1576,9 +1574,13 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<Edge> uniqueEdges = getUniqueEdges(rawEdgeList);
 	std::vector<Edge> cleanedEdges = mergeOverlappingEdges(uniqueEdges, false);
 	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
-
 	// raycast
 	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
+	//for (size_t i = 0; i < outerFootPrintList.size(); i++)
+	//{
+	//	helperFunctions::printPoint(helperFunctions::getFirstPointShape(outerFootPrintList[i]));
+	//	helperFunctions::printPoint(helperFunctions::getLastPointShape(outerFootPrintList[i]));
+	//}
 	return outerEdges2Shapes(outerFootPrintList);
 }
 
@@ -1613,13 +1615,13 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		}
 
 		// split faces
+		std::mutex faceListMutex;
 		std::vector<TopoDS_Face> faceList;
 		bgi::rtree<Value, bgi::rstar<25>> faceIdx;
 
 		for (size_t j = 0; j < faceList_[i].size(); j++)
 		{
 			SurfaceGroup currentRoof = faceList_[i][j];
-
 			TopoDS_Face currentFace;
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
 			else { currentFace = currentRoof.getFlatFace(); }
@@ -1629,36 +1631,37 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			std::vector<Value> qResult;
 			spatialIndex.query(bgi::intersects(searchBox), std::back_inserter(qResult));
 
-			if (qResult.size() <= 1) 
+			if (qResult.size() <= 1)
 			{
+				std::lock_guard<std::mutex> faceLock(faceListMutex);
 				faceIdx.insert(std::make_pair(searchBox, faceList.size()));
 				faceList.emplace_back(currentFace);
-				continue; 
 			}
+			else {
 
-			BOPAlgo_Splitter divider;
-			divider.SetFuzzyValue(1e-6);
-			divider.SetRunParallel(Standard_False);
-			divider.AddArgument(currentFace);
+				BOPAlgo_Splitter divider;
+				divider.SetFuzzyValue(1e-6);
+				divider.SetRunParallel(Standard_False);
+				divider.AddArgument(currentFace);
 
-			for (size_t k = 0; k < qResult.size(); k++)
-			{
-				int extruIndx = qResult[k].second;
-				if (j == extruIndx) { continue; }
+				for (size_t k = 0; k < qResult.size(); k++)
+				{
+					int extruIndx = qResult[k].second;
+					if (j == extruIndx) { continue; }
 
-				TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
-				divider.AddTool(currentSplitter);
-			}
+					TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
+					divider.AddTool(currentSplitter);
+				}
+				divider.Perform();
 
-			divider.Perform();
-
-			for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-				TopoDS_Face subFace = TopoDS::Face(expl.Current());
-				faceIdx.insert(std::make_pair(searchBox, faceList.size()));
-				faceList.emplace_back(subFace);
+				for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+					TopoDS_Face subFace = TopoDS::Face(expl.Current());
+					std::lock_guard<std::mutex> faceLock(faceListMutex);
+					faceIdx.insert(std::make_pair(searchBox, faceList.size()));
+					faceList.emplace_back(subFace);
+				}
 			}
 		}
-
 		BOPAlgo_Builder aBuilder;
 		aBuilder.SetFuzzyValue(1e-6);
 		aBuilder.SetRunParallel(Standard_True);
@@ -1708,8 +1711,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		}
 
 		aBuilder.Perform();
-
-
 
 		TopTools_DataMapOfShapeShape ttt = aBuilder.ShapesSD();
 		BRepBuilderAPI_Sewing brepSewer;
@@ -3049,7 +3050,7 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 	BRepBuilderAPI_Sewing brepSewer;
 	for (size_t i = 0; i < 6; i++)
 	{
-		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, planeRotation_, roomNum);
+		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, sudoSettings_->originRot_, roomNum);
 
 		for (size_t j = 0; j < faceList.size(); j++)
 		{
@@ -3189,7 +3190,7 @@ void CJGeoCreator::populateVoxelIndex(
 		// voxels that have no internal products do not have an intersection and are stored as completely external voxels
 		if (internalProducts.size() == 0)
 		{
-			auto cornerPoints = currentBoxel->getCornerPoints(planeRotation_);
+			auto cornerPoints = currentBoxel->getCornerPoints(sudoSettings_->originRot_);
 			gp_Pnt lllPoint = cornerPoints[0];
 			gp_Pnt urrPoint = cornerPoints[4];
 
