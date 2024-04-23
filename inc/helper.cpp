@@ -413,60 +413,54 @@ gp_Pnt helperFunctions::getHighestPoint(const TopoDS_Shape& shape)
 }
 
 
-gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace) {
+gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace) 
+{
+	triangulateShape(theFace);
 
-	//theFace.Reverse();
-	int maxGuesses = 10;
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
-	gp_Pnt lll(999999, 999999, 999999);
-	gp_Pnt urr(-999999, -999999, -999999);
+	for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) 
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 
-	for (TopExp_Explorer vertexExp(theFace, TopAbs_VERTEX); vertexExp.More(); vertexExp.Next()) {
-		TopoDS_Vertex vertex = TopoDS::Vertex(vertexExp.Current());
-		gp_Pnt p = BRep_Tool::Pnt(vertex);
-		if (p.X() < lll.X()) { lll.SetX(p.X()); }
-		if (p.Y() < lll.Y()) { lll.SetY(p.Y()); }
-		if (p.Z() < lll.Z()) { lll.SetZ(p.Z()); }
-		if (p.X() > urr.X()) { urr.SetX(p.X()); }
-		if (p.Y() > urr.Y()) { urr.SetY(p.Y()); }
-		if (p.Z() > urr.Z()) { urr.SetZ(p.Z()); }
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		gp_Pnt middlePoint = gp_Pnt(
+			(p1.X() + p2.X() + p3.X()) / 3,
+			(p1.Y() + p2.Y() + p3.Y()) / 3,
+			(p1.Z() + p2.Z() + p3.Z()) / 3
+		);
+		return middlePoint;
 	}
+}
 
-	// Generate a random point on the face
-	std::random_device rd;
-	std::mt19937 gen(rd());
+std::vector<gp_Pnt> helperFunctions::getPointListOnFace(const TopoDS_Face& theFace)
+{
+	triangulateShape(theFace);
 
-	std::uniform_real_distribution<> xDistr(lll.X(), urr.X());
-	std::uniform_real_distribution<> yDistr(lll.Y(), urr.Y());
-	std::uniform_real_distribution<> zDistr(lll.Z(), urr.Z());
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
-	gp_Pnt randomPoint;
-	bool isOnFace = false;
-	int itt = 0;
-	while (!isOnFace) {
-		randomPoint.SetXYZ(gp_XYZ(xDistr(gen), yDistr(gen), zDistr(gen)));
-		
-		BRepExtrema_DistShapeShape distanceCalc(theFace, BRepBuilderAPI_MakeVertex(randomPoint));
-		distanceCalc.Perform();
+	std::vector<gp_Pnt> pointList;
+	for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++)
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 
-		randomPoint = distanceCalc.PointOnShape1(1);
-		isOnFace = true;
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
 
-		for (TopExp_Explorer wireExp(theFace, TopAbs_WIRE); wireExp.More(); wireExp.Next()) {
-			TopoDS_Wire theWire = TopoDS::Wire(wireExp.Current());
-
-			BRepExtrema_DistShapeShape distanceWireCalc(theWire, BRepBuilderAPI_MakeVertex(randomPoint));
-			distanceWireCalc.Perform();
-
-			if (distanceWireCalc.Value() < 0.01)
-			{
-				isOnFace = false;
-			}
-		}
-		if (itt == maxGuesses) { break; } // TODO: prevent hitting this
-		itt++;
+		gp_Pnt middlePoint = gp_Pnt(
+			(p1.X() + p2.X() + p3.X()) / 3,
+			(p1.Y() + p2.Y() + p3.Y()) / 3,
+			(p1.Z() + p2.Z() + p3.Z()) / 3
+		);
+		pointList.emplace_back(middlePoint);
 	}
-	return randomPoint;
+	return pointList;
 }
 
 

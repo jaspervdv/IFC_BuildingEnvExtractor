@@ -263,6 +263,8 @@ public:
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
 	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
+	/// generates a list of the site and its outline
+	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);
 
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 	gp_Trsf getRefRotation() { return geoRefRotation_; }

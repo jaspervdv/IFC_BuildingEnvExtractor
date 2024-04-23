@@ -116,7 +116,7 @@ private:
 	double originRot_;
 
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
-	double dataCollectionSize_ = 0;
+	int dataCollectionSize_ = 0;
 
 	static const int treeDepth = 10;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
@@ -214,6 +214,7 @@ public:
 
 	// returns a pointer to the sourcefile
 	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
+	int getSourceFileCount() { return dataCollectionSize_; }
 
 	// returns a pointer to the kernel
 	IfcGeom::Kernel* getKernel(int i) const { return datacollection_[i].get()->getKernelPtr(); }

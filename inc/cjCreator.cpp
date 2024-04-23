@@ -1432,25 +1432,38 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 	brepSewer.Add(evalFace);
 	brepSewer.Add(projectedFace);
 
-	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
-		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
-		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
-		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+	TopExp_Explorer evalEdgeExplorer(evalFace, TopAbs_EDGE);
+	TopExp_Explorer projEdgeExplorer(projectedFace, TopAbs_EDGE);
 
-		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight)
-		{
-			return TopoDS_Solid();
-		}
+	while (evalEdgeExplorer.More() && projEdgeExplorer.More()) {
+		const TopoDS_Edge& evalEdge = TopoDS::Edge(evalEdgeExplorer.Current());
+		const TopoDS_Edge& projEdge = TopoDS::Edge(projEdgeExplorer.Current());
 
-		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(evalEdge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(evalEdge);
+		gp_Pnt p2 = helperFunctions::getLastPointShape(projEdge);
+		gp_Pnt p3 = helperFunctions::getFirstPointShape(projEdge);
+
+		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight) { return TopoDS_Solid(); }
+
+		TopoDS_Face sideFace = helperFunctions::createPlanarFace( p0, p1, p2, p3 );
 		brepSewer.Add(sideFace);
+
+		evalEdgeExplorer.Next();
+		projEdgeExplorer.Next();
 	}
 
 	brepSewer.Perform();
-	if (brepSewer.SewedShape().Closed())
+	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+
+	if (sewedShape.Closed())
 	{
-		brepBuilder.Add(solidShape, brepSewer.SewedShape());
+		brepBuilder.Add(solidShape, sewedShape);
 	}
+	else {
+		brepBuilder.Add(solidShape, sewedShape); //TODO: resolve this issue
+	}
+
 	return solidShape;
 }
 
@@ -1607,13 +1620,11 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			else { currentFace = currentRoof.getFlatFace(); }
 
 			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
-
 			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
 			spatialIndex.insert(std::make_pair(bbox, (int)j));
 
 			ExtrudedShapes.emplace_back(extrudedShape);
 		}
-
 		// split faces
 		std::mutex faceListMutex;
 		std::vector<TopoDS_Face> faceList;
@@ -3043,6 +3054,249 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return roomObjectList;
+}
+
+std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kernel, int unitScale)
+{
+	std::cout << "- Extracting Site Data" << std::endl;
+	std::vector<CJT::CityObject> siteObjectList;
+	double buffer = 0.001;
+	int geoCount = 0;
+
+	TopTools_ListOfShape completeFuseToolList;
+
+	std::vector<TopoDS_Face> verticalFaces;
+	std::vector<TopoDS_Face> groundPlaneFaces;
+
+	// get the surfaces from the geo or site objects
+	for (size_t i = 0; i < h->getSourceFileCount(); i++)
+	{
+		IfcSchema::IfcSite::list::ptr siteElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSite>();
+
+		if (!siteElements->size()) { continue; }
+		geoCount += siteElements->size();
+
+		if (geoCount > 1)
+		{
+			std::cout << "[WARNING] more than one Site Element found, site export terminated" << std::endl;
+			return std::vector<CJT::CityObject>();
+		}
+
+		IfcSchema::IfcSite* siteElement = *siteElements->begin();
+		
+		if (!siteElement->hasRepresentation()) { continue; }
+		TopoDS_Shape siteShape = h->getObjectShape(siteElement);
+		for (TopExp_Explorer explorer(siteShape, TopAbs_FACE); explorer.More(); explorer.Next())
+		{
+			const TopoDS_Face& siteFace = TopoDS::Face(explorer.Current());
+			completeFuseToolList.Append(siteFace);
+		}
+	}
+	if (!groundPlaneFaces.size())
+	{
+#ifdef USE_IFC4
+		for (size_t i = 0; i < h->getSourceFileCount(); i++)
+		{
+			IfcSchema::IfcGeographicElement::list::ptr geographicElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcGeographicElement>();
+
+			if (!geographicElements->size()) { continue; }
+			geoCount += geographicElements->size();
+			for (auto it = geographicElements->begin(); it != geographicElements->end(); ++it)
+			{
+				IfcSchema::IfcGeographicElement* geographicElement = *it;
+				if (geographicElement->PredefinedType() != IfcSchema::IfcGeographicElementTypeEnum::Value::IfcGeographicElementType_TERRAIN) { continue; }
+
+				TopoDS_Shape geographicShape = h->getObjectShape(geographicElement);
+				for (TopExp_Explorer explorer(geographicShape, TopAbs_FACE); explorer.More(); explorer.Next())
+				{
+					const TopoDS_Face& geoFace = TopoDS::Face(explorer.Current());
+					completeFuseToolList.Append(geoFace);
+				}
+			}
+		}
+#endif // USE_IFC4
+	}
+	
+	if (completeFuseToolList.Size() == 0)
+	{
+		std::cout << "[INFO] no Geographic or Site Element was found" << std::endl;
+		return std::vector<CJT::CityObject>();
+	}
+
+	// fuse all surfaces so they are all properly split
+	BRepAlgoAPI_Fuse fuser;
+	fuser.SetArguments(completeFuseToolList);
+	fuser.SetTools(completeFuseToolList);
+	fuser.SetFuzzyValue(1e-4);
+	fuser.Build();
+
+	// split flat faces from vertical faces
+	for (TopExp_Explorer explorer(fuser.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& geoFace = TopoDS::Face(explorer.Current());
+		if (abs(helperFunctions::computeFaceNormal(geoFace).Z()) < 0.001)
+		{
+			verticalFaces.emplace_back(geoFace);
+			continue;
+		}
+		groundPlaneFaces.emplace_back(geoFace);
+	}
+
+	// make index 
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> siteFacesSpatialIndex;
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> siteSelectionFacesSpatialIndex;
+	std::vector<TopoDS_Face> siteSelectionFaceList;
+	for (size_t i = 0; i < groundPlaneFaces.size(); i++)
+	{
+		TopoDS_Face currentFace = groundPlaneFaces[i];
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		siteFacesSpatialIndex.insert(std::make_pair(bbox, (int)i));
+	}
+
+	// find if flat surface is covered
+	TopTools_ListOfShape toolList;
+	for (size_t i = 0; i < groundPlaneFaces.size(); i++)
+	{
+		TopoDS_Face currentFace = groundPlaneFaces[i];
+		gp_Pnt basePoint = helperFunctions::getPointOnFace(currentFace);
+		gp_Pnt endPoint = gp_Pnt(
+			basePoint.X(),
+			basePoint.Y(),
+			basePoint.Z() + 10000
+		);
+
+		TopoDS_Edge ray = BRepBuilderAPI_MakeEdge(basePoint, endPoint);
+
+		std::vector<Value> qResult;
+		siteFacesSpatialIndex.query(
+			bgi::intersects(
+				bg::model::box <BoostPoint3D>(
+					BoostPoint3D(basePoint.X() - buffer, basePoint.Y() - buffer, basePoint.Z() - buffer),
+					BoostPoint3D(endPoint.X() + buffer, endPoint.Y() + buffer, endPoint.Z() + buffer)
+					)
+			),
+			std::back_inserter(qResult)
+		);
+
+		bool isCovered = false;
+		for (size_t j = 0; j < qResult.size(); j++)
+		{
+			int currentIndx = qResult[j].second;
+			if (currentIndx == i) { continue; }
+
+			BRepExtrema_DistShapeShape distanceWireCalc(groundPlaneFaces[currentIndx], ray);
+			distanceWireCalc.Perform();
+
+			if (distanceWireCalc.Value() < 0.00001)
+			{
+				isCovered = true;
+				break;
+			}
+		}
+
+		if (!isCovered)
+		{
+			toolList.Append(currentFace);
+			siteSelectionFaceList.emplace_back(currentFace);
+			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+			siteSelectionFacesSpatialIndex.insert(std::make_pair(bbox, siteSelectionFacesSpatialIndex.size()));
+		}
+
+	}
+
+	if (!toolList.Size())
+	{
+		std::cout << "[WARNING] no site could be reconstructed" << std::endl;
+		return std::vector<CJT::CityObject>();
+	}
+
+	// get the outer edges from the flat surfaces
+	fuser.SetArguments(toolList);
+	fuser.SetTools(toolList);
+	fuser.SetFuzzyValue(1e-4);
+	fuser.Build();
+
+	std::vector<TopoDS_Edge> outerEdgesList;
+	Prs3d_ShapeTool Tool(fuser.Shape());
+	for (Tool.InitCurve(); Tool.MoreCurve(); Tool.NextCurve())
+	{
+		const TopoDS_Edge& E = Tool.GetCurve();
+		if (Tool.FacesOfEdge().get()->Size() == 1) {
+			outerEdgesList.emplace_back(E);
+		}
+	}
+
+	if (!verticalFaces.size())
+	{
+		return std::vector<CJT::CityObject>();
+	}
+
+	// find the bounding vertical faces
+	for (size_t i = 0; i < verticalFaces.size(); i++)
+	{
+		TopoDS_Face currentFace = verticalFaces[i];
+		gp_Pnt facePoint = helperFunctions::getPointOnFace(currentFace);
+		gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentFace) / 100;
+
+		gp_Pnt p1 = facePoint.Translated(faceNormal);
+		gp_Pnt p2 = facePoint.Translated(faceNormal.Reversed());
+
+		TopoDS_Edge ray1 = BRepBuilderAPI_MakeEdge(p1, gp_Pnt(p1.X(), p1.Y(), p1.Z() + 1000));
+		TopoDS_Edge ray2 = BRepBuilderAPI_MakeEdge(p2, gp_Pnt(p2.X(), p2.Y(), p2.Z() + 1000));
+
+		std::vector<Value> qResult;
+		siteSelectionFacesSpatialIndex.query(
+			bgi::intersects(
+				helperFunctions::createBBox({ ray1, ray2 })
+			),
+			std::back_inserter(qResult)
+		);
+
+		int intersectionCount = 0;
+		for (size_t j = 0; j < qResult.size(); j++)
+		{
+			TopoDS_Face horizontalFace = siteSelectionFaceList[qResult[j].second];
+
+			BRepExtrema_DistShapeShape distanceWireCalc1(horizontalFace, ray1);
+			BRepExtrema_DistShapeShape distanceWireCalc2(horizontalFace, ray2);
+			distanceWireCalc1.Perform();
+			distanceWireCalc2.Perform();
+
+			if (distanceWireCalc1.Value() < 0.00001) { intersectionCount++; }
+			if (distanceWireCalc2.Value() < 0.00001) { intersectionCount++; }
+
+			if (intersectionCount >=2)
+			{
+				break;
+			}
+		}
+
+		if (intersectionCount < 2)
+		{
+			toolList.Append(currentFace);
+		}
+	}
+
+	// merge the filtered vertical and horizontal site faces
+	fuser.SetArguments(toolList);
+	fuser.SetTools(toolList);
+	fuser.SetFuzzyValue(1e-4);
+	fuser.Build();
+
+	if (!fuser.IsDone())
+	{
+		std::cout << "[WARNING] no site could be reconstructed" << std::endl;
+		return std::vector<CJT::CityObject>();
+	}
+
+	CJT::CityObject siteObject;
+	CJT::GeoObject* geoObject = kernel->convertToJSON(fuser.Shape(), "1");
+	siteObject.addGeoObject(*geoObject);
+	siteObject.setType(CJT::Building_Type::TINRelief);
+	siteObject.setName("Site");
+
+	siteObjectList.emplace_back(siteObject);
+	return siteObjectList;
 }
 
 TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)

@@ -86,8 +86,9 @@ struct helperFunctions{
 	static gp_Pnt getLowestPoint(const TopoDS_Shape& shape, bool areaFilter);
 	/// Get the highest point of a shape
 	static gp_Pnt getHighestPoint(const TopoDS_Shape& shape);
-	/// get a random point on face
+	/// get the middlepoint of the face located in the first triangle of its triangulation
 	static gp_Pnt getPointOnFace(const TopoDS_Face& theFace);
+	static std::vector<gp_Pnt> getPointListOnFace(const TopoDS_Face& theFace);
 	/// make a reversed copy of the input wire
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
 	/// get first point on shape (used for wires and edges)

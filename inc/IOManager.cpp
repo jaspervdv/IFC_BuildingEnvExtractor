@@ -1140,6 +1140,18 @@ bool IOManager::run()
 			collectionPtr->addCityObject(*storeyObjects[i].get());
 		}
 	}
+
+	if (true) // store the site
+	{
+		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+		std::vector<CJT::CityObject> siteObjects = geoCreator.makeSite(internalHelper_.get(), &kernel, 1);
+		for (size_t i = 0; i < siteObjects.size(); i++)
+		{
+			CJT::CityObject currentSiteObject = siteObjects[i];
+			currentSiteObject.addParent(&cityBuildingObject);
+			collectionPtr->addCityObject(currentSiteObject);
+		}
+	}
 	
 	collectionPtr->setTransformation(transformation);
 	collectionPtr->setVersion("1.1");
