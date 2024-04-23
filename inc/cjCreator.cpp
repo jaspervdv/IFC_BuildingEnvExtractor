@@ -1430,27 +1430,20 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
 	brepSewer.Add(evalFace);
-	brepSewer.Add(projectedFace);
+	brepSewer.Add(projectedFace.Reversed());
 
-	TopExp_Explorer evalEdgeExplorer(evalFace, TopAbs_EDGE);
-	TopExp_Explorer projEdgeExplorer(projectedFace, TopAbs_EDGE);
+	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
 
-	while (evalEdgeExplorer.More() && projEdgeExplorer.More()) {
-		const TopoDS_Edge& evalEdge = TopoDS::Edge(evalEdgeExplorer.Current());
-		const TopoDS_Edge& projEdge = TopoDS::Edge(projEdgeExplorer.Current());
+		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight)
+		{
+			return TopoDS_Solid();
+		}
 
-		gp_Pnt p0 = helperFunctions::getFirstPointShape(evalEdge);
-		gp_Pnt p1 = helperFunctions::getLastPointShape(evalEdge);
-		gp_Pnt p2 = helperFunctions::getLastPointShape(projEdge);
-		gp_Pnt p3 = helperFunctions::getFirstPointShape(projEdge);
-
-		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight) { return TopoDS_Solid(); }
-
-		TopoDS_Face sideFace = helperFunctions::createPlanarFace( p0, p1, p2, p3 );
+		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
 		brepSewer.Add(sideFace);
-
-		evalEdgeExplorer.Next();
-		projEdgeExplorer.Next();
 	}
 
 	brepSewer.Perform();
