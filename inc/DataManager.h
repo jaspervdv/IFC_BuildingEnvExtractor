@@ -31,15 +31,24 @@ class lookupValue
 {
 private:
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
+	TopoDS_Shape productShape_;
+	std::vector<gp_Pnt> productPointList_;
 	TopoDS_Shape cBox_;
 
+
 public:
-	lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& cBox);
+	lookupValue(
+		IfcSchema::IfcProduct* productPtr, 
+		const TopoDS_Shape& productShape,
+		const TopoDS_Shape& cBox);
 
 	~lookupValue() {
 	}
 
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
+
+	const TopoDS_Shape& getProductShape() { return productShape_; }
+	const std::vector<gp_Pnt>& getProductPoints() { return productPointList_; }
 
 	bool hasCBox() { return !cBox_.IsNull(); }
 
@@ -118,7 +127,7 @@ private:
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	int dataCollectionSize_ = 0;
 
-	static const int treeDepth = 10;
+	static const int treeDepth = 5;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> SpaceIndex_;
 	std::vector<lookupValue*> productLookup_;
@@ -126,8 +135,8 @@ private:
 
 	bool hasIndex_ = false;
 
-	std::map < std::string, TopoDS_Shape > shapeLookup_;
-	std::map < std::string, TopoDS_Shape > adjustedshapeLookup_;
+	std::map <std::string, std::unordered_map < std::string, TopoDS_Shape>> shapeLookup_;
+	std::map <std::string, std::unordered_map < std::string, TopoDS_Shape>> adjustedshapeLookup_;
 
 	std::list<std::string>* roomBoundingObjects_ = {};
 	bool useCustom_ = false;

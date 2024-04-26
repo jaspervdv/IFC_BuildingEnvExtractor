@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "voxelGrid.h"
 #include "voxel.h"
+#include <algorithm>
+#include <execution>
 
 bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {
@@ -244,7 +246,8 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 
 		if (i == coreUse - 1) { endIdx = xRelRange_ * yRelRange_; }
 
-		threadList.emplace_back([=, &voxelsGrown]() {
+		threadList.emplace_back([=, &voxelsGrown]() 
+			{
 			addVoxelColumn(beginIdx, endIdx, h, &voxelsGrown);
 			});
 	}

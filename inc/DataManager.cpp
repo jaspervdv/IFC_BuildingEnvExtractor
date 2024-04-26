@@ -575,9 +575,18 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 
 		if (openingObjects_.find(qProductType) == openingObjects_.end()) { continue; }
 
-		auto search = adjustedshapeLookup_.find(qProduct->GlobalId());
-		if (search == adjustedshapeLookup_.end()) { continue; }
-		TopoDS_Shape qUntrimmedShape = search->second;
+		std::string objectType = qProduct->data().type()->name();
+
+
+		auto typeSearch = adjustedshapeLookup_.find(objectType);
+		if (typeSearch == adjustedshapeLookup_.end()) { continue; }
+
+		auto objectSearch = typeSearch->second.find(qProduct->GlobalId());
+		if (objectSearch == typeSearch->second.end()) { continue; }
+
+
+
+		TopoDS_Shape qUntrimmedShape = objectSearch->second;
 		TopExp_Explorer expl;
 		for (expl.Init(qUntrimmedShape, TopAbs_SOLID); expl.More(); expl.Next()) {
 			// get distance to isolated actual object
@@ -969,7 +978,7 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 			cbbox = boxSimplefy(shape);
 		}
 
-		lookupValue* lookup = new lookupValue(product, cbbox);
+		lookupValue* lookup = new lookupValue(product, shape, cbbox);
 
 		if (addToRoomIndx)
 		{
@@ -1005,15 +1014,43 @@ std::vector<TopoDS_Face> helper::getObjectFaces(IfcSchema::IfcProduct* product, 
 
 TopoDS_Shape helper::getObjectShapeFromMemEmpty(IfcSchema::IfcProduct* product, bool adjusted)
 {
+	std::string objectType = product->data().type()->name();
+
+
 	if (!adjusted)
 	{
-		auto search = shapeLookup_.find(product->GlobalId());
-		if (search != shapeLookup_.end()) { return search->second; }
+		auto typeSearch = shapeLookup_.find(objectType);
+
+		if (typeSearch == shapeLookup_.end())
+		{
+			return {};
+		}
+
+		auto objectSearch = typeSearch->second.find(product->GlobalId());
+
+		if (objectSearch == typeSearch->second.end())
+		{
+			return {};
+		}
+		return objectSearch->second;
+
 	}
 	else if (adjusted)
 	{
-		auto search = adjustedshapeLookup_.find(product->GlobalId());
-		if (search != adjustedshapeLookup_.end()) { return search->second; }
+		auto typeSearch = adjustedshapeLookup_.find(objectType);
+
+		if (typeSearch == adjustedshapeLookup_.end())
+		{
+			return {};
+		}
+
+		auto objectSearch = typeSearch->second.find(product->GlobalId());
+
+		if (objectSearch == typeSearch->second.end())
+		{
+			return {};
+		}
+		return objectSearch->second;
 	}
 	return {};
 }
@@ -1036,11 +1073,10 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	//TODO: make threadsave
 
 	if (objectType == "IfcFastener") { return {}; }
-
+	
 	// filter with lookup
 	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
 	TopoDS_Shape potentialShape = getObjectShapeFromMemEmpty(product, adjusted);
-
 	if (!potentialShape.IsNull()) { return potentialShape; }
 
 	IfcSchema::IfcRepresentation* ifc_representation = 0;
@@ -1104,11 +1140,25 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 				}
 			}
 
-			if (memorize) { shapeLookup_[product->GlobalId()] = collection; }
+			if (memorize) 
+			{ 
+				if (shapeLookup_.find(objectType) == shapeLookup_.end())
+				{
+					shapeLookup_.emplace(objectType, std::unordered_map < std::string, TopoDS_Shape>());
+				}
+				shapeLookup_[objectType][product->GlobalId()] = collection;
+			}
 
 			if (hasHoles)
 			{
-				if (memorize) { adjustedshapeLookup_[product->GlobalId()] = collectionSimple; }
+				if (memorize) 
+				{ 
+					if (adjustedshapeLookup_.find(objectType) == adjustedshapeLookup_.end())
+					{
+						adjustedshapeLookup_.emplace(objectType, std::unordered_map < std::string, TopoDS_Shape>());
+					}
+					adjustedshapeLookup_[objectType][product->GlobalId()] = collectionSimple;
+				}
 			}
 
 			if (adjusted) { return collectionSimple; }
@@ -1171,12 +1221,25 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		helperFunctions::triangulateShape(simpleComp);
 	}
 
-	if (memorize) { shapeLookup_[product->GlobalId()] = comp; }
+	if (memorize) 
+	{ 
+		if (shapeLookup_.find(objectType) == shapeLookup_.end())
+		{
+			shapeLookup_.emplace(objectType, std::unordered_map < std::string, TopoDS_Shape>());
+		}
+		shapeLookup_[objectType][product->GlobalId()] = comp;
+	}
 
 	if (hasHoles)
 	{
 		if (memorize)
-		{ adjustedshapeLookup_[product->GlobalId()] = simpleComp; }
+		{
+			if (adjustedshapeLookup_.find(objectType) == adjustedshapeLookup_.end())
+			{
+				adjustedshapeLookup_.emplace(objectType, std::unordered_map < std::string, TopoDS_Shape>());
+			}
+			adjustedshapeLookup_[objectType][product->GlobalId()] = simpleComp;
+		}
 	}
 	if (adjusted) { return simpleComp; }
 	return comp;
@@ -1189,25 +1252,36 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 
 	helperFunctions::triangulateShape(shape);
 
+	std::string objectType = product->data().type()->name();
+
 	// filter with lookup
 	if (!adjusted)
 	{
-		auto search = shapeLookup_.find(product->GlobalId());
-		if (search == shapeLookup_.end())
+		if (shapeLookup_.find(objectType) == shapeLookup_.end())
 		{
 			return;
 		}
-		shapeLookup_[product->GlobalId()] = shape;
+
+		if (shapeLookup_[objectType].find(product->GlobalId()) == shapeLookup_[objectType].end())
+		{
+			return;
+		}
+
+		shapeLookup_[objectType][product->GlobalId()] = shape;
 	}
 
 	if (adjusted)
 	{
-		auto search = adjustedshapeLookup_.find(product->GlobalId());
-		if (search == adjustedshapeLookup_.end())
+		if (adjustedshapeLookup_.find(objectType) == adjustedshapeLookup_.end())
 		{
 			return;
 		}
-		adjustedshapeLookup_[product->GlobalId()] = shape;
+
+		if (adjustedshapeLookup_[objectType].find(product->GlobalId()) == adjustedshapeLookup_[objectType].end())
+		{
+			return;
+		}
+		adjustedshapeLookup_[objectType][product->GlobalId()] = shape;
 	}
 }
 
@@ -1433,10 +1507,24 @@ void helper::voidShapeAdjust(T products)
 }
 
 
-lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& cBox)
+lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape, const TopoDS_Shape& cBox)
 {
 	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
+	productShape_ = productShape;
 	cBox_ = cBox;
+
+	helperFunctions::triangulateShape(cBox_);
+
+	if (cBox_.IsNull())
+	{
+		productPointList_ = helperFunctions::shape2PointList(productShape);
+	}
+	else
+	{
+		productPointList_ = helperFunctions::shape2PointList(cBox_);
+	}
+
+
 }
 
 

@@ -39,6 +39,9 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 
+#include <execution>
+#include <algorithm>
+
 void flipPoints(gp_Pnt* p1, gp_Pnt* p2) {
 	gp_Pnt tempPoint = *p1;
 	*p1 = *p2;

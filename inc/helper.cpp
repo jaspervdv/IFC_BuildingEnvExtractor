@@ -651,21 +651,20 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 	// check for potential intersection
 	double left = tVolume(triangle[0], { triangle[2], line[0], line[1] });
 	double right = tVolume(triangle[1], { triangle[2], line[0], line[1] });
+	if (left > 0 && right > 0 || left < 0 && right < 0) { return false; }
 
 	double left2 = tVolume(triangle[1], { triangle[0], line[0], line[1] });
 	double right2 = tVolume(triangle[2], { triangle[0], line[0], line[1] });
+	if (left2 > 0 && right2 > 0 || left2 < 0 && right2 < 0) { return false; }
 
 	double left3 = tVolume(triangle[2], { triangle[1], line[0], line[1] });
 	double right3 = tVolume(triangle[0], { triangle[1], line[0], line[1] });
-
-	if (left > 0 && right > 0 || left < 0 && right < 0) { return false; }
-	if (left2 > 0 && right2 > 0 || left2 < 0 && right2 < 0) { return false; }
 	if (left3 > 0 && right3 > 0 || left3 < 0 && right3 < 0) { return false; }
 
 	double leftFinal = tVolume(line[0], triangle);
 	double rightFinal = tVolume(line[1], triangle);
-
 	if (leftFinal > 0 && rightFinal < 0 || rightFinal > 0 && leftFinal < 0) { return true; }
+
 	return false;
 }
 
