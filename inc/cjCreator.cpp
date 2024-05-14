@@ -1503,7 +1503,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 	for (auto it = storeyList->begin(); it != storeyList->end(); ++it) 
 	{
 		IfcSchema::IfcBuildingStorey* storeyObject = *it;
-		double storeyElevation = storeyObject->Elevation() * h->getScaler(0);
+		double storeyElevation = storeyObject->Elevation().get() * h->getScaler(0);
 
 		std::cout << "\t Floorlevel at z = " << storeyElevation << std::endl;
 
@@ -1513,9 +1513,9 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 
 			std::map<std::string, std::string> semanticStoreyData;
 			semanticStoreyData.emplace("type", "BuildingStorey");
-			if (storeyObject->hasName()) { semanticStoreyData.emplace("IFC_Name", storeyObject->Name()); }
-			if (storeyObject->hasLongName()) { semanticStoreyData.emplace("IFC_LongName", storeyObject->LongName()); }
-			semanticStoreyData.emplace("IFC_Elevation", std::to_string(storeyObject->Elevation() * h->getScaler(0)));
+			if (storeyObject->Name().get() != "") { semanticStoreyData.emplace("IFC_Name", storeyObject->Name().get()); }
+			if (storeyObject->LongName().get() != "") { semanticStoreyData.emplace("IFC_LongName", storeyObject->LongName().get()); }
+			semanticStoreyData.emplace("IFC_Elevation", std::to_string(storeyObject->Elevation().get() * h->getScaler(0)));
 			semanticStoreyData.emplace("IFC_Guid", storeyObject->GlobalId());
 
 			std::map<std::string, std::string> storeyAttributeCollection = h->getProductPropertySet(storeyObject->GlobalId(), 0);
@@ -2436,19 +2436,19 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 	for (auto it = storeyList->begin(); it != storeyList->end(); ++it)
 	{
 		IfcSchema::IfcBuildingStorey* storeyObject = *it;
-		double storeyElevation = storeyObject->Elevation() * h->getScaler(0);
+		double storeyElevation = storeyObject->Elevation().get() * h->getScaler(0);
 
 		CJT::CityObject cityStoreyObject;
 		cityStoreyObject.setType(CJT::Building_Type::BuildingStorey);
 
-		if (storeyObject->hasName()) 
+		if (storeyObject->Name().has_value())
 		{ 
-			cityStoreyObject.setName(storeyObject->Name());
-			cityStoreyObject.addAttribute("Name", storeyObject->Name());
+			cityStoreyObject.setName(storeyObject->Name().get());
+			cityStoreyObject.addAttribute("Name", storeyObject->Name().get());
 		}
-		if (storeyObject->hasLongName()) { cityStoreyObject.addAttribute("Name Long", storeyObject->LongName()); }
+		if (storeyObject->LongName().has_value()) { cityStoreyObject.addAttribute("Name Long", storeyObject->LongName().get()); }
 		cityStoreyObject.addAttribute("IFC Guid", storeyObject->GlobalId());
-		cityStoreyObject.addAttribute("IFC Elevation", storeyObject->Elevation());
+		cityStoreyObject.addAttribute("IFC Elevation", storeyObject->Elevation().get());
 		cityStoreyObjects.emplace_back(std::make_shared< CJT::CityObject>(cityStoreyObject));
 	}
 	return cityStoreyObjects;
@@ -2977,10 +2977,10 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 			std::string longName = product->data().getArgument(7)->toString();
 			longName = longName.substr(1, longName.size() - 2);
 
-			if (product->hasName()) {
+			if (product->Name().has_value()) {
 
-				roomObject.setName(product->Name());
-				roomObject.addAttribute("Name", product->Name());
+				roomObject.setName(product->Name().get());
+				roomObject.addAttribute("Name", product->Name().get());
 				roomObject.addAttribute("IFC Guid", product->GlobalId());
 			}
 
@@ -3080,7 +3080,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 		IfcSchema::IfcSite* siteElement = *siteElements->begin();
 		
-		if (!siteElement->hasRepresentation()) { continue; }
+		if (!siteElement->Representation()) { continue; }
 		TopoDS_Shape siteShape = h->getObjectShape(siteElement);
 		for (TopExp_Explorer explorer(siteShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -3297,26 +3297,40 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 {
+	std::vector<std::thread> threads;
+	std::vector<std::vector<TopoDS_Face>> threadFaceLists(6);
+
+	for (size_t i = 0; i < 6; i++) {
+		threads.emplace_back([this, &threadFaceLists, i, roomNum]() {processDirectionalFaces(i, roomNum, std::ref(threadFaceLists[i])); });
+	}
+	for (auto& t : threads) { t.join(); }
+
 	BRepBuilderAPI_Sewing brepSewer;
-	for (size_t i = 0; i < 6; i++)
-	{
-		std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(i, sudoSettings_->originRot_, roomNum);
-
-		for (size_t j = 0; j < faceList.size(); j++)
-		{
-			std::vector<TopoDS_Wire> wireList = growWires(faceList[j]);
-			std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
-			std::vector<TopoDS_Face> cleanFaceList = wireCluster2Faces(cleanWireList);
-
-			for (size_t j = 0; j < cleanFaceList.size(); j++)
-			{
-				brepSewer.Add(cleanFaceList[j]);
-			}
+	for (const std::vector<TopoDS_Face>& facesList : threadFaceLists) {
+		for (const TopoDS_Face face : facesList) {
+			brepSewer.Add(face);
 		}
 	}
 	brepSewer.Perform();
 	
 	return brepSewer.SewedShape();
+}
+
+
+void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList) { 
+	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, sudoSettings_->originRot_, roomNum);
+	
+
+	for (size_t i = 0; i < faceList.size(); i++) {
+		std::vector<TopoDS_Wire> wireList = growWires(faceList[i]);
+		std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+		std::vector<TopoDS_Face> cleanFaceList = wireCluster2Faces(cleanWireList);
+
+		for (size_t j = 0; j < cleanFaceList.size(); j++) {
+			collectionList.emplace_back(cleanFaceList[j]);
+		}
+	}
+	return;
 }
 
 void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
@@ -3349,7 +3363,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 		voxel* currentVoxel = internalVoxels[i];
 		bool isOuterShell = currentVoxel->getIsShell();
 		double zHeight = currentVoxel->getCenterPoint().get<2>();
-
+		
 		if (isOuterShell) { shellArea += currentVoxel->numberOfFaces() * voxelArea; }
 
 		if (lowerEvalHeight >= zHeight)
@@ -3370,15 +3384,17 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 			// partial building basement
 			basementVolume += voxelSize * voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize);
 
-			if (!isOuterShell) { continue; }
-
 			footprintArea += voxelArea;
 
+			if (!isOuterShell) { continue; }
 			if (currentVoxel->hasFace(0)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(1)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(2)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
 			if (currentVoxel->hasFace(3)) { basementArea += voxelSize * abs(footprintHeight - zHeight + 0.5 * voxelSize); }
-			if (currentVoxel->hasFace(5)) { basementArea += voxelArea; }
+			if (currentVoxel->hasFace(5)) { 
+				basementArea += voxelArea;
+				
+			}
 		}
 
 		if (!isOuterShell) { continue; }

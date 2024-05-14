@@ -41,6 +41,8 @@ struct SettingsCollection {
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
 
+	std::vector<std::string> CustomDivList_;
+
 	// use 3 planes instead of volumetric voxel intersections
 	bool planeIntersection_ = false;
 

@@ -270,6 +270,7 @@ public:
 	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
 	TopoDS_Shape voxels2Shape(int roomNum);
+	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);
 
 	/// computes data related to the voxel shape such as volume and shell area
 	void extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);

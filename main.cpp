@@ -15,15 +15,11 @@
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
 #include <ifcparse/IfcHierarchyHelper.h>
-#include <ifcgeom/IfcGeom.h>
-#include <ifcgeom/IfcGeomRepresentation.h>
 #include <ifcgeom_schema_agnostic/kernel.h>
 
 #if USE_VLD
 #include <vld.h>
 #endif
-
-
 
 int main(int argc, char** argv) {
 	auto startTime = std::chrono::high_resolution_clock::now();

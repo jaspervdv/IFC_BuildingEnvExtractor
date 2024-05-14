@@ -5,8 +5,6 @@
 #include <gp_Pnt.hxx>
 
 #include <ifcparse/IfcFile.h>
-#include <ifcgeom/IfcGeom.h>
-#include <ifcgeom/IfcGeomRepresentation.h>
 #include <ifcgeom_schema_agnostic/kernel.h>
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>
@@ -189,6 +187,11 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 		productShape = lookup.getCBox();
 	}
 
+	if (!lookup.getSimpleShape().IsNull())
+	{
+		productShape = lookup.getSimpleShape();
+	}
+
 	// check if any cornerpoints fall inside voxel
 
 	std::vector<gp_Pnt> productPoints = lookup.getProductPoints();
@@ -265,7 +268,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	else { vets = getVoxelEdges(); }
 
 	// add check if voxel falls completely in the shape
-	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 1000);
+	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 10);
 	int counter = 0;
 
 	for (TopExp_Explorer expl(productShape, TopAbs_FACE); expl.More(); expl.Next())
@@ -274,6 +277,8 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 		TopLoc_Location loc;
 		auto mesh = BRep_Tool::Triangulation(productFace, loc);
+
+		if (mesh.IsNull()) { continue; }
 
 		for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
 		{
@@ -297,11 +302,11 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 			// check if inside of shape
 			if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
 			{
+
 				counter++;
 			}
 		}
 	}
-
 	if (counter%2 == 1)
 	{
 		isIntersecting_ = true;

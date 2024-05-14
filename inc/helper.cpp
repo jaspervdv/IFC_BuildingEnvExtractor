@@ -25,8 +25,10 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 #include <TopoDS.hxx>
-
+#include <BRepTools.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
+
+#include <gp_Quaternion.hxx>
 
 
 void helperFunctions::WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition) {
@@ -560,6 +562,8 @@ std::vector<TopoDS_Face> helperFunctions::shape2FaceList(const TopoDS_Shape& sha
 
 std::vector<gp_Pnt> helperFunctions::shape2PointList(const TopoDS_Shape& shape)
 {
+	if (shape.IsNull()) { return {}; }
+
 	std::vector<gp_Pnt> pointList;
 	for (TopExp_Explorer expl(shape, TopAbs_VERTEX); expl.More(); expl.Next())
 	{
@@ -574,7 +578,7 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 	
 	std::vector<IfcSchema::IfcProduct*> productList;
 
-	if (!product->hasRepresentation())
+	if (product->Representation() == nullptr)
 	{
 #ifdef USE_IFC4
 		IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
@@ -600,7 +604,7 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 			}
 		}
 	}
-	else if (product->hasRepresentation())
+	else if (product->Representation() != nullptr)
 	{
 		productList.emplace_back(product);
 	}

@@ -3,17 +3,20 @@
 #ifdef USE_IFC4
 #define IfcSchema Ifc4
 #define buildVersion "Ifc4"
+#define SCHEMA_VERSIONS (4)
+#define SCHEMA_SEQ (4)
+
 #else
 #define IfcSchema Ifc2x3
 #define buildVersion "Ifc2x3"
+#define SCHEMA_VERSIONS (2x3)
+#define SCHEMA_SEQ (2x3)
 #endif // USE_IFC4
 
 #include "surfaceCollection.h"
 
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
-#include <ifcgeom/IfcGeom.h>
-#include <ifcgeom/IfcGeomRepresentation.h>
 #include <ifcgeom_schema_agnostic/kernel.h>
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>

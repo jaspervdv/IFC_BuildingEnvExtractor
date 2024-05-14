@@ -11,7 +11,6 @@
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
 #include <ifcgeom/IfcGeom.h>
-#include <ifcgeom/IfcGeomRepresentation.h>
 #include <ifcgeom_schema_agnostic/kernel.h>
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>
@@ -32,6 +31,7 @@ class lookupValue
 private:
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
 	TopoDS_Shape productShape_;
+	TopoDS_Shape simpleShape_;
 	std::vector<gp_Pnt> productPointList_;
 	TopoDS_Shape cBox_;
 
@@ -40,6 +40,7 @@ public:
 	lookupValue(
 		IfcSchema::IfcProduct* productPtr, 
 		const TopoDS_Shape& productShape,
+		const TopoDS_Shape& simpleShape,
 		const TopoDS_Shape& cBox);
 
 	~lookupValue() {
@@ -48,11 +49,14 @@ public:
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
 
 	const TopoDS_Shape& getProductShape() { return productShape_; }
+	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
 	const std::vector<gp_Pnt>& getProductPoints() { return productPointList_; }
 
 	bool hasCBox() { return !cBox_.IsNull(); }
 
 	const TopoDS_Shape& getCBox() { return cBox_; }
+
+	void setSimpleShape(const TopoDS_Shape& newShape) { simpleShape_ = newShape; }
 };
 
 
@@ -135,10 +139,9 @@ private:
 
 	bool hasIndex_ = false;
 
-	std::map <std::string, std::unordered_map < std::string, TopoDS_Shape>> shapeLookup_;
-	std::map <std::string, std::unordered_map < std::string, TopoDS_Shape>> adjustedshapeLookup_;
+	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
-	std::list<std::string>* roomBoundingObjects_ = {};
+
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
 
@@ -180,7 +183,7 @@ private:
 	void getAllTypePointsPtr(const T& typePtr, std::vector<gp_Pnt>* pointList, bool simple);
 
 	/// gets shapes from memory without checking for correct adjusted boolean
-	TopoDS_Shape getObjectShapeFromMemEmpty(IfcSchema::IfcProduct* product, bool adjusted);
+	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
 
 public:
 	/*
@@ -252,8 +255,6 @@ public:
 
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &SpaceIndex_; }
 
-	void setRoomBoundingObjects(std::list<std::string>* objectList, bool custom, bool customFull) { roomBoundingObjects_ = objectList; useCustom_ = custom; useCustomFull_ = customFull; };
-
 	bool hasIndex() { return hasIndex_; }
 
 	lookupValue* getLookup(int i) { return productLookup_.at(i); }
@@ -265,8 +266,8 @@ public:
 	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
 
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, bool memorize = true);
-	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape, bool adjusted = false);
+	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, int memoryLocation = -1);
+	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
 	void applyVoids();
 
 	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);

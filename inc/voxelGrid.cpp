@@ -7,7 +7,9 @@
 bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
-	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
+	gp_Pnt midPointOCCT = helperFunctions::rotatePointWorld(
+		helperFunctions::Point3DBTO(midPoint)
+		, planeRotation_);
 
 	//helperFunctions::printPoint(midPointOCCT);
 
@@ -24,16 +26,23 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 
 	if (checkIfInt)
 	{
+		std::unordered_set<std::string> productTypesList; // list with types already intersected with
 		std::vector<Value> qResult;
 		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
 		h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
 		for (size_t k = 0; k < qResult.size(); k++)
 		{
 			lookupValue* lookup = h->getLookup(qResult[k].second);
+			std::string productType = lookup->getProductPtr()->data().type()->name();
+
+			if (productTypesList.find(productType) != productTypesList.end()) { continue; }
+
 			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->planeIntersection_))
 			{
+				productTypesList.insert(productType);
 				boxel->addInternalProduct(qResult[k]);
 				isIntersecting = true;
+				break; //TODO: remove this 
 			}
 		}
 	}
@@ -232,24 +241,73 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 void VoxelGrid::populatedVoxelGrid(helper* h)
 {
 	// split the range over cores
-	int coreCount = std::thread::hardware_concurrency();
-	int coreUse = coreCount - 1;
-	int splitListSize = floor(xRelRange_* yRelRange_ / coreUse);
+	int coreUse = std::thread::hardware_concurrency() -1;
+	int loopRange = xRelRange_ * yRelRange_;
+	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
+
+	// compute column scores
+	std::vector<int> columScoreList;
+	int columSumScore = 0;
+	for (size_t i = 0; i < loopRange; i++)
+	{
+		int plate = plateIndx + i;
+
+		BoostPoint3D coneCenter = relPointToWorld(linearToRelative<BoostPoint3D>(plate));
+		BoostPoint3D lll = BoostPoint3D( 
+			coneCenter.get<0>() - sudoSettings_->voxelSize_/2, 
+			coneCenter.get<1>() - sudoSettings_->voxelSize_/2,
+			-100
+		);
+
+		BoostPoint3D urr = BoostPoint3D(
+			coneCenter.get<0>() + sudoSettings_->voxelSize_/2,
+			coneCenter.get<1>() + sudoSettings_->voxelSize_/2,
+			coneCenter.get<2>() + sudoSettings_->voxelSize_/2
+		);
+
+		std::vector<Value> qResult;
+		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+		h->getIndexPointer()->query(
+			bgi::intersects(
+				bg::model::box<BoostPoint3D>(lll, urr)
+			), std::back_inserter(qResult)
+		);
+
+		int columnScore = qResult.size();
+		columScoreList.emplace_back(columnScore);
+		columSumScore += columnScore;
+	}
+
+	int threadScore = columSumScore / coreUse;
 	int voxelsGrown = 0;
+	int beginIdx = 0;
 
 	std::vector<std::thread> threadList;
-
 	for (size_t i = 0; i < coreUse; i++)
 	{
-		int beginIdx = i * splitListSize;
-		int endIdx = (i + 1) * splitListSize;
-
+		int score = 0;
+		int endIdx = 0;
 		if (i == coreUse - 1) { endIdx = xRelRange_ * yRelRange_; }
+		else
+		{
+			for (size_t j = beginIdx; j < loopRange; j++)
+			{
+				score += columScoreList[j];
+
+				if (score > threadScore)
+				{
+					endIdx = j;
+					break;
+				}
+			}
+		}
 
 		threadList.emplace_back([=, &voxelsGrown]() 
 			{
 			addVoxelColumn(beginIdx, endIdx, h, &voxelsGrown);
 			});
+
+		beginIdx = endIdx ;
 	}
 
 	std::thread countThread([&]() { countVoxels(&voxelsGrown); });
@@ -347,15 +405,14 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 	if (dirIndx == 2 || dirIndx == 3) { allowedNeighbourDir = { 0,1,4,5 }; }
 	if (dirIndx == 4 || dirIndx == 5) { allowedNeighbourDir = { 0,1,2,3 }; }
 
+	int searchStartIdx = 0;
 	while (true)
 	{
 		// find the start of the face growth
 		std::vector<int> buffer = {};
 		bool searchWindow = false;
 
-		evaluatedGrowth = std::vector<int>(VoxelLookup_.size());
-
-		for (size_t i = 0; i < VoxelLookup_.size(); i++)
+		for (size_t i = searchStartIdx; i < VoxelLookup_.size(); i++)
 		{
 			voxel* potentialVoxel = VoxelLookup_[i];
 
@@ -366,6 +423,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 			buffer.emplace_back(i);
 			evaluated[i] = 1;
 			evaluatedGrowth[i] = 1;
+			searchStartIdx = i;
 			break;
 		}
 		if (!buffer.size()) { break; }
@@ -872,7 +930,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 		{
 			if (roomnum == 0)
 			{
-				if (totalRoom.size() % 1000 == 0)
+				if (totalRoom.size() % 10000 == 0)
 				{
 					std::cout.flush();
 					std::cout << "\tSize: " << totalRoom.size() << "\r";

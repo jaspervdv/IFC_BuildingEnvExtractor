@@ -632,6 +632,7 @@ bool IOManager::getJSONValues()
 				continue;
 			}
 			addDivObjects_.insert(potentialType);
+			sudoSettingsPtr_->CustomDivList_.emplace_back(potentialType);
 		}
 	}
 
@@ -640,13 +641,13 @@ bool IOManager::getJSONValues()
 	{
 		if (!sudoSettingsPtr_->make02_ && !sudoSettingsPtr_->make12_ && 
 			!sudoSettingsPtr_->make13_ && !sudoSettingsPtr_->make22_ && 
-			!sudoSettingsPtr_->make32_)
+			!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->summaryVoxels_)
 		{
 			sudoSettingsPtr_->requireVoxels_ = false;
 		}
 	}
 
-	if (!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->makeV_)
+	if (!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->makeV_ && !sudoSettingsPtr_->summaryVoxels_)
 	{
 		if (!sudoSettingsPtr_->makeFootPrint_ && !sudoSettingsPtr_->makeInterior_)
 		{
@@ -1141,7 +1142,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (true) // store the site
+	if (false) // store the site
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 		std::vector<CJT::CityObject> siteObjects = geoCreator.makeSite(internalHelper_.get(), &kernel, 1);
