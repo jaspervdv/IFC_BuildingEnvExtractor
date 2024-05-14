@@ -164,22 +164,18 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
-
-		//std::cout << "1" << std::endl;
-		std::vector<gp_Pnt> pointListWall = getAllTypePoints<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
-		//std::cout << "3" << std::endl;
-		std::vector<gp_Pnt> pointListRoof = getAllTypePoints<IfcSchema::IfcRoof::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcRoof>());
-		//std::cout << "4" << std::endl;
-		std::vector<gp_Pnt> pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcSlab>());
-		//std::cout << "5" << std::endl;
-		std::vector<gp_Pnt> pointListWindow = getAllTypePoints<IfcSchema::IfcWindow::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWindow>());
-		//std::cout << "6" << std::endl;
-
-		pointList.reserve(pointListWall.size() + pointListRoof.size() + pointLisSlab.size() + pointListWindow.size());
-		pointList.insert(pointList.end(), pointListWall.begin(), pointListWall.end());
-		pointList.insert(pointList.end(), pointListRoof.begin(), pointListRoof.end());
+		IfcSchema::IfcSlab::list::ptr slabList = fileObject->instances_by_type<IfcSchema::IfcSlab>();
+		std::vector<gp_Pnt> pointLisSlab;
+		if (slabList->size())
+		{
+			pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(slabList);
+		}
 		pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
-		pointList.insert(pointList.end(), pointListWindow.begin(), pointListWindow.end());
+	}
+
+	if (!pointList.size())
+	{
+		//TODO: return error is
 	}
 
 	// approximate smalles bbox
@@ -224,7 +220,6 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 		angle = angle / 2;
 	}
 	*originRot = rotation;
-
 	return;
 }
 
@@ -255,7 +250,6 @@ std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr, bool simple)
 	std::vector<gp_Pnt> pointList;
 	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
-
 		std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
 
 		for (const auto& point : temp) {
@@ -995,6 +989,14 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: thi
 
 			index_.insert(std::make_pair(box, locationIdx));
 			productLookup_.emplace_back(lookup);
+
+			if (lllPoint_.X() > box.min_corner().get<0>()) { lllPoint_.SetX(box.min_corner().get<0>()); }
+			if (lllPoint_.Y() > box.min_corner().get<1>()) { lllPoint_.SetY(box.min_corner().get<1>()); }
+			if (lllPoint_.Z() > box.min_corner().get<2>()) { lllPoint_.SetZ(box.min_corner().get<2>()); }
+			if (urrPoint_.X() < box.max_corner().get<0>()) { urrPoint_.SetX(box.max_corner().get<0>()); }
+			if (urrPoint_.Y() < box.max_corner().get<1>()) { urrPoint_.SetY(box.max_corner().get<1>()); }
+			if (urrPoint_.Z() < box.max_corner().get<2>()) { urrPoint_.SetZ(box.max_corner().get<2>()); }
+
 			auto typeSearch = productIndxLookup_.find(productType);
 
 			if (typeSearch == productIndxLookup_.end())
@@ -1166,8 +1168,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	IfcGeom::IteratorSettings settings;
 	IfcGeom::BRepElement* brep = nullptr;
-	try { brep = kernelObject->convert(settings, ifc_representation, product); } //This is slow
-	catch (const std::exception&) { return {}; }
+	brep = kernelObject->convert(settings, ifc_representation, product);  //This is slow
 
 	if (brep == nullptr) {
 

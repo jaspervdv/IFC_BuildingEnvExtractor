@@ -1585,10 +1585,10 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
 	// raycast
 	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
-	//for (size_t i = 0; i < outerFootPrintList.size(); i++)
+	//for (size_t i = 0; i < rawEdgeList.size(); i++)
 	//{
-	//	helperFunctions::printPoint(helperFunctions::getFirstPointShape(outerFootPrintList[i]));
-	//	helperFunctions::printPoint(helperFunctions::getLastPointShape(outerFootPrintList[i]));
+	//	helperFunctions::printPoint(helperFunctions::getFirstPointShape(rawEdgeList[i]));
+	//	helperFunctions::printPoint(helperFunctions::getLastPointShape(rawEdgeList[i]));
 	//}
 	return outerEdges2Shapes(outerFootPrintList);
 }

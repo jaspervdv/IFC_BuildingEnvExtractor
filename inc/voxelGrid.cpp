@@ -35,14 +35,13 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 			lookupValue* lookup = h->getLookup(qResult[k].second);
 			std::string productType = lookup->getProductPtr()->data().type()->name();
 
-			if (productTypesList.find(productType) != productTypesList.end()) { continue; }
+			//if (productTypesList.find(productType) != productTypesList.end()) { continue; }
 
 			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->planeIntersection_))
 			{
-				productTypesList.insert(productType);
+				productTypesList.insert(productType); //TODO: make this work
 				boxel->addInternalProduct(qResult[k]);
 				isIntersecting = true;
-				break; //TODO: remove this 
 			}
 		}
 	}
