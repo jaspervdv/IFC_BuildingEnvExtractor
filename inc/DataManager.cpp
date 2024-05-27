@@ -422,16 +422,16 @@ void helper::indexGeo()
 }
 
 
-bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* product)
+bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& productShape, double rotationAngle)
 {
-	std::vector<gp_Pnt> productVert = getObjectPoints(product);
+	std::vector<gp_Pnt> productVert = helperFunctions::shape2PointList(productShape);
 	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
 
 	// only outputs 2 corners of the three needed corners!
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 
-	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, originRot_);
+	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
 
 	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
 	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
@@ -440,7 +440,25 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* pro
 }
 
 
-bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products)
+bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* product, double rotationAngle)
+{
+	std::vector<gp_Pnt> productVert = getObjectPoints(product);
+	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
+
+	// only outputs 2 corners of the three needed corners!
+	gp_Pnt lllPoint;
+	gp_Pnt urrPoint;
+
+	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
+
+	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
+	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
+
+	return bg::model::box < BoostPoint3D >(boostlllpoint, boosturrpoint);
+}
+
+
+bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products, double rotationAngle)
 {
 	std::vector<gp_Pnt> productVert;
 
@@ -460,7 +478,7 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchem
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 
-	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, originRot_);
+	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
 
 	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
 	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
@@ -807,7 +825,6 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 
 std::map<std::string, std::string> helper::getBuildingInformation()
 {
-	//TODO: improve the datamanagement
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 
 	std::map<std::string, std::string> dictionary;
@@ -843,6 +860,7 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 		{
 			IfcSchema::IfcPropertySet* te = propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
 			if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
+			//TODO: improve the datamanagement
 			//auto relAssociations = propteriesRel->RelatingPropertyDefinition()->data().getArgument(4)->operator IfcEntityList::ptr();
 
 			//for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
@@ -936,10 +954,9 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: thi
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 
-		std::string productType = product->data().type()->name();
+		TopoDS_Shape shape = getObjectShape(product);
+		bg::model::box <BoostPoint3D> box = makeObjectBox(shape, 0);
 
-
-		bg::model::box <BoostPoint3D> box = makeObjectBox(product);
 		if (!helperFunctions::hasVolume(box))
 		{
 			std::cout << "Failed: " + product->data().toString() << std::endl;
@@ -958,13 +975,13 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: thi
 
 		if (dub) { continue; }
 
-		TopoDS_Shape shape = getObjectShape(product);
 		TopoDS_Shape simpleShape;
+		std::string productType = product->data().type()->name();
+
 		if (openingObjects_.find(productType) != openingObjects_.end())
 		{ 
 			simpleShape = getObjectShape(product, true);
 		}
-
 
 		TopoDS_Shape cbbox;
 		bool hasCBBox = false;
@@ -1066,7 +1083,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	std::string objectType = product->data().type()->name();
 	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
 
-	//TODO: find issue with this object with Bologna model
 	//TODO: make threadsave
 	
 	// filter with lookup
@@ -1164,6 +1180,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	TopoDS_Compound comp;
 	gp_Trsf placement;
 	gp_Trsf trsf;
+	gp_Trsf trs;
+	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), originRot_);
 
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	IfcGeom::IteratorSettings settings;
@@ -1186,6 +1204,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		comp = brep->geometry().as_compound();
 		comp.Move(trsf* placement); // location in global space
 		comp.Move(objectTranslation_);
+		comp.Move(trs);
 		helperFunctions::triangulateShape(comp);
 		return comp;
 	}
@@ -1194,6 +1213,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		comp = brep->geometry().as_compound();
 		comp.Move(trsf* placement); // location in global space
 		comp.Move(objectTranslation_);
+		comp.Move(trs);
 		helperFunctions::triangulateShape(comp);
 		return comp;
 	}
@@ -1340,7 +1360,7 @@ void helper::voidShapeAdjust(T products)
 
 			gp_Pnt lllPoint;
 			gp_Pnt urrPoint;
-			helperFunctions::rotatedBBoxDiagonal(getObjectPoints(openingElement), &lllPoint, &urrPoint, originRot_);
+			helperFunctions::rotatedBBoxDiagonal(getObjectPoints(openingElement), &lllPoint, &urrPoint, 0);
 
 			std::vector<Value> qResult;
 			boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(helperFunctions::Point3DOTB(lllPoint), helperFunctions::Point3DOTB(urrPoint));

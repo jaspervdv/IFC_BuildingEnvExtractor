@@ -59,9 +59,9 @@ public:
 	bg::model::box<BoostPoint3D> getVoxelGeo();
 
 	/// return the cornerpoints of a voxel based on the angle
-	std::vector<gp_Pnt> getCornerPoints(double angle);
+	std::vector<gp_Pnt> getCornerPoints();
 	/// return the points represeinging the three intersection planes of a voxel based on the angle
-	std::vector<gp_Pnt> getPlanePoints(double angle);
+	std::vector<gp_Pnt> getPlanePoints();
 
 	/// returns integers with that comply with the getCornerPoints output
 	std::vector<std::vector<int>> getVoxelTriangles();
@@ -89,9 +89,6 @@ public:
 	/// returns the centerpoint of a voxel at its virtual location
 	BoostPoint3D getCenterPoint() { return center_; }
 	gp_Pnt getOCCTCenterPoint() { return gp_Pnt(center_.get<0>(), center_.get<1>(), center_.get<2>()); }
-
-	/// returns the centerpoint of a voxel at its real location
-	BoostPoint3D getCenterPoint(double angle) { return helperFunctions::rotatePointWorld(center_, -angle); }
 
 	/// check the intersection of a triangluted product and a voxel
 	bool checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, bool planeIntersection = false);

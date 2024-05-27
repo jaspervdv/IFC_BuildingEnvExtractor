@@ -50,7 +50,7 @@ void flipPoints(gp_Pnt* p1, gp_Pnt* p2) {
 }
 
 
-std::vector<Edge> CJGeoCreator::getUniqueEdges(const TopoDS_Shape& flattenedEdges) //TODO: check if pointer is needed
+std::vector<Edge> CJGeoCreator::getUniqueEdges(const TopoDS_Shape& flattenedEdges)
 {
 	std::vector<Edge> UniqueEdgeList;
 	for (TopExp_Explorer expl(flattenedEdges, TopAbs_EDGE); expl.More(); expl.Next())
@@ -65,7 +65,7 @@ std::vector<Edge> CJGeoCreator::getUniqueEdges(const TopoDS_Shape& flattenedEdge
 }
 
 
-std::vector<Edge> CJGeoCreator::getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges) //TODO: check if pointer is needed
+std::vector<Edge> CJGeoCreator::getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges)
 {
 	std::vector<Edge> UniqueEdgeList;
 	for (size_t i = 0; i < flattenedEdges.size(); i++)
@@ -616,7 +616,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 			voxel currentBoxel = *originVoxels[qResult[j].second];
 
 			if (currentBoxel.getIsInside()) { continue; }
-			auto boostCastPoint = currentBoxel.getCenterPoint(sudoSettings_->originRot_);
+			BoostPoint3D boostCastPoint = currentBoxel.getCenterPoint();
 			gp_Pnt castPoint(boostCastPoint.get<0>(), boostCastPoint.get<1>(), floorlvl);
 			TopoDS_Edge castRay = BRepBuilderAPI_MakeEdge(centerPoint, castPoint);
 
@@ -1435,6 +1435,7 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 	brepSewer.Add(evalFace);
 	brepSewer.Add(projectedFace.Reversed());
 
+	int edgeCount = 0;
 	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
 		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
@@ -1447,6 +1448,12 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 
 		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
 		brepSewer.Add(sideFace);
+		edgeCount++;
+	}
+
+	if (edgeCount <= 2)
+	{
+		return TopoDS_Solid();
 	}
 
 	brepSewer.Perform();
@@ -1459,7 +1466,6 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 	else {
 		brepBuilder.Add(solidShape, sewedShape); //TODO: resolve this issue
 	}
-
 	return solidShape;
 }
 
@@ -1609,7 +1615,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		for (size_t j = 0; j < faceList_[i].size(); j++)
 		{
 			SurfaceGroup currentRoof = faceList_[i][j];
-			if (currentRoof.getURRPoint().Z() == 0) { continue; }
+			if (currentRoof.getURRPoint().Z() == 0) { continue; } //TODO: use groundlevel
 
 			TopoDS_Face currentFace;
 			if (!isFlat) { currentFace = currentRoof.getFace(); }
@@ -1617,8 +1623,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 
 			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
 			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-			spatialIndex.insert(std::make_pair(bbox, (int)j));
-
+			
+			spatialIndex.insert(std::make_pair(bbox, (int) ExtrudedShapes.size()));
 			ExtrudedShapes.emplace_back(extrudedShape);
 		}
 		// split faces
@@ -1645,7 +1651,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				faceList.emplace_back(currentFace);
 			}
 			else {
-
 				BOPAlgo_Splitter divider;
 				divider.SetFuzzyValue(1e-6);
 				divider.SetRunParallel(Standard_False);
@@ -1710,13 +1715,12 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
 				if (!extrudedShape.IsNull())
 				{
+
 					aBuilder.AddArgument(extrudedShape);
 					topTrimFaceList.emplace_back(currentFace);
-
 				}
 			}
 		}
-
 		aBuilder.Perform();
 
 		TopTools_DataMapOfShapeShape ttt = aBuilder.ShapesSD();
@@ -2502,6 +2506,10 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 		{
 			TopoDS_Shape currentShape = roofOutlineList_[i];
 
+			gp_Trsf localRotationTrsf;
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+			currentShape.Move(localRotationTrsf);
+
 			gp_Trsf trs;
 			trs.SetRotation(geoRefRotation_.GetRotation());
 			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
@@ -2525,6 +2533,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
 			TopoDS_Shape currentFace = footprintList_[i];
+
+			gp_Trsf localRotationTrsf;
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+			currentFace.Move(localRotationTrsf);
+
 			helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 
 			CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
@@ -2559,6 +2572,11 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 				for (size_t k = 0; k < currentStoreyGeo.size(); k++)
 				{
 					TopoDS_Face currentFace = currentStoreyGeo[k];
+
+					gp_Trsf localRotationTrsf;
+					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+					currentFace.Move(localRotationTrsf);
+
 					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 					CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
 					geoObject->appendSurfaceTypeValue(0);
@@ -2671,6 +2689,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 	for (size_t i = 0; i < roofOutlineList_.size(); i++)
 	{
 		TopoDS_Face currentFootprint = roofOutlineList_[i];
+
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+		currentFootprint.Move(localRotationTrsf);
+
 		helperFunctions::geoTransform(&currentFootprint, h->getObjectTranslation(), trs);
 
 		BRepPrimAPI_MakePrism sweeper(currentFootprint, gp_Vec(0, 0, height), Standard_True);
@@ -2726,6 +2749,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		TopoDS_Shape currentShape = prismList[i];
+
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+		currentShape.Move(localRotationTrsf);
+
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape, "1.3");
@@ -2772,6 +2800,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		TopoDS_Shape currentShape = prismList[i];
+
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+		currentShape.Move(localRotationTrsf);
+
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape, "2.2");
@@ -2891,6 +2924,11 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
 		TopoDS_Shape currentFace = rawFaces[i];
+
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+		currentFace.Move(localRotationTrsf);
+
 		helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 
 		CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "3.2");
@@ -2909,6 +2947,14 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	voxelGrid_->computeSurfaceSemantics(h);
 	TopoDS_Shape sewedShape = voxels2Shape(0);
 
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+	sewedShape.Move(localRotationTrsf);
+
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
+
 	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
@@ -2926,10 +2972,6 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	brepBuilder.MakeSolid(voxelSolid);
 	brepBuilder.Add(voxelSolid, sewedShape);
 
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	helperFunctions::geoTransform(&voxelSolid, h->getObjectTranslation(), trs);
-
 	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
 	geoObjectList.emplace_back(geoObject);
 
@@ -2946,6 +2988,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 	for (size_t i = 1; i < voxelGrid_->getRoomSize(); i++)
 	{
 		CJT::CityObject roomObject;
+
 		gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(i), 0);
 		std::vector<Value> qResult;
 		qResult.clear();
@@ -3023,6 +3066,9 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		trs.SetRotation(geoRefRotation_.GetRotation());
 		helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -h->getRotation()); //TODO: make this smarter
+		sewedShape.Move(localRotationTrsf);
 
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 		{
@@ -3456,7 +3502,7 @@ void CJGeoCreator::populateVoxelIndex(
 		// voxels that have no internal products do not have an intersection and are stored as completely external voxels
 		if (internalProducts.size() == 0)
 		{
-			auto cornerPoints = currentBoxel->getCornerPoints(sudoSettings_->originRot_);
+			auto cornerPoints = currentBoxel->getCornerPoints();
 			gp_Pnt lllPoint = cornerPoints[0];
 			gp_Pnt urrPoint = cornerPoints[4];
 

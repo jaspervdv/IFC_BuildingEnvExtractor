@@ -34,7 +34,7 @@ bg::model::box<BoostPoint3D> voxel::getVoxelGeo()
 }
 
 
-std::vector<gp_Pnt> voxel::getCornerPoints(double angle)
+std::vector<gp_Pnt> voxel::getCornerPoints()
 {
 	auto boxelGeo = getVoxelGeo();
 
@@ -52,14 +52,10 @@ std::vector<gp_Pnt> voxel::getCornerPoints(double angle)
 	pointList.emplace_back(minPoint.X(), minPoint.Y(), maxPoint.Z());
 	pointList.emplace_back(minPoint.X(), maxPoint.Y(), maxPoint.Z());
 
-	for (size_t i = 0; i < pointList.size(); i++)
-	{
-		pointList[i] = helperFunctions::rotatePointWorld(pointList[i], -angle);
-	}
 	return pointList;
 }
 
-std::vector<gp_Pnt> voxel::getPlanePoints(double angle)
+std::vector<gp_Pnt> voxel::getPlanePoints()
 {
 	auto boxelGeo = getVoxelGeo();
 
@@ -84,10 +80,6 @@ std::vector<gp_Pnt> voxel::getPlanePoints(double angle)
 	pointList.emplace_back(maxPoint.X(), maxPoint.Y(), minPoint.Z()+ offset);
 	pointList.emplace_back(minPoint.X(), maxPoint.Y(), minPoint.Z()+ offset);
 
-	for (size_t i = 0; i < pointList.size(); i++)
-	{
-		pointList[i] = helperFunctions::rotatePointWorld(pointList[i], -angle);
-	}
 	return pointList;
 }
 
@@ -213,11 +205,11 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	double voxelLowZ = voxelPoints[0].Z();
 	double voxelTopZ = voxelPoints[4].Z();
 
-	double voxelLowX = std::min({ voxelPoints[0].X(), voxelPoints[1].X(), voxelPoints[2].X(), voxelPoints[3].X() });
-	double voxelMaxX = std::max({ voxelPoints[0].X(), voxelPoints[1].X(), voxelPoints[2].X(), voxelPoints[3].X() });
+	double voxelLowX = voxelPoints[0].X();
+	double voxelMaxX = voxelPoints[4].X();
 
-	double voxelLowY = std::min({ voxelPoints[0].Y(), voxelPoints[1].Y(), voxelPoints[2].Y(), voxelPoints[3].Y() });
-	double voxelMaxY = std::max({ voxelPoints[0].Y(), voxelPoints[1].Y(), voxelPoints[2].Y(), voxelPoints[3].Y() });
+	double voxelLowY = voxelPoints[0].Z();
+	double voxelMaxY = voxelPoints[4].Z();
 
 	for (const auto& boxel : triangleVoxels) 
 	{
@@ -320,75 +312,18 @@ bool voxel::linearEqIntersection(const std::vector<gp_Pnt>& productPoints, const
 {
 	gp_Pnt p1 = voxelPoints[0];
 	gp_Pnt p2 = voxelPoints[1];
-	gp_Pnt p3 = voxelPoints[3];
 	gp_Pnt p4 = voxelPoints[4];
-
-	double lowerZ = p1.Z();
-	double upperZ = p4.Z();
-
-	bool isRotated = !(p2.Y() - p1.Y() == 0);
-
-	// variables for rotated voxel intersection
-	double a1 = 0;
-	double b11 = 0;
-	double b12 = 0;
-
-	double a2 = 0;
-	double b21 = 0;
-	double b22 = 0;
-
-	if (isRotated) // if rotated set required formulas
-	{
-		a1 = (p2.Y() - p1.Y()) / (p2.X() - p1.X());
-		b11 = p2.Y() - a1 * p2.X();
-		b12 = p3.Y() - a1 * p3.X();
-
-		a2 = -1 / a1;
-		b21 = p3.Y() - a2 * p3.X();
-		b22 = p2.Y() - a2 * p2.X();
-	}
 
 	for (size_t i = 0; i < productPoints.size(); i++)
 	{
 		// check if falls in z domain
 		gp_Pnt currentPP = productPoints[i];
-		double productPointZ = currentPP.Z();
 
-		if (productPointZ > upperZ || productPointZ < lowerZ) { continue; }
+		if (currentPP.X() < p1.X() || currentPP.X() > p4.X()) { continue; }
+		if (currentPP.Y() < p1.Y() || currentPP.Y() > p4.Y()) { continue; }
+		if (currentPP.Z() < p1.Z() || currentPP.Z() > p4.Z()) { continue; }
 
-		if (currentPP.X() < p1.X() && currentPP.X() < voxelPoints[4].X() ||
-			currentPP.X() > p1.X() && currentPP.X() > voxelPoints[4].X()) {
-			continue;
-		}
-		if (currentPP.Y() < p1.Y() && currentPP.Y() < voxelPoints[4].Y() ||
-			currentPP.Y() > p1.Y() && currentPP.Y() > voxelPoints[4].Y()) {
-			continue;
-		}
-		if (!isRotated) // if not rotated voxel == domain
-		{
-			return true;
-		}
-
-		// check if within actual voxel
-		double x = currentPP.X();
-
-		double y11 = a1 * x + b11;
-		double y12 = a1 * x + b12;
-
-		if (currentPP.Y() < y11 && currentPP.Y() < y12 ||
-			currentPP.Y() > y11 && currentPP.Y() > y12) {
-			continue;
-		}
-
-		double y21 = a2 * x + b21;
-		double y22 = a2 * x + b22;
-
-		if (currentPP.Y() < y21 && currentPP.Y() > y22 ||
-			currentPP.Y() > y21 && currentPP.Y() < y22)
-		{
-			return true;
-		}
-
+		return true;
 	}
 	return false;
 }

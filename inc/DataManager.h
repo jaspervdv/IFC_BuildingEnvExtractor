@@ -126,7 +126,7 @@ private:
 	gp_Trsf objectTranslation_;
 
 	// The needed rotation for the model to be aligned to the world axis!
-	double originRot_;
+	double originRot_ = 0;
 
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	int dataCollectionSize_ = 0;
@@ -154,15 +154,16 @@ private:
 	/// count the elements in the file and set the related bools
 	void elementCountSummary(bool* hasProxy, bool* hasLotProxy);
 
-	/// compute the lll point, urr point and the rotation related to the apporximated smallest bbox
+	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* originRot);
 
 	/// compute vector from the lll corner to the originpoint
 	void computeObjectTranslation(gp_Vec* vec);
 
 	/// returns a bbox of a ifcproduct that functions with boost
-	bg::model::box <BoostPoint3D> makeObjectBox(IfcSchema::IfcProduct* product);
-	bg::model::box <BoostPoint3D> makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products);
+	bg::model::box <BoostPoint3D> makeObjectBox(const TopoDS_Shape& productShape, double rotationAngle);
+	bg::model::box <BoostPoint3D> makeObjectBox(IfcSchema::IfcProduct* product, double rotationAngle);
+	bg::model::box <BoostPoint3D> makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products, double rotationAngle);
 	TopoDS_Solid makeSolidBox(const gp_Pnt& lll, const gp_Pnt& urr, double angle, double extraAngle = 0);
 
 	/// check if shape is inside of a wall, floor or roof

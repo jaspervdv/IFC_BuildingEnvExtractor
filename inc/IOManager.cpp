@@ -849,6 +849,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	bool hasDirectInterface = false;
 	if (inputPathList.size() == 0)
 	{
+		std::cout << "[WARNING] This method is deprecated, please switch to input json to access all functionality" << std::endl;
 		getTargetPathList();
 		hasDirectInterface = true;
 	}

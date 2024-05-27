@@ -7,9 +7,7 @@
 bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
-	gp_Pnt midPointOCCT = helperFunctions::rotatePointWorld(
-		helperFunctions::Point3DBTO(midPoint)
-		, planeRotation_);
+	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
 
 	//helperFunctions::printPoint(midPointOCCT);
 
@@ -19,8 +17,8 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 	auto boxelGeo = boxel->getVoxelGeo();
 
 	std::vector<gp_Pnt> pointList;
-	if (sudoSettings_->planeIntersection_) { pointList = boxel->getPlanePoints(planeRotation_); }
-	else { pointList = boxel->getCornerPoints(planeRotation_); }
+	if (sudoSettings_->planeIntersection_) { pointList = boxel->getPlanePoints(); }
+	else { pointList = boxel->getCornerPoints(); }
 
 	bool isIntersecting = false;
 
@@ -115,7 +113,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
 
-	planeRotation_ = h->getRotation();
+	planeRotation_ = h->getRotation(); //TODO: remove?
 
 	if (false)
 	{
@@ -460,7 +458,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 						//}
 					}
 
-					std::vector<gp_Pnt> voxelPoints = currentVoxel->getCornerPoints(planeRotation_);
+					std::vector<gp_Pnt> voxelPoints = currentVoxel->getCornerPoints();
 					// create edge based on the normal dir
 					if (dirIndx == 0)
 					{
