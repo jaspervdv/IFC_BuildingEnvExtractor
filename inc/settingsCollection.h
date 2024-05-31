@@ -3,6 +3,14 @@
 #ifndef SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 
+struct ErrorObject {
+	std::string errorCode_ = "";
+	std::string errorDescript_ = "";
+	std::vector<std::string> occuringObjectList_;
+
+	nlohmann::json toJson();
+};
+
 struct SettingsCollection {
 	// Input settings
 
@@ -53,7 +61,7 @@ struct SettingsCollection {
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;
 
-	// generated settings
+	// \/ generated settings \/
 
 	// if LoD0.0 and 1.0 is generated only no voxels are required
 	bool requireVoxels_ = true;

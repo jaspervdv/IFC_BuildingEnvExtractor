@@ -109,6 +109,8 @@ class helper
 private:
 	std::shared_ptr<SettingsCollection> sudoSettings_;
 
+	std::vector<std::string> failedConversionList_; //TODO: smarer
+
 	double objectCount_ = 0;
 
 	bool hasGeo_ = false;
@@ -272,6 +274,8 @@ public:
 	void applyVoids();
 
 	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);
+
+	std::vector<std::string> getFailedObjectList() { return failedConversionList_; }
 
 	template <typename T>
 	void voidShapeAdjust(T products);

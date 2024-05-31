@@ -43,7 +43,7 @@ private:
 	double timeProcess = 0;
 	double timeTotal = 0;
 
-	std::vector<std::string> ErrorList_;
+	std::vector<ErrorObject> ErrorList_ = {};
 
 	// question askers
 	bool yesNoQuestion();

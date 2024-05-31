@@ -609,11 +609,6 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 {
 	// find longest horizontal and vertical edge
 	std::vector<gp_Pnt> pointList;
-	std::vector<gp_Pnt> horizontalMaxEdge;
-	std::vector<gp_Pnt> verticalMaxEdge;
-
-	double maxHDistance = 0;
-	double maxVDistance = 0;
 
 	TopExp_Explorer expl;
 	for (expl.Init(shape, TopAbs_VERTEX); expl.More(); expl.Next())
@@ -622,34 +617,92 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 		gp_Pnt p = BRep_Tool::Pnt(vertex);
 		pointList.emplace_back(p);
 	}
+
+	std::vector<std::pair<gp_Vec, int>> HorizontalVertPair;
+	std::vector<std::pair<gp_Vec, int>> VerticalVertPair;
+
 	for (size_t i = 0; i < pointList.size(); i += 2)
 	{
 		gp_Pnt p1 = pointList[i];
 		gp_Pnt p2 = pointList[i + 1];
 
-		double vDistance = abs(p1.Z() - p2.Z());
+		gp_Vec edgeVec = gp_Vec(p1, p2);
 
-		if (maxVDistance < vDistance)
+		if (p1.Distance(p2) < 0.01)
 		{
-			maxVDistance = vDistance;
-			verticalMaxEdge = { p1, p2 };
+			continue;
 		}
 
 		p1.SetZ(0);
 		p2.SetZ(0);
 
-		double hDistance = p1.Distance(p2);
-
-		if (hDistance > maxHDistance)
+		if (p1.Distance(p2) != 0)
 		{
-			maxHDistance = hDistance;
-			horizontalMaxEdge = { p1, p2 };
+			gp_Vec projectedVec = gp_Vec(p1, p2);
+
+
+			bool hFound = false;
+			for (auto& vecPair : HorizontalVertPair)
+			{
+				if (vecPair.first.IsParallel(projectedVec, 0.001))
+				{
+					vecPair.second += 1;
+					hFound = true;
+					break;
+				}
+			}
+
+			if (!hFound)
+			{
+				HorizontalVertPair.emplace_back(std::pair<gp_Vec, int>(projectedVec, 1));
+			}
+		}
+
+		if (abs(edgeVec.Z()) < 0.001 ) { 
+			continue; 
+		}
+
+		bool vFound = false;
+		for (auto& vecPair : VerticalVertPair)
+		{
+			if (vecPair.first.IsParallel(edgeVec, 0.001))
+			{
+				vecPair.second += 1;
+				vFound = true;
+				break;
+			}
+		}
+
+		if (!vFound)
+		{
+			VerticalVertPair.emplace_back(std::pair<gp_Vec, int>(edgeVec, 1));
+		}
+
+	}
+
+	std::pair<gp_Vec, int> hRotationVec = HorizontalVertPair[0];
+	std::pair<gp_Vec, int> vRotationVec = VerticalVertPair[0];
+
+	for (auto& vecPair : HorizontalVertPair)
+	{
+		if (hRotationVec.second < vecPair.second)
+		{
+			hRotationVec = vecPair;
+		}
+	}
+
+	for (auto& vecPair : VerticalVertPair)
+	{
+		if (vRotationVec.second < vecPair.second)
+		{
+			vRotationVec = vecPair;
 		}
 	}
 
 	// compute horizontal rotaion
-	gp_Pnt p1 = horizontalMaxEdge[0];
-	gp_Pnt p2 = horizontalMaxEdge[1];
+	gp_Pnt p1 = gp_Pnt(0,0,0);
+	gp_Pnt p2 = p1.Translated(hRotationVec.first);
+
 	double angleFlat = 0;
 
 	if (abs(p1.Y() - p2.Y()) > 0.00001)
@@ -666,8 +719,8 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	}
 
 	// compute vertical rotation
-	gp_Pnt p3 = verticalMaxEdge[0];
-	gp_Pnt p4 = helperFunctions::rotatePointPoint(verticalMaxEdge[1], p3, angleFlat);
+	gp_Pnt p3 = gp_Pnt(0, 0, 0);
+	gp_Pnt p4 = helperFunctions::rotatePointPoint(p3.Translated(vRotationVec.first), p3, angleFlat);
 
 	bool isRotated = false;
 	if (abs(p3.X() - p4.X()) < 0.01)
@@ -679,18 +732,20 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	}
 
 	double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
-	gp_Pnt tempPoint = p4.Rotated(gp_Ax1(p3, gp_Dir(0, 1, 0)), angleVert);
-	if (Abs(p3.X() - tempPoint.X()) > 0.01 && Abs(p3.Z() - tempPoint.Z()) > 0.01)
+
+	gp_Pnt lllPoint1;
+	gp_Pnt lllPoint2;
+	gp_Pnt urrPoint1;
+	gp_Pnt urrPoint2;
+	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint1, &urrPoint1, angleFlat, angleVert);
+	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint2, &urrPoint2, angleFlat, -angleVert);
+	if (lllPoint1.IsEqual(urrPoint1, 1e-6)) { return TopoDS_Shape(); }
+
+	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
 	{
-		angleVert = -angleVert;
+		return makeSolidBox(lllPoint1, urrPoint1, angleFlat, angleVert);
 	}
-
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint, &urrPoint, angleFlat, angleVert);
-
-	if (lllPoint.IsEqual(urrPoint, 1e-6)) { return TopoDS_Shape(); }
-	return makeSolidBox(lllPoint, urrPoint, angleFlat, angleVert);
+	return makeSolidBox(lllPoint2, urrPoint2, angleFlat, -angleVert);
 }
 
 void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
@@ -959,7 +1014,8 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: thi
 
 		if (!helperFunctions::hasVolume(box))
 		{
-			std::cout << "Failed: " + product->data().toString() << std::endl;
+			failedConversionList_.emplace_back(product->GlobalId());
+			//std::cout << "Failed: " + product->data().toString() << std::endl;
 			continue;
 		}
 
@@ -989,7 +1045,6 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: thi
 
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
-			//if (!isInWall(box)) { cbbox = boxSimplefy(shape); }
 			cbbox = boxSimplefy(shape);
 		}
 

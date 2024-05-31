@@ -961,7 +961,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorList_.emplace_back("Basic initialization failed");
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "S0001";
+			errorObject.errorDescript_ = "Basic initialization failed";
+			ErrorList_.emplace_back(errorObject);
 			return false;
 		}
 	}
@@ -974,7 +977,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorList_.emplace_back("Footprint creation failed");
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "S0002";
+			errorObject.errorDescript_ = "Footprint creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -997,7 +1003,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD0.0 creation failed"); 
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0001";
+			errorObject.errorDescript_ = "LoD0.0 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 
@@ -1013,7 +1022,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD0.2 creation failed"); 			
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0002";
+			errorObject.errorDescript_ = "LoD0.2 creation failed";
+			ErrorList_.emplace_back(errorObject);	
 			succesfullExit = 0;
 		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
@@ -1030,7 +1042,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD1.0 creation failed");
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0003";
+			errorObject.errorDescript_ = "LoD1.0 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -1045,7 +1060,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{ 
-			ErrorList_.emplace_back("LoD1.2 creation failed"); 
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0004";
+			errorObject.errorDescript_ = "LoD1.2 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -1060,7 +1078,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD1.3 creation failed"); 
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0005";
+			errorObject.errorDescript_ = "LoD1.3 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -1075,7 +1096,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD2.2 creation failed"); 
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0006";
+			errorObject.errorDescript_ = "LoD2.2 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -1090,7 +1114,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorList_.emplace_back("LoD3.2 creation failed"); 
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "E0007";
+			errorObject.errorDescript_ = "LoD3.2 creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 	}
@@ -1115,7 +1142,10 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorList_.emplace_back("storey creation failed");
+			ErrorObject errorObject;
+			errorObject.errorCode_ = "S0003";
+			errorObject.errorDescript_ = "storey creation failed";
+			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
 
@@ -1247,7 +1277,28 @@ bool IOManager::write()
 
 	report["Duration"] = timeReport;
 
-	report["Errors"] = ErrorList_;
+
+	std::vector<nlohmann::json> errorJsonList;
+
+	for (ErrorObject errorObject : ErrorList_)
+	{
+		errorJsonList.emplace_back(errorObject.toJson());
+	}
+
+	std::vector<std::string> failedObjectList = internalHelper_->getFailedObjectList();
+
+	if (failedObjectList.size() > 0)
+	{
+		ErrorObject errorObject;
+		errorObject.errorCode_ ="S0003";
+		errorObject.errorDescript_ = "Failed to convert object";
+		errorObject.occuringObjectList_ = failedObjectList;
+
+		errorJsonList.emplace_back(errorObject.toJson());
+	}
+
+
+	report["Errors"] = errorJsonList;
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
 	const std::string extension1 = ".json";
@@ -1260,4 +1311,14 @@ bool IOManager::write()
 	std::ofstream reportFile(filePath.string() + "_report.json");
 	reportFile << report;
 	reportFile.close();
+}
+
+nlohmann::json ErrorObject::toJson()
+{
+	nlohmann::json JsonObject;
+	JsonObject["ErrorCode"] = errorCode_;
+	JsonObject["Error Description"] = errorDescript_;
+	JsonObject["Occuring Objects"] = occuringObjectList_;
+
+	return JsonObject;
 }
