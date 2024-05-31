@@ -163,7 +163,7 @@ private:
 	TopoDS_Face mergeFaces(const std::vector<TopoDS_Face>& mergeFaces);
 
 	/// generate the indx related to the type data for json output: 0 = GroundSurface, 1 = WallSurface, 2 = RoofSurface
-	std::vector<int> getTypeValuesBySample(const TopoDS_Shape& prism, int prismNum, bool flat);
+	std::vector<int> getTypeValuesBySample(const TopoDS_Shape& prism, bool flat);
 
 	/// outputs the time delta between the start and end time
 	void printTime(const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime);

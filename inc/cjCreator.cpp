@@ -2034,27 +2034,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 }
 
 
-std::vector<int> CJGeoCreator::getTypeValuesBySample(const TopoDS_Shape& prism, int prismNum, bool flat) {
+std::vector<int> CJGeoCreator::getTypeValuesBySample(const TopoDS_Shape& prism, bool flat) {
 	std::vector<int> valueList;
-
-	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
-		valueList.emplace_back(1);
-	}
-
-	std::vector<TopoDS_Face> faceList;
-	if (flat)
-	{
-		for (size_t i = 0; i < faceList_[prismNum].size(); i++)
-		{
-			faceList.emplace_back(faceList_[prismNum][i].getFlatFace());
-		}
-	}
-	else {
-		for (size_t i = 0; i < faceList_[prismNum].size(); i++)
-		{
-			faceList.emplace_back(faceList_[prismNum][i].getFace());
-		}
-	}
 
 	double lowestZ = std::numeric_limits<double>::max();
 	int lowestFaceIdx = 0;
@@ -2062,25 +2043,23 @@ std::vector<int> CJGeoCreator::getTypeValuesBySample(const TopoDS_Shape& prism, 
 
 	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
 		TopoDS_Face currentface = TopoDS::Face(faceExp.Current());
-		gp_Pnt evalpoint = helperFunctions::getPointOnFace(currentface);
-		for (size_t i = 0; i < faceList.size(); i++)
+		gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentface).Normalized();
+
+		if (abs(faceNormal.Z() ) < 0.0001)
 		{
-			TopoDS_Face evalFace = faceList[i];
-
-			BRepExtrema_DistShapeShape distanceWireCalc(evalFace, BRepBuilderAPI_MakeVertex(evalpoint));
-			distanceWireCalc.Perform();
-
-			if (distanceWireCalc.Value() < 0.00001)
-			{
-				valueList[faceIdx] = 2;
-				break;
-			}
+			valueList.emplace_back(1);
+			faceIdx++;
+			continue;
 		}
+		
+		valueList.emplace_back(2);
+
+
 		Bnd_Box bbox;
 		BRepBndLib::Add(currentface, bbox);
 		Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
 		bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
-		if (zmin < lowestZ && zmin - 0.001 < zmax && zmin + 0.001 > zmax) {
+		if (zmin < lowestZ) {
 			lowestZ = zmin;
 			lowestFaceIdx = faceIdx;
 		}
@@ -2767,7 +2746,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 		geoObject->appendSurfaceData(wMap);
 		geoObject->appendSurfaceData(rMap);
 
-		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], i, true);
+		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], true);
 		geoObject->setSurfaceTypeValues(typeValueList);
 
 		geoObjectList.emplace_back(geoObject);
@@ -2818,7 +2797,7 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 		geoObject->appendSurfaceData(wMap);
 		geoObject->appendSurfaceData(rMap);
 
-		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], i, false);
+		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], false);
 		geoObject->setSurfaceTypeValues(typeValueList);
 
 		geoObjectList.emplace_back(geoObject);
