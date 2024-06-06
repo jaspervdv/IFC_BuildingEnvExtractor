@@ -82,9 +82,12 @@ private:
 	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
 	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
 
+	/// @brief reduces the surfaces by merging neigbouring surfaces that have parallel normals 
+	void mergeSurfaces(const std::vector<SurfaceGroup>& shapeList);
+
 	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
 	void FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList);
-	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList);
+	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList, const std::vector<SurfaceGroup>& otherShapeList);
 
 	/// @brief get the surfaces that have an area when flattened
 	std::vector<SurfaceGroup> getXYFaces(const TopoDS_Shape& shape);

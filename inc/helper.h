@@ -67,6 +67,8 @@ struct helperFunctions{
 
 	/// get a list of unique points from a pointlist
 	static std::vector<gp_Pnt> getUniquePoints(const std::vector<gp_Pnt>& pointList);
+	/// get a list of unique points from a shape
+	static std::vector<gp_Pnt> getUniquePoints(const TopoDS_Shape& inputShape);
 
 	///	Rotate OpenCascade point around 0,0,0
 	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);
@@ -100,6 +102,9 @@ struct helperFunctions{
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
 	/// compute the face normal 
 	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
+
+	/// compute the largest angle of the edges, returns 0 if not found
+	static double computeLargestAngle(const TopoDS_Face& theFace);
 
 	/// check if edges overlap by checking the endpoints
 	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
@@ -185,7 +190,7 @@ struct helperFunctions{
 		std::vector<Value> qResult;
 		shapeIdx.query(bgi::intersects(
 			bg::model::box <BoostPoint3D>(
-				createBBox(evalFace.getFace())
+				createBBox(evalFace.getFaces()[0])
 				)), std::back_inserter(qResult));
 		for (size_t i = 0; i < qResult.size(); i++)
 		{

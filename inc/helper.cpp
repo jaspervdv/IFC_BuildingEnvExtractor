@@ -28,6 +28,9 @@
 #include <BRepTools.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
 
+#include <Geom_TrimmedCurve.hxx>
+#include <gp_Lin.hxx>
+
 #include <gp_Quaternion.hxx>
 
 
@@ -201,6 +204,31 @@ std::vector<gp_Pnt> helperFunctions::getUniquePoints(const std::vector<gp_Pnt>& 
 		if (!dub)
 		{
 			uniquePoints.emplace_back(pointList[j]);
+		}
+	}
+	return uniquePoints;
+}
+
+std::vector<gp_Pnt> helperFunctions::getUniquePoints(const TopoDS_Shape& inputShape)
+{
+	std::vector<gp_Pnt> uniquePoints;
+	for (TopExp_Explorer expl(inputShape, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt p = BRep_Tool::Pnt(vertex);
+		bool dub = false;
+
+		for (size_t k = 0; k < uniquePoints.size(); k++)
+		{
+			if (p.IsEqual(uniquePoints[k], 0.001))
+			{
+				dub = true;
+				break;
+			}
+		}
+		if (!dub)
+		{
+			uniquePoints.emplace_back(p);
 		}
 	}
 	return uniquePoints;
@@ -534,6 +562,56 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 	return normal;
 }
 
+double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
+{
+	std::vector<gp_Pnt> pointList = {};
+
+	double biggestAngle = 0;
+	for (TopExp_Explorer expl(theFace, TopAbs_EDGE); expl.More(); expl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+
+		gp_Pnt Anglepoint = helperFunctions::getFirstPointShape(currentEdge);
+		gp_Pnt legPoint1 = helperFunctions::getLastPointShape(currentEdge);
+		gp_Pnt legPoint2;
+
+		bool leg2Found = false;
+		for (TopExp_Explorer expl2(theFace, TopAbs_EDGE); expl2.More(); expl2.Next())
+		{
+			TopoDS_Edge otherEdge = TopoDS::Edge(expl2.Current());
+			if (currentEdge.IsSame(otherEdge)) { continue; }
+
+			gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
+			gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
+
+			if (otherP1.IsEqual(Anglepoint, 1e-6)) 
+			{ 
+				leg2Found = true;
+				legPoint2 = otherP2; 
+				break;
+			}
+			else if (otherP2.IsEqual(Anglepoint, 1e-6)) 
+			{ 
+				leg2Found = false;
+				legPoint2 = otherP1;
+				break;
+			}
+		}
+
+		gp_Vec v1 = gp_Vec(Anglepoint, legPoint1);
+		gp_Vec v2 = gp_Vec(Anglepoint, legPoint2);
+
+		double angle = v1.Angle(v2);
+
+		if (angle > biggestAngle)
+		{
+			biggestAngle = angle;
+		}
+
+	}
+	return biggestAngle;
+}
+
 
 bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge)
 {
@@ -863,7 +941,8 @@ bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& sh
 	Bnd_Box boundingBox;
 	BRepBndLib::Add(shape, boundingBox);
 
-	// Step 3: Get the bounds of the bounding box.
+	if (boundingBox.IsVoid()) { return  bg::model::box < BoostPoint3D >(); }
+
 	Standard_Real minX, minY, minZ, maxX, maxY, maxZ;
 	boundingBox.Get(minX, minY, minZ, maxX, maxY, maxZ);
 	return  bg::model::box < BoostPoint3D >(

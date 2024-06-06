@@ -23,7 +23,7 @@ EvaluationPoint::EvaluationPoint(const gp_Pnt& p)
 
 SurfaceGroup::SurfaceGroup(const TopoDS_Face& aFace)
 {
-	theFace_ = aFace;
+	theFaceCollection_.emplace_back(aFace);
 	lllPoint_ = gp_Pnt(999999999, 999999999, 99999999);
 	urrPoint_ = gp_Pnt(-999999999, -999999999, -99999999);
 
@@ -73,30 +73,24 @@ bool SurfaceGroup::overlap(SurfaceGroup other) {
 
 void SurfaceGroup::projectFace() {
 	
-	theProjectedFace_ = helperFunctions::projectFaceFlat(theFace_, 0);
+	theProjectedFace_ = helperFunctions::projectFaceFlat(theFaceCollection_[0], 0);
 
 	theFlatFace_ = helperFunctions::projectFaceFlat(
-		theFace_, 
-		helperFunctions::getHighestPoint(theFace_).Z() //TODO: make this smarter, might not work with non-flat surfaces
+		theFaceCollection_[0],
+		helperFunctions::getHighestPoint(theFaceCollection_[0]).Z() //TODO: make this smarter, might not work with non-flat surfaces
 	);
 }
 
 
 void SurfaceGroup::populateGrid(double distance) {
+	
+	pointGrid_.clear();
+
 	double xRange = urrPoint_.X() - lllPoint_.X();
 	double yRange = urrPoint_.Y() - lllPoint_.Y();
 
 	double xDistance = distance;
 	double yDistance = distance;
-
-	if (xRange < distance)
-	{
-		xDistance = xRange / 3;
-	}
-	if (yRange < distance)
-	{
-		yDistance = yRange / 3;
-	}
 
 	int xSteps = ceil(xRange / xDistance);
 	int ySteps = ceil(yRange / yDistance);
@@ -104,14 +98,72 @@ void SurfaceGroup::populateGrid(double distance) {
 	xDistance = xRange / xSteps;
 	yDistance = yRange / ySteps;
 
-	IntCurvesFace_Intersector intersector(theFace_, 0.0001);
+	IntCurvesFace_Intersector intersector(theFaceCollection_[0], 0.0001);
 
+	if (vertCount_ == 6) // If Triangle
+	{
+		double x = 0;
+		double y = 0;
+		double z = 0;
+
+		for (TopExp_Explorer expl(theFaceCollection_[0], TopAbs_VERTEX); expl.More(); expl.Next())
+		{
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			x += point.X();
+			y += point.Y();
+			z += point.Z();
+		}
+
+		gp_Pnt centerPoint = gp_Pnt(
+			x / 6,
+			y / 6,
+			z / 6
+		);
+
+		pointGrid_.emplace_back(
+			new EvaluationPoint( centerPoint )
+		);
+
+		double largestAngle = helperFunctions::computeLargestAngle(theFaceCollection_[0]);
+		
+
+		//TODO: finetune
+		if (largestAngle > 2.22 || helperFunctions::computeArea(theFaceCollection_[0]) < 1) //140 degrees
+		{
+			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theFaceCollection_[0]);
+
+			for (size_t i = 0; i < uniquePointList.size(); i++)
+			{
+				gp_Pnt legPoint = uniquePointList[i];
+
+				if (xSteps == 1) { xSteps = 2; }
+
+				gp_Vec translationVec = gp_Vec(
+					(legPoint.X() - centerPoint.X()) / xSteps,
+					(legPoint.Y() - centerPoint.Y()) / xSteps,
+					(legPoint.Z() - centerPoint.Z()) / xSteps
+				);
+
+				for (size_t j = 0; j < xSteps; j++)
+				{
+					pointGrid_.emplace_back(
+						new EvaluationPoint(centerPoint.Translated(translationVec * j))
+					);
+				}
+
+			}
+			if (pointGrid_.size() <= 5) { populateGrid(distance / 2); } //TODO: make smarter to avoid points only on wires
+			return;
+		}
+	}
+
+	// if not triangle
 	for (size_t i = 0; i <= xSteps; i++)
 	{
 		for (size_t j = 0; j <= ySteps; j++)
 		{
-			gp_Pnt tempPoint = gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, 0);
-
 			intersector.Perform(
 				gp_Lin(
 					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
@@ -121,17 +173,19 @@ void SurfaceGroup::populateGrid(double distance) {
 
 			if (intersector.NbPnt() == 1) {
 				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				EvaluationPoint* evalPoint = new EvaluationPoint(intersector.Pnt(1));
+				EvaluationPoint* evalPoint = new EvaluationPoint(intersector.Pnt(1)); //TODO: make smart
 				pointGrid_.emplace_back(evalPoint);
 			}
 		}
 	}
+	if (pointGrid_.size() <= 5) { populateGrid(distance / 2); } //TODO: make smarter to avoid points only on wires
+	return;
 }
 
 
 bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter)
 {
-	TopoDS_Face currentFace = getFace();
+	TopoDS_Face currentFace = getFaces()[0];
 	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
 
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
@@ -139,18 +193,18 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 
 		SurfaceGroup otherGroup = otherSurfaces[i];
 
-		if (preFilter)
+		if (preFilter) //TODO: spacial q
 		{
 			if (!overlap(otherGroup)) { continue; }
 		}
 
-		TopoDS_Face otherFace = otherGroup.getFace();
+		TopoDS_Face otherFace = otherGroup.getFaces()[0];
 		gp_Pnt otherLLLPoint = otherGroup.getLLLPoint();
 		gp_Pnt otherURRPoint = otherGroup.getURRPoint();
 
 		if (currentFace.IsEqual(otherFace)) { continue; }
 
-		IntCurvesFace_Intersector intersector(otherFace, 0.0001);
+		IntCurvesFace_Intersector intersector(otherFace, 1e-6);
 
 		for (size_t k = 0; k < currentGrid.size(); k++)
 		{

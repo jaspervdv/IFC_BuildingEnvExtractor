@@ -37,21 +37,32 @@ public:
 
 class SurfaceGroup {
 private:
-	TopoDS_Face theFace_;
+	// the face
+	std::vector<TopoDS_Face> theFaceCollection_; //TODO: make this function with complex faces
+
+	// the flat face geometry LoD13
 	TopoDS_Face theFlatFace_;
+
+	// the flat face at ground level
 	TopoDS_Face theProjectedFace_;
 
+	// bounding box 3D data
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
+
+	// bounding box 2D data
 	gp_Pnt2d llPoint_;
 	gp_Pnt2d urPoint_;
 
+	// information about the face
 	double topHeight_;
 	double avHeight_;
+	int vertCount_ = 0;
 
+	// usability information
 	bool visibility_ = true;
 	bool isSmall_ = false;
-	int vertCount_ = 0;
+
 
 	std::vector<EvaluationPoint*> pointGrid_;
 	bool overlap(SurfaceGroup other);
@@ -59,7 +70,7 @@ private:
 public:
 	SurfaceGroup(const TopoDS_Face& aFace);
 
-	const TopoDS_Face& getFace() const { return theFace_; }
+	const std::vector<TopoDS_Face>& getFaces() const { return theFaceCollection_; }
 	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
 	const TopoDS_Face& getProjectedFace() const { return theProjectedFace_; }
 	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }

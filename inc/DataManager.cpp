@@ -346,11 +346,12 @@ void helper::indexGeo()
 				addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
 			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
 
-			// add the curtain walls to the rtree
-			startTime = std::chrono::high_resolution_clock::now();
+			// add the curtain walls to the rtree 
+			//TODO: check this
+			/*startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCurtainWall>());
-			std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;*/
 
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
