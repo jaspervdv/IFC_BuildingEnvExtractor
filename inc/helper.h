@@ -64,6 +64,7 @@ struct helperFunctions{
 
 	/// Print points of the faces to console (for development only)
 	static void printFaces(const TopoDS_Shape& shape);
+	static void printFaces(const SurfaceGroup& shape);
 
 	/// get a list of unique points from a pointlist
 	static std::vector<gp_Pnt> getUniquePoints(const std::vector<gp_Pnt>& pointList);
@@ -102,6 +103,13 @@ struct helperFunctions{
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
 	/// compute the face normal 
 	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
+
+	/// check if edge is in list of edge objects
+	static bool isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge>& edgeList, bool Projected);
+
+	/// get the unique edges from in a shape or a collection of edges
+	static std::vector<Edge> getUniqueEdges(const TopoDS_Shape& inputShape);
+	static std::vector<Edge> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
 
 	/// compute the largest angle of the edges, returns 0 if not found
 	static double computeLargestAngle(const TopoDS_Face& theFace);
@@ -148,11 +156,28 @@ struct helperFunctions{
 	/// gets the direction that the edge is orentated towards
 	static gp_Vec helperFunctions::getDirEdge(const TopoDS_Edge& edge);
 
+	/// @brief get the footprint shapes from the collection of outer edges
+	static std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
+
 	/// merges the input wires in the correct order
 	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);
 
 	/// attempts to close an open wire
 	static TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire);
+
+	/// @brief grows wires from unordered exterior edges
+	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
+
+	/// @brief cleans the wires (removes redundant vertex)
+	static std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
+	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
+
+	static std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+
+	/// counts the total amount of verts (not unique)
+	static double countVerts(const TopoDS_Shape& theShape);
+
+	static bool shapeValidity(const TopoDS_Shape& theShape);
 
 	/// inverts the dirInx for neighbourSearching
 	static int invertDir(int dirIndx);
@@ -175,11 +200,14 @@ struct helperFunctions{
 
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
+	static TopoDS_Wire projectWireFlat(const TopoDS_Wire& theWire, double height);
 
 	/// get the intersection between two linear lines, returns 0 if not intersection
 	static gp_Pnt* linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);
 	static gp_Pnt* linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer = 0.01);
 	static gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
+
+	static bool shapeComparison(const TopoDS_Shape& shape1, const TopoDS_Shape& shape2);
 
 	/// Check if surface is completely overlapped
 	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace);
@@ -187,15 +215,7 @@ struct helperFunctions{
 	template<typename T>
 	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const std::vector<SurfaceGroup>& facePool, const T& shapeIdx)
 	{
-		std::vector<Value> qResult;
-		shapeIdx.query(bgi::intersects(
-			bg::model::box <BoostPoint3D>(
-				createBBox(evalFace.getFaces()[0])
-				)), std::back_inserter(qResult));
-		for (size_t i = 0; i < qResult.size(); i++)
-		{
-			if (isOverlappingCompletely(evalFace, facePool[qResult[i].second])) { return true; }
-		}
+		//TODO: fix logic
 		return false;
 	}
 

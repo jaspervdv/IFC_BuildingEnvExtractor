@@ -89,21 +89,14 @@ private:
 	void FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList);
 	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList, const std::vector<SurfaceGroup>& otherShapeList);
 
-	/// @brief get the surfaces that have an area when flattened
-	std::vector<SurfaceGroup> getXYFaces(const TopoDS_Shape& shape);
-
-	/// get the unique edges from in a shape or a collection of edges
-	std::vector<Edge> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
-	std::vector<Edge> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
+	/// @brief updates the facegroups to be of use in later processes
+	void updateFaceGroups();
 
 	/// get faces that are uniquely in a list dublicates are ingnored
 	std::vector<TopoDS_Face> getUniqueFaces(const std::vector<TopoDS_Face>& faceList);
 
 	/// get all the faces that have all vertices shared with one or more other faces from the list
 	std::vector<TopoDS_Face> getEncompassedFaces(const std::vector<TopoDS_Face>& faceList);
-
-	/// check if edge is in list of edge objects
-	bool isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge>& edgeList);
 
 	/// @bried merges all the overlapping edges that have the same direction
 	std::vector<Edge> mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project=true);
@@ -112,7 +105,7 @@ private:
 	std::vector<Edge> splitIntersectingEdges(const std::vector<Edge>& edges, bool project = true);
 
 	/// @brief get a clean list of all the edges the projected shapes
-	std::vector<Edge> makeJumbledGround();
+	std::vector<TopoDS_Face> makeRoofOutline();
 
 	/// @brief check if edge is part of outer envelope
 	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
@@ -127,18 +120,6 @@ private:
 		const std::vector<voxel*>& originVoxels,
 		double floorlvl);
 
-	/// @brief get the footprint shapes from the collection of outer edges
-	std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
-
-	/// @brief grows wires from unordered exterior edges
-	std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
-
-	/// @brief cleans the wires (removes redundant vertex)
-	std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
-	TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
-
-	std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
-
 	// divides the projected footprints over the seperate buildings
 	void sortRoofStructures();
 
@@ -152,7 +133,9 @@ private:
 	std::vector<TopoDS_Edge> section2edges(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
+	std::vector<TopoDS_Solid> extrudeFaceDW(SurfaceGroup theSurfaceGroup);
 	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, double splittingFaceHeight = 0);
+	TopoDS_Solid extrudeFaceDW(const std::vector<TopoDS_Face> faceList,  double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(bool isFlat, helper* h);

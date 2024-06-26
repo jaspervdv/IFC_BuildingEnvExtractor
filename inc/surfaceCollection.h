@@ -5,6 +5,7 @@
 #include <TopoDS_Edge.hxx>
 #include <gp_Lin.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Wire.hxx>
 #include <gp_Vec.hxx>
 
 
@@ -32,13 +33,46 @@ public:
 #endif // EVALUATIONPOINT_EVALUATIONPOINT_H
 
 
+#ifndef FACEGRIDPAIR_FACEGRIDPAIR_H
+#define FACEGRIDPAIR_FACEGRIDPAIR_H
+
+class FaceGridPair {
+private:
+	TopoDS_Face face_;
+	std::vector<EvaluationPoint*> pointGrid_;
+
+	gp_Pnt lllPoint_;
+	gp_Pnt urrPoint_;
+
+	void populatePointGrid(
+		const TopoDS_Face& theFace, 
+		int vertCount,
+		double res
+	);
+
+public:
+	FaceGridPair(const TopoDS_Face& theFace, double res);
+	FaceGridPair(const TopoDS_Face& theFace, std::vector<EvaluationPoint*>& pointGrid); //TODO: implement
+
+	TopoDS_Face getFace() const { return face_; }
+	void replaceFace(const TopoDS_Face& theFace) {face_ = theFace; }
+	std::vector<EvaluationPoint*> getGrid() const { return pointGrid_; }
+	gp_Pnt getLLLPoint() const { return lllPoint_; }
+	gp_Pnt getURRPoint() const { return urrPoint_; }
+
+	bool overlap(FaceGridPair otherFacePair);
+};
+#endif // FACEGRIDPAIR_FACEGRIDPAIR_H
+
+
 #ifndef SURFACEGROUP_SURFACEGROUP_H
 #define SURFACEGROUP_SURFACEGROUP_H
 
+/// class that contains the top surfaces of a shape or collection of shapes
 class SurfaceGroup {
 private:
 	// the face
-	std::vector<TopoDS_Face> theFaceCollection_; //TODO: make this function with complex faces
+	std::vector<FaceGridPair> theFaceCollection_; //TODO: make this function with complex faces
 
 	// the flat face geometry LoD13
 	TopoDS_Face theFlatFace_;
@@ -46,13 +80,12 @@ private:
 	// the flat face at ground level
 	TopoDS_Face theProjectedFace_;
 
+	// the wire the surrounds the surfaceGroup
+	std::vector<TopoDS_Wire> wireList_;
+
 	// bounding box 3D data
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
-
-	// bounding box 2D data
-	gp_Pnt2d llPoint_;
-	gp_Pnt2d urPoint_;
 
 	// information about the face
 	double topHeight_;
@@ -63,33 +96,39 @@ private:
 	bool visibility_ = true;
 	bool isSmall_ = false;
 
-
-	std::vector<EvaluationPoint*> pointGrid_;
 	bool overlap(SurfaceGroup other);
 
-public:
-	SurfaceGroup(const TopoDS_Face& aFace);
+	bool testIsVisable(FaceGridPair& evaluatedSurface, FaceGridPair& otherSurface);
 
-	const std::vector<TopoDS_Face>& getFaces() const { return theFaceCollection_; }
+public:
+	explicit SurfaceGroup(const TopoDS_Shape& theShape);
+
+	//const std::vector<TopoDS_Face>& getFaces() const { return theFaceCollection_; }
+	const std::vector<FaceGridPair> getSurfaceCollection() const { return theFaceCollection_; }
+	const TopoDS_Face& getFace(int indx) { return theFaceCollection_[indx].getFace(); }
 	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
 	const TopoDS_Face& getProjectedFace() const { return theProjectedFace_; }
 	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }
 
-	const gp_Pnt getLLLPoint() { return lllPoint_; }
-	const gp_Pnt getURRPoint() { return urrPoint_; }
+	std::vector<TopoDS_Wire> getWireList() { return wireList_; };
 
-	const gp_Pnt2d getLLPoint() { return llPoint_; }
-	const gp_Pnt2d getURPoint() { return urPoint_; }
+	const gp_Pnt getLLLPoint() const { return lllPoint_; }
+	const gp_Pnt getURRPoint() const { return urrPoint_; }
 
 	double getAvHeight() { return avHeight_; }
 	double getTopHeight() { return topHeight_; }
 
-	const std::vector<EvaluationPoint*>& getPointGrid() const { return pointGrid_; }
+	const std::vector<EvaluationPoint*>& getPointGrid(int indx) { return theFaceCollection_[indx].getGrid(); }
 	bool isVisible() { return visibility_; }
+
 	bool testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
 
+	bool hasSummaryData();
+
 	void setIsHidden() { visibility_ = false; }
+
+	void createOutLine();
 	void projectFace();
 
 	void populateGrid(double distance);
