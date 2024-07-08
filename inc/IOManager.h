@@ -15,7 +15,7 @@ private:
 
 	std::unique_ptr<helper> internalHelper_;
 
-	std::unique_ptr<CJT::CityCollection> cityCollection_;
+	std::shared_ptr<CJT::CityCollection> cityCollection_;
 
 	// time summary for the output
 	double timeInternalizing_ = 0;

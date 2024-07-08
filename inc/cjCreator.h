@@ -245,26 +245,26 @@ public:
 	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(helper* h);
 
 	/// generates an LoD0.0 object
-	CJT::GeoObject* makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
-	std::vector< CJT::GeoObject*>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
 	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 	std::vector < CJT::CityObject> makeLoD02Apartments(helper* h, CJT::Kernel* kernel, std::string guid, int unitScale);
 	/// generates a list of LoD0.3 objects
 	// TODO: implement
 	std::vector< CJT::GeoObject*> makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
-	CJT::GeoObject* makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.2 objects
-	std::vector< CJT::GeoObject*> makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.3 objects
-	std::vector< CJT::GeoObject*> makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
-	std::vector< CJT::GeoObject*> makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
-	std::vector< CJT::GeoObject*> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of voxelized objects
-	std::vector< CJT::GeoObject*> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
 	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 	/// generates a list of the site and its outline
 	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);

@@ -2436,7 +2436,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 	return cityStoreyObjects;
 }
 
-CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.0 Model" << std::endl;
@@ -2451,24 +2451,24 @@ CJT::GeoObject* CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unit
 	trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
 
 	helperFunctions::geoTransform(&floorProjection, h->getObjectTranslation(), trs);
-	CJT::GeoObject* geoObject = kernel->convertToJSON(floorProjection, "0.0");
+	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection, "0.0");
 
 	std::map<std::string, std::string> semanticData;
 	semanticData.emplace("type", "RoofSurface");
-	geoObject->appendSurfaceData(semanticData);
-	geoObject->appendSurfaceTypeValue(0);
+	geoObject.appendSurfaceData(semanticData);
+	geoObject.appendSurfaceTypeValue(0);
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObject;
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
-	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject*>(); }
+	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject>(); }
 
-	std::vector< CJT::GeoObject*> geoObjectCollection;
+	std::vector< CJT::GeoObject> geoObjectCollection;
 
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace("type", "RoofSurface");
@@ -2494,9 +2494,9 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 			else { trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_)); }
 			helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
-			CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape, "0.2");
-			geoObject->appendSurfaceData(semanticRoofData);
-			geoObject->appendSurfaceTypeValue(0);
+			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.2");
+			geoObject.appendSurfaceData(semanticRoofData);
+			geoObject.appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
@@ -2518,9 +2518,9 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ke
 
 			helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 
-			CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
-			geoObject->appendSurfaceData(semanticFootData);
-			geoObject->appendSurfaceTypeValue(0);
+			CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
+			geoObject.appendSurfaceData(semanticFootData);
+			geoObject.appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
@@ -2556,9 +2556,9 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 					currentFace.Move(localRotationTrsf);
 
 					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
-					CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "0.2");
-					geoObject->appendSurfaceTypeValue(0);
-					storeyCityObjects[j]->addGeoObject(*geoObject);
+					CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
+					geoObject.appendSurfaceTypeValue(0);
+					storeyCityObjects[j]->addGeoObject(geoObject);
 				}
 			}
 		}
@@ -2566,7 +2566,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 }
 
 
-CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
@@ -2625,7 +2625,7 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
 	helperFunctions::geoTransform(&bbox, h->getObjectTranslation(), trs);
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(bbox, "1.0");
+	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
 	std::map<std::string, std::string> grMap;
 	grMap.emplace("type", "GroundSurface");
 	std::map<std::string, std::string> wMap;
@@ -2633,27 +2633,27 @@ CJT::GeoObject* CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unit
 	std::map<std::string, std::string> rMap;
 	rMap.emplace("type", "RoofSurface");
 
-	geoObject->appendSurfaceData(grMap);
-	geoObject->appendSurfaceData(wMap);
-	geoObject->appendSurfaceData(rMap);
-	geoObject->appendSurfaceTypeValue(0);
-	geoObject->appendSurfaceTypeValue(1);
-	geoObject->appendSurfaceTypeValue(1);
-	geoObject->appendSurfaceTypeValue(1);
-	geoObject->appendSurfaceTypeValue(1);
-	geoObject->appendSurfaceTypeValue(2);
+	geoObject.appendSurfaceData(grMap);
+	geoObject.appendSurfaceData(wMap);
+	geoObject.appendSurfaceData(rMap);
+	geoObject.appendSurfaceTypeValue(0);
+	geoObject.appendSurfaceTypeValue(1);
+	geoObject.appendSurfaceTypeValue(1);
+	geoObject.appendSurfaceTypeValue(1);
+	geoObject.appendSurfaceTypeValue(1);
+	geoObject.appendSurfaceTypeValue(2);
 	printTime(startTime, std::chrono::high_resolution_clock::now());
 	return geoObject;
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.2 Model" << std::endl;
-	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject*>(); } }
+	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject>(); } }
 
-	std::vector< CJT::GeoObject*> geoObjectList;
+	std::vector< CJT::GeoObject> geoObjectList;
 	if (roofOutlineList_.size() == 0)
 	{
 		return geoObjectList;
@@ -2678,25 +2678,25 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 		sweeper.Build();
 		TopoDS_Shape extrudedShape = sweeper.Shape();
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(extrudedShape, "1.2");
+		CJT::GeoObject geoObject = kernel->convertToJSON(extrudedShape, "1.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
 		wMap.emplace("type", "WallSurface");
 		std::map<std::string, std::string> rMap;
 		rMap.emplace("type", "RoofSurface");
-		geoObject->appendSurfaceData(grMap);
-		geoObject->appendSurfaceData(wMap);
-		geoObject->appendSurfaceData(rMap);
+		geoObject.appendSurfaceData(grMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(rMap);
 
 		int counter = 0;
 		for (TopExp_Explorer faceExp(extrudedShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
 			TopoDS_Face face = TopoDS::Face(faceExp.Current());
-			geoObject->appendSurfaceTypeValue(1);
+			geoObject.appendSurfaceTypeValue(1);
 			counter++;
 		}
-		geoObject->setSurfaceTypeValue(counter - 2, 0);
-		geoObject->setSurfaceTypeValue(counter - 1, 2);
+		geoObject.setSurfaceTypeValue(counter - 2, 0);
+		geoObject.setSurfaceTypeValue(counter - 1, 2);
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2704,11 +2704,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ke
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 1.3 Model" << std::endl;
-	std::vector< CJT::GeoObject*> geoObjectList;
+	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!hasTopFaces_)
 	{
@@ -2734,19 +2734,19 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape, "1.3");
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
 		wMap.emplace("type", "WallSurface");
 		std::map<std::string, std::string> rMap;
 		rMap.emplace("type", "RoofSurface");
-		geoObject->appendSurfaceData(grMap);
-		geoObject->appendSurfaceData(wMap);
-		geoObject->appendSurfaceData(rMap);
+		geoObject.appendSurfaceData(grMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(rMap);
 
 		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], true);
-		geoObject->setSurfaceTypeValues(typeValueList);
+		geoObject.setSurfaceTypeValues(typeValueList);
 
 		geoObjectList.emplace_back(geoObject);
 	}
@@ -2755,11 +2755,11 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ke
 }
 
 
-std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Computing LoD 2.2 Model" << std::endl;
-	std::vector< CJT::GeoObject*> geoObjectList;
+	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!hasTopFaces_)
 	{
@@ -2785,19 +2785,19 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(currentShape, "2.2");
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "2.2");
 		std::map<std::string, std::string> grMap;
 		grMap.emplace("type", "GroundSurface");
 		std::map<std::string, std::string> wMap;
 		wMap.emplace("type", "WallSurface");
 		std::map<std::string, std::string> rMap;
 		rMap.emplace("type", "RoofSurface");
-		geoObject->appendSurfaceData(grMap);
-		geoObject->appendSurfaceData(wMap);
-		geoObject->appendSurfaceData(rMap);
+		geoObject.appendSurfaceData(grMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(rMap);
 
 		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], false);
-		geoObject->setSurfaceTypeValues(typeValueList);
+		geoObject.setSurfaceTypeValues(typeValueList);
 
 		geoObjectList.emplace_back(geoObject);
 	}
@@ -2806,12 +2806,12 @@ std::vector< CJT::GeoObject*> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ke
 }
 
 
-std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 3.2 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
-	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 
 	double buffer = 1 * sudoSettings_->voxelSize_; // set the distance from the bb of the evaluated object
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
@@ -2909,7 +2909,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 
 		helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(currentFace, "3.2");
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -2917,7 +2917,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* ker
 }
 
 
-std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -2933,11 +2933,11 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	trs.SetRotation(geoRefRotation_.GetRotation());
 	helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
-	std::vector< CJT::GeoObject*> geoObjectList; // final output collection
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
 		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
-		CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
+		CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
 		return geoObjectList;
@@ -2950,7 +2950,7 @@ std::vector< CJT::GeoObject*>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel,
 	brepBuilder.MakeSolid(voxelSolid);
 	brepBuilder.Add(voxelSolid, sewedShape);
 
-	CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::high_resolution_clock::now());
@@ -3032,7 +3032,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 					{
 						continue;
 					}
-					roomObject.addParent(storeyCityObject.get());
+					roomObject.addParent(storeyCityObject);
 				}
 			}
 			break;
@@ -3051,8 +3051,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 		{
 			std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
-			CJT::GeoObject* geoObject = kernel->convertToJSON(sewedShape, "5.0");
-			roomObject.addGeoObject(*geoObject);
+			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
+			roomObject.addGeoObject(geoObject);
 			continue;
 		}
 
@@ -3063,11 +3063,11 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		brepBuilder.MakeSolid(voxelSolid);
 		brepBuilder.Add(voxelSolid, sewedShape);
 
-		CJT::GeoObject* geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+		CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
 
 
 		roomObject.setType(CJT::Building_Type::BuildingRoom);
-		roomObject.addGeoObject(*geoObject);
+		roomObject.addGeoObject(geoObject);
 
 		roomObjectList.emplace_back(roomObject);
 	}
@@ -3310,8 +3310,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	}
 
 	CJT::CityObject siteObject;
-	CJT::GeoObject* geoObject = kernel->convertToJSON(fuser.Shape(), "1");
-	siteObject.addGeoObject(*geoObject);
+	CJT::GeoObject geoObject = kernel->convertToJSON(fuser.Shape(), "1");
+	siteObject.addGeoObject(geoObject);
 	siteObject.setType(CJT::Building_Type::TINRelief);
 	siteObject.setName("Site");
 
