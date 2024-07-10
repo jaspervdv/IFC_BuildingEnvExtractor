@@ -1330,7 +1330,6 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 	std::cout << "- Fine filtering of roofing structures" << std::endl;
 	FinefilterSurfaces(shapeList);
-
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::cout << "- Construct roof outlines" << std::endl;
 	std::vector<Edge> edgeList = makeJumbledGround();

@@ -69,6 +69,7 @@ struct helperFunctions{
 	static std::vector<gp_Pnt> getUniquePoints(const std::vector<gp_Pnt>& pointList);
 	/// get a list of unique points from a shape
 	static std::vector<gp_Pnt> getUniquePoints(const TopoDS_Shape& inputShape);
+	static int getPointCount(const TopoDS_Shape& inputShape);
 
 	///	Rotate OpenCascade point around 0,0,0
 	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);

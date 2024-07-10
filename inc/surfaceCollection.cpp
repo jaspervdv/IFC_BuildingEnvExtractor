@@ -82,8 +82,9 @@ void SurfaceGroup::projectFace() {
 }
 
 
-void SurfaceGroup::populateGrid(double distance) {
-	
+void SurfaceGroup::populateGrid(double distance) 
+{
+	TopoDS_Face theFace = theFaceCollection_[0];
 	pointGrid_.clear();
 
 	double xRange = urrPoint_.X() - lllPoint_.X();
@@ -92,21 +93,22 @@ void SurfaceGroup::populateGrid(double distance) {
 	double xDistance = distance;
 	double yDistance = distance;
 
-	int xSteps = static_cast<int>(ceil(xRange / xDistance));
-	int ySteps = static_cast<int>(ceil(yRange / yDistance));
+	int xSteps = ceil(xRange / xDistance);
+	int ySteps = ceil(yRange / yDistance);
 
 	xDistance = xRange / xSteps;
 	yDistance = yRange / ySteps;
 
-	IntCurvesFace_Intersector intersector(theFaceCollection_[0], 0.0001);
+	//TODO: vercount;
+	int vertCount = helperFunctions::getPointCount(theFace);
 
-	if (vertCount_ == 6) // If Triangle
+	if (vertCount == 6 && helperFunctions::computeArea(theFace) < 1) // If Triangle
 	{
 		double x = 0;
 		double y = 0;
 		double z = 0;
 
-		for (TopExp_Explorer expl(theFaceCollection_[0], TopAbs_VERTEX); expl.More(); expl.Next())
+		for (TopExp_Explorer expl(theFace, TopAbs_VERTEX); expl.More(); expl.Next())
 		{
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 			gp_Pnt point = BRep_Tool::Pnt(vertex);
@@ -123,16 +125,15 @@ void SurfaceGroup::populateGrid(double distance) {
 		);
 
 		pointGrid_.emplace_back(
-			new EvaluationPoint( centerPoint )
+			new EvaluationPoint(centerPoint)
 		);
 
-		double largestAngle = helperFunctions::computeLargestAngle(theFaceCollection_[0]);
-		
+		double largestAngle = helperFunctions::computeLargestAngle(theFace);
 
 		//TODO: finetune
-		if (largestAngle > 2.22 || helperFunctions::computeArea(theFaceCollection_[0]) < 1) //140 degrees
+		if (largestAngle > 2.22) //140 degrees
 		{
-			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theFaceCollection_[0]);
+			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theFace);
 
 			for (size_t i = 0; i < uniquePointList.size(); i++)
 			{
@@ -146,10 +147,10 @@ void SurfaceGroup::populateGrid(double distance) {
 					(legPoint.Z() - centerPoint.Z()) / xSteps
 				);
 
-				for (int j = 0; j < xSteps; j++)
+				for (size_t j = 0; j < xSteps; j++)
 				{
 					pointGrid_.emplace_back(
-						new EvaluationPoint(centerPoint.Translated(translationVec * j)) //TODO: look at this
+						new EvaluationPoint(centerPoint.Translated(translationVec * j))
 					);
 				}
 
@@ -160,6 +161,7 @@ void SurfaceGroup::populateGrid(double distance) {
 	}
 
 	// if not triangle
+	IntCurvesFace_Intersector intersector(theFace, 0.0001);
 	for (size_t i = 0; i <= xSteps; i++)
 	{
 		for (size_t j = 0; j <= ySteps; j++)
@@ -168,7 +170,7 @@ void SurfaceGroup::populateGrid(double distance) {
 				gp_Lin(
 					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
 					gp_Dir(0, 0, 1000)),
-				-INFINITE, //TODO: look at this
+				-INFINITE,
 				+INFINITE);
 
 			if (intersector.NbPnt() == 1) {

@@ -234,6 +234,17 @@ std::vector<gp_Pnt> helperFunctions::getUniquePoints(const TopoDS_Shape& inputSh
 	return uniquePoints;
 }
 
+
+int helperFunctions::getPointCount(const TopoDS_Shape& inputShape)
+{
+	int pCount = 0;
+	for (TopExp_Explorer expl(inputShape, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		pCount++;
+	}
+	return pCount;
+}
+
 gp_Pnt helperFunctions::rotatePointWorld(const gp_Pnt& p, double angle) {
 	double pX = p.X();
 	double pY = p.Y();
