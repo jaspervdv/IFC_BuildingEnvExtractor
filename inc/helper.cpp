@@ -450,7 +450,7 @@ gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace)
 	TopLoc_Location loc;
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
-	for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) 
+	for (int i = 1; i <= mesh.get()->NbTriangles(); i++) 
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 
@@ -465,6 +465,7 @@ gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace)
 		);
 		return middlePoint;
 	}
+	return gp_Pnt(); //TODO: make smarter exit solution
 }
 
 std::vector<gp_Pnt> helperFunctions::getPointListOnFace(const TopoDS_Face& theFace)
@@ -475,7 +476,7 @@ std::vector<gp_Pnt> helperFunctions::getPointListOnFace(const TopoDS_Face& theFa
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
 	std::vector<gp_Pnt> pointList;
-	for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++)
+	for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 
@@ -913,6 +914,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 		if (wiremaker.IsDone()) { return wiremaker.Wire(); }
 	}
+	return TopoDS_Wire();
 }
 
 
@@ -1207,7 +1209,6 @@ gp_Pnt* helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const 
 		buffer
 	);
 }
-
 
 bool helperFunctions::isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace) {
 	std::vector<EvaluationPoint*> evalGrid = evalFace.getPointGrid();

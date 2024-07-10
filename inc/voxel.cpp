@@ -272,7 +272,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 		if (mesh.IsNull()) { continue; }
 
-		for (size_t i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
+		for (int i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
 		{
 			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 

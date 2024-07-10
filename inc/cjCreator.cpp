@@ -190,7 +190,7 @@ std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& u
 	std::vector<int> evalList(uniqueEdges.size());
 
 	std::vector<int> discardIndx;
-	for (size_t i = 0; i < uniqueEdges.size(); i++)
+	for (int i = 0; i < uniqueEdges.size(); i++)
 	{
 		if (evalList[i] == 1) { continue; }
 		evalList[i] = 1;
@@ -208,7 +208,7 @@ std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& u
 		std::vector<gp_Pnt> mergeList;
 		std::vector<int> evalIndxList;
 
-		for (size_t j = 0; j < uniqueEdges.size(); j++)
+		for (int j = 0; j < uniqueEdges.size(); j++)
 		{
 			if (i == j) { continue; }
 			if (evalList[j] == 1) { continue; }
@@ -375,7 +375,7 @@ std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& 
 	std::vector<Edge> splitEdgeList;
 	std::vector<int> discardIndx;
 	
-	for (size_t i = 0; i < edges.size(); i++)
+	for (int i = 0; i < edges.size(); i++)
 	{
 		std::vector<gp_Pnt> intPoints;
 
@@ -408,7 +408,7 @@ std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& 
 			double smallestDistance = 99999999;
 			int nextPoint;
 			bool found = false;
-			for (size_t j = 0; j < cleanedPoints.size(); j++)
+			for (int j = 0; j < cleanedPoints.size(); j++)
 			{
 				if (evaluated[j] == 1) { continue; }
 
@@ -576,7 +576,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 
 	//create index of the splitEdges
 	bgi::rtree<Value, bgi::rstar<25>> edgeIndex;
-	for (size_t i = 0; i < edgeList.size(); i++)
+	for (int i = 0; i < edgeList.size(); i++)
 	{
 		Edge currentEdge = edgeList[i];
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentEdge.getStart(false), currentEdge.getEnd(false));
@@ -799,7 +799,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(const std::vector<TopoDS_Edge>&
 		gp_Pnt startpoint = helperFunctions::getFirstPointShape(currentWire);
 		gp_Pnt endpoint = helperFunctions::getLastPointShape(currentWire);
 
-		for (size_t i = 0; i < wireCollection.size(); i++) 
+		for (int i = 0; i < wireCollection.size(); i++) 
 		{
 			TopoDS_Wire otherwire = wireCollection[i];
 			gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(otherwire);
@@ -1035,7 +1035,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 	{
 		double evalArea = 0;
 		int evalIdx = -1;
-		for (size_t j = 0; j < areaList.size(); j++)
+		for (int j = 0; j < areaList.size(); j++)
 		{
 			if (ordered[j] == 1) { continue; }
 
@@ -1254,7 +1254,7 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 					std::vector<TopoDS_Edge> edgeList;
 
-					Prs3d_ShapeTool Tool(fuser.Shape());
+					Prs3d_ShapeTool Tool(fuser.Shape()); //TODO: check this
 					for (Tool.InitCurve(); Tool.MoreCurve(); Tool.NextCurve())
 					{
 						const TopoDS_Edge& E = Tool.GetCurve();
@@ -1648,7 +1648,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			if (qResult.size() <= 1)
 			{
 				std::lock_guard<std::mutex> faceLock(faceListMutex);
-				faceIdx.insert(std::make_pair(searchBox, faceList.size()));
+				faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
 				faceList.emplace_back(currentFace);
 			}
 			else {
@@ -1670,7 +1670,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
 					TopoDS_Face subFace = TopoDS::Face(expl.Current());
 					std::lock_guard<std::mutex> faceLock(faceListMutex);
-					faceIdx.insert(std::make_pair(searchBox, faceList.size()));
+					faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
 					faceList.emplace_back(subFace);
 				}
 			}
@@ -1834,7 +1834,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 
 	// make spatial index
 	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
-	for (size_t i = 0; i < surfaceList.size(); i++)
+	for (int i = 0; i < surfaceList.size(); i++)
 	{
 		TopoDS_Face currentFace = surfaceList[i];
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
@@ -2222,7 +2222,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
 	int coreUse = coreCount - 1;
-	int splitListSize = floor(inputShapes.size() / coreUse);
+	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 	int voxelsGrown = 0;
 
 	std::vector<std::thread> threadList;
@@ -2256,7 +2256,7 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 		{
 			if (!helperFunctions::isOverlappingCompletely(objectFaces[j], *shapeList, *shapeIdx))
 			{
-				auto rtreePair = std::make_pair(helperFunctions::createBBox(objectFaces[j].getFaces()[0]), shapeList->size());
+				auto rtreePair = std::make_pair(helperFunctions::createBBox(objectFaces[j].getFaces()[0]), static_cast<int>(shapeList->size()));
 				std::unique_lock<std::mutex> rtreeLock(indexInjectMutex_);
 				shapeIdx->insert(rtreePair);
 				shapeList->emplace_back(objectFaces[j]);
@@ -2274,7 +2274,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
 	int coreUse = coreCount - 1;
-	int splitListSize = floor(shapeList.size() / coreUse);
+	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 	int voxelsGrown = 0;
 
 	std::vector<std::thread> threadList;
@@ -2963,7 +2963,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::vector<CJT::CityObject> roomObjectList; // final output collection
-	for (size_t i = 1; i < voxelGrid_->getRoomSize(); i++)
+	for (int i = 1; i < voxelGrid_->getRoomSize(); i++)
 	{
 		CJT::CityObject roomObject;
 
@@ -3089,7 +3089,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	std::vector<TopoDS_Face> groundPlaneFaces;
 
 	// get the surfaces from the geo or site objects
-	for (size_t i = 0; i < h->getSourceFileCount(); i++)
+	for (int i = 0; i < h->getSourceFileCount(); i++)
 	{
 		IfcSchema::IfcSite::list::ptr siteElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSite>();
 
@@ -3115,7 +3115,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	if (!groundPlaneFaces.size())
 	{
 #ifdef USE_IFC4
-		for (size_t i = 0; i < h->getSourceFileCount(); i++)
+		for (int i = 0; i < h->getSourceFileCount(); i++)
 		{
 			IfcSchema::IfcGeographicElement::list::ptr geographicElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcGeographicElement>();
 
@@ -3219,7 +3219,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 			toolList.Append(currentFace);
 			siteSelectionFaceList.emplace_back(currentFace);
 			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
-			siteSelectionFacesSpatialIndex.insert(std::make_pair(bbox, siteSelectionFacesSpatialIndex.size()));
+			siteSelectionFacesSpatialIndex.insert(std::make_pair(bbox, static_cast<int>(siteSelectionFacesSpatialIndex.size())));
 		}
 
 	}
@@ -3324,7 +3324,7 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 	std::vector<std::thread> threads;
 	std::vector<std::vector<TopoDS_Face>> threadFaceLists(6);
 
-	for (size_t i = 0; i < 6; i++) {
+	for (int i = 0; i < 6; i++) {
 		threads.emplace_back([this, &threadFaceLists, i, roomNum]() {processDirectionalFaces(i, roomNum, std::ref(threadFaceLists[i])); });
 	}
 	for (auto& t : threads) { t.join(); }
@@ -3396,7 +3396,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 			basementVolume += voxelVolume;
 
 			if (!isOuterShell) { continue; }
-			for (size_t j = 0; j < 6; j++)
+			for (int j = 0; j < 6; j++)
 			{
 				if (currentVoxel->hasFace(j)) { basementArea += voxelArea; }
 			}
@@ -3602,7 +3602,7 @@ bool CJGeoCreator::isSurfaceVisible(
 	
 	// greate points on grid over surface
 	// get the uv bounds to create a point grid on the surface
-	Standard_Real uMin, uMax, vMin, vMax, wMin, wMax;
+	Standard_Real uMin, uMax, vMin, vMax;
 	BRepTools::UVBounds(currentFace, BRepTools::OuterWire(currentFace), uMin, uMax, vMin, vMax);
 
 	uMin = uMin + 0.05;
@@ -3610,8 +3610,8 @@ bool CJGeoCreator::isSurfaceVisible(
 	vMin = vMin + 0.05;
 	vMax = vMax - 0.05;
 
-	int numUPoints = ceil(abs(uMax - uMin) / gridDistance);
-	int numVPoints = ceil(abs(vMax - vMin) / gridDistance);
+	int numUPoints = static_cast<int>(ceil(abs(uMax - uMin) / gridDistance));
+	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / gridDistance));
 
 	if (numUPoints < 2) { numUPoints = 2; }
 	else if (numUPoints > 10) { numUPoints = 10; }
@@ -3683,7 +3683,7 @@ bool CJGeoCreator::isWireVisible(
 		double uStart = curveAdaptor.Curve().FirstParameter();
 		double uEnd = curveAdaptor.Curve().LastParameter();
 
-		int numUPoints = ceil(abs(uStart - uEnd)) / gridDistance;
+		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / gridDistance); //TODO: check this
 
 		if (numUPoints < 2) { numUPoints = 2; }
 		else if (numUPoints > 10) { numUPoints = 10; }

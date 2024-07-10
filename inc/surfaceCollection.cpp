@@ -92,8 +92,8 @@ void SurfaceGroup::populateGrid(double distance) {
 	double xDistance = distance;
 	double yDistance = distance;
 
-	int xSteps = ceil(xRange / xDistance);
-	int ySteps = ceil(yRange / yDistance);
+	int xSteps = static_cast<int>(ceil(xRange / xDistance));
+	int ySteps = static_cast<int>(ceil(yRange / yDistance));
 
 	xDistance = xRange / xSteps;
 	yDistance = yRange / ySteps;
@@ -146,10 +146,10 @@ void SurfaceGroup::populateGrid(double distance) {
 					(legPoint.Z() - centerPoint.Z()) / xSteps
 				);
 
-				for (size_t j = 0; j < xSteps; j++)
+				for (int j = 0; j < xSteps; j++)
 				{
 					pointGrid_.emplace_back(
-						new EvaluationPoint(centerPoint.Translated(translationVec * j))
+						new EvaluationPoint(centerPoint.Translated(translationVec * j)) //TODO: look at this
 					);
 				}
 
@@ -168,7 +168,7 @@ void SurfaceGroup::populateGrid(double distance) {
 				gp_Lin(
 					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
 					gp_Dir(0, 0, 1000)),
-				-INFINITE,
+				-INFINITE, //TODO: look at this
 				+INFINITE);
 
 			if (intersector.NbPnt() == 1) {

@@ -150,9 +150,9 @@ bool IOManager::getOutputPathList() {
 		}
 
 		sudoSettingsPtr_->outputPath_ = singlepath;
-		return true;
+		break;
 	}
-
+	return true;
 }
 
 bool IOManager::getUseDefaultSettings()
@@ -164,7 +164,7 @@ bool IOManager::getUseDefaultSettings()
 	boost::filesystem::path targetFolderPath = targetFilePath.parent_path().string() + "/_exports";
 
 	sudoSettingsPtr_->outputPath_ = targetFolderPath.string() + "/evnBuilding.city.json";
-	struct stat info;
+
 	if (!boost::filesystem::exists(targetFolderPath))
 	{
 		std::cout << "[INFO] Export folder is created at: " << targetFolderPath.string() << std::endl;
@@ -353,6 +353,7 @@ bool IOManager::getVoxelSize()
 
 		std::cout << "[INFO] No valid number has been supplied" << std::endl;
 	}
+	return true;
 }
 
 bool IOManager::getFootprintElev()
@@ -696,7 +697,7 @@ bool IOManager::isValidPath(const std::string& path)
 void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
 {
 
-	double duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
 	if (duration < 5) { (*j)[valueName + " (ms)"] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
 	else { (*j)[valueName + " (s)"] = duration; }
 }
@@ -910,6 +911,7 @@ bool IOManager::run()
 	internalHelper_->internalizeGeo();
 	internalHelper_->indexGeo();
 	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
+	
 	// create the cjt objects
 	std::shared_ptr<CJT::CityCollection> collection = std::make_shared<CJT::CityCollection>();
 	gp_Trsf geoRefRotation;
@@ -920,7 +922,9 @@ bool IOManager::run()
 	{
 		internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 	}
-	transformation.setScale(*transformation.getScale()); //TODO: fix cjt to make this not required.
+	transformation.setScale(transformation.getScale()[0]); //TODO: fix cjt to make this not required.
+	collection->setTransformation(transformation);
+	collection->setVersion("1.1");
 
 	// Set up objects and their relationships
 	CJT::CityObject cityBuildingObject;
@@ -1181,9 +1185,6 @@ bool IOManager::run()
 			collection->addCityObject(currentSiteObject);
 		}
 	}
-	
-	collection->setTransformation(transformation);
-	collection->setVersion("1.1");
 
 	// compute the extends
 	gp_Pnt lll = internalHelper_.get()->getLllPoint();
@@ -1308,6 +1309,7 @@ bool IOManager::write()
 	std::ofstream reportFile(filePath.string() + "_report.json");
 	reportFile << report;
 	reportFile.close();
+	return true;
 }
 
 nlohmann::json ErrorObject::toJson()

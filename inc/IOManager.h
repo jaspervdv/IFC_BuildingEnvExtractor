@@ -18,30 +18,30 @@ private:
 	std::shared_ptr<CJT::CityCollection> cityCollection_;
 
 	// time summary for the output
-	double timeInternalizing_ = 0;
+	long long timeInternalizing_ = 0;
 	double timeInternalizingIsS_ = false;
 
-	double timeVoxel_ = 0;
+	long long timeVoxel_ = 0;
 
-	double timeLoD00_ = 0;
+	long long timeLoD00_ = 0;
 	bool timeLoD00IsS_ = false;
-	double timeLoD02_ = 0;
+	long long timeLoD02_ = 0;
 	bool timeLoD02IsS_ = false;
-	double timeLoD10_ = 0;
+	long long timeLoD10_ = 0;
 	bool timeLoD10IsS_ = false;
-	double timeLoD12_ = 0;
+	long long timeLoD12_ = 0;
 	bool timeLoD12IsS_ = false;
-	double timeLoD13_ = 0;
+	long long timeLoD13_ = 0;
 	bool timeLoD13IsS_ = false;
-	double timeLoD22_ = 0;
+	long long timeLoD22_ = 0;
 	bool timeLoD22IsS_ = false;
-	double timeLoD32_ = 0;
+	long long timeLoD32_ = 0;
 	bool timeLoD32IsS_ = false;
-	double timeV_ = 0;
+	long long timeV_ = 0;
 	bool timeVIsS_ = false;
 
-	double timeProcess = 0;
-	double timeTotal = 0;
+	long long timeProcess = 0;
+	long long timeTotal = 0;
 
 	std::vector<ErrorObject> ErrorList_ = {};
 

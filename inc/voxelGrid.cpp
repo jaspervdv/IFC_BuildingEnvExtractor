@@ -106,9 +106,9 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	double yRange = urrPoints.Y() - anchor_.Y();
 	double zRange = urrPoints.Z() - anchor_.Z();
 
-	xRelRange_ = (int)ceil(xRange / voxelSize) + 1;
-	yRelRange_ = (int)ceil(yRange / voxelSize) + 1;
-	zRelRange_ = (int)ceil(zRange / voxelSize) + 1;
+	xRelRange_ = static_cast<int>(ceil(xRange / voxelSize) + 1);
+	yRelRange_ = static_cast<int>(ceil(yRange / voxelSize) + 1);
+	zRelRange_ = static_cast<int>((int)ceil(zRange / voxelSize) + 1);
 
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
@@ -215,7 +215,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 		}
 
 		// find the windows
-		for (size_t indxdir = 0; indxdir < 6; indxdir++)
+		for (int indxdir = 0; indxdir < 6; indxdir++)
 		{
 			if (voxelBeamWindowIntersection(h, currentVoxel, indxdir)) //TODO: improve the logic
 			{
@@ -245,7 +245,7 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 	// compute column scores
 	std::vector<int> columScoreList;
 	int columSumScore = 0;
-	for (size_t i = 0; i < loopRange; i++)
+	for (int i = 0; i < loopRange; i++)
 	{
 		int plate = plateIndx + i;
 
@@ -270,7 +270,7 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 			), std::back_inserter(qResult)
 		);
 
-		int columnScore = qResult.size();
+		int columnScore = static_cast<int>(qResult.size());
 		columScoreList.emplace_back(columnScore);
 		columSumScore += columnScore;
 	}
@@ -280,14 +280,14 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 	int beginIdx = 0;
 
 	std::vector<std::thread> threadList;
-	for (size_t i = 0; i < coreUse; i++)
+	for (int i = 0; i < coreUse; i++)
 	{
 		int score = 0;
 		int endIdx = 0;
 		if (i == coreUse - 1) { endIdx = xRelRange_ * yRelRange_; }
 		else
 		{
-			for (size_t j = beginIdx; j < loopRange; j++)
+			for (int j = beginIdx; j < loopRange; j++)
 			{
 				score += columScoreList[j];
 
@@ -342,7 +342,7 @@ std::vector<voxel*> VoxelGrid::getIntersectingVoxels()
 		voxel* currentVoxel = i->second;
 
 		if (!currentVoxel->getIsIntersecting()) { continue; }
-		if (!currentVoxel->getBuildingNum() == -1) { continue; }
+		if (currentVoxel->getBuildingNum() != -1) { continue; }
 
 		intersectingVoxels.emplace_back(currentVoxel);
 	}
@@ -409,7 +409,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 		std::vector<int> buffer = {};
 		bool searchWindow = false;
 
-		for (size_t i = searchStartIdx; i < VoxelLookup_.size(); i++)
+		for (int i = searchStartIdx; i < VoxelLookup_.size(); i++)
 		{
 			voxel* potentialVoxel = VoxelLookup_[i];
 
@@ -611,7 +611,7 @@ std::vector<int> VoxelGrid::getTopBoxelIndx() {
 
 	std::vector<int> voxelIndx;
 
-	for (size_t i = xRelRange_ * yRelRange_ * zRelRange_ - xRelRange_ * yRelRange_;
+	for (int i = xRelRange_ * yRelRange_ * zRelRange_ - xRelRange_ * yRelRange_;
 		i < xRelRange_ * yRelRange_ * zRelRange_ - 1;
 		i++)
 	{
@@ -622,13 +622,13 @@ std::vector<int> VoxelGrid::getTopBoxelIndx() {
 
 
 std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
-	double voxelCount = VoxelLookup_.size();
-	double zlvls = voxelCount / (xRelRange_ * yRelRange_);
+	double voxelCount = (double) VoxelLookup_.size();
+	double zlvls = voxelCount / ((double) xRelRange_ * (double) yRelRange_); //TODO: this can be cleaner
 	double smallestDistanceToLvl = 999999;
 
 	int plateVoxelLvl;
 
-	for (size_t i = 0; i < zlvls; i++)
+	for (int i = 0; i < zlvls; i++)
 	{
 		voxel v = *VoxelLookup_[i * xRelRange_ * yRelRange_];
 
@@ -649,7 +649,7 @@ std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 
 	std::vector<voxel*> plateVoxels;
 
-	for (size_t i = 0; i < VoxelLookup_.size(); i++)
+	for (int i = 0; i < VoxelLookup_.size(); i++)
 	{
 		int currentVoxelIdx = i;
 		if (currentVoxelIdx < lvl || currentVoxelIdx > topLvL) { continue; }
@@ -662,8 +662,8 @@ std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 template<typename T>
 T VoxelGrid::linearToRelative(int i) {
 	int x = i % xRelRange_;
-	int y = floor((i / xRelRange_) % yRelRange_);
-	int z = floor(i / (xRelRange_ * yRelRange_));
+	int y = static_cast<int>(floor((i / xRelRange_) % yRelRange_));
+	int z = static_cast<int>(floor(i / (xRelRange_ * yRelRange_)));
 
 	return T(x, y, z);
 }
@@ -939,7 +939,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 			// find neighbours
 			std::vector<int> neighbourIndxList = getDirNeighbours(currentIdx);
 
-			for (size_t k = 0; k < neighbourIndxList.size(); k++)
+			for (int k = 0; k < neighbourIndxList.size(); k++)
 			{
 				int neighbourIdx = neighbourIndxList[k];
 

@@ -426,7 +426,7 @@ void helper::indexGeo()
 bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& productShape, double rotationAngle)
 {
 	std::vector<gp_Pnt> productVert = helperFunctions::shape2PointList(productShape);
-	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
+	if (productVert.size() <= 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
 
 	// only outputs 2 corners of the three needed corners!
 	gp_Pnt lllPoint;
@@ -444,7 +444,7 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& produc
 bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* product, double rotationAngle)
 {
 	std::vector<gp_Pnt> productVert = getObjectPoints(product);
-	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
+	if (productVert.size() <= 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
 
 	// only outputs 2 corners of the three needed corners!
 	gp_Pnt lllPoint;
@@ -473,7 +473,7 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchem
 		}
 	}
 
-	if (!productVert.size() > 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
+	if (productVert.size() <= 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
 
 	// only outputs 2 corners of the three needed corners!
 	gp_Pnt lllPoint;
@@ -762,7 +762,18 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 
 	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
 
-	if (mapConversion->Scale().has_value()) { transformation->setScale(*transformation->getScale() * mapConversion->Scale().get()); }
+	if (mapConversion->Scale().has_value())
+	{
+		std::array<double, 3> scaleCity = transformation->getScale();
+		double scaleIfc = mapConversion->Scale().get();
+
+		for (size_t i = 0; i < scaleCity.size(); i++)
+		{
+			scaleCity[i] = scaleCity[i] * scaleIfc;
+		}
+		transformation->setScale(scaleCity);
+	}
+
 	if (!mapConversion->XAxisAbscissa().has_value() || !mapConversion->XAxisOrdinate().has_value()) { return; }
 
 	double XAO = mapConversion->XAxisOrdinate().get();
@@ -821,8 +832,9 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 			}
 			else if (propertyName == "Scale")
 			{
+				//TODO: fix
 				IfcSchema::IfcReal* scaleReal = propertyObject->NominalValue()->as<IfcSchema::IfcReal>();
-				transformation->setScale(*transformation->getScale() * double(*scaleReal->data().getArgument(0)));
+				//transformation->setScale(*transformation->getScale() * double(*scaleReal->data().getArgument(0))); 
 				mapConvCounter++;
 			}
 			else if (propertyName == "Eastings")
