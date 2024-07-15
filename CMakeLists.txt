@@ -2,56 +2,204 @@ cmake_minimum_required(VERSION 3.10)
 
 # set the project name
 project(Ifc_Envelope_Extractor CXX)
+set(CMAKE_CXX_STANDARD 17)
 
-FOREACH(flag CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_MINSIZEREL
-		CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-		CMAKE_C_FLAGS_MINSIZEREL CMAKE_C_FLAGS_RELWITHDEBINFO)
-	IF(${flag} MATCHES "/MD")
-		STRING(REGEX REPLACE "/MD" "/MT" ${flag} "${${flag}}")
-	ENDIF()
-	IF(${flag} MATCHES "/MDd")
-		STRING(REGEX REPLACE "/MDd" "/MTd" ${flag} "${${flag}}")
-	ENDIF()
-ENDFOREACH()
+option(USE_MMAP "Adds a command line options to parse IFC files from memory mapped files using Boost.Iostreams" OFF)
 
 # nholmann
 find_package(nlohmann_json REQUIRED)
 
-# Tbb
-find_package(TBB REQUIRED NO_DEFAULT_PATH)
-SET(TBB_INCLUDE_DIR "tbb/include")
-message(STATUS "${INTERFACE_INCLUDE_DIRECTORIES}")
+# IFCOpenShell
+if("${IFC_INCLUDE_DIR}" STREQUAL "")
+    find_path(IFC_INCLUDE_DIR Standard_Version.hxx
+        PATHS
+        /usr/local/include
+    )
 
-# CJT
-find_package(CJT REQUIRED)
+    if(IFC_INCLUDE_DIR)
+        message(STATUS "Found IFCOpenShell include files in: ${IFC_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "Unable to find IFCOpenShell include directory. Specify IFC_INCLUDE_DIR manually")
+    endif()
+else()
+    set(IFC_INCLUDE_DIR ${IFC_INCLUDE_DIR} CACHE FILEPATH "IFCOpenShell header files")
+    message(STATUS "Looking for IFCOpenShell include files in: ${IFC_INCLUDE_DIR}")
+endif()
+
+if("${IFC_LIBRARY_DIR}" STREQUAL "")
+    find_path(IFC_LIBRARY_DIR IfcGeom.lib
+        PATHS
+        ${IFC_INCLUDE_DIR}/../lib/
+    )
+
+    if(IFC_LIBRARY_DIR)
+        message(STATUS "Found IFCOpenShell lib files in: ${IFC_LIBRARY_DIR}")
+    else()
+        message(FATAL_ERROR "Unable to find IFCOpenShell lib directory. Specify IFC_LIBRARY_DIR manually")    
+    endif()
+else()
+    set(IFC_LIBRARY_DIR ${IFC_LIBRARY_DIR} CACHE FILEPATH "IFCOpenShell header files")
+    message(STATUS "Looking for IFCOpenShell include files in: ${IFC_LIBRARY_DIR}")
+endif()
+
+# OpenCascade
+if("${OCC_INCLUDE_DIR}" STREQUAL "")
+    find_path(OCC_INCLUDE_DIR Standard_Version.hxx
+    PATHS
+        /usr/include/occt
+        /usr/include/oce
+        /usr/include/opencascade
+    )
+
+    if(OCC_INCLUDE_DIR)
+        message(STATUS "Found Open CASCADE include files in: ${OCC_INCLUDE_DIR}")
+    else()
+        message(FATAL_ERROR "Unable to find Open CASCADE include directory. Specify OCC_INCLUDE_DIR manually")
+    endif()
+else()
+    set(OCC_INCLUDE_DIR ${OCC_INCLUDE_DIR} CACHE FILEPATH "Open CASCADE header files")
+    message(STATUS "Looking for Open CASCADE include files in: ${OCC_INCLUDE_DIR}")
+endif()
+
+# get OCCT version
+if(OCC_INCLUDE_DIR)
+    file(STRINGS ${OCC_INCLUDE_DIR}/Standard_Version.hxx OCC_VERSION
+        REGEX "#define OCC_VERSION_COMPLETE*"
+    )
+    string(REGEX MATCH "[0-9.]+" OCC_VERSION_STRING ${OCC_VERSION})
+    
+    message(STATUS "Open CASCADE Version: " ${OCC_VERSION_STRING})
+endif(OCC_INCLUDE_DIR)
+
+set(OPENCASCADE_LIBRARY_NAMES
+TKernel TKMath TKBRep TKGeomBase TKGeomAlgo TKG3d TKG2d TKShHealing TKTopAlgo TKMesh TKPrim TKBool TKBO
+TKFillet TKXSBase TKOffset TKHLR TKBin TKV3d
+)
+
+if(OCC_VERSION_STRING VERSION_LESS 7.8.0)
+    list(APPEND OPENCASCADE_LIBRARY_NAMES  TKIGES TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP)
+else(OCC_VERSION_STRING VERSION_LESS 7.8.0)
+    list(APPEND OPENCASCADE_LIBRARY_NAMES TKDESTEP TKDEIGES)
+endif(OCC_VERSION_STRING VERSION_LESS 7.8.0)
+
+if("${OCC_LIBRARY_DIR}" STREQUAL "")
+    if(WIN32)
+        find_path(OCC_LIBRARY_DIR TKernel.lib
+            PATHS
+            ${OCC_INCLUDE_DIR}/../win64/lib #TODO: add more paths
+            ${OCC_INCLUDE_DIR}/../win64/vc14/lib
+    )
+    else()
+        find_library(OCC_LIBRARY TKernel
+            PATHS
+            /usr/lib
+    )
+    endif()
+
+    if(OCC_LIBRARY_DIR)
+        message(STATUS "Found Open CASCADE library files in: ${OCC_LIBRARY_DIR}")
+    elseif(OCC_LIBRARY)
+        GET_FILENAME_COMPONENT(OCC_LIBRARY_DIR ${OCC_LIBRARY} PATH)
+        message(STATUS "Found Open CASCADE library files in: ${OCC_LIBRARY_DIR}")
+    else()
+        message(FATAL_ERROR "Unable find Open CASCADE library directory, specify OCC_LIBRARY_DIR manually.")
+    endif()
+else()
+    set(OCC_LIBRARY_DIR ${OCC_LIBRARY_DIR} CACHE FILEPATH "Open CASCADE library files")
+    message(STATUS "Looking for Open CASCADE library files in: ${OCC_LIBRARY_DIR}")
+endif()
+
+mark_as_advanced(libTKernel)
+find_library(libTKernel NAMES TKernel TKerneld PATHS ${OCC_LIBRARY_DIR})
+
+if(libTKernel)
+    message(STATUS "Required Open Cascade Library files found")
+else()
+    message(FATAL_ERROR "Unable to find Open Cascade library files, aborting")
+endif()
+
+# Use the found libTKernel as a template for all other OCC libraries
+foreach(lib ${OPENCASCADE_LIBRARY_NAMES})
+    string(REPLACE TKerneld "${lib}" lib_path "${libTKernel}")
+    string(REPLACE TKernel "${lib}" lib_path "${lib_path}")
+    list(APPEND OPENCASCADE_LIBRARIES "${lib_path}")
+endforeach()
+
+if(WIN32)
+    list(APPEND OPENCASCADE_LIBRARIES ws2_32.lib)
+endif()
+
+get_filename_component(libTKernelExt ${libTKernel} EXT)
+if("${libTKernelExt}" STREQUAL ".a")
+    set(OCCT_STATIC ON)
+endif()
+
+if(OCCT_STATIC)
+    find_package(Threads)
+    if (NOT WIN32)
+        set(OPENCASCADE_LIBRARIES ${OPENCASCADE_LIBRARIES} "dl")
+    endif()
+endif()
 
 # Boost
-set(BCRYPT_LIBRARIES "bcrypt.lib") 
-set(Boost_INCLUDE_DIR "C:/Program Files/boost/boost_1_77_0")
-set(Boost_LIBRARY_DIR "C:/Program Files/boost/boost_1_77_0/lib64-msvc-14.2")
+if(WIN32 AND("$ENV{CONDA_BUILD}" STREQUAL ""))
+    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_RUNTIME OFF)
+    set(Boost_USE_MULTITHREADED ON)
 
-# OpenCASCADE
+    # Disable Boost's autolinking as the libraries to be linked to are supplied
+    # already by CMake, and wrong libraries would be asked for when code is
+    # compiled with a toolset different from default.
+    if(MSVC)
+        add_definitions(-DBOOST_ALL_NO_LIB)
 
-set(OpenCASCADE_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell0.7/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.5.3/inc")
-set(OpenCASCADEC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell0.7/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.5.3/win64/lib")
+        # Necessary for boost version >= 1.67
+        set(BCRYPT_LIBRARIES "bcrypt.lib")
+    endif()
+else()
+    # Disable Boost's autolinking as the libraries to be linked to are supplied
+    # already by CMake, and it's going to conflict if there are multiple, as is
+    # the case in conda-forge's libboost feedstock.
+    add_definitions(-DBOOST_ALL_NO_LIB)
 
-#set(OpenCASCADE_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/inc")
-#set(OpenCASCADEC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_deps-vs2019-x64-installed/opencascade-7.3.0p3/win64/lib")
+    if(WIN32)
+        # Necessary for boost version >= 1.67
+        set(BCRYPT_LIBRARIES "bcrypt.lib")
+    endif()
+endif()
 
+if(MSVC)
+    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} filesystem)
+endif()
+if(USE_MMAP)
+    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} iostreams)
+    add_definitions(-DUSE_MMAP)
+endif()
 
-# set location for IFCOpenShell
+find_package(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
 
-set(IFC_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell0.7/IfcOpenshell/_installed-vs2019-x64/include")
-set(IFC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell0.7/IfcOpenshell/_installed-vs2019-x64/lib")
+message(STATUS "Boost include files found in ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost libraries found in ${Boost_LIBRARIES}")
 
-#set(IFC_INCLUDE_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/include")
-#set(IFC_LIBRARY_DIR "C:/Users/Jasper/Documents/IfcOpenShell/IfcOpenshell/_installed-vs2019-x64/lib")
+# CJT
+if("${CJT_INCLUDE_DIR}" STREQUAL "")
+    find_package(CJT REQUIRED)
 
-include_directories("/usr/local/include" ${Boost_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
-link_directories("/usr/local/lib" ${Boost_LIBRARY_DIR} ${OpenCASCADEC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
+    if(CJT_DIR)
+        message(STATUS "Found CJT in: ${CJT_DIR}")
+    else()
+        message(ERROR "Unable to find CJT. Specify CJT location manually")
+    endif()
+else()
+    set(CJT_DIR ${CJT_DIR} CACHE FILEPATH "CJT cmake dir")
+    message(STATUS "Looking for CJT include files in: ${CJT_INCLUDE_DIR}")
+    message(STATUS "Looking for CJT lib files in: ${CJT_LIBRARY_DIR}")
+endif()
+
+include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OCC_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
+link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OCC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
 
 file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.lib")
-file(GLOB OCC_LIBRARY_FILES "${OpenCASCADEC_LIBRARY_DIR}/*.lib")
 
 add_executable(${PROJECT_NAME} 
 main.cpp
@@ -69,7 +217,7 @@ foreach(LIB ${IFC_LIBRARY_FILES})
     message(STATUS "IFC libraries are ${LIB}")
 endforeach()
 
-foreach(LIB ${OCC_LIBRARY_FILES})
+foreach(LIB ${OPENCASCADE_LIBRARIES})
     message(STATUS "OCC libraries are ${LIB}")
 endforeach()
 
@@ -77,7 +225,4 @@ foreach(LIB ${Boost_LIBRARIES})
     message(STATUS "Boost libraries are ${LIB}")
 endforeach()
 
-target_link_libraries(${PROJECT_NAME} ${OCC_LIBRARY_FILES} ${IFC_LIBRARY_FILES} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ws2_32.lib TBB::tbb CJT nlohmann_json::nlohmann_json)
-
-# Adjust runtime environment
-set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY VS_DEBUGGER_ENVIRONMENT "PATH=$<$<CONFIG:DEBUG>:${OpenCASCADE_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${OpenCASCADE_BINARY_DIR}>;%PATH%;$<$<CONFIG:DEBUG>:${TBB_BINARY_DIR}d>$<$<NOT:$<CONFIG:DEBUG>>:${TBB_BINARY_DIR}>")
+target_link_libraries(${PROJECT_NAME} ${OPENCASCADE_LIBRARIES} ${IFC_LIBRARY_FILES} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ws2_32.lib CJT nlohmann_json::nlohmann_json)
