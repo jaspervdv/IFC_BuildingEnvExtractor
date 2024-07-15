@@ -5,7 +5,7 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
-#include <direct.h>
+//#include <direct.h>
 
 #include <sys/stat.h>
 

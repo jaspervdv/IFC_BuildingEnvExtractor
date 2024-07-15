@@ -1,5 +1,5 @@
 #include "helper.h"
-#include "dataManager.h"
+#include "DataManager.h"
 
 #include <gp_Pnt.hxx>
 

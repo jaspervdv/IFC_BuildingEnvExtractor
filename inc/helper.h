@@ -17,7 +17,7 @@
 
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
-#include <ifcgeom_schema_agnostic/kernel.h>
+#include <ifcgeom_schema_agnostic/Kernel.h>
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>
 
@@ -79,8 +79,8 @@ struct helperFunctions{
 	/// Rotate OpenCascade point p around point anchorP
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, double angle);
 
-	static bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer = 0);
-	static bool helperFunctions::rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double angle, double secondAngle = 0);
+	static bool bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer = 0);
+	static bool rotatedBBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double angle, double secondAngle = 0);
 
 	/// Convert OpenCascade point to Boost point
 	static BoostPoint3D Point3DOTB(const gp_Pnt& oP);
@@ -147,7 +147,7 @@ struct helperFunctions{
 	static double getTopFaceHeight(const TopoDS_Face& face);
 
 	/// gets the direction that the edge is orentated towards
-	static gp_Vec helperFunctions::getDirEdge(const TopoDS_Edge& edge);
+	static gp_Vec getDirEdge(const TopoDS_Edge& edge);
 
 	/// merges the input wires in the correct order
 	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);

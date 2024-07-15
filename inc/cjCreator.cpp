@@ -42,6 +42,7 @@
 
 #include <execution>
 #include <algorithm>
+#include <thread>    
 
 void flipPoints(gp_Pnt* p1, gp_Pnt* p2) {
 	gp_Pnt tempPoint = *p1;
@@ -1330,7 +1331,7 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 	std::cout << "- Fine filtering of roofing structures" << std::endl;
 	FinefilterSurfaces(shapeList);
-	auto startTime = std::chrono::high_resolution_clock::now();
+	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 	std::cout << "- Construct roof outlines" << std::endl;
 	std::vector<Edge> edgeList = makeJumbledGround();
 
@@ -1346,20 +1347,20 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	}
 
 	roofOutlineList_ = outerEdges2Shapes(outerList);
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 
 	hasGeoBase_ = true;
 
 	// sort surface groups based on the footprints
-	startTime = std::chrono::high_resolution_clock::now();
+	startTime = std::chrono::steady_clock::now();
 	std::cout << "- Sort roofing structures" << std::endl;
 	if (roofOutlineList_.size() != 1) { sortRoofStructures(); }
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 
-	startTime = std::chrono::high_resolution_clock::now();
+	startTime = std::chrono::steady_clock::now();
 	std::cout << "- merge roofing structures" << std::endl;
 	mergeRoofSurfaces();
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 
 	return;
 }
@@ -1475,7 +1476,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	// get footprint
 	double floorlvl = sudoSettings_->footprintElevation_;
 	std::cout << "- Corse filtering footprint at z = " << floorlvl << std::endl;
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 
 	try
 	{
@@ -1490,7 +1491,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	}
 
 	hasFootprints_ = true;
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	std::cout << std::endl;
 	return;
 }
@@ -1500,7 +1501,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 {
 	//TODO: find out where to take the storeys from
 	std::cout << "- Storey extraction" << std::endl;
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	double storeyBuffer = 0.15;
 
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
@@ -1540,7 +1541,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 			continue;
 		}
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	std::cout << std::endl;
 }
 
@@ -2072,8 +2073,8 @@ std::vector<int> CJGeoCreator::getTypeValuesBySample(const TopoDS_Shape& prism, 
 }
 
 
-void CJGeoCreator::printTime(const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime) {
-	LONGLONG duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime) {
+	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
 	if (duration < 5)
 	{
 		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << "ms" << std::endl;
@@ -2162,7 +2163,7 @@ TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vecto
 
 std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Coarse filtering of roofing structures" << std::endl;
 
 	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx(); //TODO: this can be written more pretty 
@@ -2209,14 +2210,14 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 			if (currentVoxelIdx == -1) { break; }
 		}
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return topObjects;
 }
 
 
 void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
@@ -2242,7 +2243,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 		}
 	}
 
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 }
 
 
@@ -2269,7 +2270,7 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 
 void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList) //TODO: monitor this
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	// split the range over cores
 	int coreCount = std::thread::hardware_concurrency();
 	int coreUse = coreCount - 1;
@@ -2294,7 +2295,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList
 		}
 	}
 
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 }
 
 void CJGeoCreator::FinefilterSurface(const std::vector<SurfaceGroup>& shapeList, const std::vector<SurfaceGroup>& otherShapeList)
@@ -2437,7 +2438,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 
 CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 0.0 Model" << std::endl;
 
 	gp_Pnt lll = h->getLllPoint();
@@ -2456,14 +2457,14 @@ CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitS
 	semanticData.emplace("type", "RoofSurface");
 	geoObject.appendSurfaceData(semanticData);
 	geoObject.appendSurfaceTypeValue(0);
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObject;
 }
 
 
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 0.2 Model" << std::endl;
 	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject>(); }
 
@@ -2523,7 +2524,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectCollection;
 }
 
@@ -2567,7 +2568,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 
 CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 1.0 Model" << std::endl;
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
@@ -2641,14 +2642,14 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 	geoObject.appendSurfaceTypeValue(1);
 	geoObject.appendSurfaceTypeValue(1);
 	geoObject.appendSurfaceTypeValue(2);
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObject;
 }
 
 
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 1.2 Model" << std::endl;
 	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject>(); } }
 
@@ -2698,14 +2699,14 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 		geoObject.setSurfaceTypeValue(counter - 1, 2);
 		geoObjectList.emplace_back(geoObject);
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
 
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 1.3 Model" << std::endl;
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -2749,14 +2750,14 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 
 		geoObjectList.emplace_back(geoObject);
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
 
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
 {
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::cout << "- Computing LoD 2.2 Model" << std::endl;
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -2800,7 +2801,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 
 		geoObjectList.emplace_back(geoObject);
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
@@ -2808,7 +2809,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 3.2 Model" << std::endl;
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 
@@ -2911,7 +2912,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "3.2");
 		geoObjectList.emplace_back(geoObject);
 	}
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
@@ -2919,7 +2920,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << "- Computing LoD 5.0 Model" << std::endl;
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 
 	voxelGrid_->computeSurfaceSemantics(h);
 	TopoDS_Shape sewedShape = voxels2Shape(0);
@@ -2952,7 +2953,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
 	geoObjectList.emplace_back(geoObject);
 
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
@@ -2960,7 +2961,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 {
 	std::cout << "- Computing LoD 5.0 Rooms" << std::endl;
 
-	auto startTime = std::chrono::high_resolution_clock::now();
+	auto startTime = std::chrono::steady_clock::now();
 	std::vector<CJT::CityObject> roomObjectList; // final output collection
 	for (int i = 1; i < voxelGrid_->getRoomSize(); i++)
 	{
@@ -3071,7 +3072,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		roomObjectList.emplace_back(roomObject);
 	}
 
-	printTime(startTime, std::chrono::high_resolution_clock::now());
+	printTime(startTime, std::chrono::steady_clock::now());
 	return roomObjectList;
 }
 

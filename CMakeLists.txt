@@ -11,26 +11,44 @@ find_package(nlohmann_json REQUIRED)
 
 # IFCOpenShell
 if("${IFC_INCLUDE_DIR}" STREQUAL "")
-    find_path(IFC_INCLUDE_DIR Standard_Version.hxx
+    if(UNIX)
+        find_path(IFC_INCLUDE_DIR ifcgeom/IfcGeom.h
         PATHS
-        /usr/local/include
-    )
+        /usr/local/include/ifcgeom/
+        )
+    endif()
 
-    if(IFC_INCLUDE_DIR)
-        message(STATUS "Found IFCOpenShell include files in: ${IFC_INCLUDE_DIR}")
-    else()
+    if(NOT IFC_INCLUDE_DIR)
         message(FATAL_ERROR "Unable to find IFCOpenShell include directory. Specify IFC_INCLUDE_DIR manually")
     endif()
-else()
+endif()
+
+if(IFC_INCLUDE_DIR)
     set(IFC_INCLUDE_DIR ${IFC_INCLUDE_DIR} CACHE FILEPATH "IFCOpenShell header files")
     message(STATUS "Looking for IFCOpenShell include files in: ${IFC_INCLUDE_DIR}")
+
+    if(UNIX)
+        set(IFCGEOM_INCLUDE_DIR "${IFC_INCLUDE_DIR}/ifcgeom")
+        set(IFCGEOMSCHEMA_INCLUDE_DIR "${IFC_INCLUDE_DIR}/ifcgeom_schema_agnostic")
+        set(IFCPARSE_INCLUDE_DIR "${IFC_INCLUDE_DIR}/ifcparse")
+        message(STATUS "Looking for ifcgeom include files in: ${IFCGEOM_INCLUDE_DIR}")
+        message(STATUS "Looking for ifcgeom_schema_agnostic include files in: ${IFCGEOMSCHEMA_INCLUDE_DIR}")
+        message(STATUS "Looking for ifcparse include files in: ${IFCPARSE_INCLUDE_DIR}")
+    endif(UNIX)
 endif()
 
 if("${IFC_LIBRARY_DIR}" STREQUAL "")
-    find_path(IFC_LIBRARY_DIR IfcGeom.lib
+    if(UNIX)
+        find_path(IFC_LIBRARY_DIR libIfcGeom.a
         PATHS
         ${IFC_INCLUDE_DIR}/../lib/
     )
+    elseif(WIN32)
+        find_path(IFC_LIBRARY_DIR IfcGeom.lib
+        PATHS
+        ${IFC_INCLUDE_DIR}/../lib/
+    )
+    endif()
 
     if(IFC_LIBRARY_DIR)
         message(STATUS "Found IFCOpenShell lib files in: ${IFC_LIBRARY_DIR}")
@@ -39,7 +57,13 @@ if("${IFC_LIBRARY_DIR}" STREQUAL "")
     endif()
 else()
     set(IFC_LIBRARY_DIR ${IFC_LIBRARY_DIR} CACHE FILEPATH "IFCOpenShell header files")
-    message(STATUS "Looking for IFCOpenShell include files in: ${IFC_LIBRARY_DIR}")
+    message(STATUS "Looking for IFCOpenShell lib files in: ${IFC_LIBRARY_DIR}")
+endif()
+
+if(WIN32)
+    file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.lib")
+elseif(UNIX)
+    file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.a")
 endif()
 
 # OpenCascade
@@ -196,17 +220,20 @@ else()
     message(STATUS "Looking for CJT lib files in: ${CJT_LIBRARY_DIR}")
 endif()
 
-include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OCC_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
-link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OCC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
+if(UNIX)
+    include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OCC_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${IFCGEOM_INCLUDE_DIR} ${IFCGEOMSCHEMA_INCLUDE_DIR} ${IFCPARSE_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
+elseif(WIN32)
+    include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OCC_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
+endif()
 
-file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.lib")
+link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OCC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
 
 add_executable(${PROJECT_NAME} 
 main.cpp
 inc/cjCreator.cpp
-inc/dataManager.cpp
+inc/DataManager.cpp
 inc/helper.cpp
-inc/ioManager.cpp
+inc/IOManager.cpp
 inc/settingsCollection.cpp
 inc/surfaceCollection.cpp
 inc/voxel.cpp

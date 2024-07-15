@@ -121,7 +121,7 @@ private:
 	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<SurfaceGroup>& faceList);
 
 	/// @brief get all the outer edges based on a voxelplate
-	std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
+	std::vector<TopoDS_Edge> getOuterEdges(
 		const std::vector<Edge>& edgeList,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
 		const std::vector<voxel*>& originVoxels,
@@ -169,7 +169,7 @@ private:
 	std::vector<int> getTypeValuesBySample(const TopoDS_Shape& prism, bool flat);
 
 	/// outputs the time delta between the start and end time
-	void printTime(const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime);
+	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
 
 	/// checks if surface is encapsulated by another shape
 	bool surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape);

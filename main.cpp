@@ -15,7 +15,7 @@
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
 #include <ifcparse/IfcHierarchyHelper.h>
-#include <ifcgeom_schema_agnostic/kernel.h>
+#include <ifcgeom_schema_agnostic/Kernel.h>
 
 #if USE_VLD
 #include <vld.h>
