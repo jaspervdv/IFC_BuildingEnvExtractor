@@ -108,7 +108,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getUniqueFaces(const std::vector<TopoDS_F
 			uniqueFaces.emplace_back(faceList[i]);
 		}
 	}
-
 	return uniqueFaces;
 }
 
@@ -1517,8 +1516,8 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		try
 		{
 			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation - storeyBuffer);
-
 			std::map<std::string, std::string> semanticStoreyData;
+
 			semanticStoreyData.emplace("type", "BuildingStorey");
 			if (storeyObject->Name().get() != "") { semanticStoreyData.emplace("IFC_Name", storeyObject->Name().get()); }
 			if (storeyObject->LongName().get() != "") { semanticStoreyData.emplace("IFC_LongName", storeyObject->LongName().get()); }
@@ -2426,11 +2425,11 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 		if (storeyObject->Name().has_value())
 		{ 
 			cityStoreyObject.setName(storeyObject->Name().get());
-			cityStoreyObject.addAttribute("Name", storeyObject->Name().get());
+			cityStoreyObject.addAttribute("IFC_Name", storeyObject->Name().get());
 		}
-		if (storeyObject->LongName().has_value()) { cityStoreyObject.addAttribute("Name Long", storeyObject->LongName().get()); }
-		cityStoreyObject.addAttribute("IFC Guid", storeyObject->GlobalId());
-		cityStoreyObject.addAttribute("IFC Elevation", storeyObject->Elevation().get());
+		if (storeyObject->LongName().has_value()) { cityStoreyObject.addAttribute("IFC_LongName", storeyObject->LongName().get()); }
+		cityStoreyObject.addAttribute("IFC_Guid", storeyObject->GlobalId());
+		cityStoreyObject.addAttribute("IFC_Elevation", storeyObject->Elevation().get());
 		cityStoreyObjects.emplace_back(std::make_shared< CJT::CityObject>(cityStoreyObject));
 	}
 	return cityStoreyObjects;
@@ -2542,7 +2541,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 
 			for (size_t j = 0; j < storeyCityObjects.size(); j++)
 			{
-				if (currentStoreySemantic["IFC_Guid"] != storeyCityObjects[j]->getAttributes()["IFC Guid"])
+				if (currentStoreySemantic["IFC_Guid"] != storeyCityObjects[j]->getAttributes()["IFC_Guid"])
 				{
 					continue;
 				}
@@ -2559,6 +2558,10 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 					CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
 					geoObject.appendSurfaceTypeValue(0);
 					storeyCityObjects[j]->addGeoObject(geoObject);
+					for (std::pair<std::string, std::string> semanticPair : currentStoreySemantic)
+					{
+						storeyCityObjects[j]->addAttribute(semanticPair.first, semanticPair.second, false);
+					}
 				}
 			}
 		}
@@ -3001,11 +3004,11 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 			if (product->Name().has_value()) {
 
 				roomObject.setName(product->Name().get());
-				roomObject.addAttribute("Name", product->Name().get());
-				roomObject.addAttribute("IFC Guid", product->GlobalId());
+				roomObject.addAttribute("IFC_Name", product->Name().get());
+				roomObject.addAttribute("IFC_Guid", product->GlobalId());
 			}
 
-			roomObject.addAttribute("NameLong", longName);
+			roomObject.addAttribute("IFC_LongName", longName);
 			// find the storey that the room is located at
 
 #ifdef USE_IFC4
@@ -3028,7 +3031,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 				{
 					std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
 
-					if (targetStoreyGuid != storeyCityObject->getAttributes()["IFC Guid"])
+					if (targetStoreyGuid != storeyCityObject->getAttributes()["IFC_Guid"])
 					{
 						continue;
 					}

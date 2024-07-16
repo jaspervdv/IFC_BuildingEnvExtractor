@@ -211,8 +211,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 		// find the roofs
 		if (currentVoxel->hasFace(4))
 		{
-			currentVoxel->addRoofSemantic(4);
-			
+			currentVoxel->addRoofSemantic(4);	
 		}
 
 		// find the windows
@@ -341,9 +340,8 @@ std::vector<voxel*> VoxelGrid::getIntersectingVoxels()
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
 		voxel* currentVoxel = i->second;
-
 		if (!currentVoxel->getIsIntersecting()) { continue; }
-		if (currentVoxel->getBuildingNum() != -1) { continue; }
+		if (currentVoxel->getBuildingNum() == -1) { continue; }
 
 		intersectingVoxels.emplace_back(currentVoxel);
 	}

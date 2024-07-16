@@ -1344,7 +1344,6 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 	std::map<std::string, std::string> productPoperties;
 	IfcSchema::IfcRelDefinesByProperties::list::ptr ODevList = datacollection_[fileNum]->getFilePtr()->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
 
-
 	for (auto pSetIt = ODevList->begin(); pSetIt != ODevList->end(); ++pSetIt)
 	{
 		bool defFloor = false;
@@ -1384,7 +1383,7 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 		{
 			IfcSchema::IfcElementQuantity* eQantCollection = pDef->as<IfcSchema::IfcElementQuantity>();
 			auto physicsQuantities = eQantCollection->Quantities();
-
+			
 			for (auto pQuanIt = physicsQuantities->begin(); pQuanIt != physicsQuantities->end(); ++pQuanIt)
 			{
 				IfcSchema::IfcPhysicalQuantity* pQuan = *pQuanIt;
@@ -1392,7 +1391,9 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 				auto valueList = pQuan->data().attributes();
 				try
 				{
-					productPoperties[pQuan->Name().c_str()] = pQuan->data().attributes()[3]->toString();
+					std::string attributName = pQuan->Name().c_str();
+					std::string attributeValue = pQuan->data().attributes()[3]->toString();
+					productPoperties.emplace(attributName, attributeValue);
 				}
 				catch (const std::exception&)
 				{
@@ -1400,9 +1401,7 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 				}
 			}
 		}
-
 	}
-
 	return productPoperties;
 }
 
