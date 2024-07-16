@@ -3,6 +3,7 @@
 #include "voxel.h"
 #include <algorithm>
 #include <execution>
+#include <thread>   
 
 bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {

@@ -1,5 +1,5 @@
 #include "helper.h"
-#include "ioManager.h"
+#include "IOManager.h"
 #include "cjCreator.h"
 
 #include <unordered_set>
@@ -7,7 +7,7 @@
 #include <vector>
 
 #include <sys/stat.h>
-#include <direct.h>
+//#include <direct.h>
 
 #include <boost/filesystem.hpp>
 

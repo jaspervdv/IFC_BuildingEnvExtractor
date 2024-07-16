@@ -1,15 +1,17 @@
 #include "helper.h"
 #include "voxel.h"
-#include "ioManager.h"
+#include "IOManager.h"
 
 #include <gp_Pnt.hxx>
 
 #include <ifcparse/IfcFile.h>
-#include <ifcgeom_schema_agnostic/kernel.h>
+#include <ifcgeom_schema_agnostic/Kernel.h>
 #include <ifcgeom_schema_agnostic/Serialization.h>
 #include <ifcparse/IfcHierarchyHelper.h>
 
 #include <BRepClass3d_SolidClassifier.hxx>
+
+#include <thread>   
 
 voxel::voxel(const BoostPoint3D& center, double sizeXY, double sizeZ)
 {

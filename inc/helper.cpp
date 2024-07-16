@@ -719,7 +719,8 @@ void helperFunctions::geoTransform(TopoDS_Face* shape, const gp_Trsf& objectTran
 void helperFunctions::geoTransform(gp_Pnt* point, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
 {
 	point->Translate(objectTrans.Inverted().TranslationPart());
-	point = &helperFunctions::rotatePointWorld(*point, geoTrans.GetRotation().GetRotationAngle());
+	gp_Pnt rotatedPoint = helperFunctions::rotatePointWorld(*point, geoTrans.GetRotation().GetRotationAngle());
+	*point = rotatedPoint;
 	point->Translate(geoTrans.TranslationPart());
 	point->Translate(objectTrans.TranslationPart());
 }
@@ -777,7 +778,7 @@ template<typename T1, typename T2>
 inline bool helperFunctions::isInList(const T1& list, const T2& value)
 {
 	auto it = std::find(list.begin(), list.end(), value);
-	if (it != vec.end()) {
+	if (it != list.end()) {
 		return true;
 	}
 	return false;

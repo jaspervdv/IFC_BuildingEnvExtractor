@@ -170,8 +170,8 @@ void SurfaceGroup::populateGrid(double distance)
 				gp_Lin(
 					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
 					gp_Dir(0, 0, 1000)),
-				-INFINITE,
-				+INFINITE);
+				-INFINITY,
+				+INFINITY);
 
 			if (intersector.NbPnt() == 1) {
 				gp_Pnt intersectionPoint = intersector.Pnt(1);
@@ -223,7 +223,7 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 			intersector.Perform( //TODO: find a smarter way to proccess
 				currentEvalPoint->getEvalLine(),
 				-0,
-				+INFINITE);
+				+INFINITY);
 
 			if (intersector.NbPnt() > 0)
 			{
