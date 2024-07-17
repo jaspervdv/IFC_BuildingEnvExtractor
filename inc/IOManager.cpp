@@ -848,11 +848,18 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 
 	bool hasDirectInterface = false;
+	bool pathIsValid = isValidPath(inputPathList);
+
 	if (inputPathList.size() == 0)
 	{
 		std::cout << "[WARNING] This method is deprecated, please switch to input json to access all functionality" << std::endl;
 		getTargetPathList();
 		hasDirectInterface = true;
+	}
+	else if(!isValidPath(inputPathList))
+	{
+		std::cout << "[WARNING] Input path(s) are not valid" << std::endl;
+		return false;
 	}
 	else if (hasExtension(inputPathList, "ifc") && isValidPath(inputPathList)) // If all files are IFC copy the path list and ask user for info
 	{

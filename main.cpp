@@ -22,6 +22,7 @@
 #endif
 
 int main(int argc, char** argv) {
+	std::cout << " " << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::string issueEncounterString = "[INFO] encountered an issue";
 
