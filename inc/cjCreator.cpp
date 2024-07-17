@@ -1603,7 +1603,6 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
-	std::vector<TopoDS_Shape> test;
 	bool allSolids = true;
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{

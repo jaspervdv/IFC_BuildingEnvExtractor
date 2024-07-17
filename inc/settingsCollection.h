@@ -17,9 +17,6 @@ struct SettingsCollection {
 	// if true no comminucation is pushed to console
 	bool isSilent_ = false;
 
-	// if programm is instructed by a json file = true
-	bool isJsonInput_ = false;
-
 	std::vector<std::string> inputPathList_ = {};
 	std::string outputPath_ = "";
 

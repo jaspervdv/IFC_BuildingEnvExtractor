@@ -7,66 +7,16 @@
 #include <vector>
 
 #include <sys/stat.h>
-//#include <direct.h>
-
 #include <boost/filesystem.hpp>
-
-bool IOManager::yesNoQuestion()
-{
-	std::string cont = "";
-
-	while (true)
-	{
-		std::getline(std::cin, cont);
-		if (cont == "Y" || cont == "y") { return true; }
-		if (cont == "N" || cont == "n") { return false; }
-	}
-}
-
-int IOManager::numQuestion(int n, bool lower)
-{
-	while (true)
-	{
-		bool validInput = true;
-		std::cout << "Num: ";
-
-		std::string stringNum = "";
-		std::getline(std::cin, stringNum);
-
-		for (size_t i = 0; i < stringNum.size(); i++)
-		{
-			if (!std::isdigit(stringNum[i]))
-			{
-				validInput = false;
-			}
-		}
-
-		if (validInput)
-		{
-			int intNum = std::stoi(stringNum) - 1;
-			if (!lower)
-			{
-				if (n >= intNum + 1) {
-					return intNum;
-				}
-			}
-			else if (lower)
-			{
-				if (n >= intNum + 1 && intNum >= 0) {
-					return intNum;
-				}
-			}
-		}
-		std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-	}
-}
 
 
 bool IOManager::getTargetPathList()
 {
-	std::cout << "Enter filepath of the JSON or IFC input file" << std::endl;
-	std::cout << "[INFO] If multifile seperate by enter" << std::endl;
-	std::cout << "[INFO] Finish by empty line + enter" << std::endl;
+	std::string stringJSONRequest = "Enter filepath of the config JSON";
+	std::string stringNoFilePath = "[INFO] No filepath has been supplied";
+	std::string stringNoValFilePath = "[INFO] No valid filepath has been supplied";
+
+	std::cout << stringJSONRequest << std::endl;
 
 	while (true)
 	{
@@ -76,102 +26,39 @@ bool IOManager::getTargetPathList()
 
 		if (singlepath.size() == 0 && sudoSettingsPtr_->inputPathList_.size() == 0)
 		{
-			std::cout << "[INFO] No filepath has been supplied" << std::endl;
-			std::cout << "Enter filepath of the JSON or IFC input file (if multiplefile sperate path with enter):" << std::endl;
+			std::cout << stringNoFilePath << std::endl;
+			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
-		else if (singlepath.size() == 0)
+		if (!hasExtension(singlepath, "json"))
 		{
-			break;
-		}
-		if (!hasExtension(singlepath, "ifc") && !hasExtension(singlepath, "json"))
-		{
-			std::cout << "[INFO] No valid filepath has been supplied" << std::endl;
-			std::cout << "Enter filepath of the JSON or IFC input file (if multiplefile sperate path with enter):" << std::endl;
+			std::cout << stringNoValFilePath << std::endl;
+			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
 
 		if (!isValidPath(singlepath))
 		{
-			std::cout << "[INFO] No valid filepath has been supplied" << std::endl;
-			std::cout << "Enter filepath of the JSON or IFC input file (if multiplefile sperate path with enter):" << std::endl;
+			std::cout << stringNoValFilePath << std::endl;
+			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
 
 		if (hasExtension(singlepath, "json"))
 		{
-			sudoSettingsPtr_->isJsonInput_ = true;
 			if (sudoSettingsPtr_->inputPathList_.size() > 1)
 			{
 				return false;
 			}
 		}
 		sudoSettingsPtr_->inputPathList_.emplace_back(singlepath);
+		break;
 	}
-
 	if (sudoSettingsPtr_->inputPathList_.size() > 0) { return true; }
 	return false;
 }
 
 
-bool IOManager::getOutputPathList() {
-
-	while (true)
-	{
-		std::cout << "Enter target filepath of the CityJSON file" << std::endl;
-		std::cout << "Path: ";
-		std::string singlepath = "";
-		std::getline(std::cin, singlepath);
-
-		if (!hasExtension(singlepath, "json"))
-		{
-			std::cout << "[WARNING] not a valid CityJSON file path" << std::endl;
-			std::cout << "[INFO] CityJSON files have a .json or .city.json extension" << std::endl;
-			continue;
-		}
-
-		boost::filesystem::path targetFilePath(singlepath);
-		boost::filesystem::path targetFolderPath = targetFilePath.parent_path();
-
-		if (!boost::filesystem::exists(targetFolderPath))
-		{
-			std::cout << "[INFO] Folder path " << targetFolderPath.string() << " does not exist." << std::endl;
-			std::cout << "do you want to create a new folder at: " << targetFolderPath.string() << std::endl;
-			std::cout <<"(Y/N) " << std::endl;
-
-			if (yesNoQuestion())
-			{
-				std::cout << "[INFO] Export folder is created at: " << targetFolderPath.string() << std::endl;
-				if (boost::filesystem::create_directory(targetFilePath)) { break; }
-				std::cout << "[WARNING] Export folder has not been succesfully created" << std::endl;
-				return false;
-			}
-			continue;
-		}
-
-		sudoSettingsPtr_->outputPath_ = singlepath;
-		break;
-	}
-	return true;
-}
-
-bool IOManager::getUseDefaultSettings()
-{
-	std::cout << "Use default process/export settings? (Y/N):";
-	if (!yesNoQuestion()) { return false; }
-
-	boost::filesystem::path targetFilePath(sudoSettingsPtr_->inputPathList_[0]);
-	boost::filesystem::path targetFolderPath = targetFilePath.parent_path().string() + "/_exports";
-
-	sudoSettingsPtr_->outputPath_ = targetFolderPath.string() + "/evnBuilding.city.json";
-
-	if (!boost::filesystem::exists(targetFolderPath))
-	{
-		std::cout << "[INFO] Export folder is created at: " << targetFolderPath.string() << std::endl;
-		if (!boost::filesystem::create_directory(targetFilePath)) { return false; }
-	}
-	return true;
-}
 
 std::string IOManager::getFileName(const std::string& stringPath)
 {
@@ -181,241 +68,6 @@ std::string IOManager::getFileName(const std::string& stringPath)
 	return filePath.substr(0, filePath.size() - 4);
 }
 
-bool IOManager::getDesiredLoD()
-{
-	sudoSettingsPtr_->make00_ = false;
-	sudoSettingsPtr_->make02_ = false;
-	sudoSettingsPtr_->make10_ = false;
-	sudoSettingsPtr_->make12_ = false;
-	sudoSettingsPtr_->make13_ = false;
-	sudoSettingsPtr_->make22_ = false;
-	sudoSettingsPtr_->make32_ = false;
-
-	std::cout << "Please select the desired output LoD" << std::endl;
-	std::cout << "Can be a single string (e.g. 123 -> LoD0.1, 0.2, 1.0)" << std::endl;
-	std::cout << "1. LoD0.0" << std::endl;
-	std::cout << "2. LoD0.2" << std::endl;
-	std::cout << "3. LoD1.0" << std::endl;
-	std::cout << "4. LoD1.2" << std::endl;
-	std::cout << "5. LoD1.3" << std::endl;
-	std::cout << "6. LoD2.2" << std::endl;
-	std::cout << "7. LoD3.2" << std::endl;
-	std::cout << "8. All" << std::endl;
-
-	while (true)
-	{
-		bool validInput = true;
-		std::cout << "Num: ";
-
-		std::string stringNum = "";
-		std::getline(std::cin, stringNum);
-
-		for (size_t i = 0; i < stringNum.size(); i++)
-		{
-			if (!std::isdigit(stringNum[i]))
-			{
-				validInput = false;
-			}
-		}
-
-		if (!validInput)
-		{
-			std::cout << "\n [INFO] Please enter a valid number! \n" << std::endl;
-			continue;
-		}
-
-		for (size_t i = 0; i < stringNum.size(); i++)
-		{
-			if (stringNum[i] == '1') { sudoSettingsPtr_->make00_ = true; }
-			if (stringNum[i] == '2') { sudoSettingsPtr_->make02_ = true; }
-			if (stringNum[i] == '3') { sudoSettingsPtr_->make10_ = true; }
-			if (stringNum[i] == '4') { sudoSettingsPtr_->make12_ = true; }
-			if (stringNum[i] == '5') { sudoSettingsPtr_->make13_ = true; }
-			if (stringNum[i] == '6') { sudoSettingsPtr_->make22_ = true; }
-			if (stringNum[i] == '7') { sudoSettingsPtr_->make32_ = true; }
-			if (stringNum[i] == '8') {
-				sudoSettingsPtr_->make00_ = true;
-				sudoSettingsPtr_->make02_ = true;
-				sudoSettingsPtr_->make10_ = true;
-				sudoSettingsPtr_->make12_ = true;
-				sudoSettingsPtr_->make13_ = true;
-				sudoSettingsPtr_->make22_ = true;
-				sudoSettingsPtr_->make32_ = true;
-			}
-		}
-		return true;
-	}
-	return false;
-}
-
-bool IOManager::getBoudingRules()
-{
-	std::cout << "Please select a desired rulset for space bounding objects" << std::endl;
-	std::cout << "1. Default room bounding objects" << std::endl;
-	std::cout << "2. Default room bounding objects + IfcBuildingElementProxy objects" << std::endl;
-	std::cout << "3. Default room bounding objects + custom object selection" << std::endl;
-	std::cout << "4. custom object selection" << std::endl;
-
-	while (true)
-	{
-		int ruleNum = numQuestion(3) + 1;
-
-		if (ruleNum == 1)
-		{
-			return true;
-		}
-
-		if (ruleNum == 2)
-		{
-			sudoSettingsPtr_->useProxy_ = true;
-			return true;
-		}
-
-		if (ruleNum == 3 || ruleNum == 4)
-		{
-			if (ruleNum == 3) { sudoSettingsPtr_->useDefaultDiv_ = false; }
-
-			std::cout << std::endl;
-			std::cout << "Please enter the desired IfcTypes" << std::endl;
-			std::cout << "[INFO] Not case sensitive" << std::endl;
-			std::cout << "[INFO] Seperate type by enter" << std::endl;
-			std::cout << "[INFO] Finish by empty line + enter" << std::endl;
-
-			while (true)
-			{
-				std::cout << "IfcType: ";
-
-				std::string singlepath = "";
-
-				std::getline(std::cin, singlepath);
-
-				if (singlepath.size() == 0 && addDivObjects_.size() == 0)
-				{
-					std::cout << "[INFO] No type has been supplied" << std::endl;
-					continue;
-				}
-				else if (singlepath.size() == 0)
-				{
-					std::cout << std::endl;
-					return true;
-				}
-				else if (boost::to_upper_copy<std::string>(singlepath.substr(0, 3)) == "IFC") {
-
-					std::string potentialType = boost::to_upper_copy<std::string>(singlepath);
-
-					if (DevObjectsOptions_.find(potentialType) == DevObjectsOptions_.end())
-					{
-						std::cout << "[INFO] Type is not an IfcType" << std::endl;
-						continue;
-					}
-
-					if (addDivObjects_.find(potentialType) != addDivObjects_.end())
-					{
-						std::cout << "[INFO] Type is already used as space bounding object" << std::endl;
-						continue;
-					}
-
-					addDivObjects_.insert(potentialType);
-
-				}
-				else
-				{
-					std::cout << "[INFO] No valid type has been supplied" << std::endl;
-					continue;
-				}
-			}
-		}
-		std::cout << "[INFO] No valid option was chosen" << std::endl;
-	}
-	return false;
-}
-
-bool IOManager::getVoxelSize()
-{
-	// ask user for desired voxel dimensions
-
-	std::string stringXYSize = "";
-	std::string stringZSize = "";
-
-	while (true)
-	{
-		std::cout << "Enter voxel XY dimenion (double):";
-		std::getline(std::cin, stringXYSize);
-
-		char* end = nullptr;
-		double val = strtod(stringXYSize.c_str(), &end);
-
-		if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
-		{
-			sudoSettingsPtr_->voxelSize_ = val;
-			break;
-		}
-
-		std::cout << "[INFO] No valid number has been supplied" << std::endl;
-	}
-	return true;
-}
-
-bool IOManager::getFootprintElev()
-{
-	std::string elev = "";
-	while (true)
-	{
-		std::cout << "Please enter the footprint elevation: ";
-		std::getline(std::cin, elev);
-
-		double dEleve;
-		auto iElev = std::istringstream(elev);
-		iElev >> dEleve;
-
-		if (!iElev.fail() && iElev.eof())
-		{
-			sudoSettingsPtr_->footprintElevation_ = dEleve;
-			return true;
-		}
-
-		std::cout << "[INFO] No valid elevation has been supplied" << std::endl;
-	}
-	return false;
-}
-
-bool IOManager::getUserValues()
-{
-	// output targets
-
-	std::cout << std::endl;
-	if (getUseDefaultSettings()) {
-		printSummary();
-		return true;
-	}
-
-	std::cout << std::endl;
-	if (!getOutputPathList()) { return false; }
-
-	std::cout << std::endl;
-	std::cout << "Create report file (Y/N): ";
-	sudoSettingsPtr_->writeReport_ = yesNoQuestion();
-
-	std::cout << std::endl;
-	if (!getDesiredLoD()) { return false; }
-
-	std::cout << std::endl;
-	std::cout << "Customize space bounding objects? (Y/N): ";
-	if (yesNoQuestion()) {
-		if (!getBoudingRules()) { return false; }
-	}
-
-	std::cout << std::endl;
-	std::cout << "Desired voxel size? : ";
-	if (!getVoxelSize()) { return false; }
-
-	if (sudoSettingsPtr_->make02_)
-	{
-		std::cout << std::endl;
-		getFootprintElev();
-	}
-	return true;
-}
 
 bool IOManager::getJSONValues()
 {
@@ -694,6 +346,7 @@ bool IOManager::isValidPath(const std::string& path)
 	return true;
 }
 
+
 void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
 {
 
@@ -701,6 +354,7 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::c
 	if (duration < 5) { (*j)[valueName + " (ms)"] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
 	else { (*j)[valueName + " (s)"] = duration; }
 }
+
 
 void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double duration)
 {
@@ -721,6 +375,7 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double durat
 	(*j)[valueName] = timeSet;
 	return;
 }
+
 
 void IOManager::printSummary()
 {
@@ -767,6 +422,7 @@ void IOManager::printSummary()
 	std::cout << "=============================================================" << std::endl;
 }
 
+
 std::string IOManager::getLoDEnabled()
 {
 	std::string summaryString = "";
@@ -792,8 +448,6 @@ nlohmann::json IOManager::settingsToJSON()
 	settingsJSON["Input IFC file"] = sudoSettingsPtr_->inputPathList_;
 	settingsJSON["Output CityJSON file"] = getOutputPath();
 	settingsJSON["Create report"] = "true";
-	if (sudoSettingsPtr_->isJsonInput_) { settingsJSON["JSON input"] = "true"; }
-	else if (!sudoSettingsPtr_->isJsonInput_) { settingsJSON["JSON input"] = "false"; }
 
 	std::vector<std::string> DivList;
 
@@ -830,6 +484,7 @@ nlohmann::json IOManager::settingsToJSON()
 	return settingsJSON;
 }
 
+
 bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 {
 	timeTotal = 0;
@@ -852,44 +507,24 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 
 	if (inputPathList.size() == 0)
 	{
-		std::cout << "[WARNING] This method is deprecated, please switch to input json to access all functionality" << std::endl;
 		getTargetPathList();
 		hasDirectInterface = true;
 	}
-	else if(!isValidPath(inputPathList))
+	else if (!isValidPath(inputPathList))
 	{
 		std::cout << "[WARNING] Input path(s) are not valid" << std::endl;
 		return false;
 	}
-	else if (hasExtension(inputPathList, "ifc") && isValidPath(inputPathList)) // If all files are IFC copy the path list and ask user for info
-	{
-		sudoSettingsPtr_->inputPathList_ = inputPathList;
-		if (!isSilent_)
-		{
-			std::cout << "[INFO] Input file path(s):" << std::endl;
-			for (size_t i = 0; i < sudoSettingsPtr_->inputPathList_.size(); i++) { std::cout << sudoSettingsPtr_->inputPathList_[i] << std::endl; }
-			std::cout << std::endl;
-		}
-		hasDirectInterface = true;
-	}
 	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
-		sudoSettingsPtr_->isJsonInput_ = true;
 		sudoSettingsPtr_->inputPathList_ = inputPathList;
 	}
-	if (!sudoSettingsPtr_->isJsonInput_)
-	{
-		if (!getUserValues()) { return false; } // attempt to ask user for data		 
-	}
-	else
-	{
-		if (inputPathList.size() > 1) { return false; }
-		sudoSettingsPtr_->isJsonInput_ = true;
 
-		try { getJSONValues(); }
-		catch (const std::string& exceptionString)
-		{
-			throw exceptionString;
-		}
+	if (inputPathList.size() > 1) { return false; }
+
+	try { getJSONValues(); }
+	catch (const std::string& exceptionString)
+	{
+		throw exceptionString;
 	}
 
 	if (!isSilent_)

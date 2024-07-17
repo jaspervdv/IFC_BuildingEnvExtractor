@@ -45,26 +45,10 @@ private:
 
 	std::vector<ErrorObject> ErrorList_ = {};
 
-	// question askers
-	bool yesNoQuestion();
-	int numQuestion(int n, bool lower = true);
-
 	bool getTargetPathList();
 	bool getOutputPathList();
 	std::string getFileName(const std::string& stringPath);
 
-	bool getUseDefaultSettings();
-
-	bool getDesiredLoD();
-
-	bool getBoudingRules();
-
-	bool getVoxelSize();
-
-	bool getFootprintElev();
-
-	// attempts to ask the user for settings
-	bool getUserValues();
 
 	// attempts to get the settings from json file
 	bool getJSONValues();
