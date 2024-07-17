@@ -37,6 +37,16 @@ if(IFC_INCLUDE_DIR)
     endif(UNIX)
 endif()
 
+set(IFC_LIBRARY_NAMES 
+Serializers    
+Serializers_ifc2x3 Serializers_ifc4 Serializers_ifc4x1 Serializers_ifc4x2 Serializers_ifc4x3 Serializers_ifc4x3_add1 Serializers_ifc4x3_add2
+Serializers_ifc4x3_rc1 Serializers_ifc4x3_rc2 Serializers_ifc4x3_rc3 Serializers_ifc4x3_rc4 Serializers_ifc4x3_tc1 
+IfcGeom
+IfcGeom_ifc2x3 IfcGeom_ifc4 IfcGeom_ifc4x1 IfcGeom_ifc4x2 IfcGeom_ifc4x3 IfcGeom_ifc4x3_add1 IfcGeom_ifc4x3_add2 
+IfcGeom_ifc4x3_rc1 IfcGeom_ifc4x3_rc2 IfcGeom_ifc4x3_rc3 IfcGeom_ifc4x3_rc4 IfcGeom_ifc4x3_tc1
+Serializers IfcParse 
+)
+
 if("${IFC_LIBRARY_DIR}" STREQUAL "")
     if(UNIX)
         find_path(IFC_LIBRARY_DIR libIfcGeom.a
@@ -63,7 +73,9 @@ endif()
 if(WIN32)
     file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.lib")
 elseif(UNIX)
-    file(GLOB IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/*.a")
+    foreach(file ${IFC_LIBRARY_NAMES})
+        list(APPEND IFC_LIBRARY_FILES "${IFC_LIBRARY_DIR}/lib${file}.a")
+    endforeach()
 endif()
 
 # OpenCascade
@@ -192,9 +204,7 @@ else()
     endif()
 endif()
 
-if(MSVC)
-    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} filesystem)
-endif()
+set(BOOST_COMPONENTS ${BOOST_COMPONENTS} filesystem)
 if(USE_MMAP)
     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} iostreams)
     add_definitions(-DUSE_MMAP)
@@ -226,8 +236,6 @@ elseif(WIN32)
     include_directories("/usr/local/include" ${Boost_INCLUDE_DIRS} ${OCC_INCLUDE_DIR} ${IFC_INCLUDE_DIR} ${CJT_INCLUDE_DIR}  )
 endif()
 
-link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OCC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
-
 add_executable(${PROJECT_NAME} 
 main.cpp
 inc/cjCreator.cpp
@@ -240,16 +248,30 @@ inc/voxel.cpp
 inc/voxelGrid.cpp
 )
 
-foreach(LIB ${IFC_LIBRARY_FILES})
-    message(STATUS "IFC libraries are ${LIB}")
-endforeach()
+link_directories("/usr/local/lib" ${Boost_LIBRARY_DIRS} ${OCC_LIBRARY_DIR} ${IFC_LIBRARY_DIR} ${CJT_LIBRARY_DIR})
 
-foreach(LIB ${OPENCASCADE_LIBRARIES})
-    message(STATUS "OCC libraries are ${LIB}")
-endforeach()
+if(UNIX)
+    target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ${CJT_Foundation_LIBRARIES} nlohmann_json::nlohmann_json)
+elseif(WIN32)
+    target_link_libraries(${PROJECT_NAME} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ws2_32.lib ${CJT_Foundation_LIBRARIES} nlohmann_json::nlohmann_json)
+endif()
 
+message(STATUS "Boost libraries are:")
 foreach(LIB ${Boost_LIBRARIES})
-    message(STATUS "Boost libraries are ${LIB}")
+    message(STATUS "    ${LIB}")
 endforeach()
 
-target_link_libraries(${PROJECT_NAME} ${OPENCASCADE_LIBRARIES} ${IFC_LIBRARY_FILES} ${Boost_LIBRARIES} ${BCRYPT_LIBRARIES} ws2_32.lib CJT nlohmann_json::nlohmann_json)
+message(STATUS "IFC libraries are:")
+foreach(LIB ${IFC_LIBRARY_FILES})
+    message(STATUS "    ${LIB}")
+    target_link_libraries(${PROJECT_NAME} ${LIB})
+endforeach()
+
+message(STATUS "OCC libraries are:")
+foreach(LIB ${OPENCASCADE_LIBRARIES})
+    message(STATUS "    ${LIB}")
+    target_link_libraries(${PROJECT_NAME} ${LIB})
+endforeach()
+
+get_target_property(LINK_LIBS ${PROJECT_NAME} LINK_LIBRARIES)
+message(STATUS "Linked libraries for ${PROJECT_NAME}: ${LINK_LIBS}")
