@@ -46,7 +46,7 @@ struct SettingsCollection {
 	double voxelSize_ = 0.5;
 
 	bool autoRotateGrid_ = true;
-	double gridRotation_ = 0; //if not user chosen software computes itself
+	double desiredRotation_ = 0;
 
 	double footprintElevation_ = 0;
 
@@ -63,5 +63,7 @@ struct SettingsCollection {
 
 	// if LoD13 output is done and the same as LoD22, copy the data
 	bool Lod123IsFlat_ = false;
+	
+	double gridRotation_ = 0; // software computes itself or sets it to the desired rotation
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

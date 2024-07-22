@@ -127,15 +127,17 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		//TODO: return error is
 	}
 
-	if (!sudoSettings_->autoRotateGrid_) { return; } //bypass rotation comp if not required
-
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
-	double rotation = 0;
+	double rotation = sudoSettings_->desiredRotation_; // if not pre set by the user the default grid rotation = 0
 	int maxIt = 15;
 
 	// set data for a bbox
 	helperFunctions::rotatedBBoxDiagonal(pointList, lllPoint, urrPoint, rotation);
+	if (!sudoSettings_->autoRotateGrid_) {
+		sudoSettings_->gridRotation_ = sudoSettings_->desiredRotation_;
+		return;
+	} //bypass rotation comp if not required
 	double smallestDistance = lllPoint->Distance(*urrPoint);
 
 	for (size_t i = 0; i < maxIt; i++)

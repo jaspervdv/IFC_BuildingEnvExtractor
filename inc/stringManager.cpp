@@ -30,7 +30,7 @@ std::string CommunicationStringImportanceEnum::getString(CommunicationStringImpo
 		return "\t";
 	case CommunicationStringImportanceID::info:
 		return "[INFO] ";
-	case CommunicationStringImportanceID::warning:
+	case CommunicationStringImportanceID::warning: 
 		return "[WARNING] ";
 	case CommunicationStringImportanceID::error:
 		return "[Error] ";

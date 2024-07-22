@@ -287,7 +287,7 @@ bool IOManager::getJSONValues()
 		if (rotationData.type() != nlohmann::json::value_t::boolean)
 		{
 			sudoSettingsPtr_->autoRotateGrid_ = false;
-			sudoSettingsPtr_->gridRotation_ = static_cast<double>(rotationData);
+			sudoSettingsPtr_->desiredRotation_ = static_cast<double>(rotationData) * (M_PI / 180);
 		}
 	}
 
@@ -332,7 +332,7 @@ bool IOManager::getJSONValues()
 
 	if (!sudoSettingsPtr_->CustomDivList_.size() && !sudoSettingsPtr_->useDefaultDiv_)
 	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOutputFolder));
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONNoDivObjects));
 	}
 
 	// set generated settings

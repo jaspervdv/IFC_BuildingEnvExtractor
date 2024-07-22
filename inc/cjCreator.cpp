@@ -2731,7 +2731,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 		TopoDS_Shape currentShape = prismList[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
 		currentShape.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
@@ -2782,7 +2782,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 		TopoDS_Shape currentShape = prismList[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
 		currentShape.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
@@ -2906,7 +2906,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 		TopoDS_Shape currentFace = rawFaces[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
 		currentFace.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2928,7 +2928,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	TopoDS_Shape sewedShape = voxels2Shape(0);
 
 	gp_Trsf localRotationTrsf;
-	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), sudoSettings_->gridRotation_); //TODO: make this smarter
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
 	sewedShape.Move(localRotationTrsf);
 
 	gp_Trsf trs;
@@ -3344,7 +3344,7 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 
 
 void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList) { 
-	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, sudoSettings_->gridRotation_, roomNum);
+	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, -sudoSettings_->gridRotation_, roomNum);
 	
 
 	for (size_t i = 0; i < faceList.size(); i++) {

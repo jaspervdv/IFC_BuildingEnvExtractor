@@ -215,8 +215,7 @@ The settings json has a very simple structure. An example can be found below:
         2.2,
         3.2
     ],
-
- "Voxel":{
+    "Voxel":{
         "Size": 1,
         "Store values" : 0,
         "Logic" : 3
