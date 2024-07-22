@@ -1,11 +1,11 @@
 #include "helper.h"
 #include "cjCreator.h"
 #include "settingsCollection.h"
+#include "stringManager.h"
 
 #include <unordered_set>
 #include <string>
 #include <vector>
-
 
 class IOManager {
 private:

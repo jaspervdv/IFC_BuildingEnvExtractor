@@ -1,6 +1,7 @@
 #include "helper.h"
 #include "IOManager.h"
 #include "cjCreator.h"
+#include "stringManager.h"
 
 #include <unordered_set>
 #include <string>
@@ -12,9 +13,10 @@
 
 bool IOManager::getTargetPathList()
 {
-	std::string stringJSONRequest = "Enter filepath of the config JSON";
-	std::string stringNoFilePath = "[INFO] No filepath has been supplied";
-	std::string stringNoValFilePath = "[INFO] No valid filepath has been supplied";
+	// preload communcation strings
+	std::string stringJSONRequest = CommunicationStringEnum::getString(CommunicationStringID::infoJsonRequest);
+	std::string stringNoFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoFilePath);
+	std::string stringNoValFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoFilePath);
 
 	std::cout << stringJSONRequest << std::endl;
 
@@ -59,7 +61,6 @@ bool IOManager::getTargetPathList()
 }
 
 
-
 std::string IOManager::getFileName(const std::string& stringPath)
 {
 	std::vector<std::string> segments;
@@ -74,50 +75,43 @@ bool IOManager::getJSONValues()
 	std::ifstream f(sudoSettingsPtr_->inputPathList_[0]);
 	nlohmann::json json = nlohmann::json::parse(f);
 
+	// in and output related settings
 	sudoSettingsPtr_->inputPathList_.clear();
-
-	if (json.contains("Output report"))
+	std::string outputReportOName = JsonObjectInEnum::getString(JsonObjectInID::outputReport);
+	if (json.contains(outputReportOName))
 	{
-		if (json["Output report"].type() != nlohmann::json::value_t::number_integer && json["Output report"].type() != nlohmann::json::value_t::number_unsigned)
+		if (json[outputReportOName].type() != nlohmann::json::value_t::number_integer && json[outputReportOName].type() != nlohmann::json::value_t::number_unsigned)
 		{
-			throw std::string("JSON file does not contain a valid output report entry");
+			
+			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONReportPath));
 		}
 
-		if (json["Output report"] == 0) { sudoSettingsPtr_->writeReport_ = false; }
+		if (json[outputReportOName] == 0) { sudoSettingsPtr_->writeReport_ = false; }
 	}
 
-	if (json.contains("Voxel summary"))
+	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
+	if (!json.contains(filePathsOName))
 	{
-		if (json["Voxel summary"] == 1) { sudoSettingsPtr_->summaryVoxels_ = true; }
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONFilePath));
 	}
+	nlohmann::json filePaths = json[filePathsOName];
 
-	if (!json.contains("Filepaths"))
+	std::string inputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathsInput);
+	if (!filePaths.contains(inputOName))
 	{
-		throw std::string("JSON file does not contain Filpaths Entry");
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInputPath));
 	}
 
-	nlohmann::json filePaths = json["Filepaths"];
-
-	if (!filePaths.contains("Input"))
-	{
-		throw std::string("JSON file does not contain Input Filepath Entry");
-	}
-	if (!filePaths.contains("Output"))
-	{
-		throw std::string("JSON file does not contain Output Filepath Entry");
-	}
-
-	nlohmann::json inputPaths = filePaths["Input"];
+	nlohmann::json inputPaths = filePaths[inputOName];
 	if (inputPaths.type() != nlohmann::json::value_t::array )
 	{
-		throw std::string("JSON file does not contain valid input filepath entry: Input filepath entry should be array");
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPathFormat));
 	}
 
 	for (size_t i = 0; i < inputPaths.size(); i++) {
 		if (inputPaths[i].type() != nlohmann::json::value_t::string)
 		{
-			std::cout << "JSON file does not contain valid input filepath entry" << std::endl;
-			return false;
+			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONNoValInputPath));
 		}
 
 		std::string inputPath = inputPaths[i];
@@ -128,32 +122,49 @@ bool IOManager::getJSONValues()
 		}
 		else
 		{
-			throw std::string("[INFO] JSON file input filepath " + inputPath + " is invalid");
+			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPath) + inputPath);
 		}	
 	}
 
-	if (filePaths["Output"].type() != nlohmann::json::value_t::string)
+	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
+	if (!filePaths.contains(outputOName))
 	{
-		throw std::string("JSON file does not contain valid output path entry, output filepath entry should be string");
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONOutputPath));
 	}
 
-	sudoSettingsPtr_->outputPath_ = filePaths["Output"];
+	if (filePaths[outputOName].type() != nlohmann::json::value_t::string)
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONOutputPath));
+	}
+
+	sudoSettingsPtr_->outputPath_ = filePaths[outputOName];
 
 	if (!hasExtension(sudoSettingsPtr_->outputPath_, "json"))
 	{
-		throw std::string("JSON file does not contain valid output path, output path should end on .json or .city.json");
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOuputFormat));
 	}
 
 	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(sudoSettingsPtr_->outputPath_)).parent_path();
 
 	if (!boost::filesystem::exists(outputFolderPath))
 	{
-		throw std::string("Target filepath folder does not exist");
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOutputFolder));
 	}
 
-	if (json.contains("LoD output"))
+	//JSOn related output and processing settings
+	std::string lodOutputOName = JsonObjectInEnum::getString(JsonObjectInID::lodOutput);
+	std::string jsonOname = JsonObjectInEnum::getString(JsonObjectInID::JSON);
+	std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+	std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
+	std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
+	std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
+
+	nlohmann::json outputDataJson = {};
+	if (json.contains(jsonOname)) { outputDataJson = json[jsonOname];}
+
+	if (json.contains(lodOutputOName))
 	{
-		nlohmann::json lodList = json["LoD output"];
+		nlohmann::json lodList = json[lodOutputOName];
 		sudoSettingsPtr_->make00_ = false;
 		sudoSettingsPtr_->make02_ = false;
 		sudoSettingsPtr_->make10_ = false;
@@ -167,16 +178,16 @@ bool IOManager::getJSONValues()
 		{
 			if (sudoSettingsPtr_->LoDWInterior_.find(lodList[i]) == sudoSettingsPtr_->LoDWInterior_.end()) { continue; }
 
-			if (json.contains("Generate interior"))
+			if (outputDataJson.contains(generateInteriorOName))
 			{
-				sudoSettingsPtr_->makeInterior_ = (int)json["Generate interior"];
+				sudoSettingsPtr_->makeInterior_ = (int)outputDataJson[generateInteriorOName];
 			}
 			break;
 		}
 
-		if (json.contains("Footprint elevation"))
+		if (outputDataJson.contains(footprintElevOName))
 		{
-			sudoSettingsPtr_->footprintElevation_ = json["Footprint elevation"];
+			sudoSettingsPtr_->footprintElevation_ = outputDataJson[footprintElevOName];
 		}
 
 		for (size_t i = 0; i < lodList.size(); i++)
@@ -186,13 +197,13 @@ bool IOManager::getJSONValues()
 			{ 
 				sudoSettingsPtr_->make02_ = true;
 
-				if (json.contains("Generate footprint"))
+				if (outputDataJson.contains(generatefootprOName))
 				{
-					sudoSettingsPtr_->makeFootPrint_ = (int)json["Generate footprint"];
+					sudoSettingsPtr_->makeFootPrint_ = (int)outputDataJson[generatefootprOName];
 				}
-				if (json.contains("Generate roof outline"))
+				if (outputDataJson.contains(generateRoofOlineOName))
 				{
-					sudoSettingsPtr_->makeRoofPrint_ = (int)json["Generate roof outline"];
+					sudoSettingsPtr_->makeRoofPrint_ = (int)outputDataJson[generateRoofOlineOName];
 					if (sudoSettingsPtr_->makeRoofPrint_) { sudoSettingsPtr_->makeOutlines_ = true; }
 				}
 			}
@@ -227,48 +238,78 @@ bool IOManager::getJSONValues()
 		}
 	}
 
-	if (json.contains("Georeference"))
+	std::string georeferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
+	if (outputDataJson.contains(georeferenceOName))
 	{
-		if (json["Georeference"] == 0)
+		if (outputDataJson[georeferenceOName] == false || outputDataJson[georeferenceOName] == 0)
 		{
 			sudoSettingsPtr_->geoReference_ = false;
 		}		
 	}
-
-	if (json.contains("voxelSize"))
+	 
+	// Voxel related output and processing settings
+	std::string voxelOName = JsonObjectInEnum::getString(JsonObjectInID::voxel);
+	std::string voxelSizOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSize);
+	std::string voxelSummarizeOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSummarize);
+	std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
+	if (json.contains(voxelOName))
 	{
-		nlohmann::json voxelData = json["voxelSize"];
+		nlohmann::json voxelData = json[voxelOName];
 
-		if (voxelData.contains("xy")) { sudoSettingsPtr_->voxelSize_ = voxelData["xy"]; }
+		if (voxelData.contains(voxelSizOName))			
+		{
+			sudoSettingsPtr_->voxelSize_ = voxelData[voxelSizOName]; 
+		}
+		if (voxelData.contains(voxelSummarizeOName))
+		{ 
+			if (voxelData[voxelSummarizeOName] == 1) { sudoSettingsPtr_->summaryVoxels_ = true; }
+		}
+		if (voxelData.contains(voxelIntersectionOName)) 
+		{
+			if (voxelData[voxelIntersectionOName] == 2) { sudoSettingsPtr_->intersectionLogic_ = 2; }
+			if (voxelData[voxelIntersectionOName] == 3) { sudoSettingsPtr_->intersectionLogic_ = 3; }
+		}
 	}
 
-	if (json.contains("Default div"))
+	//IFC related processing settings
+	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
+	std::string rotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
+	std::string defaultDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDefaultDiv);
+	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
+	std::string divObjectsOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
+
+	nlohmann::json ifcInputJson = {};
+	if (json.contains(ifcOName)) { ifcInputJson = json[ifcOName]; }
+
+	if (ifcInputJson.contains(rotationOName))
 	{
-		if (json["Default div"] == 0)
+		nlohmann::json rotationData = ifcInputJson[rotationOName];
+		if (rotationData.type() != nlohmann::json::value_t::boolean)
+		{
+			sudoSettingsPtr_->autoRotateGrid_ = false;
+			sudoSettingsPtr_->gridRotation_ = static_cast<double>(rotationData);
+		}
+	}
+
+	if (ifcInputJson.contains(defaultDivOName))
+	{
+		if (ifcInputJson[defaultDivOName] == 0 || ifcInputJson[defaultDivOName] == false)
 		{
 			sudoSettingsPtr_->useDefaultDiv_ = false;
 		}
 	}
 
-	if (json.contains("Ignore proxy"))
+	if (ifcInputJson.contains(ignoreProxyOName))
 	{
-		if (json["Ignore proxy"] == 1)
+		if (ifcInputJson[ignoreProxyOName] == 1 || ifcInputJson[ignoreProxyOName] == true)
 		{
 			sudoSettingsPtr_->useProxy_ = true;
 		}
 	}
 
-	if (json.contains("Voxel planes"))
+	if (ifcInputJson.contains(divObjectsOName))
 	{
-		if (json["Voxel planes"] == 1)
-		{
-			sudoSettingsPtr_->planeIntersection_ = true;
-		}
-	}
-
-	if (json.contains("Div objects"))
-	{
-		std::vector<std::string> stringDivList = json["Div objects"];
+		std::vector<std::string> stringDivList = ifcInputJson[divObjectsOName];
 
 		for (size_t i = 0; i < stringDivList.size(); i++)
 		{
@@ -289,6 +330,11 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	if (!sudoSettingsPtr_->CustomDivList_.size() && !sudoSettingsPtr_->useDefaultDiv_)
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOutputFolder));
+	}
+
 	// set generated settings
 	if (sudoSettingsPtr_->make00_ || sudoSettingsPtr_->make10_)
 	{
@@ -307,8 +353,6 @@ bool IOManager::getJSONValues()
 			sudoSettingsPtr_->requireFullVoxels_ = false;
 		}
 	}
-
-
 	return true;
 }
 
@@ -349,10 +393,9 @@ bool IOManager::isValidPath(const std::string& path)
 
 void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
 {
-
 	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
-	if (duration < 5) { (*j)[valueName + " (ms)"] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
-	else { (*j)[valueName + " (s)"] = duration; }
+	if (duration < 5) { (*j)[valueName + UnitStringEnum::getString(UnitStringID::milliseconds)] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
+	else { (*j)[valueName + UnitStringEnum::getString(UnitStringID::seconds)] = duration; }
 }
 
 
@@ -365,12 +408,12 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double durat
 	else if (duration < 5000) 
 	{
 		timeSet[timeDurationString] = duration;
-		timeSet[timeUnitString] = "ms";
+		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::milliseconds);
 	}
 	else 
 	{
 		timeSet[timeDurationString] = duration/1000;
-		timeSet[timeUnitString] = "s";
+		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::seconds);
 	}
 	(*j)[valueName] = timeSet;
 	return;
@@ -403,6 +446,12 @@ void IOManager::printSummary()
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	std::cout << "- Voxel size:" << std::endl;
 	std::cout << "    " << sudoSettingsPtr_->voxelSize_ << std::endl;
+	std::cout << "- Voxel logic:" << std::endl;
+	if (sudoSettingsPtr_->intersectionLogic_ == 0) { std::cout << "    point" << std::endl; }
+	if (sudoSettingsPtr_->intersectionLogic_ == 1) { std::cout << "    line" << std::endl; }
+	if (sudoSettingsPtr_->intersectionLogic_ == 2) { std::cout << "    plane" << std::endl; }
+	if (sudoSettingsPtr_->intersectionLogic_ == 3) { std::cout << "    solid" << std::endl; }
+
 
 
 	if (sudoSettingsPtr_->make02_)
@@ -512,7 +561,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 	else if (!isValidPath(inputPathList))
 	{
-		std::cout << "[WARNING] Input path(s) are not valid" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoValFilePaths) << std::endl;
 		return false;
 	}
 	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
@@ -559,14 +608,14 @@ bool IOManager::run()
 	gp_Trsf geoRefRotation;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
-	metaData.setTitle("Auto export from IfcEnvExtractor");
+	metaData.setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
 	if (sudoSettingsPtr_->geoReference_)
 	{
 		internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 	}
 	transformation.setScale(transformation.getScale()[0]); //TODO: fix cjt to make this not required.
 	collection->setTransformation(transformation);
-	collection->setVersion("1.1");
+	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
 
 	// Set up objects and their relationships
 	CJT::CityObject cityBuildingObject;
@@ -579,10 +628,10 @@ bool IOManager::run()
 	cityBuildingObject.setName(BuildingName);
 	cityBuildingObject.setType(CJT::Building_Type::Building);
 
-	cityShellObject.setName("Outer Shell");
+	cityShellObject.setName(CJObjectEnum::getString(CJObjectID::outerShell));
 	cityShellObject.setType(CJT::Building_Type::BuildingPart);
 
-	cityInnerShellObject.setName("Inner Shell");
+	cityInnerShellObject.setName(CJObjectEnum::getString(CJObjectID::innerShell));
 	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
 
 	cityBuildingObject.addChild(&cityShellObject);
@@ -606,9 +655,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "S0001";
-			errorObject.errorDescript_ = "Basic initialization failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedInit);
 			ErrorList_.emplace_back(errorObject);
 			return false;
 		}
@@ -622,9 +669,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "S0002";
-			errorObject.errorDescript_ = "Footprint creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedFootprint);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -648,9 +693,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0001";
-			errorObject.errorDescript_ = "LoD0.0 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD00);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -667,9 +710,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0002";
-			errorObject.errorDescript_ = "LoD0.2 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD02);
 			ErrorList_.emplace_back(errorObject);	
 			succesfullExit = 0;
 		}
@@ -687,9 +728,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0003";
-			errorObject.errorDescript_ = "LoD1.0 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD10);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -705,9 +744,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0004";
-			errorObject.errorDescript_ = "LoD1.2 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD12);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -723,9 +760,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0005";
-			errorObject.errorDescript_ = "LoD1.3 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD13);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -741,9 +776,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0006";
-			errorObject.errorDescript_ = "LoD2.2 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD22);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -759,9 +792,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "E0007";
-			errorObject.errorDescript_ = "LoD3.2 creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD32);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -785,9 +816,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject;
-			errorObject.errorCode_ = "S0003";
-			errorObject.errorDescript_ = "storey creation failed";
+			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedStorey);
 			ErrorList_.emplace_back(errorObject);
 			succesfullExit = 0;
 		}
@@ -833,7 +862,7 @@ bool IOManager::run()
 	gp_Pnt urr = internalHelper_.get()->getUrrPoint();
 
 	gp_Trsf originRotation;
-	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), - internalHelper_->getRotation()));
+	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), -sudoSettingsPtr_->gridRotation_));
 
 	gp_Trsf originTranslation = internalHelper_->getObjectTranslation().Inverted();
 
@@ -856,8 +885,8 @@ bool IOManager::run()
 
 	collection->setMetaData(metaData);
 
-	cityShellObject.addAttribute("Env_ex footprint elevation", sudoSettingsPtr_->footprintElevation_);
-	cityShellObject.addAttribute("Env_ex buildingHeight", internalHelper_.get()->getUrrPoint().Z() - sudoSettingsPtr_->footprintElevation_);
+	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "Env_ex footprint elevation", sudoSettingsPtr_->footprintElevation_);
+	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - sudoSettingsPtr_->footprintElevation_);
 
 	if (summaryVoxel())
 	{
@@ -929,14 +958,10 @@ bool IOManager::write()
 
 	if (failedObjectList.size() > 0)
 	{
-		ErrorObject errorObject;
-		errorObject.errorCode_ ="S0003";
-		errorObject.errorDescript_ = "Failed to convert object";
+		ErrorObject errorObject = errorMap::getErrorObject(errorID::failedConvert);
 		errorObject.occuringObjectList_ = failedObjectList;
-
 		errorJsonList.emplace_back(errorObject.toJson());
 	}
-
 
 	report["Errors"] = errorJsonList;
 
@@ -952,14 +977,4 @@ bool IOManager::write()
 	reportFile << report;
 	reportFile.close();
 	return true;
-}
-
-nlohmann::json ErrorObject::toJson()
-{
-	nlohmann::json JsonObject;
-	JsonObject["ErrorCode"] = errorCode_;
-	JsonObject["Error Description"] = errorDescript_;
-	JsonObject["Occuring Objects"] = occuringObjectList_;
-
-	return JsonObject;
 }

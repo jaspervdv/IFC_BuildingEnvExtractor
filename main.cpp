@@ -1,6 +1,7 @@
 #include "inc/helper.h"
 #include "inc/IOManager.h"
 #include "inc/cjCreator.h"
+#include "inc/stringManager.h"
 
 // basic includes
 #include <iostream>
@@ -24,7 +25,7 @@
 int main(int argc, char** argv) {
 	std::cout << " " << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
-	std::string issueEncounterString = "[INFO] encountered an issue";
+	std::string issueEncounterString = CommunicationStringEnum::getString(CommunicationStringID::warmingIssueencountered);
 
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
@@ -57,13 +58,13 @@ int main(int argc, char** argv) {
 	}
 	if (!success)
 	{
-		std::cout << "[WARNING] unable to process file(s)" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorUnableToProcessFile) << std::endl;
 		return 1;
 	}
 
 	if (!manager.run())
 	{
-		std::cout << "[WARNING] unable to process file(s)" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorUnableToProcessFile) << std::endl;
 		manager.write();
 		return 1;
 	}

@@ -3,14 +3,6 @@
 #ifndef SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 
-struct ErrorObject {
-	std::string errorCode_ = "";
-	std::string errorDescript_ = "";
-	std::vector<std::string> occuringObjectList_;
-
-	nlohmann::json toJson();
-};
-
 struct SettingsCollection {
 	// Input settings
 
@@ -20,7 +12,7 @@ struct SettingsCollection {
 	std::vector<std::string> inputPathList_ = {};
 	std::string outputPath_ = "";
 
-	std::unordered_set<double> LoDWInterior_ = { 0.2, 5.0 };
+	std::unordered_set<double> LoDWInterior_ = { 0.2, 5.0 }; //TODO: move this
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = true;
@@ -49,9 +41,12 @@ struct SettingsCollection {
 	std::vector<std::string> CustomDivList_;
 
 	// use 3 planes instead of volumetric voxel intersections
-	bool planeIntersection_ = false;
+	int intersectionLogic_ = 3;
 
 	double voxelSize_ = 0.5;
+
+	bool autoRotateGrid_ = true;
+	double gridRotation_ = 0; //if not user chosen software computes itself
 
 	double footprintElevation_ = 0;
 
@@ -68,7 +63,5 @@ struct SettingsCollection {
 
 	// if LoD13 output is done and the same as LoD22, copy the data
 	bool Lod123IsFlat_ = false;
-
-	double originRot_ = 0;
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

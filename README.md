@@ -205,27 +205,34 @@ The settings json has a very simple structure. An example can be found below:
         ],
         "Output" : "path to export (City)JSON file"
     },
-    "voxelSize" : {
-        "xy" : 1
-    },
-    "Footprint elevation": -0.15,
-    "Output report": 1,
-    "Default div": 1,
-    "Ignore Proxy": 1,
-    "Generate interior": 1,
-    "Generate footprint": 1,
-    "Generate roof outline": 1,
-    "Georeference" : 1,
     "LoD output": [
+        5.0,
         0.0,
         0.2,
         1.0,
         1.2,
         1.3,
-        2.2
+        2.2,
+        3.2
     ],
-    "Voxel summary": 0,
-    "Voxel planes" : 0
+
+ "Voxel":{
+        "Size": 1,
+        "Store values" : 0,
+        "Logic" : 3
+    },
+    "IFC": {
+        "Rotation" : false,
+        "Default div": true,
+        "Ignore Proxy": true
+    },
+    "JSON" : {
+        "Footprint elevation": 1,
+        "Generate footprint": 1,
+        "Generate roof outline": 1,
+        "Generate interior": 1
+    },
+    "Generate report": 1
 }
 ```
 
@@ -238,19 +245,20 @@ Mandatory:
 
 Optional:
 
-* "voxelSize" "xy" is a double that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings. Default value = 0.5.
-* "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
-* "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
-* "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
-* "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
-* "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
-* "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
-* "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
-* "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
-* "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing.
 * "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
-* "Voxel summary" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes.
-* "Voxel planes" is an int/bool (either 0 or 1) that can toggle a alternative rule system for voxel intersection. If toggled on 3 planes centralized planes are used for intersection instead of the full voxel geometry.
+* "Voxel" "Size" is a double that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings. Default value = 0.5.
+* "Voxel" "Store values" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes. Default value = 0.
+* "Logic" is an int (either 2 or 3) that can toggle between the logic used for voxel intersection. 2 = 2D/plane intersection, 3 = 3D/solid intersection. Default value = 3.
+* "IFC" "Rotation" is an bool OR double value that indicates a custom rotation of the input shape before processing. If bool false is used as input the tool will automatically compute the optimal rotation. Default value = false.
+* "IFC" "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
+* "IFC" "Ignore Proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
+* "IFC" "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
+* "JSON" "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
+* "JSON" "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
+* "JSON" "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
+* "JSON" "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
+* "JSON" "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing. Default value: true.
+* "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
 
 more options will be added in the future.
 

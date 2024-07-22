@@ -1,5 +1,6 @@
 #include "DataManager.h"
 #include "helper.h"
+#include "stringManager.h"
 
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
@@ -11,25 +12,23 @@ helper::helper(const std::vector<std::string>& pathList, std::shared_ptr<Setting
 	for (size_t i = 0; i < pathList.size(); i++)
 	{
 		std::string path = pathList[i];
-		std::cout << "[INFO] Parsing file " << path << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoParsingFile) << path << std::endl;
 		if (!findSchema(pathList[i])) { continue; }
 		std::unique_ptr<fileKernelCollection> dataCollection = std::make_unique<fileKernelCollection>(path);
 		if (!dataCollection.get()->isGood())
 		{
-			std::cout << "Unable to parse .ifc file" << std::endl;
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningUnableToParseIFC) << std::endl;
 			return;
 		}
 
-		std::cout << "- Valid IFC file found" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentValidIFCFound) << std::endl;
 		std::cout << std::endl;
 
 		datacollection_.emplace_back(std::move(dataCollection));
 		dataCollectionSize_++;
 		isPopulated_ = true;
 	}
-
 	sudoSettings_ = settings;
-
 	return;
 }
 
@@ -39,13 +38,14 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 	std::string line;
 	int linecount = 0;
 
+	std::vector<std::string> ifcVersionList {"IFC4", "IFC2X3", "IFC4X1", "IFC4X2", "IFC4X3"};
 	while (linecount < 100 && std::getline(infile, line))
 	{
-		if (line[0] == '#') 
+		if (line[0] == '#')
 		{
 			if (!quiet)
 			{
-				std::cout << "[Warning] No valid ifc scheme found" << std::endl;
+				std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoValidIFC) << std::endl;
 			}
 			infile.close();
 			return false;
@@ -56,82 +56,31 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 			continue;
 		}
 
-		if (line.find("FILE_SCHEMA(('IFC4'))") != std::string::npos) {
-			if (buildVersion != "Ifc4") 
-			{ 
-				if (!quiet)
+		for (std::string ifcVersion : ifcVersionList)
+		{
+			if (line.find("FILE_SCHEMA(('" + ifcVersion + "'))") != std::string::npos) {
+				if (buildVersion != ifcVersion)
 				{
-					std::cout << "- Incompatible scheme found: IFC4" << std::endl;
+					if (!quiet)
+					{
+						std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningIncompIFC) + ifcVersion << std::endl;
+					}
+					infile.close();
+					return false;
 				}
-				return false; 
-			}
-			else {
-				if (!quiet)
-				{
-					std::cout << "- Valid scheme found: IFC4" << std::endl;
-				}
-			}
-			break;
-		}
-		else if (line.find("FILE_SCHEMA(('IFC2X3'))") != std::string::npos) {
-			if (buildVersion != "Ifc2x3") 
-			{ 
-				if (!quiet)
-				{
-					std::cout << "- Incompatible scheme found: IFC2X3" << std::endl;
-				}
-				return false; 
-			}
-			else {
-				if (!quiet)
-				{
-					std::cout << "- Valid scheme found: IFC2X3" << std::endl;
+				else {
+					if (!quiet)
+					{
+						std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentcompIFCFound) + ifcVersion << std::endl;
+					}
+					infile.close();
+					return true;
 				}
 			}
-			break;
-		}
-		else if (line.find("FILE_SCHEMA (('IFC2X3'))") != std::string::npos) {
-			if (buildVersion != "Ifc2x3")
-			{
-				if (!quiet)
-				{
-					std::cout << "- Incompatible scheme found: IFC2X3" << std::endl;
-				}
-				return false;
-			}
-			else
-			{
-				if (!quiet)
-				{
-					std::cout << "- Valid scheme found: IFC2X3" << std::endl;
-				}
-			}
-			break;
-		}
-		else if (line.find("FILE_SCHEMA(('IFC4x1'))") != std::string::npos) {
-			if (!quiet)
-			{
-				std::cout << "- Valid scheme found: IFC4x1" << std::endl;
-			}
-			break;
-		}
-		else if (line.find("FILE_SCHEMA(('IFC4x2'))") != std::string::npos) {
-			if (!quiet)
-			{
-				std::cout << "- Valid scheme found: IFC4x2" << std::endl;
-			}
-			break;
-		}
-		else if (line.find("FILE_SCHEMA(('IFC4x3'))") != std::string::npos) {
-			if (!quiet)
-			{
-				std::cout << "- Valid scheme found: IFC4x3" << std::endl;
-			}
-			break;
 		}
 	}
 	infile.close();
-	return true;
+	return false;
 }
 
 
@@ -157,7 +106,7 @@ void helper::elementCountSummary(bool* hasProxy, bool* hasLotProxy)
 }
 
 
-void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* originRot)
+void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	std::vector<gp_Pnt> pointList;
@@ -177,6 +126,8 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 	{
 		//TODO: return error is
 	}
+
+	if (!sudoSettings_->autoRotateGrid_) { return; } //bypass rotation comp if not required
 
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
@@ -219,7 +170,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* ori
 		}
 		angle = angle / 2;
 	}
-	*originRot = rotation;
+	sudoSettings_->gridRotation_= rotation;
 	return;
 }
 
@@ -230,7 +181,7 @@ void helper::computeObjectTranslation(gp_Vec* vec)
 	IfcSchema::IfcSlab::list::ptr slabList = datacollection_[0]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
 
 	if (!slabList.get()->size()) {
-		std::cout << "[WARNING] no slab objects were found!" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSlab) << std::endl;
 		return; 
 	}
 	IfcSchema::IfcSlab* slab = *slabList->begin();
@@ -288,16 +239,18 @@ bool helper::hasSetUnits() {
 
 void helper::internalizeGeo()
 {
-	std::cout << "[INFO] Internalizing Geometry of Construction Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 	gp_Vec accuracyObjectTranslation;
 	computeObjectTranslation(&accuracyObjectTranslation);
 	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
-	computeBoundingData(&lllPoint_, &urrPoint_, &originRot_);
-	sudoSettings_->originRot_ = originRot_;
+	computeBoundingData(&lllPoint_, &urrPoint_);
 
-	std::cout << "\tSuccessfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s\n" << std::endl;
+	std::cout << 
+		CommunicationStringEnum::getString(CommunicationStringID::indentSuccesFinished) <<
+		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
+		UnitStringEnum::getString(UnitStringID::seconds) << "\n" << std::endl;
 
 	hasGeo_ = true;
 }
@@ -309,42 +262,42 @@ void helper::indexGeo()
 	// the bbox does thus comply with the model bbox but not with the actual objects original location
 	if (!hasIndex_)
 	{
-		std::cout << "- Create Spatial Index" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCreateSpatialIndex) << std::endl;
 		if (sudoSettings_->useDefaultDiv_)
 		{
 			// add the floorslabs to the rtree
 			auto startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
 				addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>());
-			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
 				addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcRoof>());
-			std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			// add the walls to the rtree
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
 				addObjectToIndex<IfcSchema::IfcWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWall>());
-			std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCovering>());
-			std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			// add the columns to the rtree TODO sweeps
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcColumn>());
-			std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			// add the beams to the rtree
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
-			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			// add the curtain walls to the rtree 
 			//TODO: check this
@@ -356,30 +309,29 @@ void helper::indexGeo()
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcPlate>());
-			std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcMember::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcMember>());
-			std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
-
+			std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 			// add doors to the rtree (for the appartment detection)
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcDoor>());
-			std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++) 
 				addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
-			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
 			if (sudoSettings_->useProxy_)
 			{
 				startTime = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < dataCollectionSize_; i++) 
 					addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
-				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 			}
 		}
 		else //TODO: make this better
@@ -403,7 +355,7 @@ void helper::indexGeo()
 						}
 					}
 					addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
-					std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+					std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 				}
 			}
 		}
@@ -412,7 +364,7 @@ void helper::indexGeo()
 			auto startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
 				addObjectToIndex<IfcSchema::IfcSpace::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSpace>(), true);
-			std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;
+			std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 		}
 		std::cout << std::endl;
 
@@ -756,7 +708,7 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 #ifdef USE_IFC4
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
 	if (mapList->size() == 0) { return; }
-	if (mapList->size() > 1) { std::cout << "[WARNING] multiple map projections detected" << std::endl; }
+	if (mapList->size() > 1) { std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningMultipleProjections) << std::endl; }
 	
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
 
@@ -901,10 +853,10 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
 		IfcSchema::IfcBuilding* building = *it;
 
-		if (building->Description().has_value()) { dictionary.emplace("Description", building->Description().get()); }
-		if (building->ObjectType().has_value()) { dictionary.emplace("ObjectType", building->ObjectType().get()); }
-		if (building->Name().has_value()) { dictionary.emplace("Name", building->Name().get()); }
-		if (building->LongName().has_value()) { dictionary.emplace("Long Name", building->LongName().get()); }
+		if (building->Description().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcDescription), building->Description().get()); }
+		if (building->ObjectType().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcObjectType), building->ObjectType().get()); }
+		if (building->Name().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcName), building->Name().get()); }
+		if (building->LongName().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcLongName), building->LongName().get()); }
 	}
 
 	IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = fileObejct->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
@@ -1249,7 +1201,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	gp_Trsf placement;
 	gp_Trsf trsf;
 	gp_Trsf trs;
-	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), originRot_);
+	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), sudoSettings_->gridRotation_);
 
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	IfcGeom::IteratorSettings settings;
@@ -1311,20 +1263,6 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 
 	lookupValue* currentLookupvalue = productLookup_[productIndxLookup_[objectType][product->GlobalId()]];
 	currentLookupvalue->setSimpleShape(shape);
-
-	//if (adjusted)
-	//{
-	//	if (adjustedshapeLookup_.find(objectType) == adjustedshapeLookup_.end())
-	//	{
-	//		return;
-	//	}
-
-	//	if (adjustedshapeLookup_[objectType].find(product->GlobalId()) == adjustedshapeLookup_[objectType].end())
-	//	{
-	//		return;
-	//	}
-	//	adjustedshapeLookup_[objectType][product->GlobalId()] = shape;
-	//}
 }
 
 
@@ -1594,12 +1532,12 @@ void fileKernelCollection::setUnits()
 
 	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
 	if (presentUnits.get()->size() == 0) {
-		std::cout << "[Error] No unit assignment has been found" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoUnits) << std::endl;
 		return;
 	}
 	else if (presentUnits.get()->size() > 1)
 	{
-		std::cout << "[Error] Multiple unit assignments have been found" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorMultipleUnits) << std::endl;
 		return;
 	}
 
@@ -1638,31 +1576,35 @@ void fileKernelCollection::setUnits()
 	}
 
 	// check if units have been found
-	std::cout << "[INFO] found units:" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFoundUnits) << std::endl;
+
+	std::string lenghtOutputString = "\tLength in ";
 	if (!length)
 	{
-		std::cout << "[Error] SI unit for length cannot be found!" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoLengthUnit) << std::endl;
 		return;
 	}
-	else if (length == 1) { std::cout << "- Lenght in metre" << std::endl; }
-	else if (length == 0.001) { std::cout << "- Lenght in millimetre" << std::endl; }
+	else if (length == 1) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
+	else if (length == 0.001) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
 
+	std::string areaOutputString = "\tArea in square ";
 	if (!area)
 	{
-		std::cout << "[Error] SI unit for area cannot be found!" << std::endl;
+		std::cout <<CommunicationStringEnum::getString(CommunicationStringID::errorNoAreaUnit) << std::endl;
 		return;
 	}
-	else if (area == 1) { std::cout << "- Area in square metre" << std::endl; }
-	else if (area == 0.000001) { std::cout << "- Area in square millimetre" << std::endl; }
+	else if (area == 1) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
+	else if (area == 0.000001) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
 
+	std::string volumeOutputString = "\tVolume in cubic ";
 	if (!volume)
 	{
-		std::cout << "[Warning] SI unit for volume cannot be found!" << std::endl;
-		std::cout << "[Warning] SI unit for volume is set to cubic metre!" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoVolumeUnit) << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoDefaultVolumeUnit) << std::endl;
 		volume = 1;
 	}
-	else if (volume == 1) { std::cout << "- Volume in cubic metre" << std::endl; }
-	else if (volume == 0.000000001) { std::cout << "- Volume in cubic millimetre" << std::endl; }
+	else if (volume == 1) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
+	else if (volume == 0.000000001) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
 
 	std::cout << std::endl;
 

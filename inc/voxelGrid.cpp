@@ -18,8 +18,8 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 	auto boxelGeo = boxel->getVoxelGeo();
 
 	std::vector<gp_Pnt> pointList;
-	if (sudoSettings_->planeIntersection_) { pointList = boxel->getPlanePoints(); }
-	else { pointList = boxel->getCornerPoints(); }
+	if (sudoSettings_->intersectionLogic_ == 2) { pointList = boxel->getPlanePoints(); }
+	else if (sudoSettings_->intersectionLogic_ == 3) { pointList = boxel->getCornerPoints(); }
 
 	bool isIntersecting = false;
 
@@ -36,7 +36,7 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 
 			//if (productTypesList.find(productType) != productTypesList.end()) { continue; }
 
-			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->planeIntersection_))
+			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->intersectionLogic_))
 			{
 				productTypesList.insert(productType); //TODO: make this work
 				boxel->addInternalProduct(qResult[k]);
@@ -114,7 +114,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
 
-	planeRotation_ = h->getRotation(); //TODO: remove?
+	planeRotation_ = sudoSettings_->gridRotation_; //TODO: remove?
 
 	if (false)
 	{

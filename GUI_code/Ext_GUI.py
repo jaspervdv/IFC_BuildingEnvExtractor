@@ -111,26 +111,31 @@ def runCode(input_path,
 
     # write data to json
     json_dictionary = {}
-    json_dictionary["Filepaths"] = {
-        "Input" : input_path_list,
-        "Output" : output_path
-    }
-    json_dictionary["voxelSize"] = {"xy" : float(voxel_size)}
-    json_dictionary["Footprint elevation"] = float(footprint_elevation)
-    json_dictionary["Output report"] = make_report
+    json_dictionary["Filepaths"] = {}
+    json_dictionary["Filepaths"]["Input"] = input_path_list
+    json_dictionary["Filepaths"]["Output"] = output_path
 
-    if (make_interior):
-        json_dictionary["Generate interior"] = 1
-    else:
-        json_dictionary["Generate interior"] = 0
+    json_dictionary["Voxel"] = {}
+    json_dictionary["Voxel"]["Size"] = float(voxel_size)
+    json_dictionary["Voxel"]["Store values"] = summary_voxel
+
+    json_dictionary["IFC"] = {}
+    json_dictionary["IFC"]["Rotation"] = False
 
     if not bool_customEnabled:
-        json_dictionary["Default div"] = bool_useDefault
-        json_dictionary["Ignore Proxy"] = bool_igoreproxy
+        json_dictionary["IFC"]["Default div"] = bool_useDefault
+        json_dictionary["IFC"]["Ignore Proxy"] = bool_igoreproxy
     else:
-        json_dictionary["Default div"] = 0
-        json_dictionary["Ignore proxy"] = 0
+        json_dictionary["IFC"]["Default div"] = False
+        json_dictionary["IFC"]["Ignore Proxy"] = False
         json_dictionary["Div objects"] = div_string.split()
+
+    json_dictionary["JSON"] = {}
+    json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)
+    json_dictionary["JSON"]["Generate interior"] = make_interior
+
+
+    json_dictionary["Generate report"] = make_report
 
     lod_list = []
 
@@ -139,15 +144,8 @@ def runCode(input_path,
     if (make_lod02):
         lod_list.append(0.2)
 
-        if(make_footprint):
-            json_dictionary["Generate footprint"] = 1
-        else:
-            json_dictionary["Generate footprint"] = 0
-
-        if(make_roofprint):
-            json_dictionary["Generate roof outline"] = 1
-        else:
-            json_dictionary["Generate roof outline"] = 0
+        json_dictionary["JSON"]["Generate footprint"] = make_footprint
+        json_dictionary["JSON"]["Generate roof outline"] = make_roofprint
 
     if (make_lod10):
         lod_list.append(1.0)
@@ -165,8 +163,6 @@ def runCode(input_path,
         lod_list.append(5.1)
 
     json_dictionary["LoD output"] = lod_list
-
-    json_dictionary["Voxel summary"] = summary_voxel
 
     with open(json_path, "w") as outfile:
         json.dump(json_dictionary, outfile)

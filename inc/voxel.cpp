@@ -167,7 +167,7 @@ std::vector<std::vector<int>> voxel::getPlaneEdges()
 }
 
 
-bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, bool planeIntersection)
+bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, int intersectionLogic)
 {
 	hasEvalIntt_ = true;
 	// get the product
@@ -190,7 +190,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	std::vector<gp_Pnt> productPoints = lookup.getProductPoints();
 
-	if (!planeIntersection) // plane intersection is not volumetric, so not required if used
+	if (intersectionLogic == 3) // not required if the intersection is not volumetric
 	{
 		if (linearEqIntersection(productPoints, voxelPoints))
 		{
@@ -201,9 +201,13 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	// check if any object edges itersect with the voxel
 	std::vector<std::vector<int>> triangleVoxels;
-	if (planeIntersection) { triangleVoxels = getplaneTriangles(); }
-	else { triangleVoxels = getVoxelTriangles(); }
+	if (intersectionLogic == 2) { triangleVoxels = getplaneTriangles(); }
+	else if (intersectionLogic == 3) { triangleVoxels = getVoxelTriangles(); }
 
+	if (!voxelPoints.size())
+	{
+		return false;
+	}
 	double voxelLowZ = voxelPoints[0].Z();
 	double voxelTopZ = voxelPoints[4].Z();
 
@@ -213,7 +217,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	double voxelLowY = voxelPoints[0].Z();
 	double voxelMaxY = voxelPoints[4].Z();
 
-	for (const auto& boxel : triangleVoxels) 
+	for (const auto& boxel : triangleVoxels)
 	{
 		std::vector<gp_Pnt> voxelTriangle = { voxelPoints[boxel[0]], voxelPoints[boxel[1]], voxelPoints[boxel[2]] };
 
@@ -258,8 +262,8 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	// check with triangulated object
 	std::vector<std::vector<int>> vets;
-	if (planeIntersection) { vets = getPlaneEdges(); }
-	else { vets = getVoxelEdges(); }
+	if (intersectionLogic == 2) { vets = getPlaneEdges(); }
+	else if (intersectionLogic == 3) { vets = getVoxelEdges(); }
 
 	// add check if voxel falls completely in the shape
 	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 10);
@@ -296,7 +300,6 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 			// check if inside of shape
 			if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
 			{
-
 				counter++;
 			}
 		}

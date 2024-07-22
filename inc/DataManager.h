@@ -127,9 +127,6 @@ private:
 	// translation needed for accuracy if object is very far away from origin 
 	gp_Trsf objectTranslation_;
 
-	// The needed rotation for the model to be aligned to the world axis!
-	double originRot_ = 0;
-
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	int dataCollectionSize_ = 0;
 
@@ -157,7 +154,7 @@ private:
 	void elementCountSummary(bool* hasProxy, bool* hasLotProxy);
 
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
-	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* originRot);
+	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 
 	/// compute vector from the lll corner to the originpoint
 	void computeObjectTranslation(gp_Vec* vec);
@@ -249,8 +246,6 @@ public:
 	const gp_Pnt& getLllPoint() { return lllPoint_; }
 
 	const gp_Pnt& getUrrPoint() { return urrPoint_; }
-
-	double getRotation() { return originRot_; }
 
 	const gp_Trsf& getObjectTranslation() { return objectTranslation_; }
 

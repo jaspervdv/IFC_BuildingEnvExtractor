@@ -243,6 +243,7 @@ inc/DataManager.cpp
 inc/helper.cpp
 inc/IOManager.cpp
 inc/settingsCollection.cpp
+inc/stringManager.cpp
 inc/surfaceCollection.cpp
 inc/voxel.cpp
 inc/voxelGrid.cpp
