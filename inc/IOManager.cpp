@@ -89,6 +89,16 @@ bool IOManager::getJSONValues()
 		if (json[outputReportOName] == 0) { sudoSettingsPtr_->writeReport_ = false; }
 	}
 
+	std::string threadMaxOName = JsonObjectInEnum::getString(JsonObjectInID::maxThread);
+	if (json.contains(threadMaxOName))
+	{
+		if (json[threadMaxOName].type() != nlohmann::json::value_t::number_integer && json[threadMaxOName].type() != nlohmann::json::value_t::number_unsigned)
+		{
+			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONThreadNum));
+		}
+		if (json[threadMaxOName] > 0) { sudoSettingsPtr_->threadcount_ = json[threadMaxOName]; }
+	}
+
 	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
 	if (!json.contains(filePathsOName))
 	{
@@ -467,6 +477,9 @@ void IOManager::printSummary()
 
 	std::cout << "- Footprint Elevation:" << std::endl;
 	std::cout << "    " << sudoSettingsPtr_->footprintElevation_ << std::endl;
+
+	std::cout << "- Max thread count" << std::endl;
+	std::cout << sudoSettingsPtr_->threadcount_ << std::endl;
 
 	std::cout << "=============================================================" << std::endl;
 }

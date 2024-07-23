@@ -168,6 +168,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 
 	case CommunicationStringID::errorJSONReportPath:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid output report entry";
+	case CommunicationStringID::errorJSONThreadNum:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid thread max count entry";
 	case CommunicationStringID::errorJSONFilePath:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain Filpaths Entry";
 	case CommunicationStringID::errorJSONInputPath:
@@ -239,8 +241,6 @@ std::string sourceIdentifierEnum::getString(sourceIdentifierID id)
 	default:
 		return "";
 	}
-
-	return std::string();
 }
 
 std::string JsonObjectInEnum::getString(JsonObjectInID id)
@@ -294,7 +294,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 
 	case JsonObjectInID::generateReport:
 		return "Generate report";
-
+	case JsonObjectInID::maxThread:
+		return "Threads";
 	default:
 		return "";
 	}

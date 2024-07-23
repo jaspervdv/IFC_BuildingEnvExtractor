@@ -117,6 +117,7 @@ enum class CommunicationStringID {
 	errorNoAreaUnit,
 
 	errorJSONReportPath,
+	errorJSONThreadNum,
 	errorJSONFilePath,
 	errorJSONInputPath,
 	errorJSONInvalInputPathFormat,
@@ -175,8 +176,10 @@ enum class JsonObjectInID {
 	JSONGenInterior,
 	JSONGeoreference,
 
+	lodOutput,
+
 	generateReport,
-	lodOutput
+	maxThread
 };
 
 class JsonObjectInEnum {

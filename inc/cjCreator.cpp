@@ -2229,8 +2229,8 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	auto startTime = std::chrono::steady_clock::now();
 
 	// split the range over cores
-	int coreCount = std::thread::hardware_concurrency();
-	int coreUse = coreCount - 1;
+	int coreCount = sudoSettings_->threadcount_;
+	int coreUse = coreCount;
 	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 	int voxelsGrown = 0;
 
@@ -2281,8 +2281,8 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList
 {
 	auto startTime = std::chrono::steady_clock::now();
 	// split the range over cores
-	int coreCount = std::thread::hardware_concurrency();
-	int coreUse = coreCount - 1;
+	int coreCount = sudoSettings_->threadcount_;
+	int coreUse = coreCount;
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 	int voxelsGrown = 0;
 

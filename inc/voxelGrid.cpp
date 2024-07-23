@@ -244,7 +244,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 void VoxelGrid::populatedVoxelGrid(helper* h)
 {
 	// split the range over cores
-	int coreUse = std::thread::hardware_concurrency() -1;
+	int coreUse = sudoSettings_->threadcount_ - 1;
 	int loopRange = xRelRange_ * yRelRange_;
 	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
 

@@ -1,4 +1,5 @@
 #include <vector>
+#include <thread>
 
 #ifndef SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
@@ -50,11 +51,15 @@ struct SettingsCollection {
 
 	double footprintElevation_ = 0;
 
+	double precision_ = 1e-6; //TODO: implement
+	double precisionCoarse_ = 1e-4; //TODO: implement
+
+	int threadcount_ = std::thread::hardware_concurrency(); //TODO: add to config file
+
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;
 
 	// \/ generated settings \/
-
 	// if LoD0.0 and 1.0 is generated only no voxels are required
 	bool requireVoxels_ = true;
 

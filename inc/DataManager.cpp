@@ -347,7 +347,7 @@ void helper::indexGeo()
 				for (auto it = roomBoundingObjects_.begin(); it != roomBoundingObjects_.end(); ++it) {
 					auto startTime = std::chrono::high_resolution_clock::now();
 
-					IfcSchema::IfcProduct::list::ptr selectedlist(new IfcSchema::IfcProduct::list);
+					IfcSchema::IfcProduct::list::ptr selectedlist = boost::shared_ptr<IfcSchema::IfcProduct::list>(); //TODO: check if this works without the raw pointer 
 					for (auto et = productList->begin(); et != productList->end(); ++et)
 					{
 						IfcSchema::IfcProduct* product = *et;

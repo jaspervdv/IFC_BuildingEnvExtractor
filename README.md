@@ -231,7 +231,8 @@ The settings json has a very simple structure. An example can be found below:
         "Generate roof outline": 1,
         "Generate interior": 1
     },
-    "Generate report": 1
+    "Generate report": 1,
+    "Threads": 12
 }
 ```
 
@@ -258,6 +259,7 @@ Optional:
 * "JSON" "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
 * "JSON" "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing. Default value: true.
 * "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
+* "Threads" is an int to set the maximum allowed threads to be used. Default value = hardware_concurrency according to std::threads.
 
 more options will be added in the future.
 
