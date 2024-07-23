@@ -2,6 +2,7 @@
 #include "cjCreator.h"
 #include "helper.h"
 #include "voxel.h"
+#include "stringManager.h"
 
 #include <chrono>
 
@@ -1320,18 +1321,21 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 
 void CJGeoCreator::initializeBasic(helper* cluster) {
-	std::cout << "- Pre proccessing" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPreProcessing) << std::endl;
 	// generate data required for most exports
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoarseFiltering) << std::endl;
 	std::vector<TopoDS_Shape> filteredObjects = getTopObjects(cluster);
 
-	std::cout << "- Reduce surfaces" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoReduceSurfaces) << std::endl;
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx;
 	std::vector<SurfaceGroup> shapeList;
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
-	std::cout << "- Fine filtering of roofing structures" << std::endl;
+
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFineFiltering) << std::endl;
 	FinefilterSurfaces(shapeList);
+
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
-	std::cout << "- Construct roof outlines" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofOutlineConstruction) << std::endl;
 	std::vector<Edge> edgeList = makeJumbledGround();
 
 	// find outer edge
@@ -1352,12 +1356,12 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 
 	// sort surface groups based on the footprints
 	startTime = std::chrono::steady_clock::now();
-	std::cout << "- Sort roofing structures" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureSorting) << std::endl;
 	if (roofOutlineList_.size() != 1) { sortRoofStructures(); }
 	printTime(startTime, std::chrono::steady_clock::now());
 
 	startTime = std::chrono::steady_clock::now();
-	std::cout << "- merge roofing structures" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureMerging) << std::endl;
 	mergeRoofSurfaces();
 	printTime(startTime, std::chrono::steady_clock::now());
 
@@ -1474,7 +1478,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 {
 	// get footprint
 	double floorlvl = sudoSettings_->footprintElevation_;
-	std::cout << "- Corse filtering footprint at z = " << floorlvl << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
 	try
@@ -1484,8 +1488,8 @@ void CJGeoCreator::makeFootprint(helper* h)
 	}
 	catch (const std::exception&)
 	{
-		std::cout << "\tUnsuccessful" << std::endl;
-		throw std::invalid_argument("Footprint extraction failed");
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorFootprintFailed));
 		return;
 	}
 
@@ -1499,7 +1503,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 void CJGeoCreator::makeFloorSectionCollection(helper* h)
 {
 	//TODO: find out where to take the storeys from
-	std::cout << "- Storey extraction" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingStoreys) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 	double storeyBuffer = 0.15;
 
@@ -1511,23 +1515,29 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		IfcSchema::IfcBuildingStorey* storeyObject = *it;
 		double storeyElevation = storeyObject->Elevation().get() * h->getScaler(0);
 
-		std::cout << "\t Floorlevel at z = " << storeyElevation << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentStoreyAtZ) << storeyElevation << std::endl;
 
 		try
 		{
 			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation - storeyBuffer);
 			std::map<std::string, std::string> semanticStoreyData;
 
-			semanticStoreyData.emplace("type", "BuildingStorey");
-			if (storeyObject->Name().get() != "") { semanticStoreyData.emplace("IFC_Name", storeyObject->Name().get()); }
-			if (storeyObject->LongName().get() != "") { semanticStoreyData.emplace("IFC_LongName", storeyObject->LongName().get()); }
-			semanticStoreyData.emplace("IFC_Elevation", std::to_string(storeyObject->Elevation().get() * h->getScaler(0)));
-			semanticStoreyData.emplace("IFC_Guid", storeyObject->GlobalId());
+			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeStorey));
+			if (storeyObject->Name().get() != "") 
+			{ 
+				semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcName), storeyObject->Name().get()); 
+			}
+			if (storeyObject->LongName().get() != "") 
+			{ 
+				semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcLongName), storeyObject->LongName().get()); 
+			}
+			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcElevation), std::to_string(storeyObject->Elevation().get() * h->getScaler(0)));
+			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcGuid), storeyObject->GlobalId());
 
 			std::map<std::string, std::string> storeyAttributeCollection = h->getProductPropertySet(storeyObject->GlobalId(), 0);
 
 			for (const auto& pair : storeyAttributeCollection) {
-				semanticStoreyData.emplace("IFC_" + pair.first, pair.second);
+				semanticStoreyData.emplace(sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + pair.first, pair.second);
 			}
 
 			storeyPrintList_.emplace_back(FloorOutlineObject(storeySurface, semanticStoreyData, storeyObject->GlobalId()));
@@ -1535,8 +1545,8 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		}
 		catch (const std::exception&)
 		{
-			std::cout << "\tUnsuccessful" << std::endl;
-			throw std::invalid_argument("storey extraction failed");
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorStoreyFailed));
 			continue;
 		}
 	}
@@ -1559,7 +1569,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 
 	if (productLookupValues.size() <= 0)
 	{
-		throw std::invalid_argument("floorprint extraction failed");
+		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
 		return{};
 	}
 
@@ -1581,7 +1591,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<TopoDS_Edge> rawEdgeList = section2edges(productLookupValues, h, sectionHeight);
 	if (rawEdgeList.size() <= 0)
 	{
-		throw std::invalid_argument("floorprint extraction failed");
+		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
 		return{};
 	}
 
@@ -1753,7 +1763,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 
 	if (!allSolids)
 	{
-		std::cout << "	Not all shapes could be converted to solids, output might be incorrect or inaccurate!" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolid) << std::endl;
 	}
 	return prismList;
 }
@@ -2075,10 +2085,12 @@ void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, st
 	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
 	if (duration < 5)
 	{
-		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << "ms" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentSuccesFinished) << 
+			std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count() << UnitStringEnum::getString(UnitStringID::milliseconds) << std::endl;
 	}
 	else {
-		std::cout << "	Successfully finished in: " << std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << "s" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentSuccesFinished) << 
+			std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 	}
 }
 
@@ -2162,7 +2174,6 @@ TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vecto
 std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Coarse filtering of roofing structures" << std::endl;
 
 	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx(); //TODO: this can be written more pretty 
 	std::vector<Value> topValues;
@@ -2424,11 +2435,14 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 		if (storeyObject->Name().has_value())
 		{ 
 			cityStoreyObject.setName(storeyObject->Name().get());
-			cityStoreyObject.addAttribute("IFC_Name", storeyObject->Name().get());
+			cityStoreyObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), storeyObject->Name().get());
 		}
-		if (storeyObject->LongName().has_value()) { cityStoreyObject.addAttribute("IFC_LongName", storeyObject->LongName().get()); }
-		cityStoreyObject.addAttribute("IFC_Guid", storeyObject->GlobalId());
-		cityStoreyObject.addAttribute("IFC_Elevation", storeyObject->Elevation().get());
+		if (storeyObject->LongName().has_value()) 
+		{ 
+			cityStoreyObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), storeyObject->LongName().get());
+		}
+		cityStoreyObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), storeyObject->GlobalId());
+		cityStoreyObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcElevation), storeyObject->Elevation().get());
 		cityStoreyObjects.emplace_back(std::make_shared< CJT::CityObject>(cityStoreyObject));
 	}
 	return cityStoreyObjects;
@@ -2437,7 +2451,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 0.0 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD00) << std::endl;
 
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
@@ -2452,7 +2466,7 @@ CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitS
 	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection, "0.0");
 
 	std::map<std::string, std::string> semanticData;
-	semanticData.emplace("type", "RoofSurface");
+	semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 	geoObject.appendSurfaceData(semanticData);
 	geoObject.appendSurfaceTypeValue(0);
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -2463,16 +2477,16 @@ CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitS
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 0.2 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD02) << std::endl;
 	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject>(); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 
 	std::map<std::string, std::string> semanticRoofData;
-	semanticRoofData.emplace("type", "RoofSurface");
+	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
 	std::map<std::string, std::string> semanticFootData;
-	semanticFootData.emplace("type", "GroundSurface");
+	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
 	gp_Pnt urr = h->getUrrPoint();
 
@@ -2540,7 +2554,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 
 			for (size_t j = 0; j < storeyCityObjects.size(); j++)
 			{
-				if (currentStoreySemantic["IFC_Guid"] != storeyCityObjects[j]->getAttributes()["IFC_Guid"])
+				if (currentStoreySemantic[CJObjectEnum::getString(CJObjectID::ifcGuid)] != storeyCityObjects[j]->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
 				{
 					continue;
 				}
@@ -2571,7 +2585,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 1.0 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD10) << std::endl;
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 	double rotationAngle = sudoSettings_->gridRotation_;
@@ -2629,11 +2643,11 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
 	std::map<std::string, std::string> grMap;
-	grMap.emplace("type", "GroundSurface");
+	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 	std::map<std::string, std::string> wMap;
-	wMap.emplace("type", "WallSurface");
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
 	std::map<std::string, std::string> rMap;
-	rMap.emplace("type", "RoofSurface");
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
 	geoObject.appendSurfaceData(grMap);
 	geoObject.appendSurfaceData(wMap);
@@ -2652,7 +2666,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 1.2 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD12) << std::endl;
 	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject>(); } }
 
 	std::vector< CJT::GeoObject> geoObjectList;
@@ -2682,11 +2696,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(extrudedShape, "1.2");
 		std::map<std::string, std::string> grMap;
-		grMap.emplace("type", "GroundSurface");
+		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 		std::map<std::string, std::string> wMap;
-		wMap.emplace("type", "WallSurface");
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
 		std::map<std::string, std::string> rMap;
-		rMap.emplace("type", "RoofSurface");
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 		geoObject.appendSurfaceData(grMap);
 		geoObject.appendSurfaceData(wMap);
 		geoObject.appendSurfaceData(rMap);
@@ -2709,7 +2723,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 1.3 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!hasTopFaces_)
@@ -2738,11 +2752,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
 		std::map<std::string, std::string> grMap;
-		grMap.emplace("type", "GroundSurface");
+		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 		std::map<std::string, std::string> wMap;
-		wMap.emplace("type", "WallSurface");
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
 		std::map<std::string, std::string> rMap;
-		rMap.emplace("type", "RoofSurface");
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 		geoObject.appendSurfaceData(grMap);
 		geoObject.appendSurfaceData(wMap);
 		geoObject.appendSurfaceData(rMap);
@@ -2760,7 +2774,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << "- Computing LoD 2.2 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!hasTopFaces_)
@@ -2789,11 +2803,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "2.2");
 		std::map<std::string, std::string> grMap;
-		grMap.emplace("type", "GroundSurface");
+		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 		std::map<std::string, std::string> wMap;
-		wMap.emplace("type", "WallSurface");
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
 		std::map<std::string, std::string> rMap;
-		rMap.emplace("type", "RoofSurface");
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 		geoObject.appendSurfaceData(grMap);
 		geoObject.appendSurfaceData(wMap);
 		geoObject.appendSurfaceData(rMap);
@@ -2810,7 +2824,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 
 std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	std::cout << "- Computing LoD 3.2 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
@@ -2921,7 +2935,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 
 std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	std::cout << "- Computing LoD 5.0 Model" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
 	voxelGrid_->computeSurfaceSemantics(h);
@@ -2938,7 +2952,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
-		std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolidLoD50) << std::endl;
 		CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
@@ -2961,7 +2975,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 
 std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale)
 {
-	std::cout << "- Computing LoD 5.0 Rooms" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50Rooms) << std::endl;
 
 	auto startTime = std::chrono::steady_clock::now();
 	std::vector<CJT::CityObject> roomObjectList; // final output collection
@@ -3003,11 +3017,11 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 			if (product->Name().has_value()) {
 
 				roomObject.setName(product->Name().get());
-				roomObject.addAttribute("IFC_Name", product->Name().get());
-				roomObject.addAttribute("IFC_Guid", product->GlobalId());
+				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), product->Name().get());
+				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), product->GlobalId());
 			}
 
-			roomObject.addAttribute("IFC_LongName", longName);
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
 			// find the storey that the room is located at
 
 #ifdef USE_IFC4
@@ -3030,7 +3044,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 				{
 					std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
 
-					if (targetStoreyGuid != storeyCityObject->getAttributes()["IFC_Guid"])
+					if (targetStoreyGuid != storeyCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
 					{
 						continue;
 					}
@@ -3052,7 +3066,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 		{
-			std::cout << "	Unable to create solid shape, multisurface stored" << std::endl;
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolidLoD50) << std::endl;
 			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
 			roomObject.addGeoObject(geoObject);
 			continue;
@@ -3080,7 +3094,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	std::cout << "- Extracting Site Data" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExtractingSite) << std::endl;
 	std::vector<CJT::CityObject> siteObjectList;
 	double buffer = 0.001;
 	int geoCount = 0;
@@ -3100,7 +3114,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 		if (geoCount > 1)
 		{
-			std::cout << "[WARNING] more than one Site Element found, site export terminated" << std::endl;
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningDubSites) << std::endl;
 			return std::vector<CJT::CityObject>();
 		}
 
@@ -3141,7 +3155,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	
 	if (completeFuseToolList.Size() == 0)
 	{
-		std::cout << "[INFO] no Geographic or Site Element was found" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSites) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 
@@ -3228,7 +3242,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 	if (!toolList.Size())
 	{
-		std::cout << "[WARNING] no site could be reconstructed" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningSiteReconstructionFailed) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 
@@ -3307,7 +3321,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 	if (!fuser.IsDone())
 	{
-		std::cout << "[WARNING] no site could be reconstructed" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningSiteReconstructionFailed) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 
@@ -3315,7 +3329,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	CJT::GeoObject geoObject = kernel->convertToJSON(fuser.Shape(), "1");
 	siteObject.addGeoObject(geoObject);
 	siteObject.setType(CJT::Building_Type::TINRelief);
-	siteObject.setName("Site");
+	siteObject.setName(CJObjectEnum::getString(CJObjectID::CJTypeSiteObject));
 
 	siteObjectList.emplace_back(siteObject);
 	return siteObjectList;
@@ -3371,7 +3385,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 	double shellVolume = internalVoxels.size()* voxelVolume;
 
-	shellObject->addAttribute("Env_ex V shell volume", shellVolume);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxShellVolume), shellVolume);
 
 	double lowerEvalHeight = footprintHeight - (0.5 * voxelSize);
 	double higherEvalHeight = footprintHeight + (0.5 * voxelSize);
@@ -3428,18 +3442,18 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 		windowArea += voxelArea;
 	}
 
-	shellObject->addAttribute("Env_ex V basement shell volume", basementVolume);
-	shellObject->addAttribute("Env_ex V building shell volume", shellVolume - basementVolume);
-	shellObject->addAttribute("Env_ex V shell area", shellArea);
-	shellObject->addAttribute("Env_ex V basement shell area", basementArea + footprintArea);
-	shellObject->addAttribute("Env_ex V building shell area", shellArea - basementArea + footprintArea);
-	shellObject->addAttribute("Env_ex V footprint area", footprintArea);
-	shellObject->addAttribute("Env_ex V facade opening area", windowArea);
-	shellObject->addAttribute("Env_ex voxelSize", voxelSize);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxBasementShellVolume), basementVolume);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxBuildingShellVolume), shellVolume - basementVolume);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxShellArea), shellArea);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxBasementShellArea), basementArea + footprintArea);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxBuildingShellArea), shellArea - basementArea + footprintArea);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxFootprintArea), footprintArea);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxFaceadeOpeningArea), windowArea);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvVoxelSize), voxelSize);
 
 	gp_Pnt anchor = voxelGrid_->getAnchor();
-	shellObject->addAttribute("Env_ex voxelGrid Anchor", (anchor.X(), anchor.Y(), anchor.Z() ) );
-	shellObject->addAttribute("Env_ex voxelGrid rotation", voxelGrid_->getRotation() + geoRot);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvVoxelAnchor), (anchor.X(), anchor.Y(), anchor.Z() ) );
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvVoxelRotation), voxelGrid_->getRotation() + geoRot);
 }
 
 void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h)
@@ -3460,8 +3474,8 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 		}
 	}
 
-
-	shellObject->addAttribute("Env_ex Vvolume rooms", totalRoomVolume);
+	//TODO: add room area?
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomVolume), totalRoomVolume);
 
 }
 
@@ -3794,46 +3808,6 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 
 CJGeoCreator::CJGeoCreator(helper* h, std::shared_ptr<SettingsCollection> settings, double vSize)
 {
-	// ask user for desired voxel dimensions
-	if (vSize == -1)
-	{
-		std::string stringXYSize = "";
-		std::string stringZSize = "";
-
-		while (true)
-		{
-			std::cout << "Enter voxel XY dimenion (double):";
-			std::cin >> stringXYSize;
-
-			char* end = nullptr;
-			double val = strtod(stringXYSize.c_str(), &end);
-
-
-			if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
-			{
-				break;
-			}
-		}
-
-		while (true)
-		{
-			std::cout << "Enter voxel Z dimension (double):";
-			std::cin >> stringZSize;
-
-			char* end = nullptr;
-			double val = strtod(stringXYSize.c_str(), &end);
-
-
-			if (end != stringXYSize.c_str() && *end == '\0' && val != HUGE_VAL)
-			{
-				break;
-			}
-		}
-
-		std::cout << std::endl;
-		sudoSettings_->voxelSize_= std::stod(stringXYSize);
-	}
-
 	// compute generic voxelfield data
 	sudoSettings_ = settings;
 	voxelGrid_ = new VoxelGrid(h, sudoSettings_);

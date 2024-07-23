@@ -885,7 +885,7 @@ bool IOManager::run()
 
 	collection->setMetaData(metaData);
 
-	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "Env_ex footprint elevation", sudoSettingsPtr_->footprintElevation_);
+	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", sudoSettingsPtr_->footprintElevation_);
 	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - sudoSettingsPtr_->footprintElevation_);
 
 	if (summaryVoxel())

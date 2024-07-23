@@ -35,6 +35,7 @@ public:
 
 enum class sourceIdentifierID {
 	envExtractor,
+	envExtractorVApprox,
 	voxel,
 	ifc
 };
@@ -69,9 +70,44 @@ enum class CommunicationStringID {
 	infoCreateSpatialIndex,
 	infoFoundUnits,
 	infoDefaultVolumeUnit,
+
+	infoPreProcessing,
+	infoCoarseFiltering,
+	infoReduceSurfaces,
+	infoFineFiltering,
+	infoRoofOutlineConstruction,
+	infoRoofStructureSorting,
+	infoRoofStructureMerging,
+	infoCoasreFootFiltering,
+
+	infoNoVoxelizationReq,
+	infoNocompleteVoxelizationReq,
+	infoInterioSpacesGrowing,
+	infoPairVoxels,
+
+	infoComputingStoreys,
+	infoComputingLoD00,
+	infoComputingLoD02,
+	infoComputingLoD10,
+	infoComputingLoD12,
+	infoComputingLoD13,
+	infoComputingLoD22,
+	infoComputingLoD32,
+	infoComputingLoD50,
+	infoComputingLoD50Rooms,
+	infoExtractingSite,
+	infoPopulateGrid,
+	infoExteriorSpaceGrowing,
+	indentNoExteriorSpace,
+
 	indentValidIFCFound,
 	indentcompIFCFound,
 	indentSuccesFinished,
+	indentUnsuccesful,
+	indentStoreyAtZ,
+	indentExteriorSpaceGrown,
+	indentInteriorSpaceGrown,
+	indentPairedVoxels,
 
 	errorNoValFilePaths,
 	errorUnableToProcessFile,
@@ -91,6 +127,9 @@ enum class CommunicationStringID {
 	errorJSONInvalOuputFormat,
 	errorJSONInvalOutputFolder,
 	errorJSONNoDivObjects,
+	errorFootprintFailed,
+	errorStoreyFailed,
+	errorLoD02StoreyFailed,
 
 	warningUnableToParseIFC,
 	warningNoValidIFC,
@@ -98,7 +137,12 @@ enum class CommunicationStringID {
 	warningNoSlab,
 	warningMultipleProjections,
 	warningNoVolumeUnit,
-	warmingIssueencountered
+	warmingIssueencountered,
+	warningNoSolid,
+	warningNoSolidLoD50,
+	warningDubSites,
+	warningNoSites,
+	warningSiteReconstructionFailed
 };
 
 class CommunicationStringEnum {
@@ -144,11 +188,37 @@ enum class CJObjectID {
 	metaDataTitle,
 	outerShell,
 	innerShell,
+	
+	CJType,
+	CJTypeStorey,
+	CJTypeRoofSurface,
+	CJTypeGroundSurface,
+	CJTypeWallSurface,
+	CJTypeSiteObject,
+
+	voxelApproxShellVolume,
+	voxelApproxBasementShellVolume,
+	voxelApproxBuildingShellVolume,
+	voxelApproxRoomVolume,
+	voxelApproxShellArea,
+	voxelApproxBasementShellArea,
+	voxelApproxBuildingShellArea,
+	voxelApproxFootprintArea,
+	voxelApproxFaceadeOpeningArea,
+
+	EnvVoxelSize,
+	EnvVoxelAnchor,
+	EnvVoxelRotation,
+
 	v11,
+	v20,
+
 	ifcDescription,
 	ifcObjectType,
 	ifcName,
-	ifcLongName
+	ifcLongName,
+	ifcElevation,
+	ifcGuid
 };
 
 class CJObjectEnum {

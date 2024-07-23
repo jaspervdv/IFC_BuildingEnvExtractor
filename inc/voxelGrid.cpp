@@ -1,6 +1,8 @@
 #include "helper.h"
 #include "voxelGrid.h"
 #include "voxel.h"
+#include "stringManager.h"
+
 #include <algorithm>
 #include <execution>
 #include <thread>   
@@ -136,19 +138,19 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	}
 
 	if (!sudoSettings_->requireVoxels_) { 
-		std::cout << "[INFO] No voxelization required "  << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoNoVoxelizationReq) << std::endl;
 		return; 
 	} // no voxels needed for lod0.0 and 1.0 only
 
-	std::cout << "- Populate Grid" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPopulateGrid) << std::endl;
 	populatedVoxelGrid(h);
 
 	if (!sudoSettings_->requireFullVoxels_) { 
-		std::cout << "[INFO] No complete voxelization required " << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoNocompleteVoxelizationReq) << std::endl;
 		return; 
 	}
 
-	std::cout << "- Exterior space growing" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExteriorSpaceGrowing) << std::endl;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
 		if (!VoxelLookup_[i]->getIsIntersecting())
@@ -161,13 +163,17 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	std::cout << std::endl;
 	if (exteriorVoxelsIdx_.size() == 0)
 	{
-		std::cout << "No exterior space has been found" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentNoExteriorSpace) << std::endl;
 	}
-	std::cout << "\tExterior space succesfully grown" << std::endl;
+	else
+	{
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentExteriorSpaceGrown) << std::endl;
+	}
+
 
 	if (sudoSettings_->makeInterior_)
 	{
-		std::cout << "- Interior spaces growing" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInterioSpacesGrowing) << std::endl;
 		roomSize_ = 1;
 		for (int i = 0; i < totalVoxels_; i++)
 		{
@@ -177,10 +183,10 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 				roomSize_++;
 			}
 		}
-		std::cout << "\tInterior spaces succesfully grown" << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
 	}
 
-	std::cout << "- Pair voxels" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPairVoxels) << std::endl;
 	int buildingNum = 0;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
@@ -190,7 +196,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 			buildingNum++;
 		}
 	}
-	std::cout << "\tVoxel pairing succesful" << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentPairedVoxels) << std::endl;
 	std::cout << "\t" << buildingNum << " buildings(s) found" << std::endl << std::endl;
 
 	return;

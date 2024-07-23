@@ -76,9 +76,63 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoCreateSpatialIndex:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Create Spatial Index";
 	case CommunicationStringID::infoFoundUnits:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "found units:";
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Found units:";
 	case CommunicationStringID::infoDefaultVolumeUnit:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "SI unit for volume is set to cubic metre";
+
+	case CommunicationStringID::infoPreProcessing:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Pre proccessing";
+	case CommunicationStringID::infoCoarseFiltering:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Coarse filtering of roofing structures";
+	case CommunicationStringID::infoReduceSurfaces:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Reduce surfaces";
+	case CommunicationStringID::infoFineFiltering:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Fine filtering of roofing structures";
+	case CommunicationStringID::infoRoofOutlineConstruction:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Construct roof outlines";
+	case CommunicationStringID::infoRoofStructureSorting:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Sort roofing structures";
+	case CommunicationStringID::infoRoofStructureMerging:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "merge roofing structures";
+	case CommunicationStringID::infoCoasreFootFiltering:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Corse filtering footprint at z = ";
+
+	case CommunicationStringID::infoNoVoxelizationReq:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "No voxelization required";
+	case CommunicationStringID::infoNocompleteVoxelizationReq:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "No complete voxelization required";
+	case CommunicationStringID::infoInterioSpacesGrowing:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Interior spaces growing";
+	case CommunicationStringID::infoPairVoxels:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Pair voxels";
+
+	case CommunicationStringID::infoComputingStoreys:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Storey extraction";
+	case CommunicationStringID::infoComputingLoD00:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.0 Model";
+	case CommunicationStringID::infoComputingLoD02:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.2 Model";
+	case CommunicationStringID::infoComputingLoD10:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 1.0 Model";
+	case CommunicationStringID::infoComputingLoD12:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 1.2 Model";
+	case CommunicationStringID::infoComputingLoD13:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 1.3 Model";
+	case CommunicationStringID::infoComputingLoD22:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 2.2 Model";
+	case CommunicationStringID::infoComputingLoD32:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 3.2 Model";
+	case CommunicationStringID::infoComputingLoD50:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 5.0 Model";
+	case CommunicationStringID::infoComputingLoD50Rooms:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 5.0 Rooms";
+	case CommunicationStringID::infoExtractingSite:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Extracting Site Data";
+	case CommunicationStringID::infoPopulateGrid:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Populate Grid";
+	case CommunicationStringID::infoExteriorSpaceGrowing:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Exterior space growing";
+
 
 	case CommunicationStringID::indentValidIFCFound:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Valid IFC file found";
@@ -86,11 +140,23 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Compatible scheme found: ";
 	case CommunicationStringID::indentSuccesFinished:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Successfully finished in: ";
+	case CommunicationStringID::indentUnsuccesful:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Unsuccessful";
+	case CommunicationStringID::indentStoreyAtZ:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Floorlevel at z = ";
+	case CommunicationStringID::indentExteriorSpaceGrown:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Exterior space succesfully grown";
+	case CommunicationStringID::indentNoExteriorSpace:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "No exterior space has been found";
+	case CommunicationStringID::indentInteriorSpaceGrown:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Interior space succesfully grown";
+	case CommunicationStringID::indentPairedVoxels:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Voxel pairing succesful";
 
 	case CommunicationStringID::errorNoValFilePaths:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No valid filepath has been supplied";
 	case CommunicationStringID::errorUnableToProcessFile:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "unable to process file(s)";
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Unable to process file(s)";
 	case CommunicationStringID::errorNoUnits:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No unit assignment has been found";
 	case CommunicationStringID::errorMultipleUnits:
@@ -122,6 +188,12 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Target filepath folder does not exist";
 	case CommunicationStringID::errorJSONNoDivObjects:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No div objects are selected";
+	case CommunicationStringID::errorFootprintFailed:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Footprint extraction failed";
+	case CommunicationStringID::errorStoreyFailed:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "storey extraction failed";
+	case CommunicationStringID::errorLoD02StoreyFailed:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "LoD0.2 Storey shape extraction failed";
 
 
 	case CommunicationStringID::warningUnableToParseIFC:
@@ -138,6 +210,16 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "SI unit for volume cannot be found";
 	case CommunicationStringID::warmingIssueencountered:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Encountered an issue";
+	case CommunicationStringID::warningNoSolid:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Not all shapes could be converted to solids, output might be incorrect or inaccurate";
+	case CommunicationStringID::warningNoSolidLoD50:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Unable to create solid shape, multisurface stored";	
+	case CommunicationStringID::warningDubSites:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "More than one Site Element found, site export terminated";	
+	case CommunicationStringID::warningNoSites:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No Geographic or Site Element was found";	
+	case CommunicationStringID::warningSiteReconstructionFailed:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No site could be reconstructed";
 	default:
 		return "Output string not found";
 	}
@@ -148,6 +230,8 @@ std::string sourceIdentifierEnum::getString(sourceIdentifierID id)
 	switch (id) {
 	case sourceIdentifierID::envExtractor:
 		return "Env_ex ";
+	case sourceIdentifierID::envExtractorVApprox:
+		return "Env_vox ";
 	case sourceIdentifierID::voxel:
 		return "V_ex ";
 	case sourceIdentifierID::ifc:
@@ -225,8 +309,51 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "Outer Shell";
 	case CJObjectID::innerShell:
 		return "Inner Shell";
+
+	case CJObjectID::CJType:
+		return "type";
+	case CJObjectID::CJTypeStorey:
+		return "BuildingStorey";
+	case CJObjectID::CJTypeRoofSurface:
+		return "RoofSurface";
+	case CJObjectID::CJTypeGroundSurface:
+		return "GroundSurface";
+	case CJObjectID::CJTypeWallSurface:
+		return "WallSurface";	
+	case CJObjectID::CJTypeSiteObject:
+		return "Site";
+
+	case CJObjectID::voxelApproxShellVolume:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "shell volume";
+	case CJObjectID::voxelApproxBuildingShellVolume:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "basement shell volume";
+	case CJObjectID::voxelApproxBasementShellVolume:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "building shell volume";
+	case CJObjectID::voxelApproxRoomVolume:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "total room volume";
+	case CJObjectID::voxelApproxShellArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "shell area";
+	case CJObjectID::voxelApproxBasementShellArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "basement shell area";
+	case CJObjectID::voxelApproxBuildingShellArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "building shell area";
+	case CJObjectID::voxelApproxFootprintArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "footprint shell area";
+	case CJObjectID::voxelApproxFaceadeOpeningArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "facade opening area";
+
+	case CJObjectID::EnvVoxelSize:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "voxel size";
+	case CJObjectID::EnvVoxelAnchor:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "voxelGrid anchor";
+	case CJObjectID::EnvVoxelRotation:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "voxelGrid rotation";
+
 	case CJObjectID::v11:
 		return "1.1";
+	case CJObjectID::v20:
+		return "2.0";
+
 	case CJObjectID::ifcDescription:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Description";
 	case CJObjectID::ifcObjectType:
@@ -235,6 +362,10 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Name";
 	case CJObjectID::ifcLongName:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Long Name";
+	case CJObjectID::ifcElevation:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Elevation";
+	case CJObjectID::ifcGuid:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Guid";
 	default:
 		return "";
 	}
