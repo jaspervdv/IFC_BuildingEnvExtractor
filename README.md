@@ -223,7 +223,8 @@ The settings json has a very simple structure. An example can be found below:
     "IFC": {
         "Rotation" : false,
         "Default div": true,
-        "Ignore Proxy": true
+        "Ignore Proxy": true,
+        "Div objects" : []
     },
     "JSON" : {
         "Footprint elevation": 1,
