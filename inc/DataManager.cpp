@@ -349,13 +349,14 @@ void helper::indexGeo()
 				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 			}
 		}
-		else //TODO: make this better
+		else // add custom set div objects
 		{
 				std::vector<std::string> roomBoundingObjects_ = settingsCollection.getCustomDivList();
 
 				for (std::string roomBoundingObject : roomBoundingObjects_)
 				{
 					auto startTime = std::chrono::high_resolution_clock::now();
+
 					IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
 					for (size_t i = 0; i < dataCollectionSize_; i++)
 					{
@@ -540,7 +541,7 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 
 	for (size_t i = 0; i < qResult.size(); i++)
 	{
-		lookupValue* lookup = productLookup_.at(qResult[i].second);
+		std::shared_ptr<lookupValue> lookup = productLookup_.at(qResult[i].second);
 		IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
 		std::string qProductType = qProduct->data().type()->name();
 
@@ -1058,7 +1059,7 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 			cbbox = boxSimplefy(shape);
 		}
 
-		lookupValue* lookup = new lookupValue(product, shape, simpleShape, cbbox);
+		std::shared_ptr<lookupValue> lookup = std::make_shared<lookupValue>(product, shape, simpleShape, cbbox);
 
 		if (addToRoomIndx)
 		{
@@ -1306,7 +1307,7 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 		return;
 	}
 
-	lookupValue* currentLookupvalue = productLookup_[productIndxLookup_[objectType][product->GlobalId()]];
+	std::shared_ptr<lookupValue> currentLookupvalue = productLookup_[productIndxLookup_[objectType][product->GlobalId()]];
 	currentLookupvalue->setSimpleShape(shape);
 }
 
@@ -1430,7 +1431,7 @@ void helper::voidShapeAdjust(T products)
 
 			for (size_t i = 0; i < qResult.size(); i++)
 			{
-				lookupValue* lookup = getLookup(qResult[i].second);
+				std::shared_ptr<lookupValue> lookup = getLookup(qResult[i].second);
 				IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
 
 				if (cuttingObjects_.find(qProduct->data().type()->name()) == cuttingObjects_.end()) { continue; }

@@ -37,7 +37,7 @@ class CJGeoCreator {
 private:
 	// default spatial index tree depth
 	static const int treeDepth_ = 25;
-	VoxelGrid* voxelGrid_ = nullptr;
+	std::shared_ptr<VoxelGrid> voxelGrid_ = nullptr;
 
 	// rotation of the voxelgrid (or inverse rotation of the objects)
 	gp_Trsf geoRefRotation_;
@@ -122,7 +122,7 @@ private:
 	std::vector<TopoDS_Edge> getOuterEdges(
 		const std::vector<Edge>& edgeList,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<voxel*>& originVoxels,
+		const std::vector<std::shared_ptr<voxel>>& originVoxels,
 		double floorlvl);
 
 	/// @brief get the footprint shapes from the collection of outer edges
@@ -179,9 +179,9 @@ private:
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
 		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
-		std::vector<voxel*>* originVoxels,
+		std::vector<std::shared_ptr<voxel>>* originVoxels,
 		std::vector<Value>* productLookupValues, 
-		const std::vector<voxel*> exteriorVoxels
+		const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 	);
 
 	/// remove objects that are completely encapsulated by other objects
@@ -196,7 +196,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<voxel*>& originVoxels,
+		const std::vector<std::shared_ptr<voxel>>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		double gridDistance,
 		double buffer
@@ -208,7 +208,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<voxel*>& originVoxels,
+		const std::vector<std::shared_ptr<voxel>>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		double gridDistance,
 		double buffer
@@ -219,7 +219,7 @@ private:
 		const TopoDS_Shape& currentShape,
 		const TopoDS_Face& currentFace,
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<voxel*>& originVoxels,
+		const std::vector<std::shared_ptr<voxel>>& originVoxels,
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		const gp_Pnt& point,
 		const double& buffer);

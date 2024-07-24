@@ -93,7 +93,7 @@ struct helperFunctions{
 	/// Get the highest point of a shape
 	static gp_Pnt getHighestPoint(const TopoDS_Shape& shape);
 	/// get the middlepoint of the face located in the first triangle of its triangulation
-	static gp_Pnt getPointOnFace(const TopoDS_Face& theFace);
+	static std::optional<gp_Pnt> getPointOnFace(const TopoDS_Face& theFace);
 	static std::vector<gp_Pnt> getPointListOnFace(const TopoDS_Face& theFace);
 	/// make a reversed copy of the input wire
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
@@ -178,9 +178,9 @@ struct helperFunctions{
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 
 	/// get the intersection between two linear lines, returns 0 if not intersection
-	static gp_Pnt* linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);
-	static gp_Pnt* linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer = 0.01);
-	static gp_Pnt* linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
+	static std::optional<gp_Pnt> linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer = 0.01);
+	static std::optional<gp_Pnt> linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer = 0.01);
+	static std::optional<gp_Pnt> linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
 
 	/// Check if surface is completely overlapped
 	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace);

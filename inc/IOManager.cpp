@@ -487,7 +487,7 @@ void IOManager::printSummary()
 	std::cout << "    " << settingsCollection.footprintElevation() << std::endl;
 
 	std::cout << "- Max thread count" << std::endl;
-	std::cout << settingsCollection.threadcount() << std::endl;
+	std::cout << "    " <<  settingsCollection.threadcount() << std::endl;
 
 	std::cout << "=============================================================" << std::endl;
 }

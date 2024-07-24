@@ -14,7 +14,7 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
 
-	voxel* boxel = new voxel(midPoint, settingsCollection.voxelSize(), settingsCollection.voxelSize());
+	std::shared_ptr<voxel> boxel = std::make_shared<voxel>(voxel(midPoint, settingsCollection.voxelSize(), settingsCollection.voxelSize()));
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
 	auto boxelGeo = boxel->getVoxelGeo();
@@ -33,7 +33,7 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 		h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
 		for (size_t k = 0; k < qResult.size(); k++)
 		{
-			lookupValue* lookup = h->getLookup(qResult[k].second);
+			std::shared_ptr<lookupValue> lookup = h->getLookup(qResult[k].second);
 			std::string productType = lookup->getProductPtr()->data().type()->name();
 
 			//if (productTypesList.find(productType) != productTypesList.end()) { continue; }
@@ -209,11 +209,11 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 	hasSemanticSurfaces_ = true;
 
 	// compute external surfaces
-	std::vector<voxel*> intersectingVoxels = getIntersectingVoxels();
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels = getIntersectingVoxels();
 
 	for (size_t i = 0; i < intersectingVoxels.size(); i++)
 	{
-		voxel* currentVoxel = intersectingVoxels[i];
+		std::shared_ptr<voxel> currentVoxel = intersectingVoxels[i];
 
 		// find the roofs
 		if (currentVoxel->hasFace(4))
@@ -234,7 +234,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 
 				if (boundNeighbourIndx == -1) { continue; }
 
-				voxel* boundNeighbour = VoxelLookup_[boundNeighbourIndx];
+				std::shared_ptr<voxel> boundNeighbour = VoxelLookup_[boundNeighbourIndx];
 				boundNeighbour->addWindowSemantic(cidxDir);
 
 			}
@@ -345,12 +345,12 @@ void VoxelGrid::countVoxels(const int* voxelGrowthCount)
 }
 
 
-std::vector<voxel*> VoxelGrid::getIntersectingVoxels()
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getIntersectingVoxels()
 {
-	std::vector<voxel*> intersectingVoxels;
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels;
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
-		voxel* currentVoxel = i->second;
+		std::shared_ptr<voxel> currentVoxel = i->second;
 		if (!currentVoxel->getIsIntersecting()) { continue; }
 		if (currentVoxel->getBuildingNum() == -1) { continue; }
 
@@ -360,12 +360,12 @@ std::vector<voxel*> VoxelGrid::getIntersectingVoxels()
 }
 
 
-std::vector<voxel*> VoxelGrid::getExternalVoxels()
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getExternalVoxels()
 {
-	std::vector<voxel*> externalVoxels;
+	std::vector<std::shared_ptr<voxel>> externalVoxels;
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
-		voxel* currentVoxel = i->second;
+		std::shared_ptr<voxel> currentVoxel = i->second;
 
 		if (currentVoxel->getIsInside()) { continue; }
 
@@ -374,12 +374,12 @@ std::vector<voxel*> VoxelGrid::getExternalVoxels()
 	return externalVoxels;
 }
 
-std::vector<voxel*> VoxelGrid::getInternalVoxels()
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getInternalVoxels()
 {
-	std::vector<voxel*> internalVoxels;
+	std::vector<std::shared_ptr<voxel>> internalVoxels;
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
-		voxel* currentVoxel = i->second;
+		std::shared_ptr<voxel> currentVoxel = i->second;
 
 		if (!currentVoxel->getIsInside()) { continue; }
 
@@ -389,12 +389,12 @@ std::vector<voxel*> VoxelGrid::getInternalVoxels()
 }
 
 
-std::vector<voxel*> VoxelGrid::getVoxels()
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxels()
 {
-	std::vector<voxel*> externalVoxels;
+	std::vector<std::shared_ptr<voxel>> externalVoxels;
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
-		voxel* currentVoxel = i->second;
+		std::shared_ptr<voxel> currentVoxel = i->second;
 		externalVoxels.emplace_back(currentVoxel);
 	}
 	return externalVoxels;
@@ -421,7 +421,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 
 		for (int i = searchStartIdx; i < VoxelLookup_.size(); i++)
 		{
-			voxel* potentialVoxel = VoxelLookup_[i];
+			std::shared_ptr<voxel> potentialVoxel = VoxelLookup_[i];
 
 			if (evaluated[i] == 1) { continue; }
 			if (potentialVoxel->getRoomNum() != roomNum) { continue; }
@@ -445,7 +445,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 			for (auto bufferIT = buffer.begin(); bufferIT != buffer.end(); bufferIT++)
 			{
 				int bufferIndx = *bufferIT;
-				voxel* currentVoxel = VoxelLookup_[bufferIndx];
+				std::shared_ptr<voxel> currentVoxel = VoxelLookup_[bufferIndx];
 
 				bool isEdge = false;
 
@@ -454,7 +454,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 				{
 					int neighbourIndx = neighbourIndxList[allowedNeighbourDir[i]];
 					if (neighbourIndx == -1) { continue; }
-					voxel* neighbourVoxel = VoxelLookup_[neighbourIndx];
+					std::shared_ptr<voxel> neighbourVoxel = VoxelLookup_[neighbourIndx];
 
 					// find neighbour to grow into 
 					if (neighbourVoxel->hasFace(dirIndx)) {
@@ -606,7 +606,7 @@ gp_Pnt VoxelGrid::getPointInRoom(int roomNum)
 {
 	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
 	{
-		voxel* currentVoxel = i->second;
+		std::shared_ptr<voxel> currentVoxel = i->second;
 
 		if (currentVoxel->getRoomNum() == roomNum)
 		{
@@ -631,7 +631,7 @@ std::vector<int> VoxelGrid::getTopBoxelIndx() {
 }
 
 
-std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxelPlate(double platelvl) {
 	double voxelCount = (double) VoxelLookup_.size();
 	double zlvls = voxelCount / (static_cast<double>(xRelRange_) * static_cast<double>(yRelRange_));
 	double smallestDistanceToLvl = 999999;
@@ -640,9 +640,9 @@ std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 
 	for (int i = 0; i < zlvls; i++)
 	{
-		voxel v = *VoxelLookup_[i * xRelRange_ * yRelRange_];
+		std::shared_ptr<voxel> v = VoxelLookup_[i * xRelRange_ * yRelRange_];
 
-		double coreHeight = v.getCenterPoint().get<2>();
+		double coreHeight = v->getCenterPoint().get<2>();
 		double distanceToLvl = abs(platelvl - coreHeight);
 
 		if (distanceToLvl < smallestDistanceToLvl)
@@ -657,7 +657,7 @@ std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 	int lvl = plateVoxelLvl * xRelRange_ * yRelRange_;
 	int topLvL = (plateVoxelLvl + 1) * xRelRange_ * yRelRange_ - 1;
 
-	std::vector<voxel*> plateVoxels;
+	std::vector<std::shared_ptr<voxel>> plateVoxels;
 
 	for (int i = 0; i < VoxelLookup_.size(); i++)
 	{
@@ -816,7 +816,7 @@ std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelI
 	return std::vector<TopoDS_Edge>();
 }
 
-bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int indxDir)
+bool VoxelGrid::voxelBeamWindowIntersection(helper* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -825,9 +825,9 @@ bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int 
 
 	// get a beam
 	double voxelJump = settingsCollection.voxelSize();
-	std::vector<voxel*> voxelBeam;
+	std::vector<std::shared_ptr<voxel>> voxelBeam;
 
-	voxel* loopingCurrentVoxel = currentVoxel;
+	std::shared_ptr<voxel> loopingCurrentVoxel = currentVoxel;
 	voxelBeam.emplace_back(currentVoxel);
 
 	bool windowFound = false;
@@ -865,7 +865,7 @@ bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int 
 	return false;
 }
 
-std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
+std::vector<int> VoxelGrid::getNeighbours(std::shared_ptr<voxel> boxel, bool connect6)
 {
 	BoostPoint3D middlePoint = boxel->getCenterPoint();
 	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
@@ -873,7 +873,7 @@ std::vector<int> VoxelGrid::getNeighbours(voxel* boxel, bool connect6)
 	return getNeighbours(voxelInt, connect6);
 }
 
-int VoxelGrid::getNeighbour(voxel* boxel, int dir)
+int VoxelGrid::getNeighbour(std::shared_ptr<voxel> boxel, int dir)
 {
 	BoostPoint3D middlePoint = boxel->getCenterPoint();
 	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
@@ -961,7 +961,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 					continue;
 				}
 
-				voxel* neighbourVoxel = VoxelLookup_[neighbourIdx];
+				std::shared_ptr<voxel> neighbourVoxel = VoxelLookup_[neighbourIdx];
 
 				if (neighbourVoxel->getIsIntersecting())
 				{
@@ -1024,7 +1024,7 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 		for (size_t k = 0; k < totalRoom.size(); k++)
 		{
 			int currentIdx = totalRoom[k];
-			voxel* currentBoxel = VoxelLookup_[currentIdx];
+			std::shared_ptr<voxel> currentBoxel = VoxelLookup_[currentIdx];
 			if (!currentBoxel->getIsIntersecting())
 			{
 				currentBoxel->setOutside();
@@ -1047,14 +1047,14 @@ void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
 		for (size_t i = 0; i < buffer.size(); i++)
 		{
 			int currentIdx = buffer[i];
-			voxel* currentVoxel = VoxelLookup_[currentIdx];
+			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
 
 			std::vector<int> neighbours = getNeighbours(currentIdx);
 
 			for (size_t j = 0; j < neighbours.size(); j++)
 			{
 				int otherIdx = neighbours[j];
-				voxel* otherVoxel = VoxelLookup_[otherIdx];
+				std::shared_ptr<voxel> otherVoxel = VoxelLookup_[otherIdx];
 
 				if (!otherVoxel->getIsIntersecting()) { continue; }
 				if (otherVoxel->getBuildingNum() != -1) { continue; }

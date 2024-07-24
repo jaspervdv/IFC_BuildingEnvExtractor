@@ -124,9 +124,7 @@ void SurfaceGroup::populateGrid(double distance)
 			z / 6
 		);
 
-		pointGrid_.emplace_back(
-			new EvaluationPoint(centerPoint)
-		);
+		pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint));
 
 		double largestAngle = helperFunctions::computeLargestAngle(theFace);
 
@@ -149,8 +147,7 @@ void SurfaceGroup::populateGrid(double distance)
 
 				for (size_t j = 0; j < xSteps; j++)
 				{
-					pointGrid_.emplace_back(
-						new EvaluationPoint(centerPoint.Translated(translationVec * j))
+					pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint.Translated(translationVec * j))
 					);
 				}
 
@@ -175,7 +172,7 @@ void SurfaceGroup::populateGrid(double distance)
 
 			if (intersector.NbPnt() == 1) {
 				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				EvaluationPoint* evalPoint = new EvaluationPoint(intersector.Pnt(1)); //TODO: make smart
+				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersector.Pnt(1)); //TODO: make smart
 				pointGrid_.emplace_back(evalPoint);
 			}
 		}
@@ -188,7 +185,7 @@ void SurfaceGroup::populateGrid(double distance)
 bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter)
 {
 	TopoDS_Face currentFace = getFaces()[0];
-	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
+	std::vector<std::shared_ptr<EvaluationPoint>> currentGrid = getPointGrid();
 
 	double precision = SettingsCollection::getInstance().precision();
 
@@ -212,7 +209,7 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 
 		for (size_t k = 0; k < currentGrid.size(); k++)
 		{
-			EvaluationPoint* currentEvalPoint = currentGrid[k];
+			std::shared_ptr<EvaluationPoint> currentEvalPoint = currentGrid[k];
 
 			if (!currentEvalPoint->isVisible()) { continue; }
 

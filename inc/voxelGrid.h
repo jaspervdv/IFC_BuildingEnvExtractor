@@ -19,7 +19,7 @@ private:
 	int totalVoxels_;
 	std::mutex voxelGrowthMutex;
 
-	std::map<int, voxel*> VoxelLookup_;
+	std::map<int, std::shared_ptr<voxel>> VoxelLookup_;
 	std::mutex voxelLookupMutex;
 
 	// exterior voxels;
@@ -63,7 +63,7 @@ private:
 	std::vector<TopoDS_Edge> getTransitionalEdges(int dirIndx, int voxelIndx);
 
 	// returns true if beam casted from voxel intersects with a facade opening
-	bool voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int indxDir);
+	bool voxelBeamWindowIntersection(helper* h, std::shared_ptr<voxel> currentVoxel, int indxDir);
 
 
 public:
@@ -72,8 +72,8 @@ public:
 	void computeSurfaceSemantics(helper* h);
 
 	/// get a list of idx representing the neighbours of the input voxel
-	std::vector<int> getNeighbours(voxel* boxel, bool connect6 = false);
-	int getNeighbour(voxel* boxel, int dir);
+	std::vector<int> getNeighbours(std::shared_ptr<voxel> boxel, bool connect6 = false);
+	int getNeighbour(std::shared_ptr<voxel> boxel, int dir);
 
 	int getLowerNeighbour(int voxelIndx, bool connect6 = false);
 
@@ -81,14 +81,14 @@ public:
 	std::vector<int> getTopBoxelIndx();
 
 	const voxel& getVoxel(int i) { return *VoxelLookup_[i]; }
-	voxel* getVoxelPtr(int i) { return VoxelLookup_[i]; }
+	std::shared_ptr<voxel> getVoxelPtr(int i) { return VoxelLookup_[i]; }
 
 	// returns a plate in full x an y but 1 z the closes at the input platelvl 
-	std::vector<voxel*> getVoxelPlate(double platelvl);
-	std::vector<voxel*> getIntersectingVoxels();
-	std::vector<voxel*> getExternalVoxels();
-	std::vector<voxel*> getInternalVoxels();
-	std::vector<voxel*> getVoxels();
+	std::vector<std::shared_ptr<voxel>> getVoxelPlate(double platelvl);
+	std::vector<std::shared_ptr<voxel>> getIntersectingVoxels();
+	std::vector<std::shared_ptr<voxel>> getExternalVoxels();
+	std::vector<std::shared_ptr<voxel>> getInternalVoxels();
+	std::vector<std::shared_ptr<voxel>> getVoxels();
 
 	gp_Pnt getAnchor() { return anchor_; }
 	double getRotation() { return planeRotation_; }

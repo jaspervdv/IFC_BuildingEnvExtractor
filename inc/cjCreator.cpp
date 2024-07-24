@@ -390,11 +390,9 @@ std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& 
 		for (size_t j = 0; j < edges.size(); j++)
 		{
 			if (i == j) { continue; }
-			gp_Pnt* intersection = helperFunctions::linearLineIntersection(currentEdge, edges[j], project);
-
-			if (intersection == nullptr) { continue; }
-			intPoints.emplace_back(*intersection);
-			delete intersection;
+			std::optional<gp_Pnt> intersection = helperFunctions::linearLineIntersection(currentEdge, edges[j], project);
+			if (intersection == std::nullopt) { continue; }
+			intPoints.emplace_back(*intersection);;
 		}
 		if (intPoints.size() == 0) 
 		{ 
@@ -529,8 +527,8 @@ bool CJGeoCreator::isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>&
 		{
 			const TopoDS_Edge& edge = TopoDS::Edge(explorer.Current());
 			
-			if (helperFunctions::linearLineIntersection(evalEdge1, edge, false, precision) != nullptr) { intersectionCount1++; }
-			if (helperFunctions::linearLineIntersection(evalEdge2, edge, false, precision) != nullptr) { intersectionCount2++; }
+			if (helperFunctions::linearLineIntersection(evalEdge1, edge, false, precision) == std::nullopt) { intersectionCount1++; }
+			if (helperFunctions::linearLineIntersection(evalEdge2, edge, false, precision) == std::nullopt) { intersectionCount2++; }
 		}
 
 		if (intersectionCount1 % 2 == 1) { hasEval1 = true; }
@@ -576,7 +574,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(const std::vector<Edge>& ed
 std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 	const std::vector<Edge>& edgeList, 
 	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-	const std::vector<voxel*>& originVoxels,
+	const std::vector<std::shared_ptr<voxel>>& originVoxels,
 	double floorlvl
 ) {
 
@@ -1401,7 +1399,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		lookupValue* lookup = h->getLookup(productLookupValues[i].second);
+		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
 		TopoDS_Shape currentShape;
 
 		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
@@ -1571,10 +1569,10 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectionHeight)
 {
 	// get plate of voxels at groundplane height
-	std::vector<voxel*> exteriorLvlVoxels = voxelGrid_->getVoxelPlate(sectionHeight);
+	std::vector<std::shared_ptr<voxel>> exteriorLvlVoxels = voxelGrid_->getVoxelPlate(sectionHeight);
 
 	std::vector<Value> productLookupValues;
-	std::vector<voxel*> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
+	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, exteriorLvlVoxels);
 
@@ -1710,7 +1708,10 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			TopoDS_Face currentFace = faceList[j];
 			bool isHidden = false;
 
-			gp_Pnt basePoint = helperFunctions::getPointOnFace(currentFace);
+			std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
+			if (optionalBasePoint == std::nullopt) { continue; }
+
+			gp_Pnt basePoint = *optionalBasePoint;
 			gp_Pnt topPoint = gp_Pnt(basePoint.X(), basePoint.Z(), basePoint.Z() + 100000);
 
 			TopoDS_Edge evalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
@@ -2227,7 +2228,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
 					}
 					if (dub) { continue; }
 
-					lookupValue* lookup = h->getLookup(internalValue.second);
+					std::shared_ptr<lookupValue> lookup = h->getLookup(internalValue.second);
 					TopoDS_Shape currentShape;
 
 					if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
@@ -2592,7 +2593,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 					TopoDS_Face currentFace = currentStoreyGeo[k];
 
 					gp_Trsf localRotationTrsf;
-					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation()); //TODO: make this smarter
+					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 					currentFace.Move(localRotationTrsf);
 
 					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2866,11 +2867,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
 
 	std::vector<Value> productLookupValues;
-	std::vector<voxel*> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
+	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 
-	std::vector<voxel*> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
-	std::vector<voxel*> externalVoxel = voxelGrid_->getExternalVoxels();
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
+	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
 
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
@@ -2897,7 +2898,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	// evaluate which surfaces are visible
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		lookupValue* lookup = h->getLookup(productLookupValues[i].second);
+		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
 
 		TopoDS_Shape currentShape;
 
@@ -3034,7 +3035,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 			// find the room that point is located in
 
 			bool encapsulating = true;
-			lookupValue* lookup = h->getSpaceLookup(qResult[k].second);
+			std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
 			IfcSchema::IfcProduct* product = lookup->getProductPtr();
 
 			TopoDS_Shape productShape = h->getObjectShape(product, true);
@@ -3094,7 +3095,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation()); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 		sewedShape.Move(localRotationTrsf);
 
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
@@ -3228,7 +3229,10 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	for (size_t i = 0; i < groundPlaneFaces.size(); i++)
 	{
 		TopoDS_Face currentFace = groundPlaneFaces[i];
-		gp_Pnt basePoint = helperFunctions::getPointOnFace(currentFace);
+		std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
+
+		if (optionalBasePoint == std::nullopt) { continue; }
+		gp_Pnt basePoint = *optionalBasePoint;
 		gp_Pnt endPoint = gp_Pnt(
 			basePoint.X(),
 			basePoint.Y(),
@@ -3305,7 +3309,11 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	for (size_t i = 0; i < verticalFaces.size(); i++)
 	{
 		TopoDS_Face currentFace = verticalFaces[i];
-		gp_Pnt facePoint = helperFunctions::getPointOnFace(currentFace);
+		std::optional<gp_Pnt> optionalFacePoint = helperFunctions::getPointOnFace(currentFace);
+
+		if (optionalFacePoint == std::nullopt) { continue; }
+
+		gp_Pnt facePoint = *optionalFacePoint;
 		gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentFace) / 100;
 
 		gp_Pnt p1 = facePoint.Translated(faceNormal);
@@ -3413,7 +3421,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 
 	std::map<std::string, double> summaryMap;
 
-    std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
+	std::vector<std::shared_ptr<voxel>> internalVoxels = voxelGrid_->getInternalVoxels();
 
 	double voxelSize = SettingsCollection::getInstance().voxelSize();
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
@@ -3434,7 +3442,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 
 	for (size_t i = 0; i < internalVoxels.size(); i++)
 	{
-		voxel* currentVoxel = internalVoxels[i];
+		std::shared_ptr<voxel> currentVoxel = internalVoxels[i];
 		bool isOuterShell = currentVoxel->getIsShell();
 		double zHeight = currentVoxel->getCenterPoint().get<2>();
 		
@@ -3497,11 +3505,11 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 	double voxelSize =  SettingsCollection::getInstance().voxelSize();
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 
-	std::vector<voxel*> voxelList = voxelGrid_->getVoxels();
+	std::vector<std::shared_ptr<voxel>> voxelList = voxelGrid_->getVoxels();
 
 	for (auto i = voxelList.begin(); i != voxelList.end(); i++)
 	{
-		voxel* currentVoxel = *i;
+		std::shared_ptr<voxel> currentVoxel = *i;
 		if (currentVoxel->getRoomNum() > 0)
 		{
 			totalRoomVolume += voxelVolume;
@@ -3516,14 +3524,14 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 
 void CJGeoCreator::populateVoxelIndex(
 	bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
-	std::vector<voxel*>* originVoxels, 
+	std::vector<std::shared_ptr<voxel>>* originVoxels,
 	std::vector<Value>* productLookupValues,
-	const std::vector<voxel*> exteriorVoxels
+	const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 )
 {
 	for (auto voxelIt = exteriorVoxels.begin(); voxelIt != exteriorVoxels.end(); ++ voxelIt)
 	{
-		voxel* currentBoxel = *voxelIt;
+		std::shared_ptr<voxel> currentBoxel = *voxelIt;
 		std::vector<Value> internalProducts = currentBoxel->getInternalProductList();
 		for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues->emplace_back(internalProducts[k]); }
 
@@ -3555,7 +3563,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 	for (size_t i = 0; i < productLookupValues->size(); i++)
 	{
 		bool isExposed = true;
-		lookupValue* lookup = h->getLookup(productLookupValues->at(i).second);
+		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues->at(i).second);
 		TopoDS_Shape currentShape;
 
 		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
@@ -3571,7 +3579,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 		{
 			bool encapsulating = true;
 
-			lookupValue* otherLookup = h->getLookup(qResult[k].second);
+			std::shared_ptr<lookupValue> otherLookup = h->getLookup(qResult[k].second);
 
 			TopoDS_Shape otherShape;
 			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
@@ -3645,7 +3653,7 @@ bool CJGeoCreator::isSurfaceVisible(
 	const TopoDS_Shape& currentShape, 
 	const TopoDS_Face& currentFace, 
 	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex, 
-	const std::vector<voxel*>& originVoxels,
+	const std::vector<std::shared_ptr<voxel>>& originVoxels,
 	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 	double gridDistance, 
 	double buffer)
@@ -3703,7 +3711,7 @@ bool CJGeoCreator::isWireVisible(
 	const TopoDS_Face& currentFace, 
 	const bgi::rtree<Value, 
 	bgi::rstar<25>>& voxelIndex, 
-	const std::vector<voxel*>& originVoxels, 
+	const std::vector<std::shared_ptr<voxel>>& originVoxels, 
 	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 	double gridDistance, 
 	double buffer)
@@ -3737,7 +3745,7 @@ bool CJGeoCreator::isWireVisible(
 		double uStart = curveAdaptor.Curve().FirstParameter();
 		double uEnd = curveAdaptor.Curve().LastParameter();
 
-		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / gridDistance); //TODO: check this
+		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / gridDistance);
 
 		if (numUPoints < 2) { numUPoints = 2; }
 		else if (numUPoints > 10) { numUPoints = 10; }
@@ -3760,7 +3768,7 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 	const TopoDS_Shape& currentShape,
 	const TopoDS_Face& currentFace,
 	const bgi::rtree<Value,bgi::rstar<25>>& voxelIndex,
-	const std::vector<voxel*>& originVoxels,
+	const std::vector<std::shared_ptr<voxel>>& originVoxels,
 	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 	const gp_Pnt& point,
 	const double& buffer)
@@ -3781,7 +3789,7 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 	{
 		bool intersecting = false;
 
-		voxel* currentBoxel = originVoxels[qResult[j].second];
+		std::shared_ptr<voxel> currentBoxel = originVoxels[qResult[j].second];
 		gp_Pnt voxelCore = currentBoxel->getOCCTCenterPoint();
 
 		TopoDS_Edge ray = BRepBuilderAPI_MakeEdge(point, voxelCore);
@@ -3819,7 +3827,7 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 
 		for (size_t k = 0; k < qResult2.size(); k++)
 		{
-			lookupValue* otherLookup = h->getLookup(qResult2[k].second);
+			std::shared_ptr<lookupValue> otherLookup = h->getLookup(qResult2[k].second);
 
 			TopoDS_Shape otherShape;
 			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
@@ -3847,7 +3855,7 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 CJGeoCreator::CJGeoCreator(helper* h, double vSize)
 {
 	// compute generic voxelfield data
-	voxelGrid_ = new VoxelGrid(h);
+	voxelGrid_ = std::make_shared<VoxelGrid>(h);
 }
 
 FloorOutlineObject::FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)

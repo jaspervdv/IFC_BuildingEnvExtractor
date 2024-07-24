@@ -454,7 +454,7 @@ gp_Pnt helperFunctions::getHighestPoint(const TopoDS_Shape& shape)
 }
 
 
-gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace) 
+std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace) 
 {
 	triangulateShape(theFace);
 
@@ -476,7 +476,7 @@ gp_Pnt helperFunctions::getPointOnFace(const TopoDS_Face& theFace)
 		);
 		return middlePoint;
 	}
-	return gp_Pnt(); //TODO: make smarter exit solution
+	return std::nullopt;
 }
 
 std::vector<gp_Pnt> helperFunctions::getPointListOnFace(const TopoDS_Face& theFace)
@@ -1134,7 +1134,7 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 
 
 
-gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer) {
+std::optional<gp_Pnt> helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer) {
 
 	double precision = SettingsCollection::getInstance().precision();
 
@@ -1151,8 +1151,8 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 		evalEP2.SetZ(0);
 	}
 
-	if (evalSP1.IsEqual(evalEP1, precision)) { return nullptr; }
-	if (evalSP2.IsEqual(evalEP2, precision)) { return nullptr; }
+	if (evalSP1.IsEqual(evalEP1, precision)) { return std::nullopt; }
+	if (evalSP2.IsEqual(evalEP2, precision)) { return std::nullopt; }
 
 	double z = 0; //Todo: make work in 3d
 	if (!projected) { z = evalEP1.Z(); }
@@ -1162,7 +1162,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 	gp_Vec v2(evalSP2, evalEP2);
 	v2.Normalize();
 
-	if (v1.IsEqual(v2, precision, precision)) { return nullptr; }
+	if (v1.IsEqual(v2, precision, precision)) { return std::nullopt; }
 
 	double x1 = evalSP1.X();
 	double x2 = evalEP1.X();;
@@ -1176,7 +1176,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 
 	double dom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
 
-	if (abs(dom) == 0) { return nullptr; }
+	if (abs(dom) == 0) { return std::nullopt; }
 
 	double xI = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / (dom);
 	double yI = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / (dom);
@@ -1185,7 +1185,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 		x2 - buffer < xI && x2 + buffer > xI && y2 - buffer < yI && y2 + buffer > yI
 		)
 	{
-		return nullptr;
+		return std::nullopt;
 	}
 
 	if (x1 - buffer <= xI && xI <= x2 + buffer ||
@@ -1200,16 +1200,16 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 				if (y3 - buffer <= yI && yI <= y4 + buffer ||
 					y3 + buffer >= yI && yI >= y4 - buffer)
 				{
-					return new gp_Pnt(xI, yI, z);
+					return gp_Pnt(xI, yI, z);
 				}
 			}
 		}
 	}
-	return nullptr;
+	return std::nullopt;
 }
 
 
-gp_Pnt* helperFunctions::linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer) {
+std::optional<gp_Pnt> helperFunctions::linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer) {
 	gp_Pnt sP1 = edge1.getStart(false);
 	gp_Pnt eP1 = edge1.getEnd(false);
 	gp_Pnt sP2 = edge2.getStart(false);
@@ -1219,7 +1219,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const Edge& edge1, const Edge& e
 }
 
 
-gp_Pnt* helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer) {
+std::optional<gp_Pnt> helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer) {
 	return linearLineIntersection(
 		helperFunctions::getFirstPointShape(edge1),
 		helperFunctions::getLastPointShape(edge1),
@@ -1231,8 +1231,8 @@ gp_Pnt* helperFunctions::linearLineIntersection(const TopoDS_Edge& edge1, const 
 }
 
 bool helperFunctions::isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace) {
-	std::vector<EvaluationPoint*> evalGrid = evalFace.getPointGrid();
-	std::vector<EvaluationPoint*> otherGrid = otherFace.getPointGrid();
+	std::vector<std::shared_ptr<EvaluationPoint>> evalGrid = evalFace.getPointGrid();
+	std::vector<std::shared_ptr<EvaluationPoint>> otherGrid = otherFace.getPointGrid();
 	if (evalGrid.size() != otherGrid.size()) { return false; }
 
 	double precision = SettingsCollection::getInstance().precision();

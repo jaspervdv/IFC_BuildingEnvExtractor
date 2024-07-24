@@ -64,7 +64,7 @@ private:
 	bool isSmall_ = false;
 
 
-	std::vector<EvaluationPoint*> pointGrid_;
+	std::vector<std::shared_ptr<EvaluationPoint>> pointGrid_;
 	bool overlap(SurfaceGroup other);
 
 public:
@@ -84,7 +84,7 @@ public:
 	double getAvHeight() { return avHeight_; }
 	double getTopHeight() { return topHeight_; }
 
-	const std::vector<EvaluationPoint*>& getPointGrid() const { return pointGrid_; }
+	const std::vector<std::shared_ptr<EvaluationPoint>>& getPointGrid() const { return pointGrid_; }
 	bool isVisible() { return visibility_; }
 	bool testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
