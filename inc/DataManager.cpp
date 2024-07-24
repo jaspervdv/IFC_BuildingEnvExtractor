@@ -6,6 +6,8 @@
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
 
+#include <boost/make_shared.hpp>
+
 #include <thread>
 
 
@@ -349,28 +351,27 @@ void helper::indexGeo()
 		}
 		else //TODO: make this better
 		{
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-			{
-				IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
-
 				std::vector<std::string> roomBoundingObjects_ = settingsCollection.getCustomDivList();
 
-				for (auto it = roomBoundingObjects_.begin(); it != roomBoundingObjects_.end(); ++it) {
+				for (std::string roomBoundingObject : roomBoundingObjects_)
+				{
 					auto startTime = std::chrono::high_resolution_clock::now();
-
-					IfcSchema::IfcProduct::list::ptr selectedlist = boost::shared_ptr<IfcSchema::IfcProduct::list>(); //TODO: check if this works without the raw pointer 
-					for (auto et = productList->begin(); et != productList->end(); ++et)
+					IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
+					for (size_t i = 0; i < dataCollectionSize_; i++)
 					{
-						IfcSchema::IfcProduct* product = *et;
-						if (*it == boost::to_upper_copy<std::string>(product->data().type()->name()))
+						IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
+						for (auto et = productList->begin(); et != productList->end(); ++et)
 						{
-							selectedlist.get()->push(product);
-						}
+							IfcSchema::IfcProduct* product = *et;
+							if (roomBoundingObject == boost::to_upper_copy<std::string>(product->data().type()->name()))
+							{
+								selectedlist.get()->push(product);
+							}
+						}	
 					}
 					addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
-					std::cout << "\t" + *it + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+					std::cout << "\t" + roomBoundingObject + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 				}
-			}
 		}
 		if (settingsCollection.makeInterior())
 		{
