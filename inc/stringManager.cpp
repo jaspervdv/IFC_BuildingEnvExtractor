@@ -5,23 +5,6 @@
 
 #include <nlohmann/json.hpp>
 
-
-nlohmann::json ErrorObject::toJson()
-{
-	nlohmann::json JsonObject;
-	JsonObject["ErrorCode"] = errorCode_;
-	JsonObject["Error Description"] = errorDescript_;
-	JsonObject["Occuring Objects"] = occuringObjectList_;
-
-	return JsonObject;
-}
-
-ErrorObject::ErrorObject(std::string errorCode, std::string errorDescript)
-{
-	errorCode_ = errorCode;
-	errorDescript_ = errorDescript;
-}
-
 std::string CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID id)
 {
 	//Include the spaces on the end for spacing
@@ -372,27 +355,4 @@ std::string CJObjectEnum::getString(CJObjectID id)
 	default:
 		return "";
 	}
-}
-
-const std::map<errorID, ErrorObject> errorMap::errorCollection = {
-	{errorID::failedLoD00, ErrorObject("E0001", "LoD0.0 creation failed")},
-	{errorID::failedLoD02, ErrorObject("E0002", "LoD0.2 creation failed")},
-	{errorID::failedLoD10, ErrorObject("E0010", "LoD1.0 creation failed")},
-	{errorID::failedLoD12, ErrorObject("E0012", "LoD1.2 creation failed")},
-	{errorID::failedLoD13, ErrorObject("E0013", "LoD1.3 creation failed")},
-	{errorID::failedLoD22, ErrorObject("E0022", "LoD2.2 creation failed")},
-	{errorID::failedInit, ErrorObject("S0001", "Basic initialization failed")},
-	{errorID::failedFootprint, ErrorObject("S0002", "Footprint creation failed")},
-	{errorID::failedStorey, ErrorObject("S0003", "Storey creation failed")},
-	{errorID::failedConvert, ErrorObject("S0004", "Failed to convert object")}
-};
-
-ErrorObject errorMap::getErrorObject(errorID id)
-{
-	auto it = errorCollection.find(id);
-	if (it != errorCollection.end())
-	{
-		return it->second;
-	}
-	return ErrorObject("x0000", "Unknown Error");
 }

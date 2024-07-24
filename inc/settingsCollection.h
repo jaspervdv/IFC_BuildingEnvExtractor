@@ -54,8 +54,8 @@ private:
 
 	double footprintElevation_ = 0;
 
-	double precision_ = 1e-6; //TODO: implement
-	double precisionCoarse_ = 1e-4; //TODO: implement
+	double precision_ = 1e-6;
+	double precisionCoarse_ = 1e-4;
 
 	int threadcount_ = std::thread::hardware_concurrency();
 

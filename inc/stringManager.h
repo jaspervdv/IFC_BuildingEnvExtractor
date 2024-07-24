@@ -6,19 +6,6 @@
 #ifndef STRINGMANAGER_H
 #define STRINGMANAGER_H
 
-struct ErrorObject {
-	std::string errorCode_ = "";
-	std::string errorDescript_ = "";
-	std::vector<std::string> occuringObjectList_;
-
-	nlohmann::json toJson();
-
-	ErrorObject(
-		std::string errorCode,
-		std::string errorDescript
-		);
-};
-
 // collects all the importance elements in communication with the user
 enum class CommunicationStringImportanceID
 {
@@ -228,31 +215,6 @@ enum class CJObjectID {
 class CJObjectEnum {
 public:
 	static std::string getString(CJObjectID id);
-};
-
-// collects all the error objects
-enum class errorID {
-	failedLoD00, // LoD0.0 creation failed
-	failedLoD02, // LoD0.2 creation failed
-	failedLoD10, // LoD1.0 creation failed
-	failedLoD12, // LoD1.2 creation failed
-	failedLoD13, // LoD1.3 creation failed
-	failedLoD22, // LoD2.2 creation failed
-	failedLoD32, // LoD3.2 creation failed
-	failedJSONInit, //Config JSON error:
-	failedInit, // Basic initialization failed
-	failedFootprint, // Footprint creation failed
-	failedStorey, // Storey creation failed
-	failedConvert, // Failed to convert object
-};
-
-
-class errorMap {
-private:
-	static const std::map<errorID, ErrorObject> errorCollection;
-
-public:
-	static ErrorObject getErrorObject(errorID id);
 };
 
 #endif // STRINGMANAGER_H

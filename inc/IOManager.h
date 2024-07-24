@@ -39,8 +39,6 @@ private:
 	long long timeProcess = 0;
 	long long timeTotal = 0;
 
-	std::vector<ErrorObject> ErrorList_ = {};
-
 	bool getTargetPathList();
 	bool getOutputPathList();
 	std::string getFileName(const std::string& stringPath);

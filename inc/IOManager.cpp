@@ -2,6 +2,7 @@
 #include "IOManager.h"
 #include "cjCreator.h"
 #include "stringManager.h"
+#include "errorCollection.h"
 
 #include <unordered_set>
 #include <string>
@@ -691,8 +692,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedInit);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedInit);
 			return false;
 		}
 	}
@@ -705,8 +705,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedFootprint);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedFootprint);
 			succesfullExit = 0;
 		}
 	}
@@ -729,8 +728,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD00);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD00);
 			succesfullExit = 0;
 		}
 
@@ -746,8 +744,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD02);
-			ErrorList_.emplace_back(errorObject);	
+			ErrorCollection::getInstance().addError(errorID::failedLoD02);
 			succesfullExit = 0;
 		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
@@ -764,8 +761,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD10);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD10);
 			succesfullExit = 0;
 		}
 	}
@@ -780,8 +776,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD12);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD12);
 			succesfullExit = 0;
 		}
 	}
@@ -796,8 +791,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD13);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD13);
 			succesfullExit = 0;
 		}
 	}
@@ -812,8 +806,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD22);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD22);
 			succesfullExit = 0;
 		}
 	}
@@ -828,8 +821,7 @@ bool IOManager::run()
 		}
 		catch (const std::exception&) 
 		{ 
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedLoD32);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedLoD32);
 			succesfullExit = 0;
 		}
 	}
@@ -852,11 +844,9 @@ bool IOManager::run()
 		}
 		catch (const std::exception&)
 		{
-			ErrorObject errorObject = errorMap::getErrorObject(errorID::failedStorey);
-			ErrorList_.emplace_back(errorObject);
+			ErrorCollection::getInstance().addError(errorID::failedStorey);
 			succesfullExit = 0;
 		}
-
 		// storeys
 		if (settingsCollection.make02())
 		{
@@ -984,25 +974,7 @@ bool IOManager::write()
 	);
 
 	report["Duration"] = timeReport;
-
-
-	std::vector<nlohmann::json> errorJsonList;
-
-	for (ErrorObject errorObject : ErrorList_)
-	{
-		errorJsonList.emplace_back(errorObject.toJson());
-	}
-
-	std::vector<std::string> failedObjectList = internalHelper_->getFailedObjectList();
-
-	if (failedObjectList.size() > 0)
-	{
-		ErrorObject errorObject = errorMap::getErrorObject(errorID::failedConvert);
-		errorObject.occuringObjectList_ = failedObjectList;
-		errorJsonList.emplace_back(errorObject.toJson());
-	}
-
-	report["Errors"] = errorJsonList;
+	report["Errors"] = ErrorCollection::getInstance().toJson();
 
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
 	const std::string extension1 = ".json";

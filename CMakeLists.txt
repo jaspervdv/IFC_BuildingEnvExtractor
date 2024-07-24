@@ -240,6 +240,7 @@ add_executable(${PROJECT_NAME}
 main.cpp
 inc/cjCreator.cpp
 inc/DataManager.cpp
+inc/errorCollection.cpp
 inc/helper.cpp
 inc/IOManager.cpp
 inc/settingsCollection.cpp

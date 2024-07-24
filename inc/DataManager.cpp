@@ -1,6 +1,7 @@
 #include "DataManager.h"
 #include "helper.h"
 #include "stringManager.h"
+#include "errorCollection.h"
 
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
@@ -948,7 +949,7 @@ std::string helper::getBuildingName()
 	
 	if (buildingList->size() > 1)
 	{
-		//TODO: store warning
+		ErrorCollection::getInstance().addError(errorID::multipleBuildingObjects);
 	}
 	
 	for (IfcSchema::IfcBuilding* building : *buildingList)
@@ -958,7 +959,7 @@ std::string helper::getBuildingName()
 			return building->Name().get();
 		}
 	}
-	//TODO: store warning
+	ErrorCollection::getInstance().addError(errorID::nobuildingName);
 
 	return "";
 }
@@ -972,7 +973,7 @@ std::string helper::getBuildingLongName()
 
 	if (buildingList->size() > 1)
 	{
-		//TODO: store warning
+		ErrorCollection::getInstance().addError(errorID::multipleBuildingObjects);
 	}
 
 	for (IfcSchema::IfcBuilding* building : *buildingList)
@@ -982,7 +983,7 @@ std::string helper::getBuildingLongName()
 			return building->LongName().get();
 		}
 	}
-	//TODO: store warning
+	ErrorCollection::getInstance().addError(errorID::nobuildingNameLong);
 
 	return "";
 }
@@ -995,7 +996,7 @@ std::string helper::getProjectName()
 
 	if (projectList->size() > 1)
 	{
-		//TODO: store warning
+		ErrorCollection::getInstance().addError(errorID::multipleProjectNames);
 	}
 
 	for (IfcSchema::IfcProject* project : *projectList)
@@ -1005,13 +1006,15 @@ std::string helper::getProjectName()
 			return project->Name().get();
 		}
 	}
-	//TODO: store warning
+	ErrorCollection::getInstance().addError(errorID::noProjectName);
 	return "";
 }
 
 
 template <typename T>
 void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
+
+	std::vector<std::string> failedConversionList;
 
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
@@ -1021,8 +1024,7 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 
 		if (!helperFunctions::hasVolume(box))
 		{
-			failedConversionList_.emplace_back(product->GlobalId());
-			//std::cout << "Failed: " + product->data().toString() << std::endl;
+			failedConversionList.emplace_back(product->GlobalId());
 			continue;
 		}
 
@@ -1085,6 +1087,8 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 			productIndxLookup_[productType].insert({ product->GlobalId(), locationIdx });
 		}
 	}
+
+	ErrorCollection::getInstance().addError(errorID::failedConvert, failedConversionList);
 }
 
 
