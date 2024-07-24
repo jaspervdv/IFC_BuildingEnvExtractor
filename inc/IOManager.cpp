@@ -13,6 +13,8 @@
 
 bool IOManager::getTargetPathList()
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	// preload communcation strings
 	std::string stringJSONRequest = CommunicationStringEnum::getString(CommunicationStringID::infoJsonRequest);
 	std::string stringNoFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoFilePath);
@@ -26,7 +28,7 @@ bool IOManager::getTargetPathList()
 		std::string singlepath = "";
 		std::getline(std::cin, singlepath);
 
-		if (singlepath.size() == 0 && sudoSettingsPtr_->inputPathList_.size() == 0)
+		if (singlepath.size() == 0 && settingsCollection.getInputPathList().size() == 0)
 		{
 			std::cout << stringNoFilePath << std::endl;
 			std::cout << stringJSONRequest << std::endl;
@@ -48,15 +50,15 @@ bool IOManager::getTargetPathList()
 
 		if (hasExtension(singlepath, "json"))
 		{
-			if (sudoSettingsPtr_->inputPathList_.size() > 1)
+			if (settingsCollection.getInputPathList().size() > 1)
 			{
 				return false;
 			}
 		}
-		sudoSettingsPtr_->inputPathList_.emplace_back(singlepath);
+		settingsCollection.addToInputPathList(singlepath);
 		break;
 	}
-	if (sudoSettingsPtr_->inputPathList_.size() > 0) { return true; }
+	if (settingsCollection.getInputPathList().size() > 0) { return true; }
 	return false;
 }
 
@@ -72,11 +74,13 @@ std::string IOManager::getFileName(const std::string& stringPath)
 
 bool IOManager::getJSONValues()
 {
-	std::ifstream f(sudoSettingsPtr_->inputPathList_[0]);
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	std::ifstream f(settingsCollection.getInputPathList()[0]);
 	nlohmann::json json = nlohmann::json::parse(f);
 
 	// in and output related settings
-	sudoSettingsPtr_->inputPathList_.clear();
+	settingsCollection.clearInputPathList();
 	std::string outputReportOName = JsonObjectInEnum::getString(JsonObjectInID::outputReport);
 	if (json.contains(outputReportOName))
 	{
@@ -86,7 +90,7 @@ bool IOManager::getJSONValues()
 			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONReportPath));
 		}
 
-		if (json[outputReportOName] == 0) { sudoSettingsPtr_->writeReport_ = false; }
+		if (json[outputReportOName] == 0) { settingsCollection.setWriteReport(false); }
 	}
 
 	std::string threadMaxOName = JsonObjectInEnum::getString(JsonObjectInID::maxThread);
@@ -96,7 +100,7 @@ bool IOManager::getJSONValues()
 		{
 			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONThreadNum));
 		}
-		if (json[threadMaxOName] > 0) { sudoSettingsPtr_->threadcount_ = json[threadMaxOName]; }
+		if (json[threadMaxOName] > 0) { settingsCollection.setThreadcount(static_cast<int>(json[threadMaxOName])); }
 	}
 
 	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
@@ -128,7 +132,7 @@ bool IOManager::getJSONValues()
 
 		if (hasExtension(inputPath, "ifc") && isValidPath(inputPath))
 		{
-			sudoSettingsPtr_->inputPathList_.emplace_back(inputPaths[i]);
+			settingsCollection.addToInputPathList(inputPaths[i]);
 		}
 		else
 		{
@@ -147,14 +151,14 @@ bool IOManager::getJSONValues()
 		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONOutputPath));
 	}
 
-	sudoSettingsPtr_->outputPath_ = filePaths[outputOName];
+	settingsCollection.setOutputPath(filePaths[outputOName]);
 
-	if (!hasExtension(sudoSettingsPtr_->outputPath_, "json"))
+	if (!hasExtension(settingsCollection.getOutputPath(), "json"))
 	{
 		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOuputFormat));
 	}
 
-	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(sudoSettingsPtr_->outputPath_)).parent_path();
+	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(settingsCollection.getOutputPath())).parent_path();
 
 	if (!boost::filesystem::exists(outputFolderPath))
 	{
@@ -175,75 +179,76 @@ bool IOManager::getJSONValues()
 	if (json.contains(lodOutputOName))
 	{
 		nlohmann::json lodList = json[lodOutputOName];
-		sudoSettingsPtr_->make00_ = false;
-		sudoSettingsPtr_->make02_ = false;
-		sudoSettingsPtr_->make10_ = false;
-		sudoSettingsPtr_->make12_ = false;
-		sudoSettingsPtr_->make13_ = false;
-		sudoSettingsPtr_->make22_ = false;
-		sudoSettingsPtr_->make32_ = false;
-		sudoSettingsPtr_->makeV_ = false;
+		settingsCollection.setMake00(false);
+		settingsCollection.setMake02(false);
+		settingsCollection.setMake10(false);
+		settingsCollection.setMake12(false);
+		settingsCollection.setMake13(false);
+		settingsCollection.setMake22(false);
+		settingsCollection.setMake32(false);
+		settingsCollection.setMakeV(false);
 
 		for (size_t i = 0; i < lodList.size(); i++) // check if interior generation is required
 		{
-			if (sudoSettingsPtr_->LoDWInterior_.find(lodList[i]) == sudoSettingsPtr_->LoDWInterior_.end()) { continue; }
+			std::unordered_set<double> LoDWInterior = settingsCollection.getLoDWInterior();
+			if (LoDWInterior.find(lodList[i]) == LoDWInterior.end()) { continue; }
 
 			if (outputDataJson.contains(generateInteriorOName))
 			{
-				sudoSettingsPtr_->makeInterior_ = (int)outputDataJson[generateInteriorOName];
+				settingsCollection.setMakeInterior((int)outputDataJson[generateInteriorOName]);
 			}
 			break;
 		}
 
 		if (outputDataJson.contains(footprintElevOName))
 		{
-			sudoSettingsPtr_->footprintElevation_ = outputDataJson[footprintElevOName];
+			settingsCollection.setFootprintElevation(outputDataJson[footprintElevOName]);
 		}
 
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
-			if (lodList[i] == 0.0) { sudoSettingsPtr_->make00_ = true; }
+			if (lodList[i] == 0.0) { settingsCollection.setMake00(true); }
 			else if (lodList[i] == 0.2) 
 			{ 
-				sudoSettingsPtr_->make02_ = true;
+				settingsCollection.setMake02(true);
 
 				if (outputDataJson.contains(generatefootprOName))
 				{
-					sudoSettingsPtr_->makeFootPrint_ = (int)outputDataJson[generatefootprOName];
+					settingsCollection.setMakeFootPrint((int)outputDataJson[generatefootprOName]);
 				}
 				if (outputDataJson.contains(generateRoofOlineOName))
 				{
-					sudoSettingsPtr_->makeRoofPrint_ = (int)outputDataJson[generateRoofOlineOName];
-					if (sudoSettingsPtr_->makeRoofPrint_) { sudoSettingsPtr_->makeOutlines_ = true; }
+					settingsCollection.setMakeRoofPrint((int)outputDataJson[generateRoofOlineOName]);
+					if (settingsCollection.makeRoofPrint()) { settingsCollection.setMakeOutlines(true); }
 				}
 			}
 			else if (lodList[i] == 1.0) 
 			{ 
-				sudoSettingsPtr_->make10_ = true;
+				settingsCollection.setMake10(true);
 			}
 			else if (lodList[i] == 1.2) 
 			{ 
-				sudoSettingsPtr_->make12_ = true;
-				sudoSettingsPtr_->makeOutlines_ = true;
+				settingsCollection.setMake12(true);
+				settingsCollection.setMakeOutlines(true);
 			}
 			else if (lodList[i] == 1.3) 
 			{ 
-				sudoSettingsPtr_->make13_ = true;
-				sudoSettingsPtr_->makeOutlines_ = true;
+				settingsCollection.setMake13(true);
+				settingsCollection.setMakeOutlines(true);
 			}
 			else if (lodList[i] == 2.2) 
 			{ 
-				sudoSettingsPtr_->make22_ = true;
-				sudoSettingsPtr_->makeOutlines_ = true;
+				settingsCollection.setMake22(true);
+				settingsCollection.setMakeOutlines(true);
 			}
 			else if (lodList[i] == 3.2) 
 			{ 
-				sudoSettingsPtr_->make32_ = true;
-				sudoSettingsPtr_->makeOutlines_ = true;
+				settingsCollection.setMake32(true);
+				settingsCollection.setMakeOutlines(true);
 			}
 			else if (lodList[i] == 5.0) 
 			{ 
-				sudoSettingsPtr_->makeV_ = true;
+				settingsCollection.setMakeV(true);
 			}
 		}
 	}
@@ -253,7 +258,7 @@ bool IOManager::getJSONValues()
 	{
 		if (outputDataJson[georeferenceOName] == false || outputDataJson[georeferenceOName] == 0)
 		{
-			sudoSettingsPtr_->geoReference_ = false;
+			settingsCollection.setGeoReference(false);
 		}		
 	}
 	 
@@ -268,16 +273,16 @@ bool IOManager::getJSONValues()
 
 		if (voxelData.contains(voxelSizOName))			
 		{
-			sudoSettingsPtr_->voxelSize_ = voxelData[voxelSizOName]; 
+			settingsCollection.setVoxelSize(voxelData[voxelSizOName]);
 		}
 		if (voxelData.contains(voxelSummarizeOName))
 		{ 
-			if (voxelData[voxelSummarizeOName] == 1) { sudoSettingsPtr_->summaryVoxels_ = true; }
+			if (voxelData[voxelSummarizeOName] == 1) { settingsCollection.setSummaryVoxels(true); }
 		}
 		if (voxelData.contains(voxelIntersectionOName)) 
 		{
-			if (voxelData[voxelIntersectionOName] == 2) { sudoSettingsPtr_->intersectionLogic_ = 2; }
-			if (voxelData[voxelIntersectionOName] == 3) { sudoSettingsPtr_->intersectionLogic_ = 3; }
+			if (voxelData[voxelIntersectionOName] == 2) { settingsCollection.setIntersectionLogic(2); }
+			if (voxelData[voxelIntersectionOName] == 3) { settingsCollection.setIntersectionLogic(3); }
 		}
 	}
 
@@ -296,8 +301,8 @@ bool IOManager::getJSONValues()
 		nlohmann::json rotationData = ifcInputJson[rotationOName];
 		if (rotationData.type() != nlohmann::json::value_t::boolean)
 		{
-			sudoSettingsPtr_->autoRotateGrid_ = false;
-			sudoSettingsPtr_->desiredRotation_ = static_cast<double>(rotationData) * (M_PI / 180);
+			settingsCollection.setAutoRotateGrid(false);
+			settingsCollection.setDesiredRotation(static_cast<double>(rotationData)* (M_PI / 180));
 		}
 	}
 
@@ -305,7 +310,7 @@ bool IOManager::getJSONValues()
 	{
 		if (ifcInputJson[defaultDivOName] == 0 || ifcInputJson[defaultDivOName] == false)
 		{
-			sudoSettingsPtr_->useDefaultDiv_ = false;
+			settingsCollection.setUseDefaultDiv(false);
 		}
 	}
 
@@ -313,7 +318,7 @@ bool IOManager::getJSONValues()
 	{
 		if (ifcInputJson[ignoreProxyOName] == 1 || ifcInputJson[ignoreProxyOName] == true)
 		{
-			sudoSettingsPtr_->useProxy_ = true;
+			settingsCollection.setUseProxy(true);
 		}
 	}
 
@@ -336,31 +341,31 @@ bool IOManager::getJSONValues()
 				continue;
 			}
 			addDivObjects_.insert(potentialType);
-			sudoSettingsPtr_->CustomDivList_.emplace_back(potentialType);
+			settingsCollection.addToCustomDivList(potentialType);
 		}
 	}
 
-	if (!sudoSettingsPtr_->CustomDivList_.size() && !sudoSettingsPtr_->useDefaultDiv_)
+	if (!settingsCollection.getCustomDivList().size() && !settingsCollection.useDefaultDiv())
 	{
 		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONNoDivObjects));
 	}
 
 	// set generated settings
-	if (sudoSettingsPtr_->make00_ || sudoSettingsPtr_->make10_)
+	if ( settingsCollection.make00() || settingsCollection.make10())
 	{
-		if (!sudoSettingsPtr_->make02_ && !sudoSettingsPtr_->make12_ && 
-			!sudoSettingsPtr_->make13_ && !sudoSettingsPtr_->make22_ && 
-			!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->summaryVoxels_)
+		if (!settingsCollection.make02() && !settingsCollection.make12() &&
+			!settingsCollection.make13() && !settingsCollection.make22() &&
+			!settingsCollection.make32() && !settingsCollection.summaryVoxels())
 		{
-			sudoSettingsPtr_->requireVoxels_ = false;
+			settingsCollection.setRequireVoxels(false);
 		}
 	}
 
-	if (!sudoSettingsPtr_->make32_ && !sudoSettingsPtr_->makeV_ && !sudoSettingsPtr_->summaryVoxels_)
+	if (!settingsCollection.make32() && !settingsCollection.makeV() && !settingsCollection.summaryVoxels())
 	{
-		if (!sudoSettingsPtr_->makeFootPrint_ && !sudoSettingsPtr_->makeInterior_)
+		if (!settingsCollection.makeFootPrint() && !settingsCollection.makeInterior())
 		{
-			sudoSettingsPtr_->requireFullVoxels_ = false;
+			settingsCollection.setRequireFullVoxels(false);
 		}
 	}
 	return true;
@@ -432,54 +437,56 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double durat
 
 void IOManager::printSummary()
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	std::cout << "=============================================================" << std::endl;
 	std::cout << "[INFO] Used settings: " << std::endl;
 
 	std::cout << "- Input File(s):" << std::endl;
-	for (size_t i = 0; i < sudoSettingsPtr_->inputPathList_.size(); i++) { std::cout << "    " << sudoSettingsPtr_->inputPathList_[i] << std::endl; }
+	for (const std::string& inputPath : settingsCollection.getInputPathList()) { std::cout << "    " << inputPath << std::endl; }
 	std::cout << "- Output File:" << std::endl;
-	std::cout << "    " << sudoSettingsPtr_->outputPath_ << std::endl;
+	std::cout << "    " << settingsCollection.getOutputPath() << std::endl;
 	std::cout << "- Create Report:" << std::endl;
-	if (sudoSettingsPtr_->writeReport_) { std::cout << "    yes" << std::endl; }
+	if (settingsCollection.writeReport()) { std::cout << "    yes" << std::endl; }
 	else { std::cout << "    no" << std::endl; }
 	std::cout << "- LoD export enabled:" << std::endl;
 	std::cout << "    " << getLoDEnabled() << std::endl;
 	std::cout << "- Space dividing objects: " << std::endl;
-	if (sudoSettingsPtr_->useDefaultDiv_)
+	if (settingsCollection.useDefaultDiv())
 	{
 		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	}
-	if (sudoSettingsPtr_->useProxy_)
+	if (settingsCollection.useProxy())
 	{
 		std::cout << "    IFCBUILDINGELEMENTPROXY" << std::endl;
 	}
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	std::cout << "- Voxel size:" << std::endl;
-	std::cout << "    " << sudoSettingsPtr_->voxelSize_ << std::endl;
+	std::cout << "    " << settingsCollection.voxelSize() << std::endl;
 	std::cout << "- Voxel logic:" << std::endl;
-	if (sudoSettingsPtr_->intersectionLogic_ == 0) { std::cout << "    point" << std::endl; }
-	if (sudoSettingsPtr_->intersectionLogic_ == 1) { std::cout << "    line" << std::endl; }
-	if (sudoSettingsPtr_->intersectionLogic_ == 2) { std::cout << "    plane" << std::endl; }
-	if (sudoSettingsPtr_->intersectionLogic_ == 3) { std::cout << "    solid" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 0) { std::cout << "    point" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 1) { std::cout << "    line" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 2) { std::cout << "    plane" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 3) { std::cout << "    solid" << std::endl; }
 
 
 
-	if (sudoSettingsPtr_->make02_)
+	if (settingsCollection.make02())
 	{
 		std::cout << "- Create footprint:" << std::endl;
-		if (sudoSettingsPtr_->makeFootPrint_) { std::cout << "    Yes" << std::endl; }
+		if (settingsCollection.makeFootPrint()) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
 
 		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
-		if (sudoSettingsPtr_->makeRoofPrint_) { std::cout << "    Yes" << std::endl; }
+		if (settingsCollection.makeRoofPrint()) { std::cout << "    Yes" << std::endl; }
 		else { std::cout << "    No" << std::endl; }
 	}
 
 	std::cout << "- Footprint Elevation:" << std::endl;
-	std::cout << "    " << sudoSettingsPtr_->footprintElevation_ << std::endl;
+	std::cout << "    " << settingsCollection.footprintElevation() << std::endl;
 
 	std::cout << "- Max thread count" << std::endl;
-	std::cout << sudoSettingsPtr_->threadcount_ << std::endl;
+	std::cout << settingsCollection.threadcount() << std::endl;
 
 	std::cout << "=============================================================" << std::endl;
 }
@@ -487,15 +494,17 @@ void IOManager::printSummary()
 
 std::string IOManager::getLoDEnabled()
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	std::string summaryString = "";
 
-	if (sudoSettingsPtr_->make00_) { summaryString += ", 0.0"; }
-	if (sudoSettingsPtr_->make02_) { summaryString += ", 0.2"; }
-	if (sudoSettingsPtr_->make12_) { summaryString += ", 1.2"; }
-	if (sudoSettingsPtr_->make13_) { summaryString += ", 1.3"; }
-	if (sudoSettingsPtr_->make22_) { summaryString += ", 2.2"; }
-	if (sudoSettingsPtr_->make32_) { summaryString += ", 3.2"; }
-	if (sudoSettingsPtr_->makeV_) { summaryString += ", 5.0 (V)"; }
+	if (settingsCollection.make00()) { summaryString += ", 0.0"; }
+	if (settingsCollection.make02()) { summaryString += ", 0.2"; }
+	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
+	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
+	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
+	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
+	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
 
 	summaryString.erase(0, 2);
 
@@ -505,41 +514,44 @@ std::string IOManager::getLoDEnabled()
 
 nlohmann::json IOManager::settingsToJSON()
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	nlohmann::json settingsJSON;
 
-	settingsJSON["Input IFC file"] = sudoSettingsPtr_->inputPathList_;
-	settingsJSON["Output CityJSON file"] = getOutputPath();
+	settingsJSON["Input IFC file"] = settingsCollection.getInputPathList();
+	settingsJSON["Output CityJSON file"] = settingsCollection.getOutputPath();
 	settingsJSON["Create report"] = "true";
 
 	std::vector<std::string> DivList;
 
-	if (sudoSettingsPtr_->useDefaultDiv_)
+	if (settingsCollection.useDefaultDiv())
 	{
 		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	}
-	if (sudoSettingsPtr_->useProxy_)
+	if (settingsCollection.useProxy())
 	{
 		DivList.emplace_back("IFCBUILDINGELEMENTPROXY");
 	}
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	settingsJSON["Space bounding objects"] = DivList;
-	settingsJSON["Voxel size"] = sudoSettingsPtr_->voxelSize_;
+	settingsJSON["Voxel size"] = settingsCollection.voxelSize();
 
-	if (sudoSettingsPtr_->make02_)
+	if (settingsCollection.make02())
 	{ 
-		settingsJSON["Footprint elevation"] = sudoSettingsPtr_->footprintElevation_;
-		settingsJSON["Generate footprint"] = sudoSettingsPtr_->makeFootPrint_;
-		settingsJSON["Generate roof outline"] = sudoSettingsPtr_->makeRoofPrint_;
+		settingsJSON["Footprint elevation"] = settingsCollection.footprintElevation();
+		settingsJSON["Generate footprint"] = settingsCollection.makeFootPrint();
+		settingsJSON["Generate roof outline"] = settingsCollection.makeRoofPrint();
 	}
 	
 	std::vector<std::string> LoDList;
-	if (sudoSettingsPtr_->make00_) { LoDList.emplace_back("0.0"); }
-	if (sudoSettingsPtr_->make02_) { LoDList.emplace_back("0.2"); }
-	if (sudoSettingsPtr_->make10_) { LoDList.emplace_back("1.0"); }
-	if (sudoSettingsPtr_->make12_) { LoDList.emplace_back("1.2"); }
-	if (sudoSettingsPtr_->make13_) { LoDList.emplace_back("1.3"); }
-	if (sudoSettingsPtr_->make22_) { LoDList.emplace_back("2.2"); }
-	if (sudoSettingsPtr_->make32_) { LoDList.emplace_back("3.2"); }
+	if (settingsCollection.make00()) { LoDList.emplace_back("0.0"); }
+	if (settingsCollection.make02()) { LoDList.emplace_back("0.2"); }
+	if (settingsCollection.make10()) { LoDList.emplace_back("1.0"); }
+	if (settingsCollection.make12()) { LoDList.emplace_back("1.2"); }
+	if (settingsCollection.make13()) { LoDList.emplace_back("1.3"); }
+	if (settingsCollection.make22()) { LoDList.emplace_back("2.2"); }
+	if (settingsCollection.make32()) { LoDList.emplace_back("3.2"); }
+	if (settingsCollection.makeV()) { LoDList.emplace_back("3.2"); }
 
 	settingsJSON["Desired LoD output"] = LoDList;
 
@@ -549,6 +561,8 @@ nlohmann::json IOManager::settingsToJSON()
 
 bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	timeTotal = 0;
 	bool isSilent_ = silent;
 
@@ -578,7 +592,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 		return false;
 	}
 	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
-		sudoSettingsPtr_->inputPathList_ = inputPathList;
+		settingsCollection.setInputPathList(inputPathList);
 	}
 
 	if (inputPathList.size() > 1) { return false; }
@@ -596,7 +610,7 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 	}
 	auto internalizingTime = std::chrono::high_resolution_clock::now(); // Time Collection Starts
 	
-	internalHelper_ = std::make_unique<helper>(sudoSettingsPtr_->inputPathList_, sudoSettingsPtr_);
+	internalHelper_ = std::make_unique<helper>(settingsCollection.getInputPathList());
 	helper* internalHelperPtr = internalHelper_.get();
 	if (!internalHelperPtr->isPopulated()) { return 0; }
 	if (!internalHelperPtr->hasSetUnits()) { return 0; }
@@ -608,11 +622,20 @@ bool IOManager::run()
 {
 	// Time Collection Starts
 	auto internalizingTime = std::chrono::high_resolution_clock::now();
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	
 	int succesfullExit = 1;
 
 	// internalize the helper data
-	internalHelper_->internalizeGeo();
+	try
+	{
+		internalHelper_->internalizeGeo();
+	}
+	catch (const std::string& exceptionString)
+	{
+		throw exceptionString;
+	}
+
 	internalHelper_->indexGeo();
 	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
 	
@@ -622,7 +645,7 @@ bool IOManager::run()
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
-	if (sudoSettingsPtr_->geoReference_)
+	if (settingsCollection.geoReference())
 	{
 		internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 	}
@@ -657,10 +680,10 @@ bool IOManager::run()
 
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
-	CJGeoCreator geoCreator(internalHelper_.get(), sudoSettingsPtr_, sudoSettingsPtr_->voxelSize_);
+	CJGeoCreator geoCreator(internalHelper_.get(), settingsCollection.voxelSize());
 	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
-	if (sudoSettingsPtr_->makeOutlines_)
+	if (settingsCollection.makeOutlines())
 	{
 		try
 		{
@@ -674,7 +697,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (sudoSettingsPtr_->make02_ && sudoSettingsPtr_->makeFootPrint_)
+	if (settingsCollection.make02() && settingsCollection.makeFootPrint())
 	{
 		try
 		{
@@ -688,14 +711,14 @@ bool IOManager::run()
 		}
 	}
 
-	if (sudoSettingsPtr_->makeRoofPrint_)
+	if (settingsCollection.makeRoofPrint())
 	{
 		geoCreator.useroofprint0();
 	}
 
 	geoCreator.setRefRotation(geoRefRotation);
 
-	if (makeLoD00())
+	if (settingsCollection.make00())
 	{
 		try
 		{
@@ -712,7 +735,7 @@ bool IOManager::run()
 		}
 
 	}
-	if (makeLoD02())
+	if (settingsCollection.make02())
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 		try
@@ -730,7 +753,7 @@ bool IOManager::run()
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 
 	}
-	if (makeLoD10())
+	if (settingsCollection.make10())
 	{
 		try
 		{
@@ -746,7 +769,7 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 	}
-	if (makeLoD12())
+	if (settingsCollection.make12())
 	{
 		try
 		{
@@ -762,7 +785,7 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 	}
-	if (makeLoD13())
+	if (settingsCollection.make13())
 	{
 		try
 		{
@@ -778,7 +801,7 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 	}
-	if (makeLoD22())
+	if (settingsCollection.make22())
 	{
 		try
 		{
@@ -794,7 +817,7 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 	}
-	if (makeLoD32())
+	if (settingsCollection.make32())
 	{
 		try
 		{
@@ -810,7 +833,7 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 	}
-	if (makeV())
+	if (settingsCollection.makeV())
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 		std::vector<CJT::GeoObject> geoV = geoCreator.makeV(internalHelper_.get(), &kernel, 1);
@@ -818,7 +841,7 @@ bool IOManager::run()
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();	
 	}
 
-	if (sudoSettingsPtr_->makeInterior_)
+	if (settingsCollection.makeInterior())
 	{
 		// get storey semantic objects
 		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalHelper_.get());
@@ -835,13 +858,13 @@ bool IOManager::run()
 		}
 
 		// storeys
-		if (makeLoD02())
+		if (settingsCollection.make02())
 		{
 			geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, storeyObjects, 1);
 		}
 
 		// rooms
-		if (makeV())
+		if (settingsCollection.makeV())
 		{
 			std::vector<CJT::CityObject> roomsV = geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, 1);
 			for (size_t i = 0; i < roomsV.size(); i++)
@@ -875,7 +898,7 @@ bool IOManager::run()
 	gp_Pnt urr = internalHelper_.get()->getUrrPoint();
 
 	gp_Trsf originRotation;
-	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), -sudoSettingsPtr_->gridRotation_));
+	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), -settingsCollection.gridRotation()));
 
 	gp_Trsf originTranslation = internalHelper_->getObjectTranslation().Inverted();
 
@@ -898,15 +921,15 @@ bool IOManager::run()
 
 	collection->setMetaData(metaData);
 
-	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", sudoSettingsPtr_->footprintElevation_);
-	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - sudoSettingsPtr_->footprintElevation_);
+	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
+	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
 
-	if (summaryVoxel())
+	if (settingsCollection.summaryVoxels())
 	{
 		geoCreator.extractOuterVoxelSummary(
 			&cityShellObject,
 			internalHelper_.get(),
-			sudoSettingsPtr_->footprintElevation_,
+			settingsCollection.footprintElevation(),
 			geoRefRotation.GetRotation().GetRotationAngle()
 		);
 
@@ -927,9 +950,12 @@ bool IOManager::run()
 
 bool IOManager::write()
 {
-	cityCollection_->dumpJson(getOutputPath());
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	if (!sudoSettingsPtr_->writeReport_) { return true; }
+
+	cityCollection_->dumpJson(settingsCollection.getOutputPath());
+
+	if (!settingsCollection.writeReport()) { return true; }
 	nlohmann::json report;
 	report["Settings"] = settingsToJSON();
 
@@ -981,11 +1007,11 @@ bool IOManager::write()
 	//addTimeToJSON(&report, "Total running time", startTime, endTime);
 	const std::string extension1 = ".json";
 
-	boost::filesystem::path filePath(getOutputPath());
+	boost::filesystem::path filePath(settingsCollection.getOutputPath());
 	filePath.replace_extension("");
 	if (hasExtension(filePath.string(), "city")) { filePath.replace_extension(""); }
 
-	boost::filesystem::path filePathWithoutExtension = boost::filesystem::path(getOutputPath()).stem();
+	boost::filesystem::path filePathWithoutExtension = boost::filesystem::path(settingsCollection.getOutputPath()).stem();
 	std::ofstream reportFile(filePath.string() + "_report.json");
 	reportFile << report;
 	reportFile.close();

@@ -8,7 +8,7 @@
 #include <thread>
 
 
-helper::helper(const std::vector<std::string>& pathList, std::shared_ptr<SettingsCollection> settings) {
+helper::helper(const std::vector<std::string>& pathList) {
 	for (size_t i = 0; i < pathList.size(); i++)
 	{
 		std::string path = pathList[i];
@@ -28,7 +28,6 @@ helper::helper(const std::vector<std::string>& pathList, std::shared_ptr<Setting
 		dataCollectionSize_++;
 		isPopulated_ = true;
 	}
-	sudoSettings_ = settings;
 	return;
 }
 
@@ -109,6 +108,9 @@ void helper::elementCountSummary(bool* hasProxy, bool* hasLotProxy)
 void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+
 	std::vector<gp_Pnt> pointList;
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
@@ -124,18 +126,18 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 
 	if (!pointList.size())
 	{
-		//TODO: return error is
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorNoPoints));
 	}
 
 	// approximate smalles bbox
 	double angle = 22.5 * (M_PI / 180);
-	double rotation = sudoSettings_->desiredRotation_; // if not pre set by the user the default grid rotation = 0
+	double rotation = settingsCollection.desiredRotation(); // if not pre set by the user the default grid rotation = 0
 	int maxIt = 15;
 
 	// set data for a bbox
 	helperFunctions::rotatedBBoxDiagonal(pointList, lllPoint, urrPoint, rotation);
-	if (!sudoSettings_->autoRotateGrid_) {
-		sudoSettings_->gridRotation_ = sudoSettings_->desiredRotation_;
+	if (!settingsCollection.autoRotateGrid()) {
+		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
 		return;
 	} //bypass rotation comp if not required
 	double smallestDistance = lllPoint->Distance(*urrPoint);
@@ -172,7 +174,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		}
 		angle = angle / 2;
 	}
-	sudoSettings_->gridRotation_= rotation;
+	settingsCollection.setGridRotation(rotation);
 	return;
 }
 
@@ -247,8 +249,14 @@ void helper::internalizeGeo()
 	computeObjectTranslation(&accuracyObjectTranslation);
 	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
-	computeBoundingData(&lllPoint_, &urrPoint_);
-
+	try
+	{
+		computeBoundingData(&lllPoint_, &urrPoint_);
+	}
+	catch (const std::string& exceptionString)
+	{
+		throw exceptionString;
+	}
 	std::cout << 
 		CommunicationStringEnum::getString(CommunicationStringID::indentSuccesFinished) <<
 		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
@@ -262,10 +270,12 @@ void helper::indexGeo()
 {
 	// this indexing is done based on the rotated bboxes of the objects
 	// the bbox does thus comply with the model bbox but not with the actual objects original location
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	if (!hasIndex_)
 	{
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCreateSpatialIndex) << std::endl;
-		if (sudoSettings_->useDefaultDiv_)
+		if (settingsCollection.useDefaultDiv())
 		{
 			// add the floorslabs to the rtree
 			auto startTime = std::chrono::high_resolution_clock::now();
@@ -328,7 +338,7 @@ void helper::indexGeo()
 				addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
 			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 
-			if (sudoSettings_->useProxy_)
+			if (settingsCollection.useProxy())
 			{
 				startTime = std::chrono::high_resolution_clock::now();
 				for (size_t i = 0; i < dataCollectionSize_; i++) 
@@ -342,7 +352,7 @@ void helper::indexGeo()
 			{
 				IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
 
-				std::vector<std::string> roomBoundingObjects_ = sudoSettings_->CustomDivList_;
+				std::vector<std::string> roomBoundingObjects_ = settingsCollection.getCustomDivList();
 
 				for (auto it = roomBoundingObjects_.begin(); it != roomBoundingObjects_.end(); ++it) {
 					auto startTime = std::chrono::high_resolution_clock::now();
@@ -361,7 +371,7 @@ void helper::indexGeo()
 				}
 			}
 		}
-		if (sudoSettings_->makeInterior_)
+		if (settingsCollection.makeInterior())
 		{
 			auto startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
@@ -694,7 +704,7 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	gp_Pnt urrPoint2;
 	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint1, &urrPoint1, angleFlat, angleVert);
 	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint2, &urrPoint2, angleFlat, -angleVert);
-	if (lllPoint1.IsEqual(urrPoint1, 1e-6)) { return TopoDS_Shape(); }
+	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) { return TopoDS_Shape(); }
 
 	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
 	{
@@ -883,6 +893,8 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 			IfcSchema::IfcPropertySet* te = propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
 			if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
 			//TODO: improve the datamanagement
+			// check if the function will work 
+			// 
 			//auto relAssociations = propteriesRel->RelatingPropertyDefinition()->data().getArgument(4)->operator IfcEntityList::ptr();
 
 			//for (auto et = relAssociations->begin(); et != relAssociations->end(); ++et) {
@@ -930,17 +942,23 @@ std::map<std::string, std::string> helper::getBuildingInformation()
 
 std::string helper::getBuildingName()
 {
-	//TODO: improve the datamanagement
-	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
+	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 
-	IfcSchema::IfcBuilding::list::ptr buildingList = fileObejct->instances_by_type<IfcSchema::IfcBuilding>();
-
-	IfcSchema::IfcBuilding* building = *buildingList->begin();
-
-	if (building->Name().has_value())
+	IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
+	
+	if (buildingList->size() > 1)
 	{
-		return building->Name().get();
+		//TODO: store warning
 	}
+	
+	for (IfcSchema::IfcBuilding* building : *buildingList)
+	{
+		if (building->Name().has_value())
+		{
+			return building->Name().get();
+		}
+	}
+	//TODO: store warning
 
 	return "";
 }
@@ -948,35 +966,57 @@ std::string helper::getBuildingName()
 
 std::string helper::getBuildingLongName()
 {
-	//TODO: improve the datamanagement
-	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
-	IfcSchema::IfcBuilding::list::ptr buildingList = fileObejct->instances_by_type<IfcSchema::IfcBuilding>();
+	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 
-	IfcSchema::IfcBuilding* building = *buildingList->begin();
-	if (building->LongName().has_value()) { return building->LongName().get(); }
+	IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
+
+	if (buildingList->size() > 1)
+	{
+		//TODO: store warning
+	}
+
+	for (IfcSchema::IfcBuilding* building : *buildingList)
+	{
+		if (building->LongName().has_value())
+		{
+			return building->LongName().get();
+		}
+	}
+	//TODO: store warning
+
 	return "";
 }
 
 
 std::string helper::getProjectName()
 {
-	//TODO: improve the datamanagement
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 	IfcSchema::IfcProject::list::ptr projectList = fileObejct->instances_by_type<IfcSchema::IfcProject>();
 
-	IfcSchema::IfcProject* project = *projectList->begin();
-	if (project->Name().has_value()) { return project->Name().get(); }
+	if (projectList->size() > 1)
+	{
+		//TODO: store warning
+	}
+
+	for (IfcSchema::IfcProject* project : *projectList)
+	{
+		if (project->Name().has_value())
+		{
+			return project->Name().get();
+		}
+	}
+	//TODO: store warning
 	return "";
 }
 
 
 template <typename T>
-void helper::addObjectToIndex(const T& object, bool addToRoomIndx) { //TODO: this can be improved
+void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
 
-		TopoDS_Shape shape = getObjectShape(product);
+		TopoDS_Shape shape = getObjectShape(product); //TODO: rewrite to function for familie related objects
 		bg::model::box <BoostPoint3D> box = makeObjectBox(shape, 0);
 
 		if (!helperFunctions::hasVolume(box))
@@ -1104,8 +1144,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (memoryLocation != -1) { memorize = true; }
 	std::string objectType = product->data().type()->name();
 	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
-
-	//TODO: make threadsave
 	
 	// filter with lookup
 	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
@@ -1203,7 +1241,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	gp_Trsf placement;
 	gp_Trsf trsf;
 	gp_Trsf trs;
-	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), sudoSettings_->gridRotation_);
+	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), SettingsCollection::getInstance().gridRotation());
 
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	IfcGeom::IteratorSettings settings;
@@ -1213,7 +1251,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (brep == nullptr) {
 
 		return {}; 
-	} //TODO: find manner to aquire data in another manner
+	} //TODO: find manner to aquire data
 
 	kernelObject->convert_placement(ifc_representation, placement);
 
@@ -1272,7 +1310,7 @@ void helper::applyVoids()
 {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		// TODO: make this work
+		// TODO: check if this works?
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 		voidShapeAdjust<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
 	}
@@ -1521,7 +1559,7 @@ fileKernelCollection::fileKernelCollection(const std::string& filePath)
 	good_ = true;
 	kernel_ = std::make_unique<IfcGeom::Kernel>(file_);;
 	IfcGeom::Kernel* kernelObject = kernel_.get();
-	kernel_.get()->setValue(kernelObject->GV_PRECISION, 1e-6);
+	kernel_.get()->setValue(kernelObject->GV_PRECISION, SettingsCollection::getInstance().precision());
 	setUnits();
 }
 

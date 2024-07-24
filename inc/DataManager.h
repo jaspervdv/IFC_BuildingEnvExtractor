@@ -107,9 +107,7 @@ public:
 class helper
 {
 private:
-	std::shared_ptr<SettingsCollection> sudoSettings_;
-
-	std::vector<std::string> failedConversionList_; //TODO: smarer
+	std::vector<std::string> failedConversionList_; //TODO: remove
 
 	double objectCount_ = 0;
 
@@ -192,7 +190,7 @@ public:
 	creates and stores the file and kernel for quick acess
 	*/
 	explicit helper() {};
-	explicit helper(const std::vector<std::string>& path, std::shared_ptr<SettingsCollection> settings);
+	explicit helper(const std::vector<std::string>& path);
 
 	~helper() {
 		for (size_t i = 0; i < productLookup_.size(); i++)

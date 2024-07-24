@@ -9,10 +9,6 @@
 
 class IOManager {
 private:
-	// the settings that are available for all processing classes
-	SettingsCollection sudoSettingsInstance_;
-	std::shared_ptr<SettingsCollection> sudoSettingsPtr_ = std::make_shared<SettingsCollection>(sudoSettingsInstance_);
-
 	std::unique_ptr<helper> internalHelper_;
 
 	std::shared_ptr<CJT::CityCollection> cityCollection_;
@@ -78,25 +74,7 @@ public:
 
 	// temp data
 
-	double voxelSize() { return sudoSettingsPtr_->voxelSize_; }
-	bool makeReport() { return sudoSettingsPtr_->writeReport_; }
-	bool summaryVoxel() { return sudoSettingsPtr_->summaryVoxels_; }
-
-	const std::string& getOutputPath() { return sudoSettingsPtr_->outputPath_; }
-
 	helper* getHelper() { return internalHelper_.get(); }
-
-	bool makeLoD00() { return sudoSettingsPtr_->make00_; }
-	bool makeLoD02() { return sudoSettingsPtr_->make02_; }
-	bool makeLoD10() { return sudoSettingsPtr_->make10_; }
-	bool makeLoD12() { return sudoSettingsPtr_->make12_; }
-	bool makeLoD13() { return sudoSettingsPtr_->make13_; }
-	bool makeLoD22() { return sudoSettingsPtr_->make22_; }
-	bool makeLoD32() { return sudoSettingsPtr_->make32_; }
-	bool makeV() { return sudoSettingsPtr_->makeV_; }
-
-	bool makeFootprint() { return sudoSettingsPtr_->makeFootPrint_; }
-	bool makeRoofOutline() { return sudoSettingsPtr_->makeRoofPrint_; }
 
 	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
 		"IFCSLAB",

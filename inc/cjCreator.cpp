@@ -115,6 +115,9 @@ std::vector<TopoDS_Face> CJGeoCreator::getUniqueFaces(const std::vector<TopoDS_F
 std::vector<TopoDS_Face> CJGeoCreator::getEncompassedFaces(const std::vector<TopoDS_Face>& faceList)
 {
 	std::vector<TopoDS_Face> filteredFaces;
+	double precision = SettingsCollection::getInstance().precision();
+
+
 	for (size_t j = 0; j < faceList.size(); j++)
 	{
 		int vertCount = 0;
@@ -138,7 +141,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getEncompassedFaces(const std::vector<Top
 					TopoDS_Vertex otherVertex = TopoDS::Vertex(otherVertexExplorer.Current());
 					gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
 
-					if (point.IsEqual(otherPoint, 1e-6))
+					if (point.IsEqual(otherPoint, precision))
 					{
 						overlapCount++;
 						hasOverlap = true;
@@ -184,7 +187,7 @@ bool CJGeoCreator::isInList(const TopoDS_Edge& currentEdge, const std::vector<Ed
 
 std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project)
 {
-	double buffer = 0.001; //TODO: have it scale with units
+	double buffer = 0.001;
 
 	// merge lines that are on the same plane
 	std::vector<Edge> cleanedEdgeList;
@@ -514,6 +517,8 @@ bool CJGeoCreator::isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>&
 	bg::model::box<BoostPoint3D> boostbbox({ lll.X() - 0.5, lll.Y() -0.5, -1 }, { urr.X() + 0.5, urr.Y() + 0.5, 1 });
 	spatialIndex.query(bgi::intersects(boostbbox), std::back_inserter(qResult));
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (size_t i = 0; i < qResult.size(); i++)
 	{
 		TopoDS_Face evalFace = flatFaceList[qResult[i].second];
@@ -524,8 +529,8 @@ bool CJGeoCreator::isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>&
 		{
 			const TopoDS_Edge& edge = TopoDS::Edge(explorer.Current());
 			
-			if (helperFunctions::linearLineIntersection(evalEdge1, edge, false, 1e-6) != nullptr) { intersectionCount1++; }
-			if (helperFunctions::linearLineIntersection(evalEdge2, edge, false, 1e-6) != nullptr) { intersectionCount2++; }
+			if (helperFunctions::linearLineIntersection(evalEdge1, edge, false, precision) != nullptr) { intersectionCount1++; }
+			if (helperFunctions::linearLineIntersection(evalEdge2, edge, false, precision) != nullptr) { intersectionCount2++; }
 		}
 
 		if (intersectionCount1 % 2 == 1) { hasEval1 = true; }
@@ -585,7 +590,8 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 	}
 
 	// raycast
-	double distance = 2 * sudoSettings_->voxelSize_;
+	double distance = 2 * SettingsCollection::getInstance().voxelSize();
+	double precision = SettingsCollection::getInstance().precision();
 
 	std::vector<TopoDS_Edge> outerFootPrintList;
 	for (size_t i = 0; i < edgeList.size(); i++)
@@ -645,7 +651,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 					continue;
 				}
 
-				if (distanceCalc.Value() < 1e-6)
+				if (distanceCalc.Value() < precision)
 				{
 					rayInersects = true;
 					break;
@@ -694,6 +700,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(const std::vector<TopoDS_Edge>&
 
 	tempEdgeList.emplace_back(currentEdge);
 
+	double precision = SettingsCollection::getInstance().precision();
 	bool isReversed = false;
 	while (true)
 	{
@@ -708,7 +715,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(const std::vector<TopoDS_Edge>&
 			gp_Pnt p1 = helperFunctions::getFirstPointShape(otherEdge);
 			gp_Pnt p2 = helperFunctions::getLastPointShape(otherEdge);
 
-			if (p1.IsEqual(extendingPoint, 1e-6)) // check if edge is neighbour
+			if (p1.IsEqual(extendingPoint, precision)) // check if edge is neighbour
 			{
 				extendingPoint = p2;
 				evaluated[i] = 1;
@@ -717,7 +724,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(const std::vector<TopoDS_Edge>&
 				else { tempEdgeList.emplace_back(otherEdge); }
 				break;
 			}
-			else if (p2.IsEqual(extendingPoint, 1e-6)) // check if reversed edge is neighbour 
+			else if (p2.IsEqual(extendingPoint, precision)) // check if reversed edge is neighbour 
 			{
 				extendingPoint = p1;
 				evaluated[i] = 1;
@@ -726,7 +733,7 @@ std::vector<TopoDS_Wire> CJGeoCreator::growWires(const std::vector<TopoDS_Edge>&
 				else { tempEdgeList.emplace_back(BRepBuilderAPI_MakeEdge(p2, p1).Edge()); }
 				break;
 			}
-			else if (extendingPoint.IsEqual(originPoint, 1e-6)) // check if a closed loop is found if no new neighbour is there
+			else if (extendingPoint.IsEqual(originPoint, precision)) // check if a closed loop is found if no new neighbour is there
 			{
 				closed = true;
 				break;
@@ -881,15 +888,17 @@ TopoDS_Wire CJGeoCreator::cleanWire(const TopoDS_Wire& wire) {
 
 	std::vector<int> merged(orderedEdgeList.size());
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	bool ttt = false;
 	gp_Pnt connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
 	gp_Vec startingVec = helperFunctions::getDirEdge(orderedEdgeList[0]);
-	if (startingVec.IsParallel(helperFunctions::getDirEdge(orderedEdgeList.back()), 1e-6)) //get another startpoint
+	if (startingVec.IsParallel(helperFunctions::getDirEdge(orderedEdgeList.back()), precision)) //get another startpoint
 	{
 		ttt = true;
 		for (size_t i = 1; i < orderedEdgeList.size(); i++)
 		{
-			if (!startingVec.IsParallel(helperFunctions::getDirEdge(orderedEdgeList[i]), 1e-6))
+			if (!startingVec.IsParallel(helperFunctions::getDirEdge(orderedEdgeList[i]), precision))
 			{
 				std::rotate(orderedEdgeList.begin(), orderedEdgeList.begin() + i, orderedEdgeList.end());
 				break;
@@ -948,13 +957,13 @@ TopoDS_Wire CJGeoCreator::cleanWire(const TopoDS_Wire& wire) {
 			break;
 		}
 
-		if (connection.IsEqual(endPoint, 1e-6)) { continue; }
+		if (connection.IsEqual(endPoint, precision)) { continue; }
 
 		wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, endPoint));
 		connection = endPoint;
 	}
 
-	if (connection.IsEqual(helperFunctions::getFirstPointShape(orderedEdgeList[0]), 1e-6))
+	if (connection.IsEqual(helperFunctions::getFirstPointShape(orderedEdgeList[0]), precision))
 	{
 		return wireMaker.Wire();
 	}
@@ -1054,6 +1063,8 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 
 	std::vector<int> clipped(areaList.size());
 	std::vector<TopoDS_Face> cleanedFaceList;
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (size_t i = 0; i < orderedFootprintList.size(); i++)
 	{
 		if (clipped[i] == 1) { continue; }
@@ -1086,7 +1097,7 @@ std::vector<TopoDS_Face> CJGeoCreator::wireCluster2Faces(const std::vector<TopoD
 					BRepExtrema_DistShapeShape distanceCalc1(evalEdge, currentEdge); //TODO: speed up with linear intersection function?
 					distanceCalc1.Perform();
 
-					if (distanceCalc1.Value() < 1e-6) { intersectionCount++; }
+					if (distanceCalc1.Value() < precision) { intersectionCount++; }
 				}
 				if (intersectionCount % 2 == 1)
 				{
@@ -1151,6 +1162,8 @@ void CJGeoCreator::sortRoofStructures() {
 
 void CJGeoCreator::mergeRoofSurfaces()
 {
+	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
+
 	std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
 
 	for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
@@ -1224,13 +1237,13 @@ void CJGeoCreator::mergeRoofSurfaces()
 
 					if (faceGroupList[otherFaceIndx] != -1) { continue; }
 
-					if (!currentNormal.IsParallel(normalList[otherFaceIndx], 1e-4)) { continue; }
+					if (!currentNormal.IsParallel(normalList[otherFaceIndx], lowPrecision)) { continue; }
 
 					BRepExtrema_DistShapeShape distanceCalc(faceList[faceIdx].getFaces()[0], faceList[otherFaceIndx].getFaces()[0]);
 					distanceCalc.Perform();
 
 					if (!distanceCalc.IsDone()) { continue;  }
-					if (distanceCalc.Value() > 1e-4) { continue; }
+					if (distanceCalc.Value() > lowPrecision) { continue; }
 
 					tempBuffer.emplace_back(otherFaceIndx);
 					faceGroupList[otherFaceIndx] = 1;
@@ -1250,7 +1263,7 @@ void CJGeoCreator::mergeRoofSurfaces()
 					BRepAlgoAPI_Fuse fuser;
 					fuser.SetArguments(toolList);
 					fuser.SetTools(toolList);
-					fuser.SetFuzzyValue(1e-4);
+					fuser.SetFuzzyValue(lowPrecision);
 					fuser.Build();
 
 					std::vector<TopoDS_Edge> edgeList;
@@ -1477,7 +1490,7 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 void CJGeoCreator::makeFootprint(helper* h)
 {
 	// get footprint
-	double floorlvl = sudoSettings_->footprintElevation_;
+	double floorlvl = SettingsCollection::getInstance().footprintElevation();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
@@ -1614,6 +1627,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 {
 	std::vector<TopoDS_Shape> prismList;
 	bool allSolids = true;
+
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{
 		if (faceList_[i].size() == 0) { continue; }
@@ -1661,7 +1677,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			}
 			else {
 				BOPAlgo_Splitter divider;
-				divider.SetFuzzyValue(1e-6);
+				divider.SetFuzzyValue(precision);
 				divider.SetRunParallel(Standard_False);
 				divider.AddArgument(currentFace);
 
@@ -1686,7 +1702,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 
 		// extrude the trimmed surfaces and join
 		BOPAlgo_Builder aBuilder;
-		aBuilder.SetFuzzyValue(1e-6);
+		aBuilder.SetFuzzyValue(precision);
 		aBuilder.SetRunParallel(Standard_True);
 		std::vector<TopoDS_Face> topTrimFaceList;
 		for (size_t j = 0; j < faceList.size(); j++)
@@ -1855,6 +1871,8 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 	std::vector<int> tempMergeSurfaceIdxList;
 	std::vector<int> evalList(surfaceList.size());
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	while (true)
 	{
 		for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
@@ -1881,7 +1899,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 
 				if (currentIdx == otherFaceIdx) { continue; }
 				if (evalList[otherFaceIdx] == 1) { continue; }
-				if (!currentdir.IsParallel(otherdir, 1e-6)) { continue; }
+				if (!currentdir.IsParallel(otherdir, precision)) { continue; }
 				bool touching = false;
 
 				for (TopExp_Explorer edgeExp(currentFace, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
@@ -1896,8 +1914,8 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 						gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(edge2);
 
 						// check if the edges have the same vertices
-						if (currentStartpoint.IsEqual(otherEndpoint, 1e-6) && currentEndpoint.IsEqual(otherStartpoint, 1e-6) ||
-							currentEndpoint.IsEqual(otherEndpoint, 1e-6) && currentStartpoint.IsEqual(otherStartpoint, 1e-6)) {
+						if (currentStartpoint.IsEqual(otherEndpoint, precision) && currentEndpoint.IsEqual(otherStartpoint, precision) ||
+							currentEndpoint.IsEqual(otherEndpoint, precision) && currentStartpoint.IsEqual(otherStartpoint, precision)) {
 							touching = true;
 							break;
 						}
@@ -1993,6 +2011,8 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 
 
 TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces) {
+	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
+	
 	std::vector<TopoDS_Edge> edgeList;
 	for (size_t i = 0; i < mergeFaces.size(); i++)
 	{
@@ -2012,7 +2032,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 		gp_Pnt currentStartpoint = helperFunctions::getFirstPointShape(edgeList[i]);
 		gp_Pnt currentEndpoint = helperFunctions::getLastPointShape(edgeList[i]);
 
-		if (currentStartpoint.IsEqual(currentEndpoint, 1e-4)) { continue; }
+		if (currentStartpoint.IsEqual(currentEndpoint, lowPrecision)) { continue; }
 
 		for (size_t j = 0; j < edgeList.size(); j++)
 		{
@@ -2021,8 +2041,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 			gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(edgeList[j]);
 			gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(edgeList[j]);
 
-			if (currentStartpoint.IsEqual(otherEndpoint, 1e-4) && currentEndpoint.IsEqual(otherStartpoint, 1e-4) ||
-				currentEndpoint.IsEqual(otherEndpoint, 1e-4) && currentStartpoint.IsEqual(otherStartpoint, 1e-4)) {
+			if (currentStartpoint.IsEqual(otherEndpoint, lowPrecision) && currentEndpoint.IsEqual(otherStartpoint, lowPrecision) ||
+				currentEndpoint.IsEqual(otherEndpoint, lowPrecision) && currentStartpoint.IsEqual(otherStartpoint, lowPrecision)) {
 				evalList[j] = 1;
 				dub = true;
 				break;
@@ -2097,6 +2117,7 @@ void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, st
 
 bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape)
 {
+	double precision = SettingsCollection::getInstance().precision();
 	for (TopExp_Explorer explorer(encapsulatedShape, TopAbs_FACE); explorer.More(); explorer.Next())
 	{
 		const TopoDS_Face& outerSurface = TopoDS::Face(explorer.Current());
@@ -2108,7 +2129,7 @@ bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const 
 			BRepExtrema_DistShapeShape distCalculator(outerSurface, vertex);
 			distCalculator.Perform();
 
-			if (distCalculator.Value() >= 1e-6) 
+			if (distCalculator.Value() >= precision)
 			{ 
 				encapsulated = false;
 				break; 
@@ -2140,14 +2161,16 @@ bool CJGeoCreator::checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_S
 
 bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face)
 {
-	BRepExtrema_DistShapeShape intersection(ray, face, 1e-6);
+	double precision = SettingsCollection::getInstance().precision();
+
+	BRepExtrema_DistShapeShape intersection(ray, face, precision);
 
 	intersection.Perform();
 
 	// Check if there is an intersection
 	if (!intersection.IsDone()) { return false; }
 	if (intersection.NbSolution() < 1) { return false; }
-	if (intersection.PointOnShape1(1).Distance(intersection.PointOnShape2(1)) <= 1e-6)
+	if (intersection.PointOnShape1(1).Distance(intersection.PointOnShape2(1)) <= precision)
 	{
 		return true;
 	}
@@ -2229,7 +2252,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	auto startTime = std::chrono::steady_clock::now();
 
 	// split the range over cores
-	int coreCount = sudoSettings_->threadcount_;
+	int coreCount = SettingsCollection::getInstance().threadcount();
 	int coreUse = coreCount;
 	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 	int voxelsGrown = 0;
@@ -2277,11 +2300,11 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 	}
 }
 
-void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList) //TODO: monitor this
+void CJGeoCreator::FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	// split the range over cores
-	int coreCount = sudoSettings_->threadcount_;
+	int coreCount = SettingsCollection::getInstance().threadcount();
 	int coreUse = coreCount;
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 	int voxelsGrown = 0;
@@ -2397,7 +2420,7 @@ std::vector<SurfaceGroup> CJGeoCreator::getXYFaces(const TopoDS_Shape& shape) {
 		if (currentGroup.isVisible())
 		{ 
 			currentGroup.projectFace();
-			currentGroup.populateGrid(0.3); //TODO: use voxel size?
+			currentGroup.populateGrid(SettingsCollection::getInstance().surfaceGridSize());
 			cleanedSurfaceGroupList.emplace_back(currentGroup);
 			continue;
 		}
@@ -2450,17 +2473,19 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 
 CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD00) << std::endl;
 
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
-	double rotationAngle = sudoSettings_->gridRotation_;
+	double rotationAngle = settingsCollection.gridRotation();
 	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, rotationAngle);
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
-	trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
+	trs.SetTranslationPart(gp_Vec(0, 0, settingsCollection.footprintElevation()));
 
 	helperFunctions::geoTransform(&floorProjection, h->getObjectTranslation(), trs);
 	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection, "0.0");
@@ -2478,6 +2503,9 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD02) << std::endl;
+
+	SettingsCollection& settingCollection = SettingsCollection::getInstance();
+
 	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject>(); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
@@ -2497,13 +2525,13 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 			TopoDS_Shape currentShape = roofOutlineList_[i];
 
 			gp_Trsf localRotationTrsf;
-			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)),  -settingCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
 
 			gp_Trsf trs;
 			trs.SetRotation(geoRefRotation_.GetRotation());
 			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
-			else { trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_)); }
+			else { trs.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation())); }
 			helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.2");
@@ -2518,14 +2546,14 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 		// make the footprint
 		gp_Trsf trs;
 		trs.SetRotation(geoRefRotation_.GetRotation());
-		trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
+		trs.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation()));
 
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
 			TopoDS_Shape currentFace = footprintList_[i];
 
 			gp_Trsf localRotationTrsf;
-			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingCollection.gridRotation());
 			currentFace.Move(localRotationTrsf);
 
 			helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2564,7 +2592,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 					TopoDS_Face currentFace = currentStoreyGeo[k];
 
 					gp_Trsf localRotationTrsf;
-					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation()); //TODO: make this smarter
 					currentFace.Move(localRotationTrsf);
 
 					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2586,9 +2614,12 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD10) << std::endl;
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
-	double rotationAngle = sudoSettings_->gridRotation_;
+	double rotationAngle = settingsCollection.gridRotation();
 
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
@@ -2597,7 +2628,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 	TopoDS_Solid bbox;
 	brepBuilder.MakeSolid(bbox);
 
-	double footprintHeight = sudoSettings_->footprintElevation_;
+	double footprintHeight = settingsCollection.footprintElevation();
 
 	gp_Pnt p0 = helperFunctions::rotatePointWorld(lll, -rotationAngle);
 	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
@@ -2638,7 +2669,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
-	trs.SetTranslationPart(gp_Vec(0, 0, sudoSettings_->footprintElevation_));
+	trs.SetTranslationPart(gp_Vec(0, 0, settingsCollection.footprintElevation()));
 	helperFunctions::geoTransform(&bbox, h->getObjectTranslation(), trs);
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
@@ -2685,7 +2716,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 		TopoDS_Face currentFootprint = roofOutlineList_[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 		currentFootprint.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentFootprint, h->getObjectTranslation(), trs);
@@ -2745,7 +2776,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 		TopoDS_Shape currentShape = prismList[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 		currentShape.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
@@ -2796,7 +2827,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 		TopoDS_Shape currentShape = prismList[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 		currentShape.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
@@ -2827,9 +2858,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 
-	double buffer = 1 * sudoSettings_->voxelSize_; // set the distance from the bb of the evaluated object
+	double buffer = 1 * settingsCollection.voxelSize(); // set the distance from the bb of the evaluated object
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
 
 	std::vector<Value> productLookupValues;
@@ -2843,7 +2876,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
-	double gridDistance = sudoSettings_->voxelSize_;
+	double gridDistance = settingsCollection.voxelSize();
 
 	// create unique index
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
@@ -2920,7 +2953,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 		TopoDS_Shape currentFace = rawFaces[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 		currentFace.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2942,7 +2975,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	TopoDS_Shape sewedShape = voxels2Shape(0);
 
 	gp_Trsf localRotationTrsf;
-	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	sewedShape.Move(localRotationTrsf);
 
 	gp_Trsf trs;
@@ -3061,7 +3094,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -sudoSettings_->gridRotation_); //TODO: make this smarter
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation()); //TODO: make this smarter
 		sewedShape.Move(localRotationTrsf);
 
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
@@ -3097,6 +3130,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExtractingSite) << std::endl;
 	std::vector<CJT::CityObject> siteObjectList;
 	double buffer = 0.001;
+	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
 	int geoCount = 0;
 
 	TopTools_ListOfShape completeFuseToolList;
@@ -3163,7 +3197,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	BRepAlgoAPI_Fuse fuser;
 	fuser.SetArguments(completeFuseToolList);
 	fuser.SetTools(completeFuseToolList);
-	fuser.SetFuzzyValue(1e-4);
+	fuser.SetFuzzyValue(lowPrecision);
 	fuser.Build();
 
 	// split flat faces from vertical faces
@@ -3249,7 +3283,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	// get the outer edges from the flat surfaces
 	fuser.SetArguments(toolList);
 	fuser.SetTools(toolList);
-	fuser.SetFuzzyValue(1e-4);
+	fuser.SetFuzzyValue(lowPrecision);
 	fuser.Build();
 
 	std::vector<TopoDS_Edge> outerEdgesList;
@@ -3316,7 +3350,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	// merge the filtered vertical and horizontal site faces
 	fuser.SetArguments(toolList);
 	fuser.SetTools(toolList);
-	fuser.SetFuzzyValue(1e-4);
+	fuser.SetFuzzyValue(lowPrecision);
 	fuser.Build();
 
 	if (!fuser.IsDone())
@@ -3358,7 +3392,7 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
 
 
 void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList) { 
-	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, -sudoSettings_->gridRotation_, roomNum);
+	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, -SettingsCollection::getInstance().gridRotation(), roomNum);
 	
 
 	for (size_t i = 0; i < faceList.size(); i++) {
@@ -3381,7 +3415,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 
     std::vector<voxel*> internalVoxels = voxelGrid_->getInternalVoxels();
 
-	double voxelSize = sudoSettings_->voxelSize_;
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 	double shellVolume = internalVoxels.size()* voxelVolume;
 
@@ -3460,7 +3494,7 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 {
 	double totalRoomVolume = 0;
 
-	double voxelSize =  sudoSettings_->voxelSize_;
+	double voxelSize =  SettingsCollection::getInstance().voxelSize();
 	double voxelVolume = voxelSize * voxelSize * voxelSize;
 
 	std::vector<voxel*> voxelList = voxelGrid_->getVoxels();
@@ -3516,6 +3550,8 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 {
 	bgi::rtree<Value, bgi::rstar<25>> cleandExteriorProductIndex;
 	std::vector<Value> cleanedProductLookupValues;
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (size_t i = 0; i < productLookupValues->size(); i++)
 	{
 		bool isExposed = true;
@@ -3551,7 +3587,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 				const TopoDS_Vertex& vertex = TopoDS::Vertex(vertexExplorer.Current());
 				gp_Pnt vertexPoint = BRep_Tool::Pnt(vertex);
 
-				solidClassifier.Perform(vertexPoint, 1e-6);
+				solidClassifier.Perform(vertexPoint, precision);
 
 				TopAbs_State classifierState = solidClassifier.State();
 
@@ -3614,6 +3650,8 @@ bool CJGeoCreator::isSurfaceVisible(
 	double gridDistance, 
 	double buffer)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	Handle(Geom_Surface) surface = BRep_Tool::Surface(currentFace);
 	
 	// greate points on grid over surface
@@ -3647,7 +3685,7 @@ bool CJGeoCreator::isSurfaceVisible(
 			double v = vMin + j * vStep;
 			gp_Pnt point;
 			surface->D0(u, v, point);
-			BRepClass_FaceClassifier faceClassifier(currentFace, point, 1e-6);
+			BRepClass_FaceClassifier faceClassifier(currentFace, point, precision);
 			if (faceClassifier.State() != TopAbs_ON && faceClassifier.State() != TopAbs_IN) { continue; }
 			//printPoint(point);
 			if (pointIsVisible(h, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
@@ -3806,11 +3844,10 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 }
 
 
-CJGeoCreator::CJGeoCreator(helper* h, std::shared_ptr<SettingsCollection> settings, double vSize)
+CJGeoCreator::CJGeoCreator(helper* h, double vSize)
 {
 	// compute generic voxelfield data
-	sudoSettings_ = settings;
-	voxelGrid_ = new VoxelGrid(h, sudoSettings_);
+	voxelGrid_ = new VoxelGrid(h);
 }
 
 FloorOutlineObject::FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)

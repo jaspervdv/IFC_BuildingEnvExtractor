@@ -190,6 +190,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Target filepath folder does not exist";
 	case CommunicationStringID::errorJSONNoDivObjects:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No div objects are selected";
+	case CommunicationStringID::errorNoPoints:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No points could be extracted from the IFC file";
 	case CommunicationStringID::errorFootprintFailed:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Footprint extraction failed";
 	case CommunicationStringID::errorStoreyFailed:

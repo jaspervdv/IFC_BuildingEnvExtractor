@@ -7,8 +7,6 @@
 
 class VoxelGrid {
 private:
-	std::shared_ptr<SettingsCollection> sudoSettings_;
-
 	// world space data
 	gp_Pnt anchor_;
 	double planeRotation_ = 0;
@@ -69,7 +67,7 @@ private:
 
 
 public:
-	VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings);
+	VoxelGrid(helper* h);
 
 	void computeSurfaceSemantics(helper* h);
 

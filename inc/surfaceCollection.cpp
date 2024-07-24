@@ -1,5 +1,6 @@
 #include "surfaceCollection.h"
 #include "helper.h"
+#include "settingsCollection.h"
 
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -99,7 +100,6 @@ void SurfaceGroup::populateGrid(double distance)
 	xDistance = xRange / xSteps;
 	yDistance = yRange / ySteps;
 
-	//TODO: vercount;
 	int vertCount = helperFunctions::getPointCount(theFace);
 
 	if (vertCount == 6 && helperFunctions::computeArea(theFace) < 1) // If Triangle
@@ -190,6 +190,8 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 	TopoDS_Face currentFace = getFaces()[0];
 	std::vector<EvaluationPoint*> currentGrid = getPointGrid();
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (size_t i = 0; i < otherSurfaces.size(); i++)
 	{
 
@@ -206,7 +208,7 @@ bool SurfaceGroup::testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces,
 
 		if (currentFace.IsEqual(otherFace)) { continue; }
 
-		IntCurvesFace_Intersector intersector(otherFace, 1e-6);
+		IntCurvesFace_Intersector intersector(otherFace, precision);
 
 		for (size_t k = 0; k < currentGrid.size(); k++)
 		{

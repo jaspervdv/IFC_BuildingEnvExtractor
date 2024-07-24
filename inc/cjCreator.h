@@ -35,8 +35,6 @@ public:
 
 class CJGeoCreator {
 private:
-	std::shared_ptr<SettingsCollection> sudoSettings_;
-
 	// default spatial index tree depth
 	static const int treeDepth_ = 25;
 	VoxelGrid* voxelGrid_ = nullptr;
@@ -227,7 +225,7 @@ private:
 		const double& buffer);
 
 public:
-	explicit CJGeoCreator(helper* h, std::shared_ptr<SettingsCollection> settings, double vSize);
+	explicit CJGeoCreator(helper* h, double vSize);
 
 	/// computes and internalizes the data that is required to do the basic city scale output
 	void initializeBasic(helper* h);

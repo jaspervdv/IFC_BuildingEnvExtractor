@@ -9,19 +9,19 @@
 
 bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
 	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
 
-	//helperFunctions::printPoint(midPointOCCT);
-
-	voxel* boxel = new voxel(midPoint, sudoSettings_->voxelSize_, sudoSettings_->voxelSize_);
+	voxel* boxel = new voxel(midPoint, settingsCollection.voxelSize(), settingsCollection.voxelSize());
 
 	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
 	auto boxelGeo = boxel->getVoxelGeo();
 
 	std::vector<gp_Pnt> pointList;
-	if (sudoSettings_->intersectionLogic_ == 2) { pointList = boxel->getPlanePoints(); }
-	else if (sudoSettings_->intersectionLogic_ == 3) { pointList = boxel->getCornerPoints(); }
+	if (settingsCollection.intersectionLogic() == 2) { pointList = boxel->getPlanePoints(); }
+	else if (settingsCollection.intersectionLogic() == 3) { pointList = boxel->getCornerPoints(); }
 
 	bool isIntersecting = false;
 
@@ -38,7 +38,7 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 
 			//if (productTypesList.find(productType) != productTypesList.end()) { continue; }
 
-			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, sudoSettings_->intersectionLogic_))
+			if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, settingsCollection.intersectionLogic()))
 			{
 				productTypesList.insert(productType); //TODO: make this work
 				boxel->addInternalProduct(qResult[k]);
@@ -69,7 +69,7 @@ void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxel
 		{
 			if (
 				addVoxel(voxelIndx, h, intersect) &&
-				!sudoSettings_->requireFullVoxels_
+				!SettingsCollection::getInstance().requireFullVoxels()
 				)
 			{
 				intersect = false;
@@ -86,12 +86,13 @@ void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxel
 	}
 }
 
-VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
+VoxelGrid::VoxelGrid(helper* h)
 {
-	sudoSettings_ = settings;
 	anchor_ = h->getLllPoint();
 
-	double voxelSize = sudoSettings_->voxelSize_;
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	double voxelSize = settingsCollection.voxelSize();
 
 	gp_Pnt urrPoints = h->getUrrPoint();
 
@@ -116,7 +117,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
 	Assignment_ = std::vector<int>(totalVoxels_, 0);
 
-	planeRotation_ = sudoSettings_->gridRotation_; //TODO: remove?
+	planeRotation_ = settingsCollection.gridRotation();
 
 	if (false)
 	{
@@ -137,7 +138,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 		std::cout << totalVoxels_ << std::endl;
 	}
 
-	if (!sudoSettings_->requireVoxels_) { 
+	if (!settingsCollection.requireVoxels()) { 
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoNoVoxelizationReq) << std::endl;
 		return; 
 	} // no voxels needed for lod0.0 and 1.0 only
@@ -145,7 +146,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPopulateGrid) << std::endl;
 	populatedVoxelGrid(h);
 
-	if (!sudoSettings_->requireFullVoxels_) { 
+	if (!settingsCollection.requireFullVoxels()) { 
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoNocompleteVoxelizationReq) << std::endl;
 		return; 
 	}
@@ -171,7 +172,7 @@ VoxelGrid::VoxelGrid(helper* h, std::shared_ptr<SettingsCollection> settings)
 	}
 
 
-	if (sudoSettings_->makeInterior_)
+	if (settingsCollection.makeInterior())
 	{
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInterioSpacesGrowing) << std::endl;
 		roomSize_ = 1;
@@ -243,12 +244,16 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 
 void VoxelGrid::populatedVoxelGrid(helper* h)
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	// split the range over cores
-	int coreUse = sudoSettings_->threadcount_ - 1;
+	int coreUse = settingsCollection.threadcount() - 1;
 	int loopRange = xRelRange_ * yRelRange_;
 	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
 
 	// compute column scores
+	int voxelSize = settingsCollection.voxelSize();
+
 	std::vector<int> columScoreList;
 	int columSumScore = 0;
 	for (int i = 0; i < loopRange; i++)
@@ -257,15 +262,15 @@ void VoxelGrid::populatedVoxelGrid(helper* h)
 
 		BoostPoint3D coneCenter = relPointToWorld(linearToRelative<BoostPoint3D>(plate));
 		BoostPoint3D lll = BoostPoint3D( 
-			coneCenter.get<0>() - sudoSettings_->voxelSize_/2, 
-			coneCenter.get<1>() - sudoSettings_->voxelSize_/2,
+			coneCenter.get<0>() - voxelSize /2,
+			coneCenter.get<1>() - voxelSize /2,
 			-100
 		);
 
 		BoostPoint3D urr = BoostPoint3D(
-			coneCenter.get<0>() + sudoSettings_->voxelSize_/2,
-			coneCenter.get<1>() + sudoSettings_->voxelSize_/2,
-			coneCenter.get<2>() + sudoSettings_->voxelSize_/2
+			coneCenter.get<0>() + voxelSize /2,
+			coneCenter.get<1>() + voxelSize /2,
+			coneCenter.get<2>() + voxelSize /2
 		);
 
 		std::vector<Value> qResult;
@@ -628,7 +633,7 @@ std::vector<int> VoxelGrid::getTopBoxelIndx() {
 
 std::vector<voxel*> VoxelGrid::getVoxelPlate(double platelvl) {
 	double voxelCount = (double) VoxelLookup_.size();
-	double zlvls = voxelCount / ((double) xRelRange_ * (double) yRelRange_); //TODO: this can be cleaner
+	double zlvls = voxelCount / (static_cast<double>(xRelRange_) * static_cast<double>(yRelRange_));
 	double smallestDistanceToLvl = 999999;
 
 	int plateVoxelLvl;
@@ -813,11 +818,13 @@ std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelI
 
 bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int indxDir)
 {
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	double windowSearchDepth = 0.3;
 	double windowArea = 0;
 
 	// get a beam
-	double voxelJump = sudoSettings_->voxelSize_;
+	double voxelJump = settingsCollection.voxelSize();
 	std::vector<voxel*> voxelBeam;
 
 	voxel* loopingCurrentVoxel = currentVoxel;
@@ -838,7 +845,7 @@ bool VoxelGrid::voxelBeamWindowIntersection(helper* h, voxel* currentVoxel, int 
 		if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
 
 		voxelBeam.emplace_back(loopingCurrentVoxel);
-		voxelJump += sudoSettings_->voxelSize_;
+		voxelJump += settingsCollection.voxelSize();
 		if (windowSearchDepth < voxelJump) { break; }
 	}
 
@@ -895,7 +902,7 @@ int VoxelGrid::getLowerNeighbour(int voxelIndx, bool connect6)
 
 BoostPoint3D VoxelGrid::relPointToWorld(const BoostPoint3D& p)
 {
-	double voxelSize = sudoSettings_->voxelSize_;
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
 
 	double xCoord = anchor_.X() + (bg::get<0>(p) * voxelSize) + voxelSize / 2;
 	double yCoord = anchor_.Y() + (bg::get<1>(p) * voxelSize) + voxelSize / 2;
@@ -907,7 +914,7 @@ BoostPoint3D VoxelGrid::relPointToWorld(const BoostPoint3D& p)
 
 BoostPoint3D VoxelGrid::worldToRelPoint(BoostPoint3D p)
 {
-	double voxelSize = sudoSettings_->voxelSize_;
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
 
 	double xCoord = (bg::get<0>(p) - anchor_.X() - voxelSize / 2) / voxelSize;
 	double yCoord = (bg::get<1>(p) - anchor_.Y() - voxelSize / 2) / voxelSize;

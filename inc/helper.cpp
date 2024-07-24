@@ -1,7 +1,7 @@
 #include "helper.h"
+#include "settingsCollection.h"
 
 #include <CJToKernel.h>
-
 #include <iostream>
 #include <string>
 #include <filesystem>
@@ -533,6 +533,8 @@ gp_Pnt helperFunctions::getLastPointShape(const TopoDS_Shape& shape) {
 
 gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	gp_Vec vec1;
 	gp_Vec vec2;
 
@@ -546,7 +548,7 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 		gp_Pnt startpoint = getFirstPointShape(edge);
 		gp_Pnt endpoint = getLastPointShape(edge);
 
-		if (startpoint.IsEqual(endpoint, 1e-6)) { continue; }
+		if (startpoint.IsEqual(endpoint, precision)) { continue; }
 
 		if (!hasVec1)
 		{
@@ -576,6 +578,7 @@ gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace)
 
 double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 {
+	double precision = SettingsCollection::getInstance().precision();
 	std::vector<gp_Pnt> pointList = {};
 
 	double biggestAngle = 0;
@@ -596,13 +599,13 @@ double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 			gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
 			gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
 
-			if (otherP1.IsEqual(Anglepoint, 1e-6)) 
+			if (otherP1.IsEqual(Anglepoint, precision))
 			{ 
 				leg2Found = true;
 				legPoint2 = otherP2; 
 				break;
 			}
-			else if (otherP2.IsEqual(Anglepoint, 1e-6)) 
+			else if (otherP2.IsEqual(Anglepoint, precision))
 			{ 
 				leg2Found = false;
 				legPoint2 = otherP1;
@@ -632,9 +635,10 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 	gp_Pnt oP0 = getFirstPointShape(otherEdge);
 	gp_Pnt oP1 = getLastPointShape(otherEdge);
 
+	double precision = SettingsCollection::getInstance().precision();
 
-	if (cP0.IsEqual(oP0, 1e-6) && cP1.IsEqual(oP1, 1e-6)) { return true; }
-	if (cP1.IsEqual(oP0, 1e-6) && cP0.IsEqual(oP1, 1e-6)) { return true; }
+	if (cP0.IsEqual(oP0, precision) && cP1.IsEqual(oP1, precision)) { return true; }
+	if (cP1.IsEqual(oP0, precision) && cP0.IsEqual(oP1, precision)) { return true; }
 
 	return false;
 }
@@ -834,6 +838,8 @@ double helperFunctions::computeArea(const TopoDS_Face& theFace)
 }
 
 TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire) {
+	double precision = SettingsCollection::getInstance().precision();
+	
 	gp_Pnt connectionPoint1 = getFirstPointShape(baseWire);
 	gp_Pnt connectionPoint2 = getLastPointShape(baseWire);
 
@@ -842,7 +848,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 	BRepBuilderAPI_MakeWire wiremaker;
 
-	if (connectionPoint1.Distance(p2) < 1e-6) // correct orentation placed in front
+	if (connectionPoint1.Distance(p2) < precision) // correct orentation placed in front
 	{
 
 		for (TopExp_Explorer explorer(mergingWire, TopAbs_EDGE); explorer.More(); explorer.Next())
@@ -859,7 +865,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 		if (wiremaker.IsDone()) { return wiremaker.Wire(); }
 	}
-	if (connectionPoint1.Distance(p1) < 1e-6) // wrong orentation placed in front
+	if (connectionPoint1.Distance(p1) < precision) // wrong orentation placed in front
 	{
 		std::vector<TopoDS_Edge> tempEdgeList;
 		for (TopExp_Explorer explorer(mergingWire, TopAbs_EDGE); explorer.More(); explorer.Next())
@@ -884,7 +890,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 		if (wiremaker.IsDone()) { return wiremaker.Wire(); }
 	}
-	if (connectionPoint2.Distance(p1) < 1e-6) // correct orentation placed after
+	if (connectionPoint2.Distance(p1) < precision) // correct orentation placed after
 	{
 		for (TopExp_Explorer explorer(baseWire, TopAbs_EDGE); explorer.More(); explorer.Next())
 		{
@@ -900,7 +906,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 		if (wiremaker.IsDone()) { return wiremaker.Wire(); }
 	}
-	if (connectionPoint2.Distance(p2) < 1e-6) // wrong orentation placed after
+	if (connectionPoint2.Distance(p2) < precision) // wrong orentation placed after
 	{
 
 		for (TopExp_Explorer explorer(baseWire, TopAbs_EDGE); explorer.More(); explorer.Next())
@@ -934,7 +940,7 @@ TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 	gp_Pnt p1 = helperFunctions::getFirstPointShape(baseWire);
 	gp_Pnt p2 = helperFunctions::getLastPointShape(baseWire);
 
-	if (p1.Distance(p2) < 1e-6) { return baseWire; }
+	if (p1.Distance(p2) < SettingsCollection::getInstance().precision()) { return baseWire; }
 
 	TopoDS_Wire closingWire = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(p2, p1));
 
@@ -1130,6 +1136,8 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 
 gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt& eP1, const gp_Pnt& sP2, const gp_Pnt& eP2, bool projected, double buffer) {
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	gp_Pnt evalSP1 = sP1;
 	gp_Pnt evalEP1 = eP1;
 	gp_Pnt evalSP2 = sP2;
@@ -1143,8 +1151,8 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 		evalEP2.SetZ(0);
 	}
 
-	if (evalSP1.IsEqual(evalEP1, 1e-6)) { return nullptr; }
-	if (evalSP2.IsEqual(evalEP2, 1e-6)) { return nullptr; }
+	if (evalSP1.IsEqual(evalEP1, precision)) { return nullptr; }
+	if (evalSP2.IsEqual(evalEP2, precision)) { return nullptr; }
 
 	double z = 0; //Todo: make work in 3d
 	if (!projected) { z = evalEP1.Z(); }
@@ -1154,7 +1162,7 @@ gp_Pnt* helperFunctions::linearLineIntersection(const gp_Pnt& sP1, const gp_Pnt&
 	gp_Vec v2(evalSP2, evalEP2);
 	v2.Normalize();
 
-	if (v1.IsEqual(v2, 1e-6, 1e-6)) { return nullptr; }
+	if (v1.IsEqual(v2, precision, precision)) { return nullptr; }
 
 	double x1 = evalSP1.X();
 	double x2 = evalEP1.X();;
@@ -1227,9 +1235,10 @@ bool helperFunctions::isOverlappingCompletely(const SurfaceGroup& evalFace, cons
 	std::vector<EvaluationPoint*> otherGrid = otherFace.getPointGrid();
 	if (evalGrid.size() != otherGrid.size()) { return false; }
 
+	double precision = SettingsCollection::getInstance().precision();
 	for (size_t i = 0; i < evalGrid.size(); i++)
 	{
-		if (!evalGrid[i]->getPoint().IsEqual(otherGrid[i]->getPoint(), 1e-6)) { return false; }
+		if (!evalGrid[i]->getPoint().IsEqual(otherGrid[i]->getPoint(), precision)) { return false; }
 	}
 	return true;
 }

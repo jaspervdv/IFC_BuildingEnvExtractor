@@ -128,6 +128,7 @@ enum class CommunicationStringID {
 	errorJSONInvalOuputFormat,
 	errorJSONInvalOutputFolder,
 	errorJSONNoDivObjects,
+	errorNoPoints,
 	errorFootprintFailed,
 	errorStoreyFailed,
 	errorLoD02StoreyFailed,
