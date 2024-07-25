@@ -31,6 +31,7 @@
 
 #include <chrono>
 #include <unordered_set>
+#include <memory>
 
 
 namespace bg = boost::geometry;

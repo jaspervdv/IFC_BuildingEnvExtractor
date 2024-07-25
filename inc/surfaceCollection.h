@@ -6,6 +6,7 @@
 #include <gp_Lin.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Vec.hxx>
+#include <memory>
 
 
 #ifndef EVALUATIONPOINT_EVALUATIONPOINT_H
