@@ -315,8 +315,10 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "basement shell volume";
 	case CJObjectID::voxelApproxBasementShellVolume:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "building shell volume";
-	case CJObjectID::voxelApproxRoomVolume:
+	case CJObjectID::voxelApproxRoomVolumeTotal:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "total room volume";
+	case CJObjectID::voxelApproxRoomArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "room area";
 	case CJObjectID::voxelApproxShellArea:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "shell area";
 	case CJObjectID::voxelApproxBasementShellArea:

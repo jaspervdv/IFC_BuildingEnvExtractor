@@ -650,7 +650,7 @@ bool IOManager::run()
 	{
 		internalHelper_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
 	}
-	transformation.setScale(transformation.getScale()[0]); //TODO: fix cjt to make this not required.
+	transformation.setScale(transformation.getScale()[0]);
 	collection->setTransformation(transformation);
 	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
 

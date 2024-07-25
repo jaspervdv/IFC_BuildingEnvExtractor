@@ -15,7 +15,7 @@ private:
 	std::vector<std::string> inputPathList_ = {};
 	std::string outputPath_ = "";
 
-	std::unordered_set<double> LoDWInterior_ = { 0.2, 5.0 }; //TODO: move this
+	std::unordered_set<double> LoDWInterior_ = { 0.2, 5.0 };
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = true;

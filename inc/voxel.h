@@ -82,6 +82,7 @@ public:
 
 	/// set flag notifying if the voxel is part of the outside of a building 
 	void setOutside() { isInside_ = false; }
+	void setOutside(bool b) { isInside_ = !b; }
 
 	/// returns flag representing if the voxel is part of the interior of a building
 	const bool getIsInside() { return isInside_; }

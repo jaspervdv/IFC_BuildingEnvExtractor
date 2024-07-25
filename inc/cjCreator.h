@@ -267,10 +267,13 @@ public:
 	/// generates a list of the site and its outline
 	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);
 
+
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
 	TopoDS_Shape voxels2Shape(int roomNum);
+	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
+	double approximateRoomArea(int roomNum);
 	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);
 
 	/// computes data related to the voxel shape such as volume and shell area

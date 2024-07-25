@@ -38,7 +38,7 @@ public:
 class SurfaceGroup {
 private:
 	// the face
-	std::vector<TopoDS_Face> theFaceCollection_; //TODO: make this function with complex faces
+	std::vector<TopoDS_Face> theFaceCollection_;
 
 	// the flat face geometry LoD13
 	TopoDS_Face theFlatFace_;

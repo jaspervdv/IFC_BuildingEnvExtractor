@@ -172,7 +172,7 @@ void SurfaceGroup::populateGrid(double distance)
 
 			if (intersector.NbPnt() == 1) {
 				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersector.Pnt(1)); //TODO: make smart
+				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersector.Pnt(1));
 				pointGrid_.emplace_back(evalPoint);
 			}
 		}

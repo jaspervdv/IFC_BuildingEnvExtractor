@@ -1229,7 +1229,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	{
 		kernelObject = datacollection_[0]->getKernelPtr();
 	}
-	else { // TODO: makes this smarter and quicker
+	else {
 		for (size_t i = 0; i < dataCollectionSize_; i++)
 		{
 			try { datacollection_[i]->getFilePtr()->instance_by_guid(product->GlobalId())->data().toString(); }
@@ -1257,7 +1257,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (brep == nullptr) {
 
 		return {}; 
-	} //TODO: find manner to aquire data
+	}
 
 	kernelObject->convert_placement(ifc_representation, placement);
 
@@ -1316,7 +1316,6 @@ void helper::applyVoids()
 {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		// TODO: check if this works?
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 		voidShapeAdjust<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
 	}

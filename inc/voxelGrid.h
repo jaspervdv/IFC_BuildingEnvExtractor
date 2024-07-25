@@ -27,9 +27,6 @@ private:
 
 	int roomSize_ = 0;
 
-	// assignment of the voxels (should be removed) -1 is intersected 0 is not assigned 1..n is room assignement;
-	std::vector<int> Assignment_;
-
 	bool hasSemanticSurfaces_ = false;
 
 	/// create the voxelgrid and find intersections of voxels
@@ -49,7 +46,7 @@ private:
 	BoostPoint3D worldToRelPoint(BoostPoint3D p);
 
 	/// grow the exterior voxelized shape
-	std::vector<int> growExterior(int startIndx, int roomnum, helper* h);
+	void growExterior(int startIndx, int roomnum, helper* h);
 
 	/// mark the voxels to which building they are part off
 	void markVoxelBuilding(int startIndx, int buildnum);
@@ -94,6 +91,7 @@ public:
 	double getRotation() { return planeRotation_; }
 
 	int getRoomSize() { return roomSize_; }
+	double getRoomArea(int roomNum);
 
 	std::vector<std::vector<TopoDS_Edge>> getDirectionalFaces(int dirIndx, double angle, int roomNum);
 

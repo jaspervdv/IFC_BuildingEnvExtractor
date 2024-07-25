@@ -115,8 +115,6 @@ VoxelGrid::VoxelGrid(helper* h)
 	zRelRange_ = static_cast<int>((int)ceil(zRange / voxelSize) + 1);
 
 	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
-	Assignment_ = std::vector<int>(totalVoxels_, 0);
-
 	planeRotation_ = settingsCollection.gridRotation();
 
 	if (false)
@@ -156,7 +154,7 @@ VoxelGrid::VoxelGrid(helper* h)
 	{
 		if (!VoxelLookup_[i]->getIsIntersecting())
 		{
-			exteriorVoxelsIdx_ = growExterior(i, 0, h);
+			growExterior(i, 0, h);
 			break;
 		}
 	}
@@ -398,6 +396,22 @@ std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxels()
 		externalVoxels.emplace_back(currentVoxel);
 	}
 	return externalVoxels;
+}
+
+double VoxelGrid::getRoomArea(int roomNum)
+{
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
+	double voxelarea = voxelSize * voxelSize;
+
+	double roomArea = 0;
+	for (std::pair<int, std::shared_ptr<voxel>> voxelPair : VoxelLookup_)
+	{
+		std::shared_ptr<voxel> currentVoxel = voxelPair.second;
+		if (currentVoxel->getRoomNum() != roomNum) { continue; }
+		if (!currentVoxel->hasFace(5)) { continue; }
+		roomArea += voxelarea;
+	}
+	return roomArea;
 }
 
 std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx, double angle, int roomNum)
@@ -924,19 +938,23 @@ BoostPoint3D VoxelGrid::worldToRelPoint(BoostPoint3D p)
 }
 
 
-std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
+void VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 {
+	// set up starting data
 	std::vector<int> buffer = { startIndx };
 	std::vector<int> totalRoom = { startIndx };
 	VoxelLookup_[startIndx]->setRoomNum(roomnum);
-	Assignment_[startIndx] = 1;
 
+	// setting up extracting exterior data
+	std::vector<int> exterior;
 	bool isOutSide = false;
+
 	while (buffer.size() > 0)
 	{
 		std::vector<int> tempBuffer;
-		for (size_t j = 0; j < buffer.size(); j++)
+		for (int currentIdx : buffer)
 		{
+			// only output process if outside is processed
 			if (roomnum == 0)
 			{
 				if (totalRoom.size() % 10000 == 0)
@@ -946,94 +964,70 @@ std::vector<int> VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
 				}
 			}
 
-			int currentIdx = buffer[j];
+			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
+			currentVoxel->setOutside(isOutSide);
 
 			// find neighbours
 			std::vector<int> neighbourIndxList = getDirNeighbours(currentIdx);
 
-			for (int k = 0; k < neighbourIndxList.size(); k++)
+			for (int i = 0; i < neighbourIndxList.size(); i++)
 			{
-				int neighbourIdx = neighbourIndxList[k];
+				int neighbourIdx = neighbourIndxList[i];
 
-				if (neighbourIdx == -1)
+				bool isOutVoxel = false;
+				if (neighbourIdx == -1) { isOutVoxel = true; }
+				if (isOutVoxel && isOutSide) { continue; }
+				if (isOutVoxel) // update exterior flag backwards
 				{
 					isOutSide = true;
+					for (int roomVoxel : totalRoom)
+					{
+						VoxelLookup_[roomVoxel]->setOutside(isOutSide);
+						exteriorVoxelsIdx_.emplace_back(roomVoxel);
+					}
 					continue;
 				}
 
 				std::shared_ptr<voxel> neighbourVoxel = VoxelLookup_[neighbourIdx];
+				// bypass if neighbour already part of a room
+				if (neighbourVoxel->getRoomNum() != -1) { continue; }
 
+				// set trans faces if neighbour is intersecting
 				if (neighbourVoxel->getIsIntersecting())
 				{
 					if (roomnum == 0)
 					{
-						VoxelLookup_[neighbourIdx]->setTransFace(k);
-						VoxelLookup_[neighbourIdx]->setIsShell();
+						neighbourVoxel->setTransFace(i);
+						neighbourVoxel->setIsShell();
 					}
 
-					if (k % 2 == 1) { VoxelLookup_[currentIdx]->setTransFace(k - 1); }
-					else { VoxelLookup_[currentIdx]->setTransFace(k + 1); }
+					if (i % 2 == 1) { currentVoxel->setTransFace(i - 1); }
+					else { currentVoxel->setTransFace(i + 1); }
 					continue;
 				}
 
-				// exlude if already assigned
-				if (Assignment_[neighbourIdx] == 0) {
-					bool dupli = false;
-					for (size_t l = 0; l < tempBuffer.size(); l++)
+				// exlude neighbour if already in buffer
+				bool dupli = false;
+				for (size_t l = 0; l < tempBuffer.size(); l++)
+				{
+					if (neighbourIdx == tempBuffer[l])
 					{
-						// exlude if already in buffer
-						if (neighbourIdx == tempBuffer[l])
-						{
-							dupli = true;
-							break;
-						}
-					}
-					if (!dupli)
-					{
-						tempBuffer.emplace_back(neighbourIdx);
-						totalRoom.emplace_back(neighbourIdx);
-						VoxelLookup_[neighbourIdx]->setRoomNum(roomnum);
-						Assignment_[neighbourIdx] = 1;
+						dupli = true;
+						break;
 					}
 				}
-				else if (Assignment_[neighbourIdx] == -1) {
-					bool dupli = false;
-					for (size_t l = 0; l < totalRoom.size(); l++)
-					{
-						if (neighbourIdx == totalRoom[l]) {
-							dupli = true;
-						}
-					}
-					if (!dupli)
-					{
-						totalRoom.emplace_back(neighbourIdx);
-						tempBuffer.emplace_back(neighbourIdx);
-						VoxelLookup_[neighbourIdx]->setRoomNum(roomnum);
-					}
+				if (!dupli)
+				{
+					tempBuffer.emplace_back(neighbourIdx);
+					totalRoom.emplace_back(neighbourIdx);
+					VoxelLookup_[neighbourIdx]->setRoomNum(roomnum);
 				}
 			}
 		}
 		buffer.clear();
 		buffer = tempBuffer;
 	}
-
-	if (isOutSide) //TODO: this should be smarter
-	{
-		std::vector<int> exterior;
-
-		for (size_t k = 0; k < totalRoom.size(); k++)
-		{
-			int currentIdx = totalRoom[k];
-			std::shared_ptr<voxel> currentBoxel = VoxelLookup_[currentIdx];
-			if (!currentBoxel->getIsIntersecting())
-			{
-				currentBoxel->setOutside();
-				exterior.emplace_back(currentIdx);
-			}
-		}
-		return exterior;
-	}
-	return {};
+	return;
 }
 
 void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {

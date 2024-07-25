@@ -3053,6 +3053,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 				roomObject.setName(product->Name().get());
 				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), product->Name().get());
 				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), product->GlobalId());
+				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(i));
 			}
 
 			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
@@ -3517,7 +3518,7 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 	}
 
 	//TODO: add room area?
-	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomVolume), totalRoomVolume);
+	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomVolumeTotal), totalRoomVolume);
 
 }
 
