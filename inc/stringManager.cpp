@@ -207,6 +207,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No Geographic or Site Element was found";	
 	case CommunicationStringID::warningSiteReconstructionFailed:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No site could be reconstructed";
+	case CommunicationStringID::warningNoIfcRoomObjects:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No room objects present in model, generic semantic data is created";
 	default:
 		return "Output string not found";
 	}

@@ -165,6 +165,8 @@ std::vector<TopoDS_Face> CJGeoCreator::getEncompassedFaces(const std::vector<Top
 
 bool CJGeoCreator::isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge>& edgeList)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	gp_Pnt startPoint = helperFunctions::getFirstPointShape(currentEdge);
 	gp_Pnt endPoint = helperFunctions::getLastPointShape(currentEdge);
 
@@ -172,11 +174,11 @@ bool CJGeoCreator::isInList(const TopoDS_Edge& currentEdge, const std::vector<Ed
 	for (size_t i = 0; i < edgeList.size(); i++)
 	{
 		Edge currentEdge = edgeList[i];
-		gp_Pnt otherStartPoint = currentEdge.getStart(true);
-		gp_Pnt otherEndPoint = currentEdge.getEnd(true);
+		gp_Pnt otherStartPoint = currentEdge.getStart(false);
+		gp_Pnt otherEndPoint = currentEdge.getEnd(false);
 
-		if (startPoint.IsEqual(otherStartPoint, 0.0001) && endPoint.IsEqual(otherEndPoint, 0.0001) ||
-			endPoint.IsEqual(otherStartPoint, 0.0001) && startPoint.IsEqual(otherEndPoint, 0.0001))
+		if (startPoint.IsEqual(otherStartPoint, precision) && endPoint.IsEqual(otherEndPoint, precision) ||
+			endPoint.IsEqual(otherStartPoint, precision) && startPoint.IsEqual(otherEndPoint, precision))
 		{
 			return true;
 		}
@@ -449,21 +451,85 @@ std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& 
 }
 
 
-std::vector<Edge> CJGeoCreator::makeJumbledGround() {
-	std::vector<TopoDS_Edge> projectedEdges;
-	for (size_t i = 0; i < faceList_.size(); i++) 
+std::vector<TopoDS_Face> CJGeoCreator::simplefyProjection(const std::vector<TopoDS_Face> inputFaceList) {
+
+	std::vector<TopoDS_Face> outputFaceList;
+
+	double precision = SettingsCollection::getInstance().precision();
+
+	// split all the faces
+	BOPAlgo_Builder aBuilder;
+	aBuilder.SetFuzzyValue(precision);
+	aBuilder.SetRunParallel(Standard_True);
+
+	for (TopoDS_Face roofFace : inputFaceList)
 	{
-		for (size_t j = 0; j < faceList_[i].size(); j++)
-		{
-			TopoDS_Face porjectedFace = faceList_[i][j].getProjectedFace();
-			for (TopExp_Explorer edgeExplorer(porjectedFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
-				projectedEdges.emplace_back(TopoDS::Edge(edgeExplorer.Current()));
+		aBuilder.AddArgument(roofFace);
+	}
+	aBuilder.Perform();
+	if (aBuilder.HasErrors()) { return {}; }
+
+	// index faceList
+	bgi::rtree<Value, bgi::rstar<25>> faceIndex;
+	std::vector<TopoDS_Face> faceList;
+	std::vector<bg::model::box <BoostPoint3D>> boxList;
+	for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+		TopoDS_Face face = TopoDS::Face(expl.Current());
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(face);
+		faceIndex.insert(std::make_pair(bbox, (int)faceList.size()));
+		boxList.emplace_back(bbox);
+		faceList.emplace_back(face);
+	}
+
+	//find unique edges
+	std::vector<TopoDS_Edge> edgeList;
+	for (size_t i = 0; i < faceList.size(); i++)
+	{
+		TopoDS_Face currentFace = faceList[i];
+		bg::model::box <BoostPoint3D> currentBox = boxList[i];
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		faceIndex.query(bgi::intersects(
+			currentBox), std::back_inserter(qResult));
+
+		for (TopExp_Explorer currentEdgeExp(currentFace, TopAbs_EDGE); currentEdgeExp.More(); currentEdgeExp.Next()) {
+			TopoDS_Edge currentEdge = TopoDS::Edge(currentEdgeExp.Current());
+			gp_Pnt currentP1 = helperFunctions::getFirstPointShape(currentEdge);
+			gp_Pnt currentP2 = helperFunctions::getLastPointShape(currentEdge);
+
+			bool isFound = false;
+
+			for (size_t j = 0; j < qResult.size(); j++)
+			{
+				int otherInt = qResult[j].second;
+
+				if (otherInt == i) { continue; }
+
+				for (TopExp_Explorer otherEdgeExp(faceList[otherInt], TopAbs_EDGE); otherEdgeExp.More(); otherEdgeExp.Next()) {
+					TopoDS_Edge otherEdge = TopoDS::Edge(otherEdgeExp.Current());
+					gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
+					gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
+
+					if (currentP1.IsEqual(otherP1, precision) && currentP2.IsEqual(otherP2, precision) ||
+						currentP1.IsEqual(otherP2, precision) && currentP2.IsEqual(otherP1, precision))
+					{
+						isFound = true;
+						break;
+					}
+				}
+				if (isFound) { break; }
 			}
+			if (isFound) { continue; }
+			edgeList.emplace_back(currentEdge);
 		}
 	}
-	std::vector<Edge> uniqueEdges = getUniqueEdges(projectedEdges);
-	std::vector<Edge> cleanedEdges = mergeOverlappingEdges(uniqueEdges);
-	return splitIntersectingEdges(cleanedEdges);
+	std::vector<TopoDS_Wire> wireList = growWires(edgeList);
+	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
+	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
+
+	for (TopoDS_Face currentFace : cleanedFaceList) { outputFaceList.emplace_back(currentFace); }
+	return outputFaceList;
 }
 
 
@@ -1347,20 +1413,17 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofOutlineConstruction) << std::endl;
-	std::vector<Edge> edgeList = makeJumbledGround();
 
-	// find outer edge
-	std::vector<TopoDS_Edge> outerList;
+	std::vector<TopoDS_Face> projectedFaceList;
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{
-		std::vector<TopoDS_Edge> subOuterList = getOuterEdges(edgeList, faceList_[0]);
-		for (size_t j = 0; j < subOuterList.size(); j++)
+		for (SurfaceGroup currentGroup : faceList_[i])
 		{
-			outerList.emplace_back(subOuterList[j]);
+			projectedFaceList.emplace_back(currentGroup.getProjectedFace());
 		}
 	}
+	roofOutlineList_ = simplefyProjection(projectedFaceList);
 
-	roofOutlineList_ = outerEdges2Shapes(outerList);
 	printTime(startTime, std::chrono::steady_clock::now());
 
 	hasGeoBase_ = true;
@@ -1612,11 +1675,6 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
 	// raycast
 	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
-	//for (size_t i = 0; i < rawEdgeList.size(); i++)
-	//{
-	//	helperFunctions::printPoint(helperFunctions::getFirstPointShape(rawEdgeList[i]));
-	//	helperFunctions::printPoint(helperFunctions::getLastPointShape(rawEdgeList[i]));
-	//}
 	return outerEdges2Shapes(outerFootPrintList);
 }
 
@@ -2973,7 +3031,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	auto startTime = std::chrono::steady_clock::now();
 
 	voxelGrid_->computeSurfaceSemantics(h);
-	TopoDS_Shape sewedShape = voxels2Shape(0);
+	TopoDS_Shape sewedShape = voxels2Shape(0); //TODO: make work with multiple buildings in a single model
 
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
@@ -3000,7 +3058,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	brepBuilder.MakeSolid(voxelSolid);
 	brepBuilder.Add(voxelSolid, sewedShape);
 
-	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3013,80 +3071,44 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 	auto startTime = std::chrono::steady_clock::now();
 	std::vector<CJT::CityObject> roomObjectList; // final output collection
-	for (int i = 1; i < voxelGrid_->getRoomSize(); i++)
+	// bool indicating if the voxelroom data has to be created 
+	bool genData = false;
+	if (!h->getSpaceIndexPointer()->size())
+	{
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoIfcRoomObjects) << std::endl;
+		genData = true;
+	}
+
+	for (int i = 1; i < voxelGrid_->getRoomSize(); i++) //TODO: multithread (-6 for the surface creation)
 	{
 		CJT::CityObject roomObject;
 
-		gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(i), 0);
-		std::vector<Value> qResult;
-		qResult.clear();
-		h->getSpaceIndexPointer()->query(
-			bgi::intersects(
-				bg::model::box < BoostPoint3D >(
-					BoostPoint3D(roomPoint.X() - 0.01, roomPoint.Y() - 0.01, roomPoint.Z() - 0.01),
-					BoostPoint3D(roomPoint.X() + 0.01, roomPoint.Y() + 0.01, roomPoint.Z() + 0.01)
-					)
-			),
-			std::back_inserter(qResult)
-		);
-
-		for (size_t k = 0; k < qResult.size(); k++)
+		if (!genData)
 		{
-			// find the room that point is located in
+			roomObject = fetchRoomSemantics(h, storeyCityObjects, i);
+		}
+		else
+		{
+			// add generic room data
+			roomObject.setName("EnvRoom " + std::to_string(i));
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), "none");
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), "none");
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(i));
 
-			bool encapsulating = true;
-			std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
-			IfcSchema::IfcProduct* product = lookup->getProductPtr();
+			// find storey
+			gp_Pnt roomPoint = voxelGrid_->getPointInRoom(i);
 
-			TopoDS_Shape productShape = h->getObjectShape(product, true);
-			BRepClass3d_SolidClassifier solidClassifier;
-			solidClassifier.Load(productShape);
-			solidClassifier.Perform(roomPoint, 0.1);
-
-			if (!solidClassifier.State() == TopAbs_State::TopAbs_OUT) { continue; }
-
-			std::string longName = product->data().getArgument(7)->toString();
-			longName = longName.substr(1, longName.size() - 2);
-
-			if (product->Name().has_value()) {
-
-				roomObject.setName(product->Name().get());
-				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), product->Name().get());
-				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), product->GlobalId());
-				roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(i));
-			}
-
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
-			// find the storey that the room is located at
-
-#ifdef USE_IFC4
-			IfcSchema::IfcRelAggregates::list::ptr relDefByPropList = product->Decomposes();
-#else
-			IfcSchema::IfcRelDecomposes::list::ptr relDefByPropList = product->Decomposes();
-#endif // USE_IFC4
-
-			for (auto relPropIt = relDefByPropList->begin(); relPropIt != relDefByPropList->end(); ++relPropIt)
+			std::shared_ptr<CJT::CityObject> roomStoreyObject;
+			for (const std::shared_ptr<CJT::CityObject>& storeyObject : storeyCityObjects)
 			{
-
-#ifdef USE_IFC4
-				IfcSchema::IfcRelAggregates* relDefByProp = *relPropIt;
-#else
-				IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
-#endif // USE_IFC4
-
-				std::string targetStoreyGuid = relDefByProp->RelatingObject()->GlobalId();
-				for (size_t j = 0; j < storeyCityObjects.size(); j++)
+				if (storeyObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcElevation)] < roomPoint.Z())
 				{
-					std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
-
-					if (targetStoreyGuid != storeyCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
-					{
-						continue;
-					}
-					roomObject.addParent(storeyCityObject);
+					roomStoreyObject = storeyObject;
+					continue;
 				}
+				break;
 			}
-			break;
+			roomObject.addParent(roomStoreyObject);
 		}
 
 		TopoDS_Shape sewedShape = voxels2Shape(i);
@@ -3520,6 +3542,84 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 	//TODO: add room area?
 	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomVolumeTotal), totalRoomVolume);
 
+}
+
+CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum)
+{
+	CJT::CityObject roomObject;
+
+	gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(roomNum), 0);
+	std::vector<Value> qResult;
+	qResult.clear();
+	h->getSpaceIndexPointer()->query(
+		bgi::intersects(
+			bg::model::box < BoostPoint3D >(
+				BoostPoint3D(roomPoint.X() - 0.01, roomPoint.Y() - 0.01, roomPoint.Z() - 0.01),
+				BoostPoint3D(roomPoint.X() + 0.01, roomPoint.Y() + 0.01, roomPoint.Z() + 0.01)
+				)
+		),
+		std::back_inserter(qResult)
+	);
+
+	for (size_t k = 0; k < qResult.size(); k++)
+	{
+		// find the room that point is located in
+
+		bool encapsulating = true;
+		std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
+		IfcSchema::IfcProduct* product = lookup->getProductPtr();
+
+		TopoDS_Shape productShape = h->getObjectShape(product, true);
+		BRepClass3d_SolidClassifier solidClassifier;
+		solidClassifier.Load(productShape);
+		solidClassifier.Perform(roomPoint, 0.1);
+
+		if (!solidClassifier.State() == TopAbs_State::TopAbs_OUT) { continue; }
+
+		std::string longName = product->data().getArgument(7)->toString();
+		longName = longName.substr(1, longName.size() - 2);
+
+		if (product->Name().has_value()) {
+
+			roomObject.setName(product->Name().get());
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), product->Name().get());
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), product->GlobalId());
+			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(roomNum));
+		}
+
+		roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
+		// find the storey that the room is located at
+
+#ifdef USE_IFC4
+		IfcSchema::IfcRelAggregates::list::ptr relDefByPropList = product->Decomposes();
+#else
+		IfcSchema::IfcRelDecomposes::list::ptr relDefByPropList = product->Decomposes();
+#endif // USE_IFC4
+
+		for (auto relPropIt = relDefByPropList->begin(); relPropIt != relDefByPropList->end(); ++relPropIt)
+		{
+
+#ifdef USE_IFC4
+			IfcSchema::IfcRelAggregates* relDefByProp = *relPropIt;
+#else
+			IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
+#endif // USE_IFC4
+
+			std::string targetStoreyGuid = relDefByProp->RelatingObject()->GlobalId();
+			for (size_t j = 0; j < storeyCityObjects.size(); j++)
+			{
+				std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
+
+				if (targetStoreyGuid != storeyCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
+				{
+					continue;
+				}
+				roomObject.addParent(storeyCityObject);
+			}
+		}
+		break;
+	}
+	return roomObject;
 }
 
 

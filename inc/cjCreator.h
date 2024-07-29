@@ -109,8 +109,8 @@ private:
 	/// splits all the edges so that no edges overlap but all rest against eachother with their start and endpoints
 	std::vector<Edge> splitIntersectingEdges(const std::vector<Edge>& edges, bool project = true);
 
-	/// @brief get a clean list of all the edges the projected shapes
-	std::vector<Edge> makeJumbledGround();
+	/// @brief merges flat faces together in a singular shape
+	std::vector<TopoDS_Face> simplefyProjection(const std::vector<TopoDS_Face> inputFaceList);
 
 	/// @brief check if edge is part of outer envelope
 	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
@@ -271,7 +271,14 @@ public:
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
 	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
+	// creates roomshapes 
 	TopoDS_Shape voxels2Shape(int roomNum);
+	// creates exterior shapes
+	TopoDS_Shape voxels2ExtriorShape(int buildingNum);
+
+	// fetches the room related data from the ifc model
+	CJT::CityObject fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum);
+
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	double approximateRoomArea(int roomNum);
 	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);

@@ -60,7 +60,7 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 
 		for (std::string ifcVersion : ifcVersionList)
 		{
-			if (line.find("FILE_SCHEMA(('" + ifcVersion + "'))") != std::string::npos) {
+			if (line.find(ifcVersion) != std::string::npos) {
 				if (buildVersion != ifcVersion)
 				{
 					if (!quiet)

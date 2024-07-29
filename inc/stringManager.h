@@ -131,7 +131,8 @@ enum class CommunicationStringID {
 	warningNoSolidLoD50,
 	warningDubSites,
 	warningNoSites,
-	warningSiteReconstructionFailed
+	warningSiteReconstructionFailed,
+	warningNoIfcRoomObjects
 };
 
 class CommunicationStringEnum {

@@ -934,7 +934,6 @@ bool IOManager::run()
 	collection->addCityObject(cityInnerShellObject);
 	collection->cullDuplicatedVerices();
 	cityCollection_ = collection;
-
 	return succesfullExit;
 }
 
