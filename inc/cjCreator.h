@@ -189,40 +189,6 @@ private:
 	/// remove dublicate values from valueList
 	std::vector<Value> makeUniqueValueList(const std::vector<Value>& valueList);
 
-	/// checks if the surface is visible utilizing a pointgrid
-	bool isSurfaceVisible(
-		helper* h,
-		const TopoDS_Shape& currentShape,
-		const TopoDS_Face& currentFace,
-		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<std::shared_ptr<voxel>>& originVoxels,
-		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-		double gridDistance,
-		double buffer
-	);
-
-	/// checks if the edge is visible utilizing a pointgrid
-	bool isWireVisible(
-		helper* h,
-		const TopoDS_Shape& currentShape,
-		const TopoDS_Face& currentFace,
-		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<std::shared_ptr<voxel>>& originVoxels,
-		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-		double gridDistance,
-		double buffer
-	);
-
-	/// checks if the point is visible utilizing a pointgrid
-	bool pointIsVisible(helper* h,
-		const TopoDS_Shape& currentShape,
-		const TopoDS_Face& currentFace,
-		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<std::shared_ptr<voxel>>& originVoxels,
-		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-		const gp_Pnt& point,
-		const double& buffer);
-
 	//gets the unqiue products that intersect with the voxelList
 	std::vector<Value> getUniqueProductValues(std::vector<std::shared_ptr<voxel>> voxelList);
 

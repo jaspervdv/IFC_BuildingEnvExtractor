@@ -310,6 +310,10 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "WallSurface";	
 	case CJObjectID::CJTypeSiteObject:
 		return "Site";
+	case CJObjectID::CJTypeWindow:
+		return "Window";
+	case CJObjectID::CJTypeDoor:
+		return "Door";
 
 	case CJObjectID::voxelApproxShellVolume:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "shell volume";

@@ -1002,7 +1002,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Arc);
-	offsetter.Perform(-0.02);
+	offsetter.Perform(-0.01);
 
 	std::vector<gp_Pnt> wirePointList;
 	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())

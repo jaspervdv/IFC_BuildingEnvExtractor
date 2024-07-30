@@ -2953,7 +2953,15 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 		h
 	);
 
-	std::vector<TopoDS_Face> rawFaces;
+	// make the collection compund shape
+	BRep_Builder builder;
+	TopoDS_Compound collectionShape;
+	builder.MakeCompound(collectionShape);
+
+	// set up data for the conversion to json
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	std::vector<int> typeValueList;
 
 	// evaluate which surfaces are visible
 	for (size_t i = 0; i < productLookupValues.size(); i++)
@@ -3056,30 +3064,93 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 				}
 			}
 			if (!faceIsExterior) { continue; }
-			rawFaces.emplace_back(currentFace);
+			
+			// add the face to the compound
+			TopoDS_Face currentFaceCopy = currentFace;
+
+			gp_Trsf localRotationTrsf;
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+			currentFaceCopy.Move(localRotationTrsf);
+
+			helperFunctions::geoTransform(&currentFaceCopy, h->getObjectTranslation(), trs);
+			builder.Add(collectionShape, currentFaceCopy);
+
+			// add the semantic data to the map
+			if (lookupType == "IfcRoof")
+			{
+				typeValueList.emplace_back(2);
+			}
+			if (lookupType == "IfcSlab")
+			{
+				std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFaceCopy);
+				gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFaceCopy);
+
+				if (pointOnface == std::nullopt) 
+				{
+					typeValueList.emplace_back(1);
+					continue;
+				}
+
+				if (pointOnface->Z() < settingsCollection.footprintElevation() && abs(vecOfFace.Z()) > 0.1)
+				{
+					//TODO: do a raycast straight downwards
+
+					typeValueList.emplace_back(0);
+				}
+				else if (pointOnface->Z() < settingsCollection.footprintElevation())
+				{
+					typeValueList.emplace_back(1);
+				}
+				else if (abs(helperFunctions::computeFaceNormal(currentFaceCopy).Z()) > 0.1)
+				{
+					//TODO: do a raycast straight upwards
+
+					typeValueList.emplace_back(2);
+				}
+				else
+				{
+					typeValueList.emplace_back(1);
+				}
+			}
+			else if (lookupType == "IfcWindow")
+			{
+				typeValueList.emplace_back(3);
+			}
+			else if (lookupType == "IfcDoor")
+			{
+				typeValueList.emplace_back(4);
+			}
+			else
+			{
+				typeValueList.emplace_back(1);
+			}
 		}
 	}
 
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
-	for (size_t i = 0; i < rawFaces.size(); i++)
-	{
-		TopoDS_Shape currentFace = rawFaces[i];
+	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
 
-		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-		currentFace.Move(localRotationTrsf);
+	// create semantic data map
+	std::map<std::string, std::string> grMap;
+	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+	std::map<std::string, std::string> wMap;
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+	std::map<std::string, std::string> rMap;
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	std::map<std::string, std::string> windowMap;
+	windowMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWindow));
+	std::map<std::string, std::string> dMap;
+	dMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeDoor));
+	geoObject.appendSurfaceData(grMap);
+	geoObject.appendSurfaceData(wMap);
+	geoObject.appendSurfaceData(rMap);
+	geoObject.appendSurfaceData(windowMap);
+	geoObject.appendSurfaceData(dMap);
+	geoObject.setSurfaceTypeValues(typeValueList);
 
-		helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
-
-		CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "3.2");
-		geoObjectList.emplace_back(geoObject);
-	}
+	geoObjectList.emplace_back(geoObject);
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
-	return {};
 }
 
 
@@ -3802,126 +3873,6 @@ std::vector<Value> CJGeoCreator::makeUniqueValueList(const std::vector<Value>& v
 		valueSet.emplace_back(valueList[i]);
 	}	
 	return valueSet;
-}
-
-
-bool CJGeoCreator::isSurfaceVisible(
-	helper* h,
-	const TopoDS_Shape& currentShape, 
-	const TopoDS_Face& currentFace, 
-	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex, 
-	const std::vector<std::shared_ptr<voxel>>& originVoxels,
-	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-	double gridDistance, 
-	double buffer)
-{
-	double precision = SettingsCollection::getInstance().precision();
-
-	Handle(Geom_Surface) surface = BRep_Tool::Surface(currentFace);
-	
-	// greate points on grid over surface
-	// get the uv bounds to create a point grid on the surface
-	Standard_Real uMin, uMax, vMin, vMax;
-	BRepTools::UVBounds(currentFace, BRepTools::OuterWire(currentFace), uMin, uMax, vMin, vMax);
-
-	uMin = uMin + 0.05;
-	uMax = uMax - 0.05;
-	vMin = vMin + 0.05;
-	vMax = vMax - 0.05;
-
-	int numUPoints = static_cast<int>(ceil(abs(uMax - uMin) / gridDistance));
-	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / gridDistance));
-
-	if (numUPoints < 2) { numUPoints = 2; }
-	else if (numUPoints > 10) { numUPoints = 10; }
-	if (numVPoints < 2) { numVPoints = 2; }
-	else if (numVPoints > 10) { numVPoints = 10; }
-
-	double uStep = (uMax - uMin) / (numUPoints - 1);
-	double vStep = (vMax - vMin) / (numVPoints - 1);
-
-	// create grid
-	for (int i = 0; i < numUPoints; ++i)
-	{
-		double u = uMin + i * uStep;
-
-		for (int j = 0; j < numVPoints; ++j)
-		{
-			double v = vMin + j * vStep;
-			gp_Pnt point;
-			surface->D0(u, v, point);
-			BRepClass_FaceClassifier faceClassifier(currentFace, point, precision);
-			if (faceClassifier.State() != TopAbs_ON && faceClassifier.State() != TopAbs_IN) { continue; }
-			//printPoint(point);
-			if (pointIsVisible(h, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-bool CJGeoCreator::isWireVisible(
-	helper* h, 
-	const TopoDS_Shape& currentShape, 
-	const TopoDS_Face& currentFace, 
-	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex, 
-	const std::vector<std::shared_ptr<voxel>>& originVoxels, 
-	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-	double gridDistance, 
-	double buffer)
-{
-	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(currentFace), GeomAbs_Arc);
-	offsetter.Perform(-0.02);
-	TopExp_Explorer expl;
-	TopoDS_Wire correctedOuterWire;
-
-	for (expl.Init(offsetter.Shape(), TopAbs_WIRE); expl.More(); expl.Next())
-	{
-		correctedOuterWire = TopoDS::Wire(expl.Current());
-		break;
-	}
-
-	if (correctedOuterWire.IsNull()) { return false; }
-
-	for (TopExp_Explorer edgeExp(correctedOuterWire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
-		TopoDS_Edge currentEdge = TopoDS::Edge(edgeExp.Current());
-
-		BRepAdaptor_Curve curveAdaptor(currentEdge);
-		double uStart = curveAdaptor.Curve().FirstParameter();
-		double uEnd = curveAdaptor.Curve().LastParameter();
-
-		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / gridDistance);
-
-		if (numUPoints < 2) { numUPoints = 2; }
-		else if (numUPoints > 10) { numUPoints = 10; }
-
-		double uStep = abs(uStart - uEnd) / (numUPoints - 1);
-		for (double u = uStart; u < uEnd; u += uStep){
-			gp_Pnt point;
-			curveAdaptor.D0(u, point);
-
-			if (pointIsVisible(h, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-
-bool CJGeoCreator::pointIsVisible(helper* h,
-	const TopoDS_Shape& currentShape,
-	const TopoDS_Face& currentFace,
-	const bgi::rtree<Value,bgi::rstar<25>>& voxelIndex,
-	const std::vector<std::shared_ptr<voxel>>& originVoxels,
-	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
-	const gp_Pnt& point,
-	const double& buffer)
-{
-	return true;
 }
 
 std::vector<Value> CJGeoCreator::getUniqueProductValues(std::vector<std::shared_ptr<voxel>> voxelList)

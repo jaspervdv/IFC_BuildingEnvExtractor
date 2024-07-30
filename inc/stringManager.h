@@ -187,6 +187,8 @@ enum class CJObjectID {
 	CJTypeGroundSurface,
 	CJTypeWallSurface,
 	CJTypeSiteObject,
+	CJTypeWindow,
+	CJTypeDoor,
 
 	voxelApproxShellVolume,
 	voxelApproxBasementShellVolume,
