@@ -117,26 +117,21 @@ std::vector<TopoDS_Face> CJGeoCreator::getEncompassedFaces(const std::vector<Top
 	std::vector<TopoDS_Face> filteredFaces;
 	double precision = SettingsCollection::getInstance().precision();
 
-
 	for (size_t j = 0; j < faceList.size(); j++)
 	{
 		int vertCount = 0;
 		int overlapCount = 0;
 
 		for (TopExp_Explorer vertexExplorer(faceList[j], TopAbs_VERTEX); vertexExplorer.More(); vertexExplorer.Next()) {
+			TopoDS_Vertex vertex = TopoDS::Vertex(vertexExplorer.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
 
 			bool hasOverlap = false;
 			vertCount++;
 
-			TopoDS_Vertex vertex = TopoDS::Vertex(vertexExplorer.Current());
-			gp_Pnt point = BRep_Tool::Pnt(vertex);
-
 			for (size_t k = 0; k < faceList.size(); k++)
 			{
-				if (j == k)
-				{
-					continue;
-				}
+				if (j == k) { continue; }
 				for (TopExp_Explorer otherVertexExplorer(faceList[k], TopAbs_VERTEX); otherVertexExplorer.More(); otherVertexExplorer.Next()) {
 					TopoDS_Vertex otherVertex = TopoDS::Vertex(otherVertexExplorer.Current());
 					gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
@@ -1637,8 +1632,15 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<Value> productLookupValues;
 	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
-	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, exteriorLvlVoxels);
+	populateVoxelIndex(&voxelIndex, &originVoxels, exteriorLvlVoxels);
 
+	for (std::shared_ptr<voxel> voxel : exteriorLvlVoxels)
+	{
+		for (const Value& productValue : voxel->getInternalProductList())
+		{
+			productLookupValues.emplace_back();
+		} 
+	}
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
 	if (productLookupValues.size() <= 0)
@@ -2221,11 +2223,12 @@ bool CJGeoCreator::checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_S
 bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face)
 {
 	double precision = SettingsCollection::getInstance().precision();
+	std::cout << "in" << std::endl;
 
 	BRepExtrema_DistShapeShape intersection(ray, face, precision);
 
 	intersection.Perform();
-
+	std::cout << "out" << std::endl;
 	// Check if there is an intersection
 	if (!intersection.IsDone()) { return false; }
 	if (intersection.NbSolution() < 1) { return false; }
@@ -2918,27 +2921,26 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	auto startTime = std::chrono::steady_clock::now();
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-
-	std::vector< CJT::GeoObject> geoObjectList; // final output collection
-
 	double buffer = 1 * settingsCollection.voxelSize(); // set the distance from the bb of the evaluated object
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
-
-	std::vector<Value> productLookupValues;
-	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
+	std::vector<std::shared_ptr<voxel>> targetVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 
+	// collect and index the voxels to which rays are cast
 	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
+	populateVoxelIndex(&voxelIndex, &targetVoxels, intersectingVoxels);
 
-	populateVoxelIndex(&voxelIndex, &originVoxels, &productLookupValues, intersectingVoxels);
-	productLookupValues = makeUniqueValueList(productLookupValues);
-
-	double gridDistance = settingsCollection.voxelSize();
-
-	// create unique index
+	// collect and index the products which are presumed to be part of the exterior
+	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
+	if (productLookupValues.size() <= 0)
+	{
+		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
+		return{};
+	}
+
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
 		exteriorProductIndex.insert(productLookupValues[i]);
@@ -2957,11 +2959,9 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
-
-		TopoDS_Shape currentShape;
-
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
 
+		TopoDS_Shape currentShape;
 		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
 		{
 			if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
@@ -2971,42 +2971,99 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
+			bool faceIsExterior = false;
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+			
+			//Create a grid over the surface and the offsetted wire
+			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
+			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace);
+			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
 
-			if (isWireVisible(
-				h,
-				currentShape,
-				currentFace,
-				voxelIndex,
-				originVoxels,
-				exteriorProductIndex,
-				gridDistance,
-				buffer)
-				)
+			// cast a line from the grid to surrounding voxels
+			for (const gp_Pnt& gridPoint : surfaceGridList)
 			{
-				rawFaces.emplace_back(currentFace);
-				continue;
-			}
+				bg::model::box<BoostPoint3D> pointQuerybox(
+					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer }, 
+					{ gridPoint.X() + buffer, gridPoint.Y() + buffer, gridPoint.Z() + buffer }
+				);
+				std::vector<Value> pointQResult;
+				voxelIndex.query(bgi::intersects(pointQuerybox) , std::back_inserter(pointQResult));
 
-			if (isSurfaceVisible(
-				h, 
-				currentShape, 
-				currentFace, 
-				voxelIndex, 
-				originVoxels,
-				exteriorProductIndex, 
-				gridDistance, 
-				buffer)
-				)
-			{
-				rawFaces.emplace_back(currentFace);
+				//check if ray castline cleared
+				for (const Value& voxelValue : pointQResult)
+				{
+					bool clearLine = true;
+
+					std::shared_ptr<voxel> targetVoxel = targetVoxels[voxelValue.second];
+
+					bg::model::box<BoostPoint3D> productQuerybox( helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()) );
+					std::vector<Value> productQResult;
+					exteriorProductIndex.query(bgi::intersects(productQuerybox), std::back_inserter(productQResult));
+
+					for (const Value& productValue : productQResult)
+					{
+						// get the potential faces
+						TopoDS_Shape otherShape;
+
+						std::shared_ptr<lookupValue> otherLookup = h->getLookup(productValue.second);
+						std::string otherLookupType = otherLookup->getProductPtr()->data().type()->name();
+
+						if (otherLookupType == "IfcDoor" || otherLookupType == "IfcWindow")
+						{
+							if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
+							else { continue; }
+						}
+						else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
+
+						for (TopExp_Explorer otherExplorer(otherShape, TopAbs_FACE); otherExplorer.More(); otherExplorer.Next())
+						{
+							//test for linear intersections (get function from helper class)
+							const TopoDS_Face& otherFace = TopoDS::Face(otherExplorer.Current());
+							TopLoc_Location loc;
+							auto mesh = BRep_Tool::Triangulation(otherFace, loc);
+
+							if (currentFace.IsEqual(otherFace)) { continue; }
+
+							for (int i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
+							{
+								const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+
+								std::vector<gp_Pnt> trianglePoints{
+									mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+									mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+									mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+								};
+
+								if (helperFunctions::triangleIntersecting({ gridPoint, targetVoxel->getOCCTCenterPoint() }, trianglePoints))
+								{
+									clearLine = false;
+									break;
+								}
+							}
+							if (!clearLine) { break; }
+						}
+						if (!clearLine) { break; }
+					}
+					if (clearLine) 
+					{ 
+						faceIsExterior = true; 
+						break;
+					}
+				}
+				if (faceIsExterior) 
+				{ 
+					break;
+				}
 			}
+			if (!faceIsExterior) { continue; }
+			rawFaces.emplace_back(currentFace);
 		}
 	}
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
 
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	for (size_t i = 0; i < rawFaces.size(); i++)
 	{
 		TopoDS_Shape currentFace = rawFaces[i];
@@ -3022,6 +3079,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
+	return {};
 }
 
 
@@ -3626,7 +3684,6 @@ CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::sha
 void CJGeoCreator::populateVoxelIndex(
 	bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
 	std::vector<std::shared_ptr<voxel>>* originVoxels,
-	std::vector<Value>* productLookupValues,
 	const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 )
 {
@@ -3634,7 +3691,6 @@ void CJGeoCreator::populateVoxelIndex(
 	{
 		std::shared_ptr<voxel> currentBoxel = *voxelIt;
 		std::vector<Value> internalProducts = currentBoxel->getInternalProductList();
-		for (size_t k = 0; k < internalProducts.size(); k++) { productLookupValues->emplace_back(internalProducts[k]); }
 
 		// voxels that have no internal products do not have an intersection and are stored as completely external voxels
 		if (internalProducts.size() == 0)
@@ -3810,27 +3866,17 @@ bool CJGeoCreator::isWireVisible(
 	helper* h, 
 	const TopoDS_Shape& currentShape, 
 	const TopoDS_Face& currentFace, 
-	const bgi::rtree<Value, 
-	bgi::rstar<25>>& voxelIndex, 
+	const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex, 
 	const std::vector<std::shared_ptr<voxel>>& originVoxels, 
 	const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 	double gridDistance, 
 	double buffer)
 {
-	//std::cout << "x" << std::endl;
-	//std::cout << BRepTools::OuterWire(currentFace).IsNull() << std::endl;
-	//std::cout << "l1" << std::endl;
-	// create points on offset outer wire
 	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(currentFace), GeomAbs_Arc);
-	//std::cout << "l2" << std::endl;
 	offsetter.Perform(-0.02);
-
-	//std::cout << offsetter.IsDone() << std::endl;
-
 	TopExp_Explorer expl;
 	TopoDS_Wire correctedOuterWire;
 
-	//std::cout << "a" << std::endl;
 	for (expl.Init(offsetter.Shape(), TopAbs_WIRE); expl.More(); expl.Next())
 	{
 		correctedOuterWire = TopoDS::Wire(expl.Current());
@@ -3855,6 +3901,7 @@ bool CJGeoCreator::isWireVisible(
 		for (double u = uStart; u < uEnd; u += uStep){
 			gp_Pnt point;
 			curveAdaptor.D0(u, point);
+
 			if (pointIsVisible(h, currentShape, currentFace, voxelIndex, originVoxels, exteriorProductIndex, point, buffer))
 			{
 				return true;
@@ -3874,82 +3921,20 @@ bool CJGeoCreator::pointIsVisible(helper* h,
 	const gp_Pnt& point,
 	const double& buffer)
 {
+	return true;
+}
 
-	std::vector<Value> qResult;
-	voxelIndex.query(
-		bgi::intersects(
-			bg::model::box <BoostPoint3D>(
-				BoostPoint3D(point.X() - buffer, point.Y() - buffer, point.Z() - buffer),
-				BoostPoint3D(point.X() + buffer, point.Y() + buffer, point.Z() + buffer)
-				)
-		),
-		std::back_inserter(qResult)
-	);
-
-	for (size_t j = 0; j < qResult.size(); j++)
+std::vector<Value> CJGeoCreator::getUniqueProductValues(std::vector<std::shared_ptr<voxel>> voxelList)
+{
+	std::vector<Value> productLookupValues;
+	for (std::shared_ptr<voxel> voxel : voxelList)
 	{
-		bool intersecting = false;
-
-		std::shared_ptr<voxel> currentBoxel = originVoxels[qResult[j].second];
-		gp_Pnt voxelCore = currentBoxel->getOCCTCenterPoint();
-
-		TopoDS_Edge ray = BRepBuilderAPI_MakeEdge(point, voxelCore);
-
-		// check for self intersection
-		for (TopExp_Explorer explorer2(currentShape, TopAbs_FACE); explorer2.More(); explorer2.Next())
+		for (const Value& productValue : voxel->getInternalProductList())
 		{
-			const TopoDS_Face& otherFace = TopoDS::Face(explorer2.Current());
-			if (otherFace.IsSame(currentFace)) { continue; }
-
-			if (checksurfaceIntersection(ray, otherFace))
-			{
-				intersecting = true;
-				break;
-			}
+			productLookupValues.emplace_back(productValue);
 		}
-		if (intersecting) { continue; }
-
-		double xMin = std::min(point.X(), voxelCore.X());
-		double yMin = std::min(point.Y(), voxelCore.Y());
-		double zMin = std::min(point.Z(), voxelCore.Z());
-
-		double xMax = std::max(point.X(), voxelCore.X());
-		double yMax = std::max(point.Y(), voxelCore.Y());
-		double zMax = std::max(point.Z(), voxelCore.Z());
-
-		std::vector<Value> qResult2;
-		qResult2.clear();
-		exteriorProductIndex.query(bgi::intersects(
-			bg::model::box <BoostPoint3D>(
-				BoostPoint3D(xMin, yMin, zMin),
-				BoostPoint3D(xMax, yMax, zMax)
-				)), std::back_inserter(qResult2));
-
-
-		for (size_t k = 0; k < qResult2.size(); k++)
-		{
-			std::shared_ptr<lookupValue> otherLookup = h->getLookup(qResult2[k].second);
-
-			TopoDS_Shape otherShape;
-			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
-			else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
-
-			if (otherShape.IsEqual(currentShape)) { continue; }
-
-			if (surfaceIsIncapsulated(currentFace, otherShape))
-			{
-				return false;
-			};
-			if (checkShapeIntersection(ray, otherShape))
-			{
-				intersecting = true;
-				break;
-			}
-		}
-		if (intersecting) { continue; }
-		return true;
 	}
-	return false;
+	return makeUniqueValueList(productLookupValues);
 }
 
 

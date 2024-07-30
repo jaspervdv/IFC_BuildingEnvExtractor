@@ -12,7 +12,6 @@
 #include <chrono>
 #include <memory>
 
-
 // IfcOpenShell includes
 #include <ifcparse/IfcFile.h>
 #include <ifcparse/IfcHierarchyHelper.h>
@@ -68,7 +67,6 @@ int main(int argc, char** argv) {
 		manager.write();
 		return 1;
 	}
-	manager.write();
-	
+	manager.write();	
 	return 0;
 }

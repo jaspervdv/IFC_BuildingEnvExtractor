@@ -180,7 +180,6 @@ private:
 	void populateVoxelIndex(
 		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
 		std::vector<std::shared_ptr<voxel>>* originVoxels,
-		std::vector<Value>* productLookupValues, 
 		const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 	);
 
@@ -223,6 +222,9 @@ private:
 		const bgi::rtree<Value, bgi::rstar<25>>& exteriorProductIndex,
 		const gp_Pnt& point,
 		const double& buffer);
+
+	//gets the unqiue products that intersect with the voxelList
+	std::vector<Value> getUniqueProductValues(std::vector<std::shared_ptr<voxel>> voxelList);
 
 public:
 	explicit CJGeoCreator(helper* h, double vSize);

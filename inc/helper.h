@@ -153,6 +153,9 @@ struct helperFunctions{
 	/// merges the input wires in the correct order
 	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);
 
+	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
+	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
+
 	/// attempts to close an open wire
 	static TopoDS_Wire closeWireOrientated(const TopoDS_Wire& baseWire);
 

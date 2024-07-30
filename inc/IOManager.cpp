@@ -245,7 +245,6 @@ bool IOManager::getJSONValues()
 			else if (lodList[i] == 3.2) 
 			{ 
 				settingsCollection.setMake32(true);
-				settingsCollection.setMakeOutlines(true);
 			}
 			else if (lodList[i] == 5.0) 
 			{ 

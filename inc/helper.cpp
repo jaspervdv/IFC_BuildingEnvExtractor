@@ -27,6 +27,8 @@
 #include <TopoDS.hxx>
 #include <BRepTools.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
 
 #include <Geom_TrimmedCurve.hxx>
 #include <gp_Lin.hxx>
@@ -945,6 +947,85 @@ TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 	TopoDS_Wire closingWire = BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(p2, p1));
 
 	return mergeWireOrientated(baseWire, closingWire);
+}
+
+std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface)
+{
+	double precision = SettingsCollection::getInstance().precision();
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	Handle(Geom_Surface) surface = BRep_Tool::Surface(theface);
+
+	// greate points on grid over surface
+	// get the uv bounds to create a point grid on the surface
+	Standard_Real uMin, uMax, vMin, vMax;
+	BRepTools::UVBounds(theface, BRepTools::OuterWire(theface), uMin, uMax, vMin, vMax);
+
+	uMin = uMin + 0.05;
+	uMax = uMax - 0.05;
+	vMin = vMin + 0.05;
+	vMax = vMax - 0.05;
+
+	int numUPoints = static_cast<int>(ceil(abs(uMax - uMin) / settingsCollection.voxelSize()));
+	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / settingsCollection.voxelSize()));
+
+	// set num of points if min/max rule is not met
+	if (numUPoints < 2) { numUPoints = 2; }
+	else if (numUPoints > 10) { numUPoints = 10; } // TODO: check if this max setting is smart
+	if (numVPoints < 2) { numVPoints = 2; }
+	else if (numVPoints > 10) { numVPoints = 10; }
+
+	double uStep = (uMax - uMin) / (numUPoints - 1);
+	double vStep = (vMax - vMin) / (numVPoints - 1);
+
+	// create grid
+	std::vector<gp_Pnt> gridPointList;
+	for (int i = 0; i < numUPoints; ++i)
+	{
+		double u = uMin + i * uStep;
+
+		for (int j = 0; j < numVPoints; ++j)
+		{
+			double v = vMin + j * vStep;
+			gp_Pnt point;
+			surface->D0(u, v, point);
+			BRepClass_FaceClassifier faceClassifier(theface, point, precision);
+			if (faceClassifier.State() != TopAbs_ON && faceClassifier.State() != TopAbs_IN) { continue; }
+			gridPointList.emplace_back(point);
+		}
+	}
+	return gridPointList;
+}
+
+std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& theface)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Arc);
+	offsetter.Perform(-0.02);
+
+	std::vector<gp_Pnt> wirePointList;
+	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+		
+		BRepAdaptor_Curve curveAdaptor(currentEdge);
+		double uStart = curveAdaptor.Curve().FirstParameter();
+		double uEnd = curveAdaptor.Curve().LastParameter();
+
+		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / settingsCollection.voxelSize());
+
+		if (numUPoints < 2) { numUPoints = 2; }
+		else if (numUPoints > 10) { numUPoints = 10; }
+
+		double uStep = abs(uStart - uEnd) / (numUPoints - 1);
+		for (double u = uStart; u < uEnd; u += uStep) {
+			gp_Pnt point;
+			curveAdaptor.D0(u, point);
+			wirePointList.emplace_back(point);
+		}
+	}
+	return wirePointList;
 }
 
 
