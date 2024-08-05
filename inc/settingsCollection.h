@@ -76,6 +76,9 @@ private:
 
 	SettingsCollection() = default;
 
+    IfcGeom::IteratorSettings iteratorSettings_;
+    IfcGeom::IteratorSettings simpleIteratorSettings_;
+
 public:
 	static SettingsCollection& getInstance() {
 		static SettingsCollection instance;
@@ -196,5 +199,11 @@ public:
 
     double gridRotation() const { return gridRotation_; }
     void setGridRotation(double value) { gridRotation_ = value; }
+
+    IfcGeom::IteratorSettings iteratorSettings()  const { return iteratorSettings_; }
+    void setIterator(const IfcGeom::IteratorSettings& settingsObject) { iteratorSettings_ = settingsObject; }
+
+    IfcGeom::IteratorSettings simpleIteratorSettings()  const { return simpleIteratorSettings_; }
+    void setSimpleIterator(const IfcGeom::IteratorSettings& settingsObject) { simpleIteratorSettings_ = settingsObject; }
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

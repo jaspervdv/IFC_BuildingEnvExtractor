@@ -676,7 +676,7 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 
 	if (product->Representation() == nullptr)
 	{
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
 #else
 		IfcSchema::IfcRelDecomposes::list::ptr decomposedProducts = product->IsDecomposedBy();
@@ -686,7 +686,7 @@ std::vector<IfcSchema::IfcProduct*> helperFunctions::getNestedProducts(IfcSchema
 
 		for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 			IfcSchema::IfcRelAggregates* aggregates = *et;
 #else
 			IfcSchema::IfcRelDecomposes* aggregates = *et;
@@ -764,6 +764,8 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 
 	double leftFinal = tVolume(line[0], triangle);
 	double rightFinal = tVolume(line[1], triangle);
+
+	if (abs(leftFinal) < 1e-6 || abs(rightFinal) < 1e-6) { return false; } // if surfaces rest on eachother return 0
 	if (leftFinal > 0 && rightFinal < 0 || rightFinal > 0 && leftFinal < 0) { return true; }
 
 	return false;
@@ -1000,9 +1002,15 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& theface)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
+	
+	if (helperFunctions::computeArea(theface) < 0.01) { return {}; }
+	offsetter.Perform(-settingsCollection.precisionCoarse());
 
-	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Arc);
-	offsetter.Perform(-0.01);
+
+	if (!offsetter.IsDone()) { return {}; }
+	const TopoDS_Shape offsettedFace = offsetter.Shape();
+	if (offsettedFace.IsNull()){ return {};}
 
 	std::vector<gp_Pnt> wirePointList;
 	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())
@@ -1010,9 +1018,9 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 		
 		BRepAdaptor_Curve curveAdaptor(currentEdge);
+		
 		double uStart = curveAdaptor.Curve().FirstParameter();
 		double uEnd = curveAdaptor.Curve().LastParameter();
-
 		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / settingsCollection.voxelSize());
 
 		if (numUPoints < 2) { numUPoints = 2; }

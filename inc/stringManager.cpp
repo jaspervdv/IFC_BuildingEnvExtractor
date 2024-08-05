@@ -38,6 +38,8 @@ std::string UnitStringEnum::getString(UnitStringID id)
 		return "mm";
 	case UnitStringID::millimeterFull:
 		return "millimeter";
+	case UnitStringID::footFull:
+		return "foot";
 	default:
 		return "";
 	}

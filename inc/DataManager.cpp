@@ -7,6 +7,7 @@
 #include <BRepClass3d_SolidClassifier.hxx>
 
 #include <boost/make_shared.hpp>
+#include <boost/optional.hpp>
 
 #include <thread>
 
@@ -34,13 +35,12 @@ helper::helper(const std::vector<std::string>& pathList) {
 	return;
 }
 
-
 bool helper::findSchema(const std::string& path, bool quiet) {
 	std::ifstream infile(path);
 	std::string line;
 	int linecount = 0;
 
-	std::vector<std::string> ifcVersionList {"IFC4", "IFC2X3", "IFC4X1", "IFC4X2", "IFC4X3"};
+	std::vector<std::string> ifcVersionList { "IFC2X3", "IFC4X3", "IFC4" };
 	while (linecount < 100 && std::getline(infile, line))
 	{
 		if (line[0] == '#')
@@ -575,7 +575,7 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 
 TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 {
-	// find longest horizontal and vertical edge
+	// find most occuring horizontal and vertical edge
 	std::vector<gp_Pnt> pointList;
 
 	TopExp_Explorer expl;
@@ -648,6 +648,11 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 
 	}
 
+	if (!HorizontalVertPair.size() || !VerticalVertPair.size())
+	{
+		return TopoDS_Shape();
+	}
+
 	std::pair<gp_Vec, int> hRotationVec = HorizontalVertPair[0];
 	std::pair<gp_Vec, int> vRotationVec = VerticalVertPair[0];
 
@@ -707,7 +712,7 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 	gp_Pnt urrPoint2;
 	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint1, &urrPoint1, angleFlat, angleVert);
 	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint2, &urrPoint2, angleFlat, -angleVert);
-	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) { return TopoDS_Shape(); }
+	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) { std::cout << "false" << std::endl; return TopoDS_Shape(); }
 
 	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
 	{
@@ -720,7 +725,7 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
 	if (mapList->size() == 0) { return; }
 	if (mapList->size() > 1) { std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningMultipleProjections) << std::endl; }
@@ -1020,8 +1025,8 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
-
-		TopoDS_Shape shape = getObjectShape(product); //TODO: rewrite to function for familie related objects
+		std::string productType = product->data().type()->name();
+		TopoDS_Shape shape = getObjectShape(product); //TODO: rewrite to function for family related objects
 		bg::model::box <BoostPoint3D> box = makeObjectBox(shape, 0);
 
 		if (!helperFunctions::hasVolume(box))
@@ -1043,7 +1048,6 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 		if (dub) { continue; }
 
 		TopoDS_Shape simpleShape;
-		std::string productType = product->data().type()->name();
 
 		if (openingObjects_.find(productType) != openingObjects_.end())
 		{ 
@@ -1051,16 +1055,17 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 		}
 
 		TopoDS_Shape cbbox;
-		bool hasCBBox = false;
-		bool matchFound = false;
-
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
 			cbbox = boxSimplefy(shape);
+			if (cbbox.IsNull())
+			{
+				failedConversionList.emplace_back(product->GlobalId());
+				continue;
+			}
 		}
 
 		std::shared_ptr<lookupValue> lookup = std::make_shared<lookupValue>(product, shape, simpleShape, cbbox);
-
 		if (addToRoomIndx)
 		{
 			SpaceIndex_.insert(std::make_pair(box, (int)SpaceIndex_.size()));
@@ -1089,8 +1094,10 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 			productIndxLookup_[productType].insert({ product->GlobalId(), locationIdx });
 		}
 	}
-
-	ErrorCollection::getInstance().addError(errorID::failedConvert, failedConversionList);
+	if (failedConversionList.size())
+	{
+		ErrorCollection::getInstance().addError(errorID::failedConvert, failedConversionList);
+	}	
 }
 
 
@@ -1150,16 +1157,14 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (memoryLocation != -1) { memorize = true; }
 	std::string objectType = product->data().type()->name();
 	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
-	
+
 	// filter with lookup
 	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
 
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);
 	if (!potentialShape.IsNull()) { return potentialShape; }
 
-	IfcSchema::IfcRepresentation* ifc_representation = 0;
-	bool hasbody = false;
-
+	IfcSchema::IfcRepresentation* ifc_representation = nullptr;
 	if (product->Representation())
 	{
 		IfcSchema::IfcProductRepresentation* prodrep = product->Representation();
@@ -1169,7 +1174,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 			IfcSchema::IfcRepresentation* rep = *it;
 			if (rep->RepresentationIdentifier().get() == "Body") {
 				ifc_representation = rep;
-				hasbody = true;
 				break;
 			}
 		}
@@ -1178,9 +1182,9 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	bool hasHoles = false;
 	if (openingObjects_.find(objectType) != openingObjects_.end()) { hasHoles = true; }
 
-	if (!hasbody)
+	if (ifc_representation == nullptr)
 	{
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
 #else
 		IfcSchema::IfcRelDecomposes::list::ptr decomposedProducts = product->IsDecomposedBy();
@@ -1192,10 +1196,10 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 
 			BRep_Builder builder;
 			TopoDS_Compound collection;
-			builder.MakeCompound(collection);			
+			builder.MakeCompound(collection);
 
 			for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 				IfcSchema::IfcRelAggregates* aggregates = *et;
 #else
 				IfcSchema::IfcRelDecomposes* aggregates = *et;
@@ -1239,50 +1243,35 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		}
 	}
 	if (kernelObject == nullptr)
-	{	
+	{
 		return {};
 	}
 
-	TopoDS_Compound comp;
-	gp_Trsf placement;
 	gp_Trsf trsf;
-	gp_Trsf trs;
-	trs.SetRotation(gp_Ax1(gp_Pnt(0,0,0), gp_Dir(0,0,1)), SettingsCollection::getInstance().gridRotation());
-
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
-	IfcGeom::IteratorSettings settings;
+
 	IfcGeom::BRepElement* brep = nullptr;
-	brep = kernelObject->convert(settings, ifc_representation, product);  //This is slow
-
-	if (brep == nullptr) {
-
-		return {}; 
-	}
-
-	kernelObject->convert_placement(ifc_representation, placement);
-
-	if (hasHoles && adjusted)
-	{
-		settings.set(settings.DISABLE_OPENING_SUBTRACTIONS, true);
-		brep = kernelObject->convert(settings, ifc_representation, product);
-		kernelObject->convert_placement(ifc_representation, placement);
-
-		comp = brep->geometry().as_compound();
-		comp.Move(trsf* placement); // location in global space
-		comp.Move(objectTranslation_);
-		comp.Move(trs);
-		helperFunctions::triangulateShape(comp);
-		return comp;
+	if (hasHoles && adjusted) {
+		brep = kernelObject->convert(SettingsCollection::getInstance().simpleIteratorSettings(), ifc_representation, product);
 	}
 	else
 	{
-		comp = brep->geometry().as_compound();
-		comp.Move(trsf* placement); // location in global space
-		comp.Move(objectTranslation_);
-		comp.Move(trs);
-		helperFunctions::triangulateShape(comp);
-		return comp;
+		brep = kernelObject->convert(SettingsCollection::getInstance().iteratorSettings() , ifc_representation, product);
 	}
+
+	if (brep == nullptr) { return {}; }
+
+	TopoDS_Compound comp;
+	gp_Trsf placement;
+	gp_Trsf trs;
+	trs.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), SettingsCollection::getInstance().gridRotation());
+	kernelObject->convert_placement(ifc_representation, placement);
+	comp = brep->geometry().as_compound();
+	comp.Move(trsf * placement); // location in global space
+	comp.Move(objectTranslation_);
+	comp.Move(trs);
+	helperFunctions::triangulateShape(comp);
+	return comp;
 }
 
 
@@ -1332,16 +1321,16 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 		bool defFloor = false;
 		IfcSchema::IfcRelDefinesByProperties* dProp = *pSetIt;
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		IfcSchema::IfcObjectDefinition::list::ptr oDefList = dProp->RelatedObjects();
 #else
 		IfcSchema::IfcObject::list::ptr oDefList = dProp->RelatedObjects();
-#endif // USE_IFC4
+#endif // USE_IFC
 
 		for (auto oDefIt = oDefList->begin(); oDefIt != oDefList->end(); ++oDefIt)
 		{
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 			IfcSchema::IfcObjectDefinition* oDef = *oDefIt;
 #else
 			IfcSchema::IfcObject* oDef = *oDefIt;
@@ -1356,7 +1345,7 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 
 		if (!defFloor) { continue; }
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		IfcSchema::IfcPropertySetDefinitionSelect* pDef = dProp->RelatingPropertyDefinition();
 #else
 		IfcSchema::IfcPropertySetDefinition* pDef = dProp->RelatingPropertyDefinition();
@@ -1569,11 +1558,40 @@ fileKernelCollection::fileKernelCollection(const std::string& filePath)
 }
 
 
+
+
+double fileKernelCollection::getScaleValue(const IfcSchema::IfcSIUnit& unitItem) {
+	IfcSchema::IfcSIUnitName::Value unitType = unitItem.Name();
+
+	boost::optional<IfcSchema::IfcSIPrefix::Value> prefixOption = unitItem.Prefix();
+	if (!prefixOption) { return 1; }
+
+	if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_METRE)
+	{
+		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-3; }
+	}
+	else if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_SQUARE_METRE)
+	{
+		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-6; }
+	}
+	else if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_SQUARE_METRE)
+	{
+		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-9; }
+	}
+	return 0;
+}
+
+
 void fileKernelCollection::setUnits()
 {
 	double length = 0;
 	double area = 0;
 	double volume = 0;
+
+	// unit names if the unit is not standard
+	std::string lengthUnitName = "";
+	std::string areaUnitName = "";
+	std::string volumeUnitName = "";
 
 	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
 	if (presentUnits.get()->size() == 0) {
@@ -1595,26 +1613,36 @@ void fileKernelCollection::setUnits()
 		for (auto et = units.get()->begin(); et != units.get()->end(); et++) {
 			auto unit = *et;
 
-			if (unit->declaration().type() == 902 || unit->declaration().type() == 765) // select the IfcSIUnit
+			int typeInt = unit->declaration().type();
+			if (typeInt == 902 || typeInt == 765 ) // select the IfcSIUnit
 			{
-				std::string unitType = unit->data().getArgument(1)->toString();
-				std::string SiUnitBase = unit->data().getArgument(3)->toString();
-				std::string SiUnitAdd = unit->data().getArgument(2)->toString();
+				IfcSchema::IfcSIUnit* siUnit = unit->as<IfcSchema::IfcSIUnit>();
 
-				if (unitType == ".LENGTHUNIT.")
+				if (siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_LENGTHUNIT) { length = getScaleValue(*siUnit); }
+				else if(siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_AREAUNIT) { area = getScaleValue(*siUnit); }
+				if (siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_VOLUMEUNIT) { volume = getScaleValue(*siUnit); }
+			}
+
+			if (typeInt == 233) // select the conversions
+			{
+				IfcSchema::IfcConversionBasedUnit* conversionUnit = unit->as<IfcSchema::IfcConversionBasedUnit>();
+				if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_LENGTHUNIT)
 				{
-					if (SiUnitBase == ".METRE.") { length = 1; }
-					if (SiUnitAdd == ".MILLI.") { length = length / 1000; }
+					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
+					length = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
+					lengthUnitName = conversionUnit->Name();
 				}
-				else if (unitType == ".AREAUNIT.")
+				else if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_AREAUNIT)
 				{
-					if (SiUnitBase == ".SQUARE_METRE.") { area = 1; }
-					if (SiUnitAdd == ".MILLI.") { area = area / pow(1000, 2); }
+					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
+					area = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
+					areaUnitName = conversionUnit->Name();
 				}
-				if (unitType == ".VOLUMEUNIT.")
+				if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_VOLUMEUNIT)
 				{
-					if (SiUnitBase == ".CUBIC_METRE.") { volume = 1; }
-					if (SiUnitAdd == ".MILLI.") { volume = volume / pow(1000, 3); }
+					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
+					volume = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
+					volumeUnitName = conversionUnit->Name();
 				}
 			}
 		}
@@ -1631,6 +1659,7 @@ void fileKernelCollection::setUnits()
 	}
 	else if (length == 1) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
 	else if (length == 0.001) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
+	else { std::cout << lenghtOutputString << boost::algorithm::to_lower_copy(lengthUnitName) << std::endl; }
 
 	std::string areaOutputString = "\tArea in square ";
 	if (!area)
@@ -1640,6 +1669,7 @@ void fileKernelCollection::setUnits()
 	}
 	else if (area == 1) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
 	else if (area == 0.000001) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
+	else { std::cout << areaOutputString << boost::algorithm::to_lower_copy(areaUnitName) << std::endl;}
 
 	std::string volumeOutputString = "\tVolume in cubic ";
 	if (!volume)
@@ -1650,6 +1680,7 @@ void fileKernelCollection::setUnits()
 	}
 	else if (volume == 1) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
 	else if (volume == 0.000000001) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
+	else { std::cout << volumeOutputString << boost::algorithm::to_lower_copy(volumeUnitName) << std::endl; }
 
 	std::cout << std::endl;
 

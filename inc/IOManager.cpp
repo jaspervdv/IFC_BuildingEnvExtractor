@@ -290,7 +290,7 @@ bool IOManager::getJSONValues()
 	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
 	std::string rotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
 	std::string defaultDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDefaultDiv);
-	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
+	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCIgnoreProxy);
 	std::string divObjectsOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
 
 	nlohmann::json ifcInputJson = {};
@@ -316,7 +316,7 @@ bool IOManager::getJSONValues()
 
 	if (ifcInputJson.contains(ignoreProxyOName))
 	{
-		if (ifcInputJson[ignoreProxyOName] == 1 || ifcInputJson[ignoreProxyOName] == true)
+		if (ifcInputJson[ignoreProxyOName] == 0 || ifcInputJson[ignoreProxyOName] == false)
 		{
 			settingsCollection.setUseProxy(true);
 		}
@@ -368,6 +368,15 @@ bool IOManager::getJSONValues()
 			settingsCollection.setRequireFullVoxels(false);
 		}
 	}
+
+	// set ifcGeomsettings
+	IfcGeom::IteratorSettings iteratorSettings;
+	IfcGeom::IteratorSettings simpleIteratorSettings;
+	iteratorSettings.set(simpleIteratorSettings.DISABLE_OPENING_SUBTRACTIONS, true);
+
+	settingsCollection.setIterator(iteratorSettings);
+	settingsCollection.setSimpleIterator(simpleIteratorSettings);
+
 	return true;
 }
 

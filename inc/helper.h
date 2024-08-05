@@ -1,17 +1,26 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
-#ifdef USE_IFC4
+#ifdef USE_IFC2x3
+#define IfcSchema Ifc2x3
+#define buildVersion "IFC2X3"
+#define SCHEMA_VERSIONS (2x3)
+#define SCHEMA_SEQ (2x3)
+
+#elif defined(USE_IFC4)
 #define IfcSchema Ifc4
 #define buildVersion "IFC4"
 #define SCHEMA_VERSIONS (4)
 #define SCHEMA_SEQ (4)
 
+#elif defined(USE_IFC4x3)
+#define IfcSchema Ifc4x3
+#define buildVersion "IFC4X3"
+#define SCHEMA_VERSIONS (4x3)
+#define SCHEMA_SEQ (4x3)
+
 #else
-#define IfcSchema Ifc2x3
-#define buildVersion "IFC2X3"
-#define SCHEMA_VERSIONS (2x3)
-#define SCHEMA_SEQ (2x3)
-#endif // USE_IFC4
+#error "No IFC version defined"
+#endif // USE_IFC
 
 #include "surfaceCollection.h"
 

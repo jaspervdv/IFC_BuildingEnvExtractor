@@ -62,8 +62,10 @@ def runCode(input_path,
             div_string):
 
     json_path = "../Pre_Build/~temp.json"
-    ifc4_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4.exe"
     ifc2_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc2x3.exe"
+    ifc4_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4.exe"
+    ifc4x3_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4x3.exe"
+
 
     # check voxel input
     try:
@@ -124,10 +126,10 @@ def runCode(input_path,
 
     if not bool_customEnabled:
         json_dictionary["IFC"]["Default div"] = bool_useDefault
-        json_dictionary["IFC"]["Ignore Proxy"] = bool_igoreproxy
+        json_dictionary["IFC"]["Ignore proxy"] = bool_igoreproxy
     else:
         json_dictionary["IFC"]["Default div"] = False
-        json_dictionary["IFC"]["Ignore Proxy"] = False
+        json_dictionary["IFC"]["Ignore proxy"] = False
         json_dictionary["IFC"]["Div objects"] = div_string.split()
 
     json_dictionary["JSON"] = {}
@@ -173,9 +175,13 @@ def runCode(input_path,
         counter = 0
         for line in open(path):
             if "FILE_SCHEMA(('IFC2X3'))" in line or "FILE_SCHEMA (('IFC2X3'))" in line:
-                is_ifc4 = False
+                runExe(ifc2_exe_path, json_path)
                 break
-            if  "FILE_SCHEMA(('IFC4'))" in line:
+            if  "FILE_SCHEMA(('IFC4'))" in line or "FILE_SCHEMA (('IFC4'))" in line:
+                runExe(ifc4_exe_path, json_path)
+                break
+            if "FILE_SCHEMA(('IFC4X3'))" in line or "FILE_SCHEMA (('IFC4X3'))" in line:
+                runExe(ifc4x3_exe_path, json_path)
                 break
 
             if counter == 100:
@@ -183,16 +189,7 @@ def runCode(input_path,
                                              "Error: Was unable to find IFC schema in file")
                 return
             counter += 1
-
-
-    # call ifc exe
-    if is_ifc4:
-        runExe(ifc4_exe_path, json_path)
-    else:
-        runExe(ifc2_exe_path, json_path)
-
     os.remove(json_path)
-
     return
 
 def browse_(box, is_folder, window, initial_file):

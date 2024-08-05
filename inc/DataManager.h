@@ -79,6 +79,8 @@ public:
 	~fileKernelCollection() {
 	}
 
+	double getScaleValue(const IfcSchema::IfcSIUnit& unitItem);
+
 	/// returns the pointer to the file object
 	IfcParse::IfcFile* getFilePtr()  { return file_; }
 
@@ -140,7 +142,7 @@ private:
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
 
-	std::unordered_set<std::string> openingObjects_  = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };  // read only!
+	std::unordered_set<std::string> openingObjects_ = {};// = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };  // read only!
 	std::unordered_set<std::string> cuttingObjects_  = { "IfcWindow", "IfcDoor", "IfcColumn"}; // read only!
 
 	/// finds the ifc schema that is used in the supplied file

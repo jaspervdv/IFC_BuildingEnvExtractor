@@ -17,6 +17,12 @@ Current possible output shells:
 * LoD3.2 (exterior only) (WIP)
 * LoD5.0 (exterior and interior rooms) (WIP)
 
+Current supported IFC versions:
+
+* IFC2x3
+* IFC4
+* IFC4x3 (untested WIP)
+
 For the extraction of the exterior shell the tool utilizes three different extraction methods that can be used on progressively more accurate models. Lower detail shells (LoD 0.0 & 1.0) can be extracted only based on the vertices present in a model. Middle level detail shells (Lod 0.2 w/o footprint, 1.2, 1.3, 2.2) can be extracted based on the model’s roofing structures. High level detail shells (Lod 0.2 w/ footprint and 3.2) can be extracted based on the model’s objects that are part of the building envelope. This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses. These features are often only present in models that are made manually.
 
 The extraction of interior shells relies more heavily on the source IFC file and does not scale like the exterior shells. For all interior export (Storeys, apartments/areas and rooms/spaces) a high quality input model is required with additional extra "special" semantic information to help the tool function.
@@ -45,19 +51,20 @@ This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestion
   * [Apartment/area extraction](#apartmentarea-extraction)
 * [Settings JSON](#settings-json)
 * [Additional stored attributes](#additional-stored-attributes)
-    * [Georeferencing](#georeferencing)
-    * [Voxel summary values](#voxel-summary-values)
+  * [Georeferencing](#georeferencing)
+  * [Voxel summary values](#voxel-summary-values)
 * [References](#references)
 
 ## How to execute
 
-The tool can be used directly with the executables located in the Pre_Build folder. The folder should contain three executables:
+The tool can be used directly with the executables located in the Pre_Build folder. The folder should contain four executables:
 
 * Ifc_Envelope_Extractor_ifc2x3.exe
 * Ifc_Envelope_Extractor_ifc4.exe
+* Ifc_Envelope_Extractor_ifc4x3.exe
 * Ext_GUI.exe
 
-The _Ifc_Envelope_Extractor_ifc2x3.exe_ or _Ifc_Envelope_Extractor_ifc4.exe_ can be called with a path to a settings JSON file. This file is used to give the tool the needed information related to the IFC model ([more info](#settings-json)). This enables the .exe to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
+The _Ifc_Envelope_Extractor_ifc2x3.exe_, _Ifc_Envelope_Extractor_ifc4.exe_ or _Ifc_Envelope_Extractor_ifc4x3.exe_ can be called with a path to a settings JSON file. This file is used to give the tool the needed information related to the IFC model ([more info](#settings-json)). This enables the .exe to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
 
 If a more direct (human) user friendly approach is desired both the aforementioned .exe can be called with the help of the _Ext_GUI.exe_ ([more info](#gui)).
 
@@ -71,7 +78,33 @@ If it is desired to compile the code locally the following libraries are require
 * [Boost](https://www.boost.org/)
 * [OpenCASCADE](https://dev.opencascade.org/)
 
-To set the IFC version of the tool a single line has to be commented out (or in). In _helper.h_ the first line is "#define USE_IFC4". keeping this line will build an executable that is able to process IFC4. If the line is commented out or removed the build executable will be able to process IFC2x3 files.`
+To set the IFC version of the tool a single line has to be changed. In _helper.h_ the first lines are "#define _IfcVersion_". The _IfcVersion_ can be changed to the supported IFC versions preceded by USE_. The currently supported versions are: USE_IFC2x3, USE_IFC4 and USE_IFC4x3. Each version creates an executable that can ONLY process IFC files of the version that the executable was created for.
+
+```c++
+#define USE_IFC4x3 //<- change this line to change supported ifc verion
+
+#ifdef USE_IFC2x3
+#define IfcSchema Ifc2x3
+#define buildVersion "IFC2X3"
+#define SCHEMA_VERSIONS (2x3)
+#define SCHEMA_SEQ (2x3)
+
+#elif defined(USE_IFC4)
+#define IfcSchema Ifc4
+#define buildVersion "IFC4"
+#define SCHEMA_VERSIONS (4)
+#define SCHEMA_SEQ (4)
+
+#elif defined(USE_IFC4x3)
+#define IfcSchema Ifc4x3
+#define buildVersion "IFC4X3"
+#define SCHEMA_VERSIONS (4x3)
+#define SCHEMA_SEQ (4x3)
+
+#else
+#error "No IFC version defined"
+#endif // USE_IFC
+```
 
 Please note that CJT is developed in tandem with the IFcEnvExtractor. So possible version mismatches may occur due to CJT being updated later than the IFcEnvExtractor.
 
@@ -223,7 +256,7 @@ The settings json has a very simple structure. An example can be found below:
     "IFC": {
         "Rotation" : false,
         "Default div": true,
-        "Ignore Proxy": true,
+        "Ignore proxy": true,
         "Div objects" : []
     },
     "JSON" : {
@@ -252,7 +285,7 @@ Optional:
 * "Logic" is an int (either 2 or 3) that can toggle between the logic used for voxel intersection. 2 = 2D/plane intersection, 3 = 3D/solid intersection. Default value = 3.
 * "IFC" "Rotation" is an bool OR double value that indicates a custom rotation of the input shape before processing. If bool false is used as input the tool will automatically compute the optimal rotation. Default value = false.
 * "IFC" "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
-* "IFC" "Ignore Proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
+* "IFC" "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
 * "IFC" "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
 * "JSON" "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
 * "JSON" "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level

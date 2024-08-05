@@ -39,7 +39,8 @@ enum class UnitStringID {
 	meter,
 	meterFull,
 	millimeter,
-	millimeterFull
+	millimeterFull,
+	footFull
 };
 
 class UnitStringEnum {

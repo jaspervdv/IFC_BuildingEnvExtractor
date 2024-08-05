@@ -242,7 +242,7 @@ std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& u
 		if (evalIndxList.size() == 0)
 		{
 			evalList[i] = 1;
-			if (startPoint.Distance(endPoint) > 0.01) //TODO: make smarter
+			if (startPoint.Distance(endPoint) > 0.001) //TODO: make smarter
 			{
 				cleanedEdgeList.emplace_back(uniqueEdges[i]);
 			}
@@ -522,7 +522,6 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefyProjection(const std::vector<Topo
 	std::vector<TopoDS_Wire> wireList = growWires(edgeList);
 	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
 	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
-
 	for (TopoDS_Face currentFace : cleanedFaceList) { outputFaceList.emplace_back(currentFace); }
 	return outputFaceList;
 }
@@ -1552,8 +1551,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 
 	try
 	{
-		footprintList_ = makeFloorSection(h, floorlvl);
-
+		footprintList_ = makeFloorSection(h, floorlvl + 0.15);
 	}
 	catch (const std::exception&)
 	{
@@ -1588,7 +1586,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 
 		try
 		{
-			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation - storeyBuffer);
+			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation + storeyBuffer);
 			std::map<std::string, std::string> semanticStoreyData;
 
 			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeStorey));
@@ -1638,7 +1636,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	{
 		for (const Value& productValue : voxel->getInternalProductList())
 		{
-			productLookupValues.emplace_back();
+			productLookupValues.emplace_back(productValue);
 		} 
 	}
 	productLookupValues = makeUniqueValueList(productLookupValues);
@@ -1709,7 +1707,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 			spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
 			ExtrudedShapes.emplace_back(extrudedShape);
 		}
-		
 		// split top surfaces with the extrustions
 		std::mutex faceListMutex;
 		std::vector<TopoDS_Face> faceList;
@@ -1762,7 +1759,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		BOPAlgo_Builder aBuilder;
 		aBuilder.SetFuzzyValue(precision);
 		aBuilder.SetRunParallel(Standard_True);
-		std::vector<TopoDS_Face> topTrimFaceList;
 		for (size_t j = 0; j < faceList.size(); j++)
 		{
 			TopoDS_Face currentFace = faceList[j];
@@ -1791,7 +1787,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 
 				BRepExtrema_DistShapeShape distanceWireCalc(evalLine, faceList[otherFaceIdx]);
 
-				if (distanceWireCalc.Value() < 0.00001)
+				if (distanceWireCalc.Value() < 1e-6)
 				{
 					isHidden = true;
 					break;
@@ -1804,7 +1800,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				if (!extrudedShape.IsNull())
 				{
 					aBuilder.AddArgument(extrudedShape);
-					topTrimFaceList.emplace_back(currentFace);
 				}
 			}
 		}
@@ -1813,11 +1808,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 		// clean the overlapping faces
 		TopTools_DataMapOfShapeShape ttt = aBuilder.ShapesSD();
 		BRepBuilderAPI_Sewing brepSewer;
-
 		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face currentFace = TopoDS::Face(expl.Current());
 			bool isDub = false;
-
 
 			for (auto itt = ttt.begin(); itt != ttt.end(); ++itt)
 			{
@@ -1833,9 +1826,19 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
 				brepSewer.Add(currentFace);
 			}
 		}
-
 		brepSewer.Perform();
-		prismList.emplace_back(simplefySolid(brepSewer.SewedShape()));
+
+		try
+		{
+			TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+			if (simplefiedShape.IsNull()) { continue; }
+			prismList.emplace_back(simplefiedShape);
+		}
+		catch (const std::exception&)
+		{
+			prismList.emplace_back(brepSewer.SewedShape());
+			//TODO: error Output
+		}	
 	}
 
 	if (!allSolids)
@@ -1850,6 +1853,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 {
 	std::vector<TopoDS_Face> facelist;
 	std::vector<gp_Dir> normalList;
+
 	for (TopExp_Explorer expl(solidShape, TopAbs_FACE); expl.More(); expl.Next()) {
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 		gp_Vec faceNomal = helperFunctions::computeFaceNormal(face);
@@ -1915,6 +1919,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 
 std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Face>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap) {
 
+	if (!surfaceList.size()) { return surfaceList; }
 	if (surfaceList.size() != normalList.size()) { return surfaceList; }
 
 	// make spatial index
@@ -1939,7 +1944,6 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 		for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
 		{
 			int currentIdx = mergedSurfaceIdxList[i];
-
 			if (evalList[currentIdx] == 1) { continue; }
 			evalList[currentIdx] = 1;
 
@@ -1952,6 +1956,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 			qResult.clear();
 			shapeIdx.query(bgi::intersects(
 				cummulativeBox), std::back_inserter(qResult));
+
 			for (size_t j = 0; j < qResult.size(); j++)
 			{
 				int otherFaceIdx = qResult[j].second;
@@ -2026,6 +2031,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 				}
 			}
 		}
+
 		if (tempMergeSurfaceIdxList.size() == 0)
 		{
 			if (mergedSurfaceIdxList.size() == 1)
@@ -2833,14 +2839,12 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
 
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		TopoDS_Shape currentShape = prismList[i];
-
-		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 		currentShape.Move(localRotationTrsf);
-
 		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
@@ -2947,11 +2951,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	}
 
 	// evaluate which shapes are completely encapsulated by another shape
-	filterEncapsulatedObjects(
-		&productLookupValues,
-		&exteriorProductIndex,
-		h
-	);
+	//filterEncapsulatedObjects(
+	//	&productLookupValues,
+	//	&exteriorProductIndex,
+	//	h
+	//);
 
 	// make the collection compund shape
 	BRep_Builder builder;
@@ -2963,8 +2967,10 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	trs.SetRotation(geoRefRotation_.GetRotation());
 	std::vector<int> typeValueList;
 
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 	// evaluate which surfaces are visible
-	for (size_t i = 0; i < productLookupValues.size(); i++)
+	for (size_t i = 0; i < productLookupValues.size(); i++) //TODO: multithread?
 	{
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
@@ -2976,17 +2982,14 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 			else { continue; }
 		}
 		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
-
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			bool faceIsExterior = false;
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-			
 			//Create a grid over the surface and the offsetted wire
 			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
 			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace);
 			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
-
 			// cast a line from the grid to surrounding voxels
 			for (const gp_Pnt& gridPoint : surfaceGridList)
 			{
@@ -3032,9 +3035,9 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 
 							if (currentFace.IsEqual(otherFace)) { continue; }
 
-							for (int i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
+							for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: find out if there is use to keep the opencascade structure
 							{
-								const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+								const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
 
 								std::vector<gp_Pnt> trianglePoints{
 									mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
@@ -3064,12 +3067,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 				}
 			}
 			if (!faceIsExterior) { continue; }
-			
 			// add the face to the compound
 			TopoDS_Face currentFaceCopy = currentFace;
-
-			gp_Trsf localRotationTrsf;
-			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentFaceCopy.Move(localRotationTrsf);
 
 			helperFunctions::geoTransform(&currentFaceCopy, h->getObjectTranslation(), trs);
@@ -3126,7 +3125,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 			}
 		}
 	}
-
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
 
@@ -3719,7 +3717,7 @@ CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::sha
 		roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
 		// find the storey that the room is located at
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		IfcSchema::IfcRelAggregates::list::ptr relDefByPropList = product->Decomposes();
 #else
 		IfcSchema::IfcRelDecomposes::list::ptr relDefByPropList = product->Decomposes();
@@ -3728,7 +3726,7 @@ CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::sha
 		for (auto relPropIt = relDefByPropList->begin(); relPropIt != relDefByPropList->end(); ++relPropIt)
 		{
 
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 			IfcSchema::IfcRelAggregates* relDefByProp = *relPropIt;
 #else
 			IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
