@@ -845,6 +845,7 @@ bool IOManager::run()
 	{
 		// get storey semantic objects
 		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalHelper_.get());
+		std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = geoCreator.makeRoomObjects(internalHelper_.get(), storeyObjects);
 
 		try
 		{
@@ -859,23 +860,34 @@ bool IOManager::run()
 		if (settingsCollection.make02())
 		{
 			geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, storeyObjects, 1);
+			
+		}
+
+		if (settingsCollection.make02() || settingsCollection.make12() ||settingsCollection.make22())
+		{
+			geoCreator.makeSimpleLodRooms(internalHelper_.get(), &kernel, roomObjects, 1);
+		}
+
+		if (settingsCollection.make32())
+		{
+			geoCreator.makeComplexLoDRooms(internalHelper_.get(), &kernel, roomObjects, 1);
 		}
 
 		// rooms
 		if (settingsCollection.makeV())
 		{
-			std::vector<CJT::CityObject> roomsV = geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, 1);
-			for (size_t i = 0; i < roomsV.size(); i++)
-			{
-				CJT::CityObject currentStoreyObject = roomsV[i];
-				collection->addCityObject(currentStoreyObject);
-			}
+			geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, roomObjects, 1);
 		}
 
 		for (size_t i = 0; i < storeyObjects.size(); i++)
 		{
 			storeyObjects[i]->addParent(&cityInnerShellObject);
 			collection->addCityObject(*storeyObjects[i].get());
+		}
+
+		for (size_t i = 0; i < roomObjects.size(); i++)
+		{
+			collection->addCityObject(*roomObjects[i].get());
 		}
 	}
 

@@ -150,10 +150,10 @@ private:
 	std::vector<TopoDS_Edge> section2edges(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
-	TopoDS_Solid extrudeFaceDW(const TopoDS_Face& evalFace, double splittingFaceHeight = 0);
+	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
-	std::vector<TopoDS_Shape> computePrisms(bool isFlat, helper* h);
+	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ);
 
 	/// remove redundant edges from a solid shape
 	TopoDS_Shape simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap = false);
@@ -207,15 +207,18 @@ public:
 	/// store the roofoutline data to LoD 02
 	void useroofprint0() { useRoofprints_ = true; }
 
-	/// generates the storey objects for the ifc storeys in a file
+	/// generates the empty storey objects for the ifc storeys in a file
 	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(helper* h);
+
+	/// generates the empty room objects for the ifc storeys in a file
+	std::vector<std::shared_ptr<CJT::CityObject>> makeRoomObjects(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects);
 
 	/// generates an LoD0.0 object
 	CJT::GeoObject makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
 	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
-	std::vector < CJT::CityObject> makeLoD02Apartments(helper* h, CJT::Kernel* kernel, std::string guid, int unitScale);
+	void makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of LoD0.3 objects
 	// TODO: implement
 	std::vector< CJT::GeoObject*> makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale);
@@ -229,9 +232,10 @@ public:
 	std::vector< CJT::GeoObject> makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
+	void makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
-	std::vector<CJT::CityObject>  makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
+	void makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of the site and its outline
 	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);
 
@@ -245,6 +249,7 @@ public:
 	TopoDS_Shape voxels2ExtriorShape(int buildingNum);
 
 	// fetches the room related data from the ifc model
+	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
 	CJT::CityObject fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum);
 
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)

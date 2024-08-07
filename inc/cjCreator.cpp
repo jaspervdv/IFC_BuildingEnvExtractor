@@ -448,6 +448,8 @@ std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& 
 
 std::vector<TopoDS_Face> CJGeoCreator::simplefyProjection(const std::vector<TopoDS_Face> inputFaceList) {
 
+	if (inputFaceList.size() == 1) { return inputFaceList; }
+
 	std::vector<TopoDS_Face> outputFaceList;
 
 	double precision = SettingsCollection::getInstance().precision();
@@ -1493,7 +1495,7 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 }
 
 
-TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double splittingFaceHeight)
+TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer;
@@ -1512,10 +1514,15 @@ TopoDS_Solid CJGeoCreator::extrudeFaceDW(const TopoDS_Face& evalFace, double spl
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
 		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
 
-		if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight)
+		if (downwards)
 		{
-			return TopoDS_Solid();
+			if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight) { return TopoDS_Solid(); }
 		}
+		else
+		{
+			if (p0.Z() >= splittingFaceHeight || p1.Z() >= splittingFaceHeight) { return TopoDS_Solid(); }
+		}
+		
 
 		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
 		brepSewer.Add(sideFace);
@@ -1549,9 +1556,16 @@ void CJGeoCreator::makeFootprint(helper* h)
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
+	double storeyBuffer = 0.15;
+
+	gp_Trsf translation;
+	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
+
 	try
 	{
-		footprintList_ = makeFloorSection(h, floorlvl + 0.15);
+		std::vector<TopoDS_Face> footprintList = makeFloorSection(h, floorlvl + storeyBuffer);
+		for (TopoDS_Face& footprintItem : footprintList) { footprintItem.Move(translation); }
+		footprintList_ = footprintList;
 	}
 	catch (const std::exception&)
 	{
@@ -1577,6 +1591,10 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
 
 	std::vector<std::map<std::string, std::string>> storeyAttributeList;
+
+	gp_Trsf translation;
+	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
+
 	for (auto it = storeyList->begin(); it != storeyList->end(); ++it) 
 	{
 		IfcSchema::IfcBuildingStorey* storeyObject = *it;
@@ -1587,6 +1605,8 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		try
 		{
 			std::vector<TopoDS_Face> storeySurface = makeFloorSection(h, storeyElevation + storeyBuffer);
+			for (TopoDS_Face& storeySurfaceItem : storeySurface) { storeySurfaceItem.Move(translation); }
+
 			std::map<std::string, std::string> semanticStoreyData;
 
 			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeStorey));
@@ -1679,166 +1699,155 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 }
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(bool isFlat, helper* h)
+std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ)
 {
 	std::vector<TopoDS_Shape> prismList;
 	bool allSolids = true;
 
 	double precision = SettingsCollection::getInstance().precision();
 
-	for (size_t i = 0; i < faceList_.size(); i++)
+	// make extrusions of untrimmed top surfaces
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
+	std::vector<TopoDS_Solid> ExtrudedShapes;
+
+	for (const TopoDS_Face currentFace : inputFaceList)
 	{
-		if (faceList_[i].size() == 0) { continue; }
-		// make extrusions of untrimmed top surfaces
-		bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
-		std::vector<TopoDS_Solid> ExtrudedShapes;
-		for (size_t j = 0; j < faceList_[i].size(); j++)
+		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
+
+		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
+		ExtrudedShapes.emplace_back(extrudedShape);
+	}
+
+	if (ExtrudedShapes.size() == 1) { return { ExtrudedShapes [0]}; }
+
+	// split top surfaces with the extrustions
+	std::mutex faceListMutex;
+	std::vector<TopoDS_Face> faceList;
+	bgi::rtree<Value, bgi::rstar<25>> faceIdx;
+
+	for (size_t i = 0; i < inputFaceList.size(); i++)
+	{
+		TopoDS_Face currentFace = inputFaceList[i];
+		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentFace);
+
+		std::vector<Value> qResult;
+		spatialIndex.query(bgi::intersects(searchBox), std::back_inserter(qResult));
+
+		if (qResult.size() <= 1)
 		{
-			SurfaceGroup currentRoof = faceList_[i][j];
-			if (currentRoof.getURRPoint().Z() == 0) { continue; } //TODO: use groundlevel
-
-			TopoDS_Face currentFace;
-			if (!isFlat) { currentFace = currentRoof.getFaces()[0]; }
-			else { currentFace = currentRoof.getFlatFace(); }
-
-			TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
-			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-
-			spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
-			ExtrudedShapes.emplace_back(extrudedShape);
+			std::lock_guard<std::mutex> faceLock(faceListMutex);
+			faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
+			faceList.emplace_back(currentFace);
 		}
-		// split top surfaces with the extrustions
-		std::mutex faceListMutex;
-		std::vector<TopoDS_Face> faceList;
-		bgi::rtree<Value, bgi::rstar<25>> faceIdx;
+		else {
+			BOPAlgo_Splitter divider;
+			divider.SetFuzzyValue(precision);
+			divider.SetRunParallel(Standard_False);
+			divider.AddArgument(currentFace);
 
-		for (size_t j = 0; j < faceList_[i].size(); j++)
-		{
-			SurfaceGroup currentRoof = faceList_[i][j];
-			TopoDS_Face currentFace;
-			if (!isFlat) { currentFace = currentRoof.getFaces()[0]; }
-			else { currentFace = currentRoof.getFlatFace(); }
-
-			bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentFace);
-
-			std::vector<Value> qResult;
-			spatialIndex.query(bgi::intersects(searchBox), std::back_inserter(qResult));
-
-			if (qResult.size() <= 1)
+			for (size_t j = 0; j < qResult.size(); j++)
 			{
+				int extruIndx = qResult[j].second;
+				if (i == extruIndx) { continue; }
+
+				TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
+				divider.AddTool(currentSplitter);
+			}
+			divider.Perform();
+
+			for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+				TopoDS_Face subFace = TopoDS::Face(expl.Current());
 				std::lock_guard<std::mutex> faceLock(faceListMutex);
 				faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
-				faceList.emplace_back(currentFace);
-			}
-			else {
-				BOPAlgo_Splitter divider;
-				divider.SetFuzzyValue(precision);
-				divider.SetRunParallel(Standard_False);
-				divider.AddArgument(currentFace);
-
-				for (size_t k = 0; k < qResult.size(); k++)
-				{
-					int extruIndx = qResult[k].second;
-					if (j == extruIndx) { continue; }
-
-					TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
-					divider.AddTool(currentSplitter);
-				}
-				divider.Perform();
-
-				for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-					TopoDS_Face subFace = TopoDS::Face(expl.Current());
-					std::lock_guard<std::mutex> faceLock(faceListMutex);
-					faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
-					faceList.emplace_back(subFace);
-				}
+				faceList.emplace_back(subFace);
 			}
 		}
+	}
 
-		// extrude the trimmed surfaces and join
-		BOPAlgo_Builder aBuilder;
-		aBuilder.SetFuzzyValue(precision);
-		aBuilder.SetRunParallel(Standard_True);
-		for (size_t j = 0; j < faceList.size(); j++)
+	// extrude the trimmed surfaces and join
+	BOPAlgo_Builder aBuilder;
+	aBuilder.SetFuzzyValue(precision);
+	aBuilder.SetRunParallel(Standard_True);
+	for (size_t i = 0; i < faceList.size(); i++)
+	{
+		TopoDS_Face currentFace = faceList[i];
+		bool isHidden = false;
+
+		std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalBasePoint == std::nullopt) { continue; }
+
+		gp_Pnt basePoint = *optionalBasePoint;
+		gp_Pnt topPoint = gp_Pnt(basePoint.X(), basePoint.Z(), basePoint.Z() + 100000);
+
+		TopoDS_Edge evalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		faceIdx.query(bgi::intersects(
+			helperFunctions::createBBox(basePoint, topPoint, 0.2)), std::back_inserter(qResult));
+
+		for (size_t j = 0; j < qResult.size(); j++)
 		{
-			TopoDS_Face currentFace = faceList[j];
-			bool isHidden = false;
-
-			std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
-			if (optionalBasePoint == std::nullopt) { continue; }
-
-			gp_Pnt basePoint = *optionalBasePoint;
-			gp_Pnt topPoint = gp_Pnt(basePoint.X(), basePoint.Z(), basePoint.Z() + 100000);
-
-			TopoDS_Edge evalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
-
-			std::vector<Value> qResult;
-			qResult.clear();
-			faceIdx.query(bgi::intersects(
-				helperFunctions::createBBox(basePoint, topPoint, 0.2)), std::back_inserter(qResult));
-
-			for (size_t k = 0; k < qResult.size(); k++)
+			int otherFaceIdx = qResult[j].second;
+			if (i == otherFaceIdx)
 			{
-				int otherFaceIdx = qResult[k].second;
-				if (j == otherFaceIdx)
-				{
-					continue;
-				}
-
-				BRepExtrema_DistShapeShape distanceWireCalc(evalLine, faceList[otherFaceIdx]);
-
-				if (distanceWireCalc.Value() < 1e-6)
-				{
-					isHidden = true;
-					break;
-				}
+				continue;
 			}
 
-			if (!isHidden)
+			BRepExtrema_DistShapeShape distanceWireCalc(evalLine, faceList[otherFaceIdx]);
+
+			if (distanceWireCalc.Value() < 1e-6)
 			{
-				TopoDS_Solid extrudedShape = extrudeFaceDW(currentFace, h->getLllPoint().Z());
-				if (!extrudedShape.IsNull())
-				{
-					aBuilder.AddArgument(extrudedShape);
-				}
+				isHidden = true;
+				break;
 			}
 		}
-		aBuilder.Perform();
 
-		// clean the overlapping faces
-		TopTools_DataMapOfShapeShape ttt = aBuilder.ShapesSD();
-		BRepBuilderAPI_Sewing brepSewer;
-		for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-			TopoDS_Face currentFace = TopoDS::Face(expl.Current());
-			bool isDub = false;
-
-			for (auto itt = ttt.begin(); itt != ttt.end(); ++itt)
-			{
-				if (currentFace.IsSame(*itt))
-				{
-					isDub = true;
-					break;
-				}
-			}
-
-			if (!isDub)
-			{
-				brepSewer.Add(currentFace);
-			}
-		}
-		brepSewer.Perform();
-
-		try
+		if (!isHidden)
 		{
-			TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
-			if (simplefiedShape.IsNull()) { continue; }
-			prismList.emplace_back(simplefiedShape);
+			TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+			if (!extrudedShape.IsNull())
+			{
+				aBuilder.AddArgument(extrudedShape);
+			}
 		}
-		catch (const std::exception&)
+	}
+	aBuilder.Perform();
+
+	// clean the overlapping faces
+	TopTools_DataMapOfShapeShape ttt = aBuilder.ShapesSD();
+	BRepBuilderAPI_Sewing brepSewer;
+	for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+		TopoDS_Face currentFace = TopoDS::Face(expl.Current());
+		bool isDub = false;
+
+		for (auto itt = ttt.begin(); itt != ttt.end(); ++itt)
 		{
-			prismList.emplace_back(brepSewer.SewedShape());
-			//TODO: error Output
-		}	
+			if (currentFace.IsSame(*itt))
+			{
+				isDub = true;
+				break;
+			}
+		}
+
+		if (!isDub)
+		{
+			brepSewer.Add(currentFace);
+		}
+	}
+	brepSewer.Perform();
+
+	try
+	{
+		TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+		if (simplefiedShape.IsNull()) { return prismList; }
+		prismList.emplace_back(simplefiedShape);
+	}
+	catch (const std::exception&)
+	{
+		prismList.emplace_back(brepSewer.SewedShape());
+		//TODO: error Output
 	}
 
 	if (!allSolids)
@@ -2539,6 +2548,71 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 	return cityStoreyObjects;
 }
 
+std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects)
+{
+	std::vector<std::shared_ptr<CJT::CityObject>> cityRoomObjects;
+
+	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
+
+	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	{
+		IfcSchema::IfcSpace* spaceObject = *spaceIt;
+
+		// check if proper kind of room object
+		if (spaceObject->CompositionType() == IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT)
+		{
+			std::shared_ptr<CJT::CityObject> cjRoomObject = std::make_unique<CJT::CityObject>();
+			
+			// store generic data
+			if (spaceObject->Name().has_value())
+			{
+				cjRoomObject->setName(*spaceObject->Name());
+				cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), spaceObject->Name().get());
+			}
+			if (spaceObject->LongName().has_value())
+			{
+				cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), spaceObject->LongName().get());
+			}
+			cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), spaceObject->GlobalId());
+			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
+
+			// get rooms storey
+			bool storeyFound = false;
+			IfcSchema::IfcRelAggregates::list::ptr relAggregateList = spaceObject->Decomposes();
+			for (auto aggregateIt = relAggregateList->begin(); aggregateIt != relAggregateList->end(); ++aggregateIt)
+			{
+				IfcSchema::IfcRelAggregates* ifcRelAggregate = *aggregateIt;
+				IfcSchema::IfcObjectDefinition* potentialStorey = ifcRelAggregate->RelatingObject();
+
+				if (potentialStorey->data().type()->name() != "IfcBuildingStorey")
+				{
+					continue;
+				}
+				std::string targetStoreyGuid = potentialStorey->GlobalId();
+
+				for (std::shared_ptr<CJT::CityObject> cjtStorey : cityStoreyObjects)
+				{
+					if (cjtStorey->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)] == targetStoreyGuid)
+					{
+						cjtStorey->addChild(cjRoomObject);
+						storeyFound = true;
+						break;
+					}
+				}
+				if (storeyFound)
+				{
+					cityRoomObjects.emplace_back(cjRoomObject);
+					break;
+				}
+			}
+		}
+	}
+
+	//TODO: clean the spatial index?
+
+	return cityRoomObjects;
+}
+
 CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -2675,6 +2749,126 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 			}
 		}
 	}
+}
+
+void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
+	
+	SettingsCollection& settincCollection = SettingsCollection::getInstance();
+	
+	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
+
+	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	{
+		//TODO: make function?
+		// find the matching cityspace object
+		IfcSchema::IfcSpace* spaceIfcObject = *spaceIt;
+		std::string spaceGuid = spaceIfcObject->GlobalId();
+
+		bool spaceFound = false;
+		std::shared_ptr<CJT::CityObject> matchingCityRoomObject;
+		for (std::shared_ptr<CJT::CityObject> roomCityObject : roomCityObjects)
+		{
+			if (spaceGuid == roomCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
+			{
+				spaceFound = true;
+				matchingCityRoomObject = roomCityObject;
+				break;
+			}
+		}
+		if (!spaceFound) { continue; }
+
+		// get height values
+		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+		double lowestZ = helperFunctions::getLowestPoint(spaceShape, false).Z();
+		double highestZ = helperFunctions::getHighestPoint(spaceShape).Z();
+
+		// get the top faces
+		std::vector<TopoDS_Face> flatFaceList;
+		std::vector<TopoDS_Face> topFaceList;
+		for (TopExp_Explorer faceExp(spaceShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+			TopoDS_Face currentFace = TopoDS::Face(faceExp.Current());
+
+			if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) < SettingsCollection::getInstance().precisionCoarse()) { continue; }
+
+			std::vector<gp_Pnt> facePointList = helperFunctions::getPointListOnFace(currentFace);
+
+
+			for (const gp_Pnt& facePoint : facePointList)
+			{
+				bool clearLine = true;
+				gp_Pnt topPoint = gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 10000);
+
+				for (TopExp_Explorer otherFaceExp(spaceShape, TopAbs_FACE); otherFaceExp.More(); otherFaceExp.Next()) {
+					TopoDS_Face otherFace = TopoDS::Face(otherFaceExp.Current());
+
+					if (currentFace.IsSame(otherFace)) { continue; }
+
+					TopLoc_Location loc;
+					auto mesh = BRep_Tool::Triangulation(otherFace, loc);
+
+					if (currentFace.IsEqual(otherFace)) { continue; }
+
+					for (int j = 1; j <= mesh.get()->NbTriangles(); j++) 
+					{
+						const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+						std::vector<gp_Pnt> trianglePoints{
+							mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+							mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+							mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+						};
+
+						if (helperFunctions::triangleIntersecting({ facePoint, topPoint }, trianglePoints))
+						{
+							clearLine = false;
+							break;
+						}
+					}
+
+					if (!clearLine){ break; }
+				}
+				if (!clearLine){ continue; }
+
+				if (settincCollection.make02() || settincCollection.make12())
+				{
+					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(currentFace, lowestZ));
+				}
+				if (settincCollection.make22())
+				{
+					topFaceList.emplace_back(currentFace);
+				}
+				break;
+			}
+			
+		}
+
+		// simplefy and store the LoD0.2 faces
+		for (const TopoDS_Face& face : simplefyProjection(flatFaceList))
+		{
+			if (settincCollection.make02())
+			{
+				CJT::GeoObject roomGeoObject02 = kernel->convertToJSON(face, "0.2");;
+				matchingCityRoomObject->addGeoObject(roomGeoObject02);
+
+			}
+			if (settincCollection.make12()) 
+			{
+				TopoDS_Solid solidShape12 = extrudeFace(face, false, highestZ);
+				CJT::GeoObject roomGeoObject12 = kernel->convertToJSON(solidShape12, "1.2");;
+				matchingCityRoomObject->addGeoObject(roomGeoObject12);
+			}
+		}
+		if (!topFaceList.size()) { continue; }
+		
+
+		std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
+		if (roomPrismList.size() == 1)
+		{
+			CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");;
+			matchingCityRoomObject->addGeoObject(roomGeoObject22);
+		}
+	}
+	return;
 }
 
 
@@ -2834,7 +3028,20 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 		return geoObjectList;
 	}
 
-	std::vector<TopoDS_Shape> prismList = computePrisms(true, h);
+	std::vector<TopoDS_Shape> prismList;
+	for (std::vector<SurfaceGroup> faceCluster : faceList_)
+	{
+		std::vector<TopoDS_Face> faceCollection;
+		for (SurfaceGroup surfaceGroup : faceCluster)
+		{
+			faceCollection.emplace_back(surfaceGroup.getFlatFace());
+		}
+
+		for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z()))
+		{
+			prismList.emplace_back(prism);
+		}
+	}
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
@@ -2882,8 +3089,24 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 	{
 		return geoObjectList;
 	}
-	
-	std::vector<TopoDS_Shape> prismList = computePrisms(false, h);
+
+	std::vector<TopoDS_Shape> prismList;
+	for (std::vector<SurfaceGroup> faceCluster : faceList_)
+	{
+		std::vector<TopoDS_Face> faceCollection;
+		for (SurfaceGroup surfaceGroup : faceCluster)
+		{
+			for (TopoDS_Face surfaceFace : surfaceGroup.getFaces())
+			{
+				faceCollection.emplace_back(surfaceFace);
+			}
+		}
+
+		for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z()))
+		{
+			prismList.emplace_back(prism);
+		}
+	}
 
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
@@ -3152,6 +3375,37 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 }
 
 
+void CJGeoCreator::makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
+	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
+
+	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	{
+		//TODO: make function?
+		// find the matching cityspace object
+		IfcSchema::IfcSpace* spaceIfcObject = *spaceIt;
+		std::string spaceGuid = spaceIfcObject->GlobalId();
+
+		bool spaceFound = false;
+		std::shared_ptr<CJT::CityObject> matchingCityRoomObject;
+		for (std::shared_ptr<CJT::CityObject> roomCityObject : roomCityObjects)
+		{
+			if (spaceGuid == roomCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
+			{
+				spaceFound = true;
+				matchingCityRoomObject = roomCityObject;
+				break;
+			}
+		}
+		if (!spaceFound) { continue; }
+
+		// get height values
+		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");;
+		matchingCityRoomObject->addGeoObject(roomGeoObject);
+	}
+	return;
+}
+
 std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50) << std::endl;
@@ -3192,12 +3446,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	return geoObjectList;
 }
 
-std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale)
+void  CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50Rooms) << std::endl;
 
 	auto startTime = std::chrono::steady_clock::now();
-	std::vector<CJT::CityObject> roomObjectList; // final output collection
 	// bool indicating if the voxelroom data has to be created 
 	bool genData = false;
 	if (!h->getSpaceIndexPointer()->size())
@@ -3208,35 +3461,9 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 
 	for (int i = 1; i < voxelGrid_->getRoomSize(); i++) //TODO: multithread (-6 for the surface creation)
 	{
-		CJT::CityObject roomObject;
+		std::vector< std::shared_ptr<CJT::CityObject>> potentialRoomCityObjectList = fetchRoomObject(h, roomCityObjects, i);
 
-		if (!genData)
-		{
-			roomObject = fetchRoomSemantics(h, storeyCityObjects, i);
-		}
-		else
-		{
-			// add generic room data
-			roomObject.setName("EnvRoom " + std::to_string(i));
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), "none");
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), "none");
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(i));
-
-			// find storey
-			gp_Pnt roomPoint = voxelGrid_->getPointInRoom(i);
-
-			std::shared_ptr<CJT::CityObject> roomStoreyObject;
-			for (const std::shared_ptr<CJT::CityObject>& storeyObject : storeyCityObjects)
-			{
-				if (storeyObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcElevation)] < roomPoint.Z())
-				{
-					roomStoreyObject = storeyObject;
-					continue;
-				}
-				break;
-			}
-			roomObject.addParent(roomStoreyObject);
-		}
+		if (!potentialRoomCityObjectList.size()) { continue; }
 
 		TopoDS_Shape sewedShape = voxels2Shape(i);
 
@@ -3252,7 +3479,10 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		{
 			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolidLoD50) << std::endl;
 			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
-			roomObject.addGeoObject(geoObject);
+			for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
+			{
+				potentialRoomCityObjectList[j]->addGeoObject(geoObject);
+			}	
 			continue;
 		}
 
@@ -3264,16 +3494,13 @@ std::vector<CJT::CityObject> CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* ke
 		brepBuilder.Add(voxelSolid, sewedShape);
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
-
-
-		roomObject.setType(CJT::Building_Type::BuildingRoom);
-		roomObject.addGeoObject(geoObject);
-
-		roomObjectList.emplace_back(roomObject);
+		for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
+		{
+			potentialRoomCityObjectList[j]->addGeoObject(geoObject);
+		}
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
-	return roomObjectList;
 }
 
 std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kernel, int unitScale)
@@ -3670,6 +3897,52 @@ void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper
 	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomVolumeTotal), totalRoomVolume);
 
 }
+
+std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum)
+{
+	gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(roomNum), 0); //TODO: update this to find all the room objects?
+	std::vector<Value> qResult;
+	qResult.clear();
+	h->getSpaceIndexPointer()->query(
+		bgi::intersects(
+			bg::model::box < BoostPoint3D >(
+				BoostPoint3D(roomPoint.X() - 0.01, roomPoint.Y() - 0.01, roomPoint.Z() - 0.01),
+				BoostPoint3D(roomPoint.X() + 0.01, roomPoint.Y() + 0.01, roomPoint.Z() + 0.01)
+				)
+		),
+		std::back_inserter(qResult)
+	);
+
+	std::vector<std::shared_ptr<CJT::CityObject>> roomObjects;
+	for (size_t k = 0; k < qResult.size(); k++)
+	{
+		// find the room that point is located in
+
+		bool encapsulating = true;
+		std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
+		IfcSchema::IfcProduct* product = lookup->getProductPtr();
+
+		TopoDS_Shape productShape = h->getObjectShape(product, true);
+		BRepClass3d_SolidClassifier solidClassifier;
+		solidClassifier.Load(productShape);
+		solidClassifier.Perform(roomPoint, 0.1);
+
+		if (!solidClassifier.State() == TopAbs_State::TopAbs_OUT) { continue; }
+
+		std::string guid = product->GlobalId();
+
+		for (std::shared_ptr<CJT::CityObject > roomCityObject : roomCityObjects)
+		{
+			if (guid == roomCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
+			{
+				roomObjects.emplace_back(roomCityObject);
+				break;
+			}
+		}
+	}
+	return roomObjects;
+}
+
 
 CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum)
 {
