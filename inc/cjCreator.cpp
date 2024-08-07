@@ -2578,10 +2578,20 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(help
 
 			// get rooms storey
 			bool storeyFound = false;
+
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 			IfcSchema::IfcRelAggregates::list::ptr relAggregateList = spaceObject->Decomposes();
+#else
+			IfcSchema::IfcRelDecomposes::list::ptr relAggregateList = spaceObject->Decomposes();
+#endif
 			for (auto aggregateIt = relAggregateList->begin(); aggregateIt != relAggregateList->end(); ++aggregateIt)
 			{
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+
 				IfcSchema::IfcRelAggregates* ifcRelAggregate = *aggregateIt;
+#else
+				IfcSchema::IfcRelDecomposes* ifcRelAggregate = *aggregateIt;
+#endif
 				IfcSchema::IfcObjectDefinition* potentialStorey = ifcRelAggregate->RelatingObject();
 
 				if (potentialStorey->data().type()->name() != "IfcBuildingStorey")
@@ -2714,6 +2724,8 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale) {
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
 	if (hasStoreyPrints_)
 	{
@@ -2733,8 +2745,6 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 				{
 					TopoDS_Face currentFace = currentStoreyGeo[k];
 
-					gp_Trsf localRotationTrsf;
-					localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 					currentFace.Move(localRotationTrsf);
 
 					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
@@ -2753,7 +2763,12 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 
 void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
 	
-	SettingsCollection& settincCollection = SettingsCollection::getInstance();
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 	
 	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
 
@@ -2829,11 +2844,11 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 				}
 				if (!clearLine){ continue; }
 
-				if (settincCollection.make02() || settincCollection.make12())
+				if (settingsCollection.make02() || settingsCollection.make12())
 				{
 					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(currentFace, lowestZ));
 				}
-				if (settincCollection.make22())
+				if (settingsCollection.make22())
 				{
 					topFaceList.emplace_back(currentFace);
 				}
@@ -2843,15 +2858,17 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 		}
 
 		// simplefy and store the LoD0.2 faces
-		for (const TopoDS_Face& face : simplefyProjection(flatFaceList))
+		for (TopoDS_Face& face : simplefyProjection(flatFaceList))
 		{
-			if (settincCollection.make02())
+			face.Move(localRotationTrsf);
+			helperFunctions::geoTransform(&face, h->getObjectTranslation(), trs);
+			if (settingsCollection.make02())
 			{
 				CJT::GeoObject roomGeoObject02 = kernel->convertToJSON(face, "0.2");;
 				matchingCityRoomObject->addGeoObject(roomGeoObject02);
 
 			}
-			if (settincCollection.make12()) 
+			if (settingsCollection.make12())
 			{
 				TopoDS_Solid solidShape12 = extrudeFace(face, false, highestZ);
 				CJT::GeoObject roomGeoObject12 = kernel->convertToJSON(solidShape12, "1.2");;
@@ -2864,6 +2881,8 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 		std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
 		if (roomPrismList.size() == 1)
 		{
+			roomPrismList[0].Move(localRotationTrsf);
+			helperFunctions::geoTransform(&roomPrismList[0], h->getObjectTranslation(), trs);
 			CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");;
 			matchingCityRoomObject->addGeoObject(roomGeoObject22);
 		}
@@ -3377,6 +3396,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 
 void CJGeoCreator::makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
 	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
+	
+	gp_Trsf trs;
+	trs.SetRotation(geoRefRotation_.GetRotation());
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
 	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
 	{
@@ -3400,6 +3424,8 @@ void CJGeoCreator::makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vect
 
 		// get height values
 		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+		spaceShape.Move(localRotationTrsf);
+		helperFunctions::geoTransform(&spaceShape, h->getObjectTranslation(), trs);
 		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");;
 		matchingCityRoomObject->addGeoObject(roomGeoObject);
 	}
