@@ -24,7 +24,8 @@ enum class sourceIdentifierID {
 	envExtractor,
 	envExtractorVApprox,
 	voxel,
-	ifc
+	ifc,
+	ifcProp
 };
 
 class sourceIdentifierEnum {
@@ -37,6 +38,8 @@ enum class UnitStringID {
 	seconds,
 	milliseconds,
 	meter,
+	sqrMeter,
+	cubMeter,
 	meterFull,
 	millimeter,
 	millimeterFull,
@@ -208,6 +211,9 @@ enum class CJObjectID {
 
 	v11,
 	v20,
+
+	jsonUom,
+	jsonValue,
 
 	ifcDescription,
 	ifcObjectType,

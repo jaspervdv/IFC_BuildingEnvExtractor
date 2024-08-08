@@ -849,7 +849,7 @@ bool IOManager::run()
 
 		try
 		{
-			geoCreator.makeFloorSectionCollection(internalHelper_.get()); 		//TODO: rewrite this
+			geoCreator.makeFloorSectionCollection(internalHelper_.get());
 		}
 		catch (const std::exception&)
 		{

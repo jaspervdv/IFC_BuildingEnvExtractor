@@ -250,7 +250,6 @@ public:
 
 	// fetches the room related data from the ifc model
 	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
-	CJT::CityObject fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum);
 
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	double approximateRoomArea(int roomNum);

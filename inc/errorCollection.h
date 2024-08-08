@@ -18,7 +18,8 @@ enum class errorID {
 	nobuildingNameLong, // cant find long building name
 	multipleBuildingObjects, // Multiple building objects found
 	noProjectName,
-	multipleProjectNames
+	multipleProjectNames,
+	missingProptery // Property not implelemted in tool
 };
 
 struct ErrorObject {

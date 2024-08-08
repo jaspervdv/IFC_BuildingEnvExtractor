@@ -4,6 +4,8 @@
 #include "voxel.h"
 #include "stringManager.h"
 
+#include <nlohmann/json.hpp>
+
 #include <chrono>
 
 #include <Bnd_Box.hxx>
@@ -2576,6 +2578,15 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(help
 			cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), spaceObject->GlobalId());
 			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
 
+			//store added data
+			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(spaceObject->GlobalId(), h->getSourceFile(0));	
+			for (nlohmann::json attributeObject : attributeList)
+			{
+				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
+					cjRoomObject->addAttribute(jsonObIt.key(), jsonObIt.value());
+				}
+			}
+
 			// get rooms storey
 			bool storeyFound = false;
 
@@ -3568,7 +3579,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	}
 	if (!groundPlaneFaces.size())
 	{
-#ifdef USE_IFC4
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
 		for (int i = 0; i < h->getSourceFileCount(); i++)
 		{
 			IfcSchema::IfcGeographicElement::list::ptr geographicElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcGeographicElement>();
@@ -3967,85 +3978,6 @@ std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(h
 		}
 	}
 	return roomObjects;
-}
-
-
-CJT::CityObject CJGeoCreator::fetchRoomSemantics(helper* h, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum)
-{
-	CJT::CityObject roomObject;
-
-	gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(roomNum), 0);
-	std::vector<Value> qResult;
-	qResult.clear();
-	h->getSpaceIndexPointer()->query(
-		bgi::intersects(
-			bg::model::box < BoostPoint3D >(
-				BoostPoint3D(roomPoint.X() - 0.01, roomPoint.Y() - 0.01, roomPoint.Z() - 0.01),
-				BoostPoint3D(roomPoint.X() + 0.01, roomPoint.Y() + 0.01, roomPoint.Z() + 0.01)
-				)
-		),
-		std::back_inserter(qResult)
-	);
-
-	for (size_t k = 0; k < qResult.size(); k++)
-	{
-		// find the room that point is located in
-
-		bool encapsulating = true;
-		std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
-		IfcSchema::IfcProduct* product = lookup->getProductPtr();
-
-		TopoDS_Shape productShape = h->getObjectShape(product, true);
-		BRepClass3d_SolidClassifier solidClassifier;
-		solidClassifier.Load(productShape);
-		solidClassifier.Perform(roomPoint, 0.1);
-
-		if (!solidClassifier.State() == TopAbs_State::TopAbs_OUT) { continue; }
-
-		std::string longName = product->data().getArgument(7)->toString();
-		longName = longName.substr(1, longName.size() - 2);
-
-		if (product->Name().has_value()) {
-
-			roomObject.setName(product->Name().get());
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), product->Name().get());
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), product->GlobalId());
-			roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::voxelApproxRoomArea), voxelGrid_->getRoomArea(roomNum));
-		}
-
-		roomObject.addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), longName);
-		// find the storey that the room is located at
-
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-		IfcSchema::IfcRelAggregates::list::ptr relDefByPropList = product->Decomposes();
-#else
-		IfcSchema::IfcRelDecomposes::list::ptr relDefByPropList = product->Decomposes();
-#endif // USE_IFC4
-
-		for (auto relPropIt = relDefByPropList->begin(); relPropIt != relDefByPropList->end(); ++relPropIt)
-		{
-
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-			IfcSchema::IfcRelAggregates* relDefByProp = *relPropIt;
-#else
-			IfcSchema::IfcRelDecomposes* relDefByProp = *relPropIt;
-#endif // USE_IFC4
-
-			std::string targetStoreyGuid = relDefByProp->RelatingObject()->GlobalId();
-			for (size_t j = 0; j < storeyCityObjects.size(); j++)
-			{
-				std::shared_ptr < CJT::CityObject> storeyCityObject = storeyCityObjects[j];
-
-				if (targetStoreyGuid != storeyCityObject->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)])
-				{
-					continue;
-				}
-				roomObject.addParent(storeyCityObject);
-			}
-		}
-		break;
-	}
-	return roomObject;
 }
 
 

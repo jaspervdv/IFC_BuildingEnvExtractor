@@ -49,7 +49,6 @@ namespace bgi = boost::geometry::index;
 typedef bg::model::point<double, 3, bg::cs::cartesian> BoostPoint3D;
 typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
 
-
 #ifndef HELPER_HELPER_H
 #define HELPER_HELPER_H
 
@@ -212,6 +211,9 @@ struct helperFunctions{
 		}
 		return false;
 	}
+
+	/// collects the non-standard property data in the ifc file of an object 
+	static std::vector<nlohmann::json> collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile);
 
 };
 #endif // HELPER_HELPER_H

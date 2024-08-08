@@ -32,6 +32,10 @@ std::string UnitStringEnum::getString(UnitStringID id)
 		return "ms";
 	case UnitStringID::meter:
 		return "m";
+	case UnitStringID::sqrMeter:
+		return "m^2";
+	case UnitStringID::cubMeter:
+		return "m^3";
 	case UnitStringID::meterFull:
 		return "meter";
 	case UnitStringID::millimeter:
@@ -227,6 +231,8 @@ std::string sourceIdentifierEnum::getString(sourceIdentifierID id)
 		return "V_ex ";
 	case sourceIdentifierID::ifc:
 		return "IFC ";
+	case sourceIdentifierID::ifcProp:
+		return "IFC property";
 	default:
 		return "";
 	}
@@ -349,6 +355,11 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "1.1";
 	case CJObjectID::v20:
 		return "2.0";
+
+	case CJObjectID::jsonUom:
+		return "uom";
+	case CJObjectID::jsonValue:
+		return "vale";
 
 	case CJObjectID::ifcDescription:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Description";

@@ -36,7 +36,9 @@ nlohmann::json ErrorObject::toJson()
 }
 
 void ErrorObject::addOccuringObject(const std::string& obb) {
+	if (std::find(occuringObjectList_.begin(), occuringObjectList_.end(), obb) != occuringObjectList_.end()) { return;}
 	occuringObjectList_.emplace_back(obb);
+	return;
 }
 
 ErrorCollection::ErrorCollection() {
@@ -57,6 +59,7 @@ ErrorCollection::ErrorCollection() {
 	{errorID::multipleBuildingObjects, ErrorObject("I0003", "Multiple building objects found")},
 	{errorID::noProjectName, ErrorObject("I0004", "Unable to find long building name")},
 	{errorID::multipleProjectNames, ErrorObject("I0005", "Multiple project objects found")},
+	{errorID::missingProptery, ErrorObject("M0001", "Property type not implelemted in tool")},
 	};
 }
 
@@ -65,7 +68,8 @@ void ErrorCollection::addError(errorID id, const std::string& objectName)
 	//search if error is present
 	if (errorCollection_.find(id) != errorCollection_.end())
 	{
-		if (id == errorID::failedConvert && objectName != "")
+		if (id == errorID::failedConvert && objectName != "" ||
+			id == errorID::missingProptery && objectName != "")
 		{
 			ErrorObject errorObject = errorCollection_[id];
 			errorObject.addOccuringObject(objectName);
@@ -74,7 +78,8 @@ void ErrorCollection::addError(errorID id, const std::string& objectName)
 		return;
 	}
 
-	if (id == errorID::failedConvert && objectName != "")
+	if (id == errorID::failedConvert && objectName != "" ||
+		id == errorID::missingProptery && objectName != "")
 	{
 		ErrorObject errorObject = errorMap_[id];
 		errorObject.addOccuringObject(objectName);

@@ -1,5 +1,7 @@
 #include "helper.h"
 #include "settingsCollection.h"
+#include "stringManager.h"
+#include "errorCollection.h"
 
 #include <CJToKernel.h>
 #include <iostream>
@@ -1330,4 +1332,116 @@ bool helperFunctions::isOverlappingCompletely(const SurfaceGroup& evalFace, cons
 		if (!evalGrid[i]->getPoint().IsEqual(otherGrid[i]->getPoint(), precision)) { return false; }
 	}
 	return true;
+}
+
+std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile)
+{
+	std::vector<nlohmann::json> attributesList;
+
+	IfcSchema::IfcRelDefinesByProperties::list::ptr relDefList = ifcFile->instances_by_type <IfcSchema::IfcRelDefinesByProperties>();
+
+	for (auto reldefIt = relDefList->begin(); reldefIt != relDefList->end(); reldefIt++)
+	{
+		IfcSchema::IfcRelDefinesByProperties* relDefItem = *reldefIt;
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+		IfcSchema::IfcObjectDefinition::list::ptr relatedObjectList = relDefItem->RelatedObjects();
+#else
+		IfcSchema::IfcObject::list::ptr relatedObjectList = relDefItem->RelatedObjects();
+#endif
+
+
+		bool match = false;
+		for (auto objectIt = relatedObjectList->begin(); objectIt != relatedObjectList->end(); objectIt++)
+		{
+			if ((*objectIt)->GlobalId() != objectId) { continue; }
+			match = true;
+		}
+
+		if (!match) { continue; }
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+		IfcSchema::IfcPropertySetDefinitionSelect* propertyDef = relDefItem->RelatingPropertyDefinition();
+#else
+		IfcSchema::IfcPropertySetDefinition* propertyDef = relDefItem->RelatingPropertyDefinition();
+#endif
+
+		if (propertyDef->data().type()->name() != "IfcPropertySet") { continue; }
+		IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
+		IfcSchema::IfcProperty::list::ptr propertyList = propertySet->HasProperties();
+		for (auto propertyIt = propertyList->begin(); propertyIt != propertyList->end(); propertyIt++)
+		{
+			IfcSchema::IfcPropertySingleValue* propertyItem = (*propertyIt)->as<IfcSchema::IfcPropertySingleValue>();
+
+			IfcSchema::IfcValue* ifcValue = propertyItem->NominalValue();
+
+			std::string propertyIdName = ifcValue->data().type()->name();
+
+			if (propertyIdName == "IfcIdentifier")
+			{
+				IfcSchema::IfcIdentifier* propertyValueContainer = ifcValue->as<IfcSchema::IfcIdentifier>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcText")
+			{
+				IfcSchema::IfcText* propertyValueContainer = ifcValue->as<IfcSchema::IfcText>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcLabel")
+			{
+				IfcSchema::IfcLabel* propertyValueContainer = ifcValue->as<IfcSchema::IfcLabel>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcLengthMeasure")
+			{
+				IfcSchema::IfcLengthMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcLengthMeasure>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = {
+					{CJObjectEnum::getString(CJObjectID::jsonValue), propertyValueContainer->operator double() },
+					{CJObjectEnum::getString(CJObjectID::jsonUom) , UnitStringEnum::getString(UnitStringID::meter) } //TODO: update to unit?
+				};
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcAreaMeasure")
+			{
+				IfcSchema::IfcAreaMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcAreaMeasure>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = { 
+					{CJObjectEnum::getString(CJObjectID::jsonValue), propertyValueContainer->operator double() },
+					{CJObjectEnum::getString(CJObjectID::jsonUom) , UnitStringEnum::getString(UnitStringID::sqrMeter) } //TODO: update to set unit?
+				};
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcReal")
+			{
+				IfcSchema::IfcReal* propertyValueContainer = ifcValue->as<IfcSchema::IfcReal>();				
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcPowerMeasure")
+			{
+				IfcSchema::IfcPowerMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcPowerMeasure>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
+				attributesList.emplace_back(attributeItem);
+			}
+			else if (propertyIdName == "IfcThermalTransmittanceMeasure")
+			{
+				IfcSchema::IfcThermalTransmittanceMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcThermalTransmittanceMeasure>();
+				nlohmann::json attributeItem;
+				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
+				attributesList.emplace_back(attributeItem);
+			}
+			else
+			{
+				ErrorCollection::getInstance().addError(errorID::missingProptery, propertyIdName);
+			}
+		}
+	}
+	return attributesList;
 }
