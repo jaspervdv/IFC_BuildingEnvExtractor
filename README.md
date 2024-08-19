@@ -8,14 +8,14 @@ The software is able to extract multiple different LoD (Level of Detail) shells 
 
 Current possible output shells:
 
-* Lod0.0 (exterior only)
-* Lod0.2 (exterior roof outline, footprint & interior storeys) (WIP)
-* LoD1.0 (exterior only)
-* LoD1.2 (exterior only)
-* LoD1.3 (exterior only)
-* LoD2.2 (exterior only)
-* LoD3.2 (exterior only) (WIP)
-* LoD5.0 (exterior and interior rooms) (WIP)
+* Lod0.0 - exterior only
+* Lod0.2 - exterior roof outline, footprint, interior stories and rooms
+* LoD1.0 - exterior only
+* LoD1.2 - exterior and rooms
+* LoD1.3 - exterior only
+* LoD2.2 - exterior and rooms
+* LoD3.2 - exterior and rooms (WIP)
+* LoD5.0 - exterior and interior rooms
 
 Current supported IFC versions:
 

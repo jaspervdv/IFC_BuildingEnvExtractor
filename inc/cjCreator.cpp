@@ -2817,8 +2817,6 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 			if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) < SettingsCollection::getInstance().precisionCoarse()) { continue; }
 
 			std::vector<gp_Pnt> facePointList = helperFunctions::getPointListOnFace(currentFace);
-
-
 			for (const gp_Pnt& facePoint : facePointList)
 			{
 				bool clearLine = true;
@@ -2827,12 +2825,20 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 				for (TopExp_Explorer otherFaceExp(spaceShape, TopAbs_FACE); otherFaceExp.More(); otherFaceExp.Next()) {
 					TopoDS_Face otherFace = TopoDS::Face(otherFaceExp.Current());
 
+					if (abs(helperFunctions::computeFaceNormal(otherFace).Z()) < SettingsCollection::getInstance().precisionCoarse()) { continue; }
 					if (currentFace.IsSame(otherFace)) { continue; }
 
+
+					// check if face is the same face but translated upwards
+					if (helperFunctions::faceFaceOverlapping(otherFace, currentFace))
+					{
+						clearLine = false;
+						break;
+					}
+
+					// check if covered via raycasting
 					TopLoc_Location loc;
 					auto mesh = BRep_Tool::Triangulation(otherFace, loc);
-
-					if (currentFace.IsEqual(otherFace)) { continue; }
 
 					for (int j = 1; j <= mesh.get()->NbTriangles(); j++) 
 					{
@@ -2850,7 +2856,6 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 							break;
 						}
 					}
-
 					if (!clearLine){ break; }
 				}
 				if (!clearLine){ continue; }

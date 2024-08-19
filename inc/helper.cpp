@@ -648,6 +648,41 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 }
 
 
+bool helperFunctions::faceFaceOverlapping(const TopoDS_Face& upperFace, const TopoDS_Face& lowerFace)
+{
+	// compute area
+	double setPresicion = SettingsCollection::getInstance().precision();
+	if (abs(computeArea(upperFace) - computeArea(lowerFace)) > setPresicion) { return false; }
+
+	// align verts
+	for (TopExp_Explorer currentVertExpl(upperFace, TopAbs_VERTEX); currentVertExpl.More(); currentVertExpl.Next())
+	{
+		TopoDS_Vertex currentVertex = TopoDS::Vertex(currentVertExpl.Current());
+		gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+		bool vertFound = false;
+		for (TopExp_Explorer otherVertExpl(lowerFace, TopAbs_VERTEX); otherVertExpl.More(); otherVertExpl.Next())
+		{
+			TopoDS_Vertex otherVertex = TopoDS::Vertex(otherVertExpl.Current());
+			gp_Pnt otherPoint = BRep_Tool::Pnt(otherVertex);
+
+			double hDistance = sqrt(pow(currentPoint.X() - otherPoint.X(), 2) + pow(currentPoint.Y() - otherPoint.Y(), 2));
+
+			if (hDistance > setPresicion) { continue; }
+			if (currentPoint.Z() < otherPoint.Z()) { continue; }
+
+			vertFound = true;
+			break;
+		}
+
+		if (!vertFound)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 std::vector<TopoDS_Face> helperFunctions::shape2FaceList(const TopoDS_Shape& shape)
 {
 	std::vector<TopoDS_Face> faceList;

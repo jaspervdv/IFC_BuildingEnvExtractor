@@ -119,6 +119,9 @@ struct helperFunctions{
 	/// check if edges overlap by checking the endpoints
 	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
 
+	/// check if upperface overlaps the lower face by checking the edges
+	static bool faceFaceOverlapping(const TopoDS_Face& upperFace, const TopoDS_Face& lowerFace);
+
 	static std::vector<TopoDS_Face> shape2FaceList(const TopoDS_Shape& shape);
 	static std::vector<gp_Pnt> shape2PointList(const TopoDS_Shape& shape);
 
