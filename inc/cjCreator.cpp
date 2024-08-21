@@ -30,6 +30,15 @@
 #include <gp_Vec.hxx>
 #include <Geom_Surface.hxx>
 #include <TopoDS.hxx>
+#include <BRepAlgoAPI_Section.hxx>
+#include <BRepFeat_SplitShape.hxx>
+
+#include <TopExp_Explorer.hxx>
+#include <TopoDS_Edge.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopAbs_ShapeEnum.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 #include <Geom_TrimmedCurve.hxx>
@@ -1465,20 +1474,17 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 
 		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
 		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
-
 		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next()) {
 
 			// ignore if the z component of normal is 0 
 			TopoDS_Face face = TopoDS::Face(expl.Current());
-
 			GProp_GProps gprops;
 			BRepGProp::SurfaceProperties(face, gprops); // Stores results in gprops
 			double area = gprops.Mass();
 
 			if (area < 0.001) { continue; }
-
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
-			if (std::abs(faceNormal.X() - 0) < 0.001 && std::abs(faceNormal.Y() - 0) < 0.001) { continue; }
+			if (std::abs(faceNormal.X()) < 0.001 && std::abs(faceNormal.Y()) < 0.001) { continue; }
 
 			BRepAlgoAPI_Cut cutter(face, cuttingFace);
 			if (!cutter.IsDone()) { continue; }
@@ -1558,7 +1564,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
-	double storeyBuffer = 0.15;
+	double storeyBuffer = 0.5;
 
 	gp_Trsf translation;
 	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
@@ -1588,7 +1594,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 	//TODO: find out where to take the storeys from
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingStoreys) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
-	double storeyBuffer = 0.15;
+	double storeyBuffer = 0.5;
 
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
 
@@ -1653,13 +1659,12 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
 	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
 	populateVoxelIndex(&voxelIndex, &originVoxels, exteriorLvlVoxels);
-
 	for (std::shared_ptr<voxel> voxel : exteriorLvlVoxels)
 	{
 		for (const Value& productValue : voxel->getInternalProductList())
 		{
 			productLookupValues.emplace_back(productValue);
-		} 
+		}
 	}
 	productLookupValues = makeUniqueValueList(productLookupValues);
 
@@ -1695,6 +1700,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 	std::vector<Edge> uniqueEdges = getUniqueEdges(rawEdgeList);
 	std::vector<Edge> cleanedEdges = mergeOverlappingEdges(uniqueEdges, false);
 	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
+
 	// raycast
 	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
 	return outerEdges2Shapes(outerFootPrintList);
@@ -2870,7 +2876,6 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 				}
 				break;
 			}
-			
 		}
 
 		// simplefy and store the LoD0.2 faces
@@ -3228,6 +3233,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 	// evaluate which surfaces are visible
+	std::vector<TopoDS_Face> outerSurfaceList;
 	for (size_t i = 0; i < productLookupValues.size(); i++) //TODO: multithread?
 	{
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
@@ -3242,21 +3248,22 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
+
 			bool faceIsExterior = false;
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
 			//Create a grid over the surface and the offsetted wire
 			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
-			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace);
+			std::vector<gp_Pnt> wireGridList; // = helperFunctions::getPointGridOnWire(currentFace);
 			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
 			// cast a line from the grid to surrounding voxels
 			for (const gp_Pnt& gridPoint : surfaceGridList)
 			{
 				bg::model::box<BoostPoint3D> pointQuerybox(
-					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer }, 
+					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer },
 					{ gridPoint.X() + buffer, gridPoint.Y() + buffer, gridPoint.Z() + buffer }
 				);
 				std::vector<Value> pointQResult;
-				voxelIndex.query(bgi::intersects(pointQuerybox) , std::back_inserter(pointQResult));
+				voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
 
 				//check if ray castline cleared
 				for (const Value& voxelValue : pointQResult)
@@ -3265,7 +3272,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 
 					std::shared_ptr<voxel> targetVoxel = targetVoxels[voxelValue.second];
 
-					bg::model::box<BoostPoint3D> productQuerybox( helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()) );
+					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()));
 					std::vector<Value> productQResult;
 					exteriorProductIndex.query(bgi::intersects(productQuerybox), std::back_inserter(productQResult));
 
@@ -3313,20 +3320,26 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 						}
 						if (!clearLine) { break; }
 					}
-					if (clearLine) 
-					{ 
-						faceIsExterior = true; 
+					if (clearLine)
+					{
+						faceIsExterior = true;
 						break;
 					}
 				}
-				if (faceIsExterior) 
-				{ 
+				if (faceIsExterior)
+				{
 					break;
 				}
 			}
 			if (!faceIsExterior) { continue; }
+
+			//store the plane representing the surface
+
+			outerSurfaceList.emplace_back(currentFace);
+
 			// add the face to the compound
 			TopoDS_Face currentFaceCopy = currentFace;
+
 			currentFaceCopy.Move(localRotationTrsf);
 
 			helperFunctions::geoTransform(&currentFaceCopy, h->getObjectTranslation(), trs);
@@ -3342,7 +3355,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 				std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFaceCopy);
 				gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFaceCopy);
 
-				if (pointOnface == std::nullopt) 
+				if (pointOnface == std::nullopt)
 				{
 					typeValueList.emplace_back(1);
 					continue;
@@ -3383,6 +3396,107 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 			}
 		}
 	}
+
+	if (false)
+	{
+		std::vector<Handle(Geom_Plane)> uniqueOuterPlanes;
+		for (size_t i = 0; i < outerSurfaceList.size(); i++)
+		{
+			bool dub = false;
+			TopoDS_Face currentFace = outerSurfaceList[i];
+			Handle(Geom_Surface) geomSurface = BRep_Tool::Surface(currentFace);
+			if (geomSurface.IsNull()) { continue; }
+			Handle(Geom_Plane) currentGeoPlane = Handle(Geom_Plane)::DownCast(geomSurface);
+			if (currentGeoPlane.IsNull()) { continue; }
+			gp_Pln currentPlane = currentGeoPlane->Pln();
+			gp_Dir currentNormal = currentPlane.Axis().Direction();
+			gp_Pnt currentOrigin = currentPlane.Location();
+
+			for (size_t j = 0; j < uniqueOuterPlanes.size(); j++)
+			{
+				Handle(Geom_Plane) otherGeoPlane = uniqueOuterPlanes[j];
+				gp_Pln otherPlane = otherGeoPlane->Pln();
+				gp_Dir otherNormal = otherPlane.Axis().Direction();
+				gp_Pnt otherOrigin = otherPlane.Location();
+
+				if (!currentNormal.IsParallel(otherNormal, settingsCollection.precision())) { continue; }
+
+				if (otherOrigin.Distance(currentOrigin) < settingsCollection.precision())
+				{
+					dub = true;
+					break;
+				}
+
+				gp_Vec ooVec = gp_Vec(currentOrigin, otherOrigin);
+
+				if (abs(abs(ooVec.Angle(currentNormal)) - 1.5708) < settingsCollection.precisionCoarse() && abs(abs(ooVec.Angle(otherNormal)) - 1.5708) < settingsCollection.precisionCoarse())
+				{
+					dub = true;
+					break;
+				}
+			}
+
+			if (!dub)
+			{
+				uniqueOuterPlanes.emplace_back(currentGeoPlane);
+			}
+		}
+
+		//get Bounds for the creation of the cell complex
+
+		double surfaceSize = Max(
+			h->getUrrPoint().X() - h->getLllPoint().X(),
+			h->getUrrPoint().Y() - h->getLllPoint().Y()
+		) * 2;
+
+		std::vector<TopoDS_Face> planeFaceCollection;
+		for (const Handle(Geom_Plane)& currentGeoPlane : uniqueOuterPlanes)
+		{
+			gp_Pln currentPlane = currentGeoPlane->Pln();
+			gp_Pnt currentOrigin = currentPlane.Location();
+			gp_Dir currentNormal = currentPlane.Axis().Direction();
+			Handle(Geom_Plane) geomPlane = new Geom_Plane(currentPlane);
+
+			Standard_Real UMin = -surfaceSize;
+			Standard_Real UMax = surfaceSize;
+			Standard_Real VMin = -surfaceSize;
+			Standard_Real VMax = surfaceSize;
+
+			TopoDS_Face largerFace = BRepBuilderAPI_MakeFace(geomPlane, UMin, UMax, VMin, VMax, Precision::Confusion());
+
+			planeFaceCollection.emplace_back(largerFace);
+		}
+
+
+		//TODO: multithread this
+		for (size_t i = 0; i < planeFaceCollection.size(); i++)
+		{
+			TopoDS_Face currentFace = planeFaceCollection[i];
+
+			std::vector<TopoDS_Edge> rawEdgeList;
+			for (size_t j = 0; j < planeFaceCollection.size(); j++)
+			{
+
+				if (i == j) { continue; }
+				TopoDS_Face otherFace = planeFaceCollection[j];
+				BRepAlgoAPI_Section section(currentFace, otherFace, Standard_False);
+				section.ComputePCurveOn1(Standard_True);
+				section.Approximation(Standard_True);
+				section.Build();
+
+				if (!section.IsDone()) { continue; }
+
+				TopoDS_Shape sectionEdges = section.Shape();
+				for (TopExp_Explorer exp(sectionEdges, TopAbs_EDGE); exp.More(); exp.Next())
+				{
+					rawEdgeList.emplace_back(TopoDS::Edge(exp.Current()));
+				}
+			}
+		}
+	}
+	
+
+
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
 
@@ -3998,7 +4112,7 @@ void CJGeoCreator::populateVoxelIndex(
 		std::vector<Value> internalProducts = currentBoxel->getInternalProductList();
 
 		// voxels that have no internal products do not have an intersection and are stored as completely external voxels
-		if (internalProducts.size() == 0)
+		if (internalProducts.size() == 0 && currentBoxel->getRoomNum() == 0)
 		{
 			auto cornerPoints = currentBoxel->getCornerPoints();
 			gp_Pnt lllPoint = cornerPoints[0];

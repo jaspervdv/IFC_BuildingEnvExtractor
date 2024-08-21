@@ -183,7 +183,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	if (!lookup.getSimpleShape().IsNull())
 	{
-		productShape = lookup.getSimpleShape();
+		productShape = lookup.getSimpleShape(); //TODO: check this
 	}
 
 	// check if any cornerpoints fall inside voxel
@@ -204,18 +204,16 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	if (intersectionLogic == 2) { triangleVoxels = getplaneTriangles(); }
 	else if (intersectionLogic == 3) { triangleVoxels = getVoxelTriangles(); }
 
-	if (!voxelPoints.size())
-	{
-		return false;
-	}
+	if (!voxelPoints.size()) { return false; }
+
 	double voxelLowZ = voxelPoints[0].Z();
 	double voxelTopZ = voxelPoints[4].Z();
 
 	double voxelLowX = voxelPoints[0].X();
 	double voxelMaxX = voxelPoints[4].X();
 
-	double voxelLowY = voxelPoints[0].Z();
-	double voxelMaxY = voxelPoints[4].Z();
+	double voxelLowY = voxelPoints[0].Y();
+	double voxelMaxY = voxelPoints[4].Y();
 
 	for (const auto& boxel : triangleVoxels)
 	{
@@ -223,11 +221,9 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 		for (size_t k = 0; k < productPoints.size(); k += 2)
 		{
-			// first check if voxel falls within the bounding box of the line
-
+			// first check if voxel falls within the bounding box of the edge
 			gp_Pnt p1 = productPoints[k]; // line point 1
 			gp_Pnt p2 = productPoints[k + 1]; // and 2
-
 			double p1z = p1.Z();
 			double p2z = p2.Z();
 

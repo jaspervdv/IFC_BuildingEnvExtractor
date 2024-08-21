@@ -1064,7 +1064,6 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 				continue;
 			}
 		}
-
 		std::shared_ptr<lookupValue> lookup = std::make_shared<lookupValue>(product, shape, simpleShape, cbbox);
 		if (addToRoomIndx)
 		{

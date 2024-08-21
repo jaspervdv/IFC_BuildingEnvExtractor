@@ -7,7 +7,7 @@
 #include <iostream>
 #include <string>
 #include <filesystem>
-//#include <direct.h>
+
 
 #include <sys/stat.h>
 
@@ -1306,13 +1306,6 @@ std::optional<gp_Pnt> helperFunctions::linearLineIntersection(const gp_Pnt& sP1,
 
 	double xI = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / (dom);
 	double yI = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / (dom);
-
-	if (x1 - buffer < xI && x1 + buffer > xI && y1 - buffer < yI && y1 + buffer > yI ||
-		x2 - buffer < xI && x2 + buffer > xI && y2 - buffer < yI && y2 + buffer > yI
-		)
-	{
-		return std::nullopt;
-	}
 
 	if (x1 - buffer <= xI && xI <= x2 + buffer ||
 		x1 + buffer >= xI && xI >= x2 - buffer)
