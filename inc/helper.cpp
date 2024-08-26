@@ -166,6 +166,17 @@ void helperFunctions::printPoint(const gp_Vec2d& p) {
 }
 
 
+void helperFunctions::printPoints(const TopoDS_Wire& w)
+{
+	for (TopExp_Explorer expl(w, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt p = BRep_Tool::Pnt(vertex);
+		printPoint(p);
+	}
+}
+
+
 void helperFunctions::printFaces(const TopoDS_Shape& shape)
 {
 	//std::cout << "Shape:" << std::endl;

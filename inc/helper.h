@@ -70,6 +70,7 @@ struct helperFunctions{
 	static void printPoint(const BoostPoint3D& p);
 	static void printPoint(const gp_Vec& p);
 	static void printPoint(const gp_Vec2d& p);
+	static void printPoints(const TopoDS_Wire& w);
 
 	/// Print points of the faces to console (for development only)
 	static void printFaces(const TopoDS_Shape& shape);

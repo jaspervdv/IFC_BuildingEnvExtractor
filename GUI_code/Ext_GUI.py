@@ -340,27 +340,57 @@ frame_lod_settings3 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings3.pack()
 
 bool_lod00 = tkinter.IntVar(value=1)
-toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=bool_lod00)
 bool_lod02 = tkinter.IntVar(value=1)
+bool_lod10 = tkinter.IntVar(value=1)
+bool_lod12 = tkinter.IntVar(value=1)
+bool_lod13 = tkinter.IntVar(value=1)
+bool_lod22 = tkinter.IntVar(value=1)
+bool_lod32 = tkinter.IntVar(value=0)
+
+toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=bool_lod00)
+
 toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    text="LoD0.2",
                                    variable=bool_lod02,
                                    command= lambda : [toggleEnableEntry(toggle_makefootprint, {bool_lod02.get()}),
                                                       toggleEnableEntry(toggle_makeroofprint, {bool_lod02.get()}),
-                                                      toggleEnableEntry(toggle_makeinterior, {bool_lod02.get()})]
+                                                      toggleEnableEntry(toggle_makeinterior, {
+                                                          bool_lod02.get(),
+                                                          bool_lod12.get(),
+                                                          bool_lod22.get(),
+                                                          bool_lod32.get()
+                                                      })]
                                    )
-bool_lod10 = tkinter.IntVar(value=1)
+
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings1, text="LoD1.0", variable=bool_lod10)
-bool_lod12 = tkinter.IntVar(value=1)
-toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.2", variable=bool_lod12)
-bool_lod13 = tkinter.IntVar(value=1)
+toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
+                                   text="LoD1.2",
+                                   variable=bool_lod12,
+                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
+                                       bool_lod02.get(),
+                                       bool_lod12.get(),
+                                       bool_lod22.get(),
+                                       bool_lod32.get()
+                                                    })]
+                                   )
 toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=bool_lod13)
-bool_lod22 = tkinter.IntVar(value=1)
-toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=bool_lod22)
-bool_lod32 = tkinter.IntVar(value=0)
+toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=bool_lod22,
+                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
+                                       bool_lod02.get(),
+                                       bool_lod12.get(),
+                                       bool_lod22.get(),
+                                       bool_lod32.get()
+                                                    })]
+                                   )
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
-                                   variable=bool_lod32
+                                   variable=bool_lod32,
+                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
+                                       bool_lod02.get(),
+                                       bool_lod12.get(),
+                                       bool_lod22.get(),
+                                       bool_lod32.get()
+                                   })]
                                    )
 bool_lod50 = tkinter.IntVar(value=0)
 toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
@@ -446,7 +476,7 @@ text_footprint_settings = tkinter.Label(frame_footprint, text="Footprint elevati
 text_footprint_settings.pack()
 
 entry_footprint = tkinter.Entry(frame_footprint, text= "footprint elevation", width=size_entry_small)
-entry_footprint.insert(0, "-0.15")
+entry_footprint.insert(0, "0.0")
 entry_footprint.pack(side=tkinter.LEFT)
 
 button_min_footprint = tkinter.Button(frame_footprint, text="-", width=size_button_small,

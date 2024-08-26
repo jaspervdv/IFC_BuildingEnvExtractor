@@ -31,7 +31,7 @@
 #include <Geom_Surface.hxx>
 #include <TopoDS.hxx>
 #include <BRepAlgoAPI_Section.hxx>
-#include <BRepFeat_SplitShape.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
 
 #include <TopExp_Explorer.hxx>
 #include <TopoDS_Edge.hxx>
@@ -1450,9 +1450,9 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 }
 
 
-std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& productLookupValues, helper* h, double cutlvl)
+std::vector<TopoDS_Wire> CJGeoCreator::section2wires(const std::vector<Value>& productLookupValues, helper* h, double cutlvl)
 {
-	std::vector<TopoDS_Edge> rawEdgeList;
+	std::vector<TopoDS_Wire> splitWireCollection;
 
 	// make a cutting plane 
 	gp_Pnt p0(-1000, -1000, cutlvl);
@@ -1472,20 +1472,24 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
 		TopoDS_Shape currentShape;
 
+		std::vector<TopoDS_Edge> edgeList;
 		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
 		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
-		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next()) {
-
-			// ignore if the z component of normal is 0 
+		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next()) 
+		{
 			TopoDS_Face face = TopoDS::Face(expl.Current());
+			
+			// ignore extremely small surfaces
 			GProp_GProps gprops;
-			BRepGProp::SurfaceProperties(face, gprops); // Stores results in gprops
+			BRepGProp::SurfaceProperties(face, gprops);
 			double area = gprops.Mass();
-
 			if (area < 0.001) { continue; }
+			
+			// ignore if the z if face is not verical
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
 			if (std::abs(faceNormal.X()) < 0.001 && std::abs(faceNormal.Y()) < 0.001) { continue; }
 
+			// get the cut edges on the plane
 			BRepAlgoAPI_Cut cutter(face, cuttingFace);
 			if (!cutter.IsDone()) { continue; }
 
@@ -1494,12 +1498,23 @@ std::vector<TopoDS_Edge> CJGeoCreator::section2edges(const std::vector<Value>& p
 			{
 				TopExp_Explorer expl2;
 				for (expl2.Init(*it, TopAbs_EDGE); expl2.More(); expl2.Next()) {
-					rawEdgeList.emplace_back(TopoDS::Edge(expl2.Current()));
+					edgeList.emplace_back(TopoDS::Edge(expl2.Current()));
 				}
 			}
 		}
+
+		if (!edgeList.size()) { continue; }
+		std::vector<TopoDS_Wire> splitWireList = growWires(edgeList);
+
+		if (!splitWireList.size()) {continue; }
+
+		for (const TopoDS_Wire& splitWire : splitWireList)
+		{
+			if (!splitWire.Closed()) { continue; }
+			splitWireCollection.emplace_back(splitWire);
+		}
 	}
-	return rawEdgeList;
+	return splitWireCollection;
 }
 
 
@@ -1641,69 +1656,115 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		catch (const std::exception&)
 		{
 			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-			throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorStoreyFailed));
+			//throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorStoreyFailed));
 			continue;
 		}
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
 	std::cout << std::endl;
+	return;
 }
 
 
 std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectionHeight)
 {
-	// get plate of voxels at groundplane height
-	std::vector<std::shared_ptr<voxel>> exteriorLvlVoxels = voxelGrid_->getVoxelPlate(sectionHeight);
+	// create plane on which the projection has to be made
+	gp_Pnt lll = h->getLllPoint();
+	gp_Pnt urr = h->getUrrPoint();
+	double buffer = 1;
 
+	gp_Pnt p0(lll.X() - 1, lll.Y() - 1, sectionHeight);
+	gp_Pnt p1(lll.X() - 1, urr.Y() + 1, sectionHeight);
+	gp_Pnt p2(urr.X() + 1, urr.Y() + 1, sectionHeight);
+	gp_Pnt p3(urr.X() + 1, lll.Y() - 1, sectionHeight);
+
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
+	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
+
+	TopoDS_Face baseFace = BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
+	
 	std::vector<Value> productLookupValues;
-	std::vector<std::shared_ptr<voxel>> originVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
-	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
-	populateVoxelIndex(&voxelIndex, &originVoxels, exteriorLvlVoxels);
-	for (std::shared_ptr<voxel> voxel : exteriorLvlVoxels)
-	{
-		for (const Value& productValue : voxel->getInternalProductList())
-		{
-			productLookupValues.emplace_back(productValue);
-		}
-	}
-	productLookupValues = makeUniqueValueList(productLookupValues);
-
-	if (productLookupValues.size() <= 0)
-	{
-		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
-		return{};
-	}
-
-	// create unique index
-	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
-	for (size_t i = 0; i < productLookupValues.size(); i++)
-	{
-		exteriorProductIndex.insert(productLookupValues[i]);
-	}
-
-	// evaluate which shapes are completely encapsulated by another shape
-	filterEncapsulatedObjects(
-		&productLookupValues,
-		&exteriorProductIndex,
-		h
-	);
+	bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(baseFace);
+	h->getIndexPointer()->query(bgi::intersects(searchBox), std::back_inserter(productLookupValues));
 
 	// get all edges that meet the cutting plane
-	std::vector<TopoDS_Edge> rawEdgeList = section2edges(productLookupValues, h, sectionHeight);
-	if (rawEdgeList.size() <= 0)
+	std::vector<TopoDS_Wire> splitWireList = section2wires(productLookupValues, h, sectionHeight);
+	if (!splitWireList.size())
 	{
 		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
 		return{};
 	}
 
-	// prepare and clean the edges for ray cast
-	std::vector<Edge> uniqueEdges = getUniqueEdges(rawEdgeList);
-	std::vector<Edge> cleanedEdges = mergeOverlappingEdges(uniqueEdges, false);
-	std::vector<Edge> splitEdges = splitIntersectingEdges(cleanedEdges, false);
+	// merge the splitting faces
+	BRepAlgoAPI_Fuse fuser;
+	TopTools_ListOfShape mergeList;
+	fuser.SetFuzzyValue(1e-4);
 
-	// raycast
-	std::vector<TopoDS_Edge> outerFootPrintList = getOuterEdges(splitEdges, voxelIndex, originVoxels, sectionHeight);
-	return outerEdges2Shapes(outerFootPrintList);
+	for (const TopoDS_Wire splitWire : splitWireList)
+	{
+		mergeList.Append(BRepBuilderAPI_MakeFace(splitWire));
+	}
+	fuser.SetArguments(mergeList);
+	fuser.SetTools(mergeList);
+	fuser.Build();
+
+	// split section face with the merged splitting faces
+	BRepAlgoAPI_Splitter splitter;
+	splitter.SetFuzzyValue(1e-4);
+	TopTools_ListOfShape toolList;
+	TopTools_ListOfShape argumentList;
+
+	argumentList.Append(baseFace);
+	splitter.SetArguments(argumentList);
+
+	toolList.Append(fuser.Shape());
+	splitter.SetTools(toolList);
+	splitter.Build();
+
+	// find the outer face and use its inner wires
+	TopoDS_Face outerFace;
+	for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		bool isFound = false;
+
+		for (TopExp_Explorer vertExpl(currentFace, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
+			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
+			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
+			{
+				outerFace = currentFace;
+				isFound = true;
+				break;
+			}
+		}
+		if (isFound) { break; }
+	}
+	
+	std::vector<TopoDS_Face> footprintList;
+	for (TopExp_Explorer WireExpl(outerFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
+	{
+		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
+		bool isInner = true;
+
+		for (TopExp_Explorer vertExpl(currentWire, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
+			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
+			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
+			{
+				isInner = false;
+				break;
+			}
+		}
+		if (!isInner) { continue; }
+		TopoDS_Face innerFace = BRepBuilderAPI_MakeFace(currentWire);
+		footprintList.emplace_back(innerFace);
+	}
+	return{footprintList };
 }
 
 
@@ -2761,6 +2822,8 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 				for (size_t k = 0; k < currentStoreyGeo.size(); k++)
 				{
 					TopoDS_Face currentFace = currentStoreyGeo[k];
+					
+					if (currentFace.IsNull()) { continue; }
 
 					currentFace.Move(localRotationTrsf);
 
