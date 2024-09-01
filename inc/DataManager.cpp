@@ -1541,7 +1541,30 @@ lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& 
 		productPointList_ = helperFunctions::shape2PointList(productShape);
 	}
 
+	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
+	{
+		TopoDS_Face productFace = TopoDS::Face(expl.Current());
 
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(productFace, loc);
+
+		if (mesh.IsNull()) { continue; }
+
+		for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
+		{
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+
+			std::vector<gp_Pnt> trianglePoints{
+				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+			};
+
+			auto box = helperFunctions::createBBox(trianglePoints);
+			spatialIndex_.insert(std::make_pair(helperFunctions::createBBox(trianglePoints), productTrianglePoints_.size()));
+			productTrianglePoints_.emplace_back(trianglePoints);
+		}
+	}
 }
 
 

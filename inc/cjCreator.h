@@ -43,7 +43,7 @@ private:
 	gp_Trsf geoRefRotation_;
 
 	// container for surface group data
-	std::vector<std::vector<SurfaceGroup>> faceList_;
+	std::vector<std::vector<ROSCollection>> faceList_;
 	std::mutex faceListMutex_;
 
 	// flags representing the eval state of the creator
@@ -77,18 +77,18 @@ private:
 	std::vector<TopoDS_Shape> getTopObjects(helper* h);
 
 	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
-	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
-	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<SurfaceGroup>* shapeList);
+	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<ROSCollection>* shapeList);
+	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<ROSCollection>* shapeList);
 
 	/// @brief reduces the surfaces by merging neigbouring surfaces that have parallel normals 
-	void mergeSurfaces(const std::vector<SurfaceGroup>& shapeList);
+	void mergeSurfaces(const std::vector<ROSCollection>& shapeList);
 
 	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
-	void FinefilterSurfaces(const std::vector<SurfaceGroup>& shapeList);
-	void FinefilterSurface(const std::vector<SurfaceGroup>& shapeList, const std::vector<SurfaceGroup>& otherShapeList);
+	void FinefilterSurfaces(const std::vector<ROSCollection>& shapeList);
+	void FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList);
 
 	/// @brief get the surfaces that have an area when flattened
-	std::vector<SurfaceGroup> getXYFaces(const TopoDS_Shape& shape);
+	std::optional<ROSCollection> getROSCollections(const TopoDS_Shape& shape);
 
 	/// get the unique edges from in a shape or a collection of edges
 	std::vector<Edge> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
@@ -109,6 +109,9 @@ private:
 	/// splits all the edges so that no edges overlap but all rest against eachother with their start and endpoints
 	std::vector<Edge> splitIntersectingEdges(const std::vector<Edge>& edges, bool project = true);
 
+	/// removes the faces from the list that are completely lying on eachother
+	std::vector<TopoDS_Face> cullOverlappingFaces(const std::vector<TopoDS_Face> inputFaceList);
+
 	/// @brief merges flat faces together in a singular shape
 	std::vector<TopoDS_Face> simplefyProjection(const std::vector<TopoDS_Face> inputFaceList);
 
@@ -116,7 +119,7 @@ private:
 	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<SurfaceGroup>& faceList);
+	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<ROSCollection>& faceList);
 
 	/// @brief get all the outer edges based on a voxelplate
 	std::vector<TopoDS_Edge> getOuterEdges(
@@ -124,18 +127,6 @@ private:
 		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
 		const std::vector<std::shared_ptr<voxel>>& originVoxels,
 		double floorlvl);
-
-	/// @brief get the footprint shapes from the collection of outer edges
-	std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
-
-	/// @brief grows wires from unordered exterior edges
-	std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
-
-	/// @brief cleans the wires (removes redundant vertex)
-	std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
-	TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
-
-	std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
 
 	// divides the projected footprints over the seperate buildings
 	void sortRoofStructures();
@@ -151,9 +142,11 @@ private:
 
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
+	TopoDS_Solid extrudeFace(const std::vector<TopoDS_Face>& faceList, const std::vector<TopoDS_Wire>& wireList, bool downwards,  double splittingFaceHeight = 0);
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ);
+	std::vector<TopoDS_Shape> computePrisms(const std::vector<ROSCollection>& inputGroupList, double lowestZ);
 
 	/// remove redundant edges from a solid shape
 	TopoDS_Shape simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap = false);
@@ -192,6 +185,9 @@ private:
 	//gets the unqiue products that intersect with the voxelList
 	std::vector<Value> getUniqueProductValues(std::vector<std::shared_ptr<voxel>> voxelList);
 
+	// generates default CJ object that represents a room, used for voxel rooms if no room objects are present
+	std::shared_ptr<CJT::CityObject> createDefaultRoomObject(std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum, double lowestZ);
+
 public:
 	explicit CJGeoCreator(helper* h, double vSize);
 
@@ -220,8 +216,8 @@ public:
 	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 	void makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of LoD0.3 objects
-	// TODO: implement
-	std::vector< CJT::GeoObject*> makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale);
+	//TODO: implement
+	std::vector< CJT::GeoObject> makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
 	CJT::GeoObject makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.2 objects
@@ -235,7 +231,7 @@ public:
 	void makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of voxelized objects
 	std::vector< CJT::GeoObject> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
-	void makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
+	void makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of the site and its outline
 	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);
 

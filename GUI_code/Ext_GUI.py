@@ -42,6 +42,7 @@ def runCode(input_path,
             output_path,
             make_lod00,
             make_lod02,
+            make_lod03,
             make_lod10,
             make_lod12,
             make_lod13,
@@ -86,8 +87,8 @@ def runCode(input_path,
         return
 
     # check if an LoD output is selected
-    if(not make_lod00 and not make_lod02 and not make_lod10 and not
-        make_lod12 and not make_lod13 and not make_lod22 and not
+    if(not make_lod00 and not make_lod02 and not make_lod03 and not
+        make_lod10 and not make_lod12 and not make_lod13 and not make_lod22 and not
         make_lod32 and not make_lod50 and not make_lod51):
         tkinter.messagebox.showerror("Settings Error",  "Error: no LoD output selected")
         return
@@ -145,10 +146,10 @@ def runCode(input_path,
         lod_list.append(0.0)
     if (make_lod02):
         lod_list.append(0.2)
-
         json_dictionary["JSON"]["Generate footprint"] = make_footprint
         json_dictionary["JSON"]["Generate roof outline"] = make_roofprint
-
+    if(make_lod03):
+        lod_list.append(0.3)
     if (make_lod10):
         lod_list.append(1.0)
     if (make_lod12):
@@ -341,14 +342,15 @@ frame_lod_settings3.pack()
 
 bool_lod00 = tkinter.IntVar(value=1)
 bool_lod02 = tkinter.IntVar(value=1)
+bool_lod03 = tkinter.IntVar(value=0)
 bool_lod10 = tkinter.IntVar(value=1)
 bool_lod12 = tkinter.IntVar(value=1)
 bool_lod13 = tkinter.IntVar(value=1)
 bool_lod22 = tkinter.IntVar(value=1)
 bool_lod32 = tkinter.IntVar(value=0)
+bool_lod50 = tkinter.IntVar(value=0)
 
 toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=bool_lod00)
-
 toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    text="LoD0.2",
                                    variable=bool_lod02,
@@ -361,8 +363,8 @@ toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                                           bool_lod32.get()
                                                       })]
                                    )
-
-toggle_makelod10 = ttk.Checkbutton(frame_lod_settings1, text="LoD1.0", variable=bool_lod10)
+toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=bool_lod03)
+toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=bool_lod10)
 toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                    text="LoD1.2",
                                    variable=bool_lod12,
@@ -374,7 +376,7 @@ toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                                     })]
                                    )
 toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=bool_lod13)
-toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=bool_lod22,
+toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=bool_lod22,
                                    command=lambda: [toggleEnableEntry(toggle_makeinterior, {
                                        bool_lod02.get(),
                                        bool_lod12.get(),
@@ -392,26 +394,26 @@ toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                        bool_lod32.get()
                                    })]
                                    )
-bool_lod50 = tkinter.IntVar(value=0)
 toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoDV.0",
                                    variable=bool_lod50
                                    )
-bool_lod51 = tkinter.IntVar(value=0)
-toggle_makelod51 = ttk.Checkbutton(frame_lod_settings3,
-                                   text="LoDV.1",
-                                   variable=bool_lod51
-                                   )
+#bool_lod51 = tkinter.IntVar(value=0)
+#toggle_makelod51 = ttk.Checkbutton(frame_lod_settings3,
+#                                   text="LoDV.1",
+#                                   variable=bool_lod51
+#                                   )
 
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)
+toggle_makelod03.pack(side=tkinter.LEFT)
 toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
-toggle_makelod51.pack(side=tkinter.LEFT)
+#toggle_makelod51.pack(side=tkinter.LEFT)
 
 # makeSplit
 frame_lod_settings_sep = ttk.Separator(frame_lod_settings_complete, orient=tkinter.VERTICAL)
@@ -542,13 +544,14 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     entry_outputpath.get(),
     bool_lod00.get(),
     bool_lod02.get(),
+    bool_lod03.get(),
     bool_lod10.get(),
     bool_lod12.get(),
     bool_lod13.get(),
     bool_lod22.get(),
     bool_lod32.get(),
     bool_lod50.get(),
-    bool_lod51.get(),
+    False,
     bool_make_footprint.get(),
     bool_make_roofprint.get(),
     bool_make_interior.get(),

@@ -6,6 +6,7 @@
 #include <gp_Lin.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Vec.hxx>
+#include <TopoDS_Wire.hxx>
 #include <memory>
 
 
@@ -36,24 +37,14 @@ public:
 #ifndef SURFACEGROUP_SURFACEGROUP_H
 #define SURFACEGROUP_SURFACEGROUP_H
 
-class SurfaceGroup {
-private:
-	// the face
-	std::vector<TopoDS_Face> theFaceCollection_;
-
-	// the flat face geometry LoD13
-	TopoDS_Face theFlatFace_;
-
-	// the flat face at ground level
-	TopoDS_Face theProjectedFace_;
+// contains the data of a single TopoDS_Face with its matching grid
+class SurfaceGridPair {
+private: 
+	TopoDS_Face theFace_;
 
 	// bounding box 3D data
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
-
-	// bounding box 2D data
-	gp_Pnt2d llPoint_;
-	gp_Pnt2d urPoint_;
 
 	// information about the face
 	double topHeight_;
@@ -64,36 +55,73 @@ private:
 	bool visibility_ = true;
 	bool isSmall_ = false;
 
-
 	std::vector<std::shared_ptr<EvaluationPoint>> pointGrid_;
-	bool overlap(SurfaceGroup other);
+	bool overlap(SurfaceGridPair other);
 
 public:
-	SurfaceGroup(const TopoDS_Face& aFace);
+	SurfaceGridPair(const TopoDS_Face& theFace);
 
-	const std::vector<TopoDS_Face>& getFaces() const { return theFaceCollection_; }
-	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
-	const TopoDS_Face& getProjectedFace() const { return theProjectedFace_; }
-	TopoDS_Face* getProjectedFacePtr() { return &theProjectedFace_; }
+	const TopoDS_Face getFace() const { return theFace_; }
 
 	const gp_Pnt getLLLPoint() { return lllPoint_; }
 	const gp_Pnt getURRPoint() { return urrPoint_; }
 
-	const gp_Pnt2d getLLPoint() { return llPoint_; }
-	const gp_Pnt2d getURPoint() { return urPoint_; }
-
 	double getAvHeight() { return avHeight_; }
 	double getTopHeight() { return topHeight_; }
 
-	const std::vector<std::shared_ptr<EvaluationPoint>>& getPointGrid() const { return pointGrid_; }
-	bool isVisible() { return visibility_; }
-	bool testIsVisable(const std::vector<SurfaceGroup>& otherSurfaces, bool preFilter = false);
 	int getVertCount() { return vertCount_; }
+
+	bool isVisible() const { return visibility_; }
+	void setIsHidden() { visibility_ = false; }
+
+	void populateGrid(double distance);
+
+	bool testIsVisable(const std::vector<SurfaceGridPair>& otherSurfaces, bool preFilter = false);
+};
+
+// collection of the visible roof surfaces per IfcObject or IfcObject set
+class ROSCollection {
+private:
+	// the faces
+	std::vector<SurfaceGridPair> theFaceCollection_;
+
+	// the wire surrounding the faceCollection
+	std::vector<TopoDS_Wire> theWireCollection_;
+
+	// the flat face geometry of the complete face collection for LoD13
+	TopoDS_Face theFlatFace_;
+
+	// bounding box 3D data
+	gp_Pnt lllPoint_;
+	gp_Pnt urrPoint_;
+
+	// usability information
+	bool visibility_ = true;
+	bool isSmall_ = false;
+
+	bool overlap(ROSCollection other);
+
+public:
+	ROSCollection(std::vector< SurfaceGridPair> theGridPairList);
+
+	const std::vector< SurfaceGridPair> getFaceGridPairs() { return theFaceCollection_; }
+	const std::vector<TopoDS_Wire> getWires() { return theWireCollection_; }
+
+	const std::vector<TopoDS_Face> getFaces();
+	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
+
+	const TopoDS_Face getProjectedFace() const;
+
+	const gp_Pnt getLLLPoint() { return lllPoint_; }
+	const gp_Pnt getURRPoint() { return urrPoint_; }
+
+	bool isVisible() { return visibility_; }
+	bool testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter = false);
 
 	void setIsHidden() { visibility_ = false; }
 	void projectFace();
 
-	void populateGrid(double distance);
+	void update();
 };
 #endif // SURFACEGROUP_SURFACEGROUP_H
 

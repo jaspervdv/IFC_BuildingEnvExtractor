@@ -79,6 +79,7 @@ enum class CommunicationStringID {
 	infoComputingStoreys,
 	infoComputingLoD00,
 	infoComputingLoD02,
+	infoComputingLoD03,
 	infoComputingLoD10,
 	infoComputingLoD12,
 	infoComputingLoD13,

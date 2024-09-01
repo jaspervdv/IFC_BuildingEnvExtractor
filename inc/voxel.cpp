@@ -170,9 +170,11 @@ std::vector<std::vector<int>> voxel::getPlaneEdges()
 bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, int intersectionLogic)
 {
 	hasEvalIntt_ = true;
+	if (!voxelPoints.size()) { return false; }
 	// get the product
 	IfcSchema::IfcProduct* product = lookup.getProductPtr();
 	std::string productType = product->data().type()->name();
+	std::vector<std::vector<gp_Pnt>> trianglePointList = lookup.getProductTriangleList();
 	TopoDS_Shape productShape = lookup.getProductShape();
 
 	if (productType == "IfcDoor" || productType == "IfcWindow") // only use simplefied opening geo
@@ -186,9 +188,40 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 		productShape = lookup.getSimpleShape(); //TODO: check this
 	}
 
-	// check if any cornerpoints fall inside voxel
+	// add check if voxel falls completely in the shape
+	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 100);
+	int counter = 0;
 
-	std::vector<gp_Pnt> productPoints = lookup.getProductPoints();
+
+	std::vector<Value> qResultList;
+	lookup.getIndxPointer()->query(bgi::intersects(helperFunctions::createBBox(centerPoint, offsetPoint)), std::back_inserter(qResultList));
+
+	for (const Value& qResult : qResultList)
+	{
+		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second];
+		if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
+		{
+			counter++;
+		}
+	}
+
+	if (counter % 2 == 1)
+	{
+		isIntersecting_ = true;
+		return true;
+	}
+	// check if any cornerpoints fall inside voxel
+	qResultList.clear();
+	lookup.getIndxPointer()->query(bgi::intersects(helperFunctions::createBBox(voxelPoints)), std::back_inserter(qResultList));
+	std::vector<gp_Pnt> productPoints;
+	for (const Value& qResult : qResultList)
+	{
+		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second];
+		for (gp_Pnt currentPoint : trianglePoints)
+		{
+			productPoints.emplace_back(currentPoint);
+		}
+	}
 
 	if (intersectionLogic == 3) // not required if the intersection is not volumetric
 	{
@@ -204,8 +237,6 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	if (intersectionLogic == 2) { triangleVoxels = getplaneTriangles(); }
 	else if (intersectionLogic == 3) { triangleVoxels = getVoxelTriangles(); }
 
-	if (!voxelPoints.size()) { return false; }
-
 	double voxelLowZ = voxelPoints[0].Z();
 	double voxelTopZ = voxelPoints[4].Z();
 
@@ -219,39 +250,53 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	{
 		std::vector<gp_Pnt> voxelTriangle = { voxelPoints[boxel[0]], voxelPoints[boxel[1]], voxelPoints[boxel[2]] };
 
-		for (size_t k = 0; k < productPoints.size(); k += 2)
+		for (size_t i = 0; i < productPoints.size(); i += 3)
 		{
 			// first check if voxel falls within the bounding box of the edge
-			gp_Pnt p1 = productPoints[k]; // line point 1
-			gp_Pnt p2 = productPoints[k + 1]; // and 2
+			gp_Pnt p1 = productPoints[i + 0];
+			gp_Pnt p2 = productPoints[i + 1];
+			gp_Pnt p3 = productPoints[i + 2];
 			double p1z = p1.Z();
 			double p2z = p2.Z();
+			double p3z = p3.Z();
 
-			double maxZ = std::max(p1z, p2z);
-			double minZ = std::min(p1z, p2z);
+			double maxZ = std::max({ p1z, p2z, p3z });
+			double minZ = std::min({ p1z, p2z, p3z });
 
 			if (minZ > voxelTopZ || maxZ < voxelLowZ) { continue; }
 
 			double p1x = p1.X();
 			double p2x = p2.X();
+			double p3x = p3.X();
 
-			double maxX = std::max(p1x, p2x);
-			double minX = std::min(p1x, p2x);
+			double maxX = std::max({ p1x, p2x, p3x });
+			double minX = std::min({ p1x, p2x, p3x });
 
 			if (minX > voxelMaxX || maxX < voxelLowX) { continue; }
 
 			double p1y = p1.Y();
 			double p2y = p2.Y();
+			double p3y = p3.Y();
 
-			double maxY = std::max(p1y, p2y);
-			double minY = std::min(p1y, p2y);
+			double maxY = std::max({ p1y, p2y, p3y });
+			double minY = std::min({ p1y, p2y, p3y });
 
 			if (minY > voxelMaxY || maxY < voxelLowY) { continue; }
 
-			if (helperFunctions::triangleIntersecting({ p1, p2 }, voxelTriangle))
+			std::vector<std::vector<gp_Pnt>> lineList = {
+				{p1, p2},
+				{p2, p3},
+				{p3, p1}
+			};
+
+
+			for (std::vector<gp_Pnt> line : lineList)
 			{
-				isIntersecting_ = true;
-				return true;
+				if (helperFunctions::triangleIntersecting(line, voxelTriangle))
+				{
+					isIntersecting_ = true;
+					return true;
+				}
 			}
 		}
 	}
@@ -261,49 +306,23 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	if (intersectionLogic == 2) { vets = getPlaneEdges(); }
 	else if (intersectionLogic == 3) { vets = getVoxelEdges(); }
 
-	// add check if voxel falls completely in the shape
-	gp_Pnt offsetPoint = gp_Pnt(centerPoint.X(), centerPoint.Y(), centerPoint.Z() + 10);
-	int counter = 0;
-
-	for (TopExp_Explorer expl(productShape, TopAbs_FACE); expl.More(); expl.Next())
+	for (size_t i = 0; i < productPoints.size(); i += 3)
 	{
-		TopoDS_Face productFace = TopoDS::Face(expl.Current());
-
-		TopLoc_Location loc;
-		auto mesh = BRep_Tool::Triangulation(productFace, loc);
-
-		if (mesh.IsNull()) { continue; }
-
-		for (int i = 1; i <= mesh.get()->NbTriangles(); i++) //TODO: find out if there is use to keep the opencascade structure
+		for (size_t j = 0; j < vets.size(); j++)
 		{
-			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
-
-			std::vector<gp_Pnt> trianglePoints{
-				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
-				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
-				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
-			};
-
-			for (size_t k = 0; k < vets.size(); k++)
+			// first check if voxel falls within the bounding box of the edge
+			gp_Pnt p1 = productPoints[i + 0];
+			gp_Pnt p2 = productPoints[i + 1];
+			gp_Pnt p3 = productPoints[i + 2];
+			if (helperFunctions::triangleIntersecting(
+				{ voxelPoints[vets[j][0]], voxelPoints[vets[j][1]] },
+				{ p1, p2, p3 })
+				)
 			{
-				if (helperFunctions::triangleIntersecting({ voxelPoints[vets[k][0]], voxelPoints[vets[k][1]] }, trianglePoints))
-				{
-					isIntersecting_ = true;
-					return true;
-				}
-			}
-
-			// check if inside of shape
-			if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
-			{
-				counter++;
+				isIntersecting_ = true;
+				return true;
 			}
 		}
-	}
-	if (counter%2 == 1)
-	{
-		isIntersecting_ = true;
-		return true;
 	}
 	return false;
 }

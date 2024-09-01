@@ -182,6 +182,7 @@ bool IOManager::getJSONValues()
 		nlohmann::json lodList = json[lodOutputOName];
 		settingsCollection.setMake00(false);
 		settingsCollection.setMake02(false);
+		settingsCollection.setMake03(false);
 		settingsCollection.setMake10(false);
 		settingsCollection.setMake12(false);
 		settingsCollection.setMake13(false);
@@ -222,6 +223,10 @@ bool IOManager::getJSONValues()
 					settingsCollection.setMakeRoofPrint((int)outputDataJson[generateRoofOlineOName]);
 					if (settingsCollection.makeRoofPrint()) { settingsCollection.setMakeOutlines(true); }
 				}
+			}
+			else if (lodList[i] == 0.3)
+			{
+				settingsCollection.setMake03(true);
 			}
 			else if (lodList[i] == 1.0) 
 			{ 
@@ -509,6 +514,8 @@ std::string IOManager::getLoDEnabled()
 
 	if (settingsCollection.make00()) { summaryString += ", 0.0"; }
 	if (settingsCollection.make02()) { summaryString += ", 0.2"; }
+	if (settingsCollection.make03()) { summaryString += ", 0.3"; }
+	if (settingsCollection.make10()) { summaryString += ", 1.0"; }
 	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
 	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
@@ -758,6 +765,21 @@ bool IOManager::run()
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 
 	}
+	if (settingsCollection.make03()) //TODO: make binding
+	{
+		try
+		{
+			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+			std::vector<CJT::GeoObject> geo03 = geoCreator.makeLoD03(internalHelper_.get(), &kernel, 1);
+			for (size_t i = 0; i < geo03.size(); i++) { cityShellObject.addGeoObject(geo03[i]); }
+			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+		}
+		catch (const std::exception&)
+		{
+			ErrorCollection::getInstance().addError(errorID::failedLoD10);
+			succesfullExit = 0;
+		}
+	}
 	if (settingsCollection.make10())
 	{
 		try
@@ -847,20 +869,19 @@ bool IOManager::run()
 		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalHelper_.get());
 		std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = geoCreator.makeRoomObjects(internalHelper_.get(), storeyObjects);
 
-		try
-		{
-			geoCreator.makeFloorSectionCollection(internalHelper_.get());
-		}
-		catch (const std::exception&)
-		{
-			ErrorCollection::getInstance().addError(errorID::failedStorey);
-			succesfullExit = 0;
-		}
 		// storeys
 		if (settingsCollection.make02())
 		{
+			try
+			{
+				geoCreator.makeFloorSectionCollection(internalHelper_.get());
+			}
+			catch (const std::exception&)
+			{
+				ErrorCollection::getInstance().addError(errorID::failedStorey);
+				succesfullExit = 0;
+			}
 			geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, storeyObjects, 1);
-			
 		}
 
 		if (settingsCollection.make02() || settingsCollection.make12() ||settingsCollection.make22())
@@ -876,7 +897,7 @@ bool IOManager::run()
 		// rooms
 		if (settingsCollection.makeV())
 		{
-			geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, roomObjects, 1);
+			geoCreator.makeVRooms(internalHelper_.get(), &kernel, storeyObjects, roomObjects, 1);		
 		}
 
 		for (size_t i = 0; i < storeyObjects.size(); i++)

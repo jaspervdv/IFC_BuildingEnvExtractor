@@ -32,6 +32,10 @@ private:
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
 	TopoDS_Shape productShape_;
 	TopoDS_Shape simpleShape_;
+
+	bgi::rtree<Value, bgi::rstar<25>> spatialIndex_;
+	std::vector<std::vector<gp_Pnt>> productTrianglePoints_;
+
 	std::vector<gp_Pnt> productPointList_;
 	TopoDS_Shape cBox_;
 
@@ -51,6 +55,10 @@ public:
 	const TopoDS_Shape& getProductShape() { return productShape_; }
 	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
 	const std::vector<gp_Pnt>& getProductPoints() { return productPointList_; }
+
+	bgi::rtree<Value, bgi::rstar<25>>* getIndxPointer() { return &spatialIndex_; }
+	const std::vector<std::vector<gp_Pnt>> & getProductTriangleList() { return productTrianglePoints_; }
+	const std::vector<gp_Pnt>& getProductTriangle(int i) { return productTrianglePoints_[i]; }
 
 	bool hasCBox() { return !cBox_.IsNull(); }
 

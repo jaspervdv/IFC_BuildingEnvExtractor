@@ -73,6 +73,7 @@ struct helperFunctions{
 	static void printPoints(const TopoDS_Wire& w);
 
 	/// Print points of the faces to console (for development only)
+	static void printFaces(const std::vector<TopoDS_Shape>& shape);
 	static void printFaces(const TopoDS_Shape& shape);
 
 	/// get a list of unique points from a pointlist
@@ -165,6 +166,9 @@ struct helperFunctions{
 	/// merges the input wires in the correct order
 	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);
 
+	static std::vector<TopoDS_Face> mergeFaces(const TopoDS_Face& theFaceList);
+	static TopoDS_Face mergeFace(const TopoDS_Face& theFaceList);
+
 	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
 	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
 
@@ -177,6 +181,7 @@ struct helperFunctions{
 	/// construct a bbox from a shape or list of shapes
 	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Shape>& shape);
+	static bg::model::box <BoostPoint3D> createBBox(const std::vector<gp_Pnt>& pointList);
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
 
 	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
@@ -199,10 +204,10 @@ struct helperFunctions{
 	static std::optional<gp_Pnt> linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
 
 	/// Check if surface is completely overlapped
-	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const SurfaceGroup& otherFace);
+	static bool isOverlappingCompletely(const ROSCollection& evalFace, const ROSCollection& otherFace);
 
 	template<typename T>
-	static bool isOverlappingCompletely(const SurfaceGroup& evalFace, const std::vector<SurfaceGroup>& facePool, const T& shapeIdx)
+	static bool isOverlappingCompletely(const ROSCollection& evalFace, const std::vector<ROSCollection>& facePool, const T& shapeIdx)
 	{
 		std::vector<Value> qResult;
 		shapeIdx.query(bgi::intersects(
@@ -218,6 +223,18 @@ struct helperFunctions{
 
 	/// collects the non-standard property data in the ifc file of an object 
 	static std::vector<nlohmann::json> collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile);
+
+	/// @brief get the footprint shapes from the collection of outer edges
+	static std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
+
+	/// @brief grows wires from unordered exterior edges
+	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
+
+	/// @brief cleans the wires (removes redundant vertex)
+	static std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
+	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
+
+	static std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
 
 };
 #endif // HELPER_HELPER_H

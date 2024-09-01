@@ -20,6 +20,7 @@ private:
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = true;
 	bool make02_ = true;
+	bool make03_ = true;
 	bool make10_ = true;
 	bool make12_ = true;
 	bool make13_ = true;
@@ -108,6 +109,9 @@ public:
 
     bool make02() const { return make02_; }
     void setMake02(bool value) { make02_ = value; }
+
+    bool make03() const { return make03_; }
+    void setMake03(bool value) { make03_ = value; }
 
     bool make10() const { return make10_; }
     void setMake10(bool value) { make10_ = value; }
