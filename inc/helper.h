@@ -82,6 +82,13 @@ struct helperFunctions{
 	static std::vector<gp_Pnt> getUniquePoints(const TopoDS_Shape& inputShape);
 	static int getPointCount(const TopoDS_Shape& inputShape);
 
+	/// get the lllpoint and urr point of an TopoDS shape
+	template<typename T>
+	static void getBBoxPoints(std::vector<T> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+
+	template<typename T>
+	static void getBBoxPoints(T theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+
 	///	Rotate OpenCascade point around 0,0,0
 	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);
 	///	Rotate Boost point around 0,0,0
@@ -117,6 +124,9 @@ struct helperFunctions{
 
 	/// compute the largest angle of the edges, returns 0 if not found
 	static double computeLargestAngle(const TopoDS_Face& theFace);
+
+	/// checks if two faces share and edge (if they are resting against eachother)
+	static bool shareEdge(const TopoDS_Face& theFace, const TopoDS_Face& theotherFace);
 
 	/// check if edges overlap by checking the endpoints
 	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
@@ -159,6 +169,7 @@ struct helperFunctions{
 
 	/// get the height of the heighest vertex
 	static double getTopFaceHeight(const TopoDS_Face& face);
+	static double getTopFaceHeight(const std::vector<TopoDS_Face>& faceList);
 
 	/// gets the direction that the edge is orentated towards
 	static gp_Vec getDirEdge(const TopoDS_Edge& edge);
@@ -166,8 +177,11 @@ struct helperFunctions{
 	/// merges the input wires in the correct order
 	static TopoDS_Wire mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire);
 
-	static std::vector<TopoDS_Face> mergeFaces(const TopoDS_Face& theFaceList);
-	static TopoDS_Face mergeFace(const TopoDS_Face& theFaceList);
+	/// merge faces that rest against eahother
+	static std::vector<TopoDS_Face> mergeFaces(const std::vector<TopoDS_Face>& theFaceList);
+
+	/// merge coplanar surfaces
+	static std::vector<TopoDS_Face> mergeCoFaces(const std::vector<TopoDS_Face>& theFaceList);
 
 	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
 	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
@@ -179,7 +193,7 @@ struct helperFunctions{
 	static int invertDir(int dirIndx);
 
 	/// construct a bbox from a shape or list of shapes
-	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape);
+	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape, double buffer = 0.05);
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<TopoDS_Shape>& shape);
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<gp_Pnt>& pointList);
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);

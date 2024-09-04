@@ -47,22 +47,14 @@ ROSCollection::ROSCollection(std::vector< SurfaceGridPair> theGridPairList)
 	}
 }
 
-const std::vector<TopoDS_Face> ROSCollection::getFaces()
+const std::vector<TopoDS_Face> ROSCollection::getFaces() const
 {
 	std::vector<TopoDS_Face> faceList;
-	for (SurfaceGridPair currentPair : theFaceCollection_)
+	for (const SurfaceGridPair& currentPair : theFaceCollection_)
 	{
 		faceList.emplace_back(currentPair.getFace());
 	}
 	return faceList;
-}
-
-const TopoDS_Face ROSCollection::getProjectedFace() const
-{
-	return helperFunctions::projectFaceFlat(
-		theFlatFace_,
-		0
-	);
 }
 
 bool ROSCollection::overlap(ROSCollection other) {
@@ -81,116 +73,6 @@ bool ROSCollection::overlap(ROSCollection other) {
 	}
 	return false;
 }
-
-
-void ROSCollection::projectFace() {
-	std::vector<TopoDS_Face> faceList = getFaces();
-
-	//TODO: add merging
-	for (TopoDS_Face currentFace : faceList)
-	{
-		theFlatFace_ = helperFunctions::projectFaceFlat(
-			currentFace,
-			helperFunctions::getHighestPoint(currentFace).Z() //TODO: make this smarter, might not work with non-flat surfaces
-		);
-	}
-}
-
-void ROSCollection::update()
-{
-	std::vector<SurfaceGridPair> cleanedList = {};
-	std::vector<TopoDS_Face> faceList = {};
-
-	for (const SurfaceGridPair& faceGridPair : theFaceCollection_)
-	{
-		if (!faceGridPair.isVisible()) { continue; }
-			
-		cleanedList.emplace_back(faceGridPair);
-		faceList.emplace_back(faceGridPair.getFace());
-	}
-
-	theFaceCollection_ = cleanedList;
-	if (faceList.size() == 1)
-	{
-		TopoDS_Face flatFace = helperFunctions::projectFaceFlat(faceList[0], 0);
-
-		theFlatFace_ = helperFunctions::projectFaceFlat(
-			flatFace,
-			urrPoint_.Z()
-		);
-
-		for (TopExp_Explorer WireExpl(faceList[0], TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
-		{
-			TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
-			theWireCollection_.emplace_back(currentWire);
-		}
-		return;
-	}
-
-	std::vector<TopoDS_Edge> edgeList;
-	for (TopoDS_Face currentFace : faceList)
-	{
-		for (TopExp_Explorer expl(currentFace, TopAbs_EDGE); expl.More(); expl.Next())
-		{
-			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-			edgeList.emplace_back(currentEdge);
-		}
-	}
-
-	std::vector<TopoDS_Edge> outerEdgeList;
-	std::vector<TopoDS_Edge> outerEdgeListFlat;
-	for (size_t i = 0; i < edgeList.size(); i++)
-	{
-		TopoDS_Edge currentEdge = edgeList[i];
-		bool isUnique = true;
-
-		gp_Pnt currentP1 = helperFunctions::getFirstPointShape(currentEdge);
-		gp_Pnt currentP2 = helperFunctions::getLastPointShape(currentEdge);
-
-		for (size_t j = 0; j < edgeList.size(); j++)
-		{
-			if (i == j) { continue; }
-
-			TopoDS_Edge otherEdge = edgeList[j];
-
-			gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
-			gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
-
-			if (currentP1.IsEqual(otherP2, 1e-6) && currentP2.IsEqual(otherP1, 1e-6) ||
-				currentP1.IsEqual(otherP1, 1e-6) && currentP2.IsEqual(otherP2, 1e-6))
-			{
-				isUnique = false;
-				break;
-			}
-		}
-
-		if (!isUnique)
-		{
-			continue;
-		}
-
-		gp_Pnt currentP1Flat(currentP1.X(), currentP1.Y(), 0);
-		gp_Pnt currentP2Flat(currentP2.X(), currentP2.Y(), 0);
-		outerEdgeList.emplace_back(currentEdge);
-		outerEdgeListFlat.emplace_back(BRepBuilderAPI_MakeEdge(currentP1Flat, currentP2Flat));
-	}
-
-	//grow wires
-	std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(outerEdgeList);
-	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
-	if (!cleanWireList.size()) { cleanWireList = wireList; }
-	theWireCollection_ = cleanWireList;
-
-	std::vector<TopoDS_Wire> wireListFlat = helperFunctions::growWires(outerEdgeListFlat);
-	std::vector<TopoDS_Wire> cleanWireListFlat = helperFunctions::cleanWires(wireListFlat);
-	if (!cleanWireListFlat.size()) { cleanWireListFlat = wireListFlat; }
-	std::vector<TopoDS_Face> cleanFaceList = helperFunctions::wireCluster2Faces(cleanWireListFlat);
-	theFlatFace_ = helperFunctions::projectFaceFlat(
-		cleanFaceList[0],
-		urrPoint_.Z()
-	);
-}
-
 
 bool ROSCollection::testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter)
 {
@@ -458,4 +340,138 @@ bool SurfaceGridPair::testIsVisable(const std::vector<SurfaceGridPair>& otherSur
 	}
 	visibility_ = false;
 	return false;
+}
+
+
+
+void SurfaceGridPair::Merge(const std::vector<SurfaceGridPair>& otherPairList, const TopoDS_Face& theCompleteFace)
+{
+	lllPoint_ = gp_Pnt(999999999, 999999999, 99999999);
+	urrPoint_ = gp_Pnt(-999999999, -999999999, -99999999);
+
+	int vertCount = 0;
+	TopExp_Explorer expl;
+	for (expl.Init(theCompleteFace, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+		if (point.X() > urrPoint_.X()) { urrPoint_.SetX(point.X()); }
+		if (point.Y() > urrPoint_.Y()) { urrPoint_.SetY(point.Y()); }
+		if (point.Z() > urrPoint_.Z()) { urrPoint_.SetZ(point.Z()); }
+		if (point.X() < lllPoint_.X()) { lllPoint_.SetX(point.X()); }
+		if (point.Y() < lllPoint_.Y()) { lllPoint_.SetY(point.Y()); }
+		if (point.Z() < lllPoint_.Z()) { lllPoint_.SetZ(point.Z()); }
+
+		vertCount++;
+	}
+	vertCount_ = vertCount;
+
+	avHeight_ = helperFunctions::getAvFaceHeight(theCompleteFace);
+	topHeight_ = helperFunctions::getTopFaceHeight(theCompleteFace);
+
+	theFace_ = theCompleteFace;
+
+	for (const SurfaceGridPair& currentPair : otherPairList)
+	{
+		for (auto point : currentPair.pointGrid_)
+		{
+			pointGrid_.emplace_back(point);
+		}
+	}
+}
+
+RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
+{
+	theFaceCollection_ = theFaceColletion;
+	helperFunctions::getBBoxPoints(theFaceCollection_, &lllPoint_, &urrPoint_);
+
+	if (theFaceColletion.size() == 1)
+	{
+		TopoDS_Face flatFace = helperFunctions::projectFaceFlat(theFaceColletion[0], 0);
+
+		theFlatFace_ = helperFunctions::projectFaceFlat(
+			flatFace,
+			urrPoint_.Z()
+		);
+
+		for (TopExp_Explorer WireExpl(theFaceColletion[0], TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
+		{
+			TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
+			theWireCollection_.emplace_back(currentWire);
+		}
+		return;
+	}
+
+	std::vector<TopoDS_Edge> edgeList;
+	for (TopoDS_Face currentFace : theFaceColletion)
+	{
+		for (TopExp_Explorer expl(currentFace, TopAbs_EDGE); expl.More(); expl.Next())
+		{
+			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+			edgeList.emplace_back(currentEdge);
+		}
+	}
+
+	std::vector<TopoDS_Edge> outerEdgeList;
+	std::vector<TopoDS_Edge> outerEdgeListFlat;
+	for (size_t i = 0; i < edgeList.size(); i++)
+	{
+		TopoDS_Edge currentEdge = edgeList[i];
+		bool isUnique = true;
+
+		gp_Pnt currentP1 = helperFunctions::getFirstPointShape(currentEdge);
+		gp_Pnt currentP2 = helperFunctions::getLastPointShape(currentEdge);
+
+		for (size_t j = 0; j < edgeList.size(); j++)
+		{
+			if (i == j) { continue; }
+
+			TopoDS_Edge otherEdge = edgeList[j];
+
+			gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
+			gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
+
+			if (currentP1.IsEqual(otherP2, 1e-6) && currentP2.IsEqual(otherP1, 1e-6) ||
+				currentP1.IsEqual(otherP1, 1e-6) && currentP2.IsEqual(otherP2, 1e-6))
+			{
+				isUnique = false;
+				break;
+			}
+		}
+
+		if (!isUnique)
+		{
+			continue;
+		}
+
+		gp_Pnt currentP1Flat(currentP1.X(), currentP1.Y(), 0);
+		gp_Pnt currentP2Flat(currentP2.X(), currentP2.Y(), 0);
+		outerEdgeList.emplace_back(currentEdge);
+		outerEdgeListFlat.emplace_back(BRepBuilderAPI_MakeEdge(currentP1Flat, currentP2Flat));
+	}
+
+	//grow wires
+	std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(outerEdgeList);
+	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
+	if (!cleanWireList.size()) { cleanWireList = wireList; }
+	theWireCollection_ = cleanWireList;
+
+	std::vector<TopoDS_Wire> wireListFlat = helperFunctions::growWires(outerEdgeListFlat);
+	std::vector<TopoDS_Wire> cleanWireListFlat = helperFunctions::cleanWires(wireListFlat);
+	if (!cleanWireListFlat.size()) { cleanWireListFlat = wireListFlat; }
+	std::vector<TopoDS_Face> cleanFaceList = helperFunctions::wireCluster2Faces(cleanWireListFlat);
+	theFlatFace_ = helperFunctions::projectFaceFlat(
+		cleanFaceList[0],
+		urrPoint_.Z()
+	);
+}
+
+
+const TopoDS_Face RCollection::getProjectedFace() const
+{
+	return helperFunctions::projectFaceFlat(
+		theFlatFace_,
+		0
+	);
 }

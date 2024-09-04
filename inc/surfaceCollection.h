@@ -58,6 +58,8 @@ private:
 	std::vector<std::shared_ptr<EvaluationPoint>> pointGrid_;
 	bool overlap(SurfaceGridPair other);
 
+	void Merge(const std::vector<SurfaceGridPair>& otherPairList, const TopoDS_Face& theCompleteFace);
+
 public:
 	SurfaceGridPair(const TopoDS_Face& theFace);
 
@@ -101,27 +103,49 @@ private:
 
 	bool overlap(ROSCollection other);
 
+	void mergeCoplanarFaces();
+
 public:
 	ROSCollection(std::vector< SurfaceGridPair> theGridPairList);
 
 	const std::vector< SurfaceGridPair> getFaceGridPairs() { return theFaceCollection_; }
+	const std::vector<TopoDS_Face> getFaces() const;
+
+	const gp_Pnt getLLLPoint() const { return lllPoint_; }
+	const gp_Pnt getURRPoint() const { return urrPoint_; }
+
+	bool isVisible() { return visibility_; }
+	bool testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter = false);
+
+	void setIsHidden() { visibility_ = false; }
+};
+
+class RCollection {
+private:
+	// the faces
+	std::vector<TopoDS_Face> theFaceCollection_;
+
+	// the wire surrounding the faceCollection
+	std::vector<TopoDS_Wire> theWireCollection_;
+
+	// the flat face geometry of the complete face collection for LoD13
+	TopoDS_Face theFlatFace_;
+
+	// bounding box 3D data
+	gp_Pnt lllPoint_ = gp_Pnt(999999, 999999, 999999);
+	gp_Pnt urrPoint_ = gp_Pnt(-999999, -999999, -999999);
+public:
+	RCollection(const std::vector<TopoDS_Face>& theFaceColletion);
+
 	const std::vector<TopoDS_Wire> getWires() { return theWireCollection_; }
 
-	const std::vector<TopoDS_Face> getFaces();
+	const std::vector<TopoDS_Face> getFaces() const { return theFaceCollection_; }
 	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
 
 	const TopoDS_Face getProjectedFace() const;
 
 	const gp_Pnt getLLLPoint() { return lllPoint_; }
 	const gp_Pnt getURRPoint() { return urrPoint_; }
-
-	bool isVisible() { return visibility_; }
-	bool testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter = false);
-
-	void setIsHidden() { visibility_ = false; }
-	void projectFace();
-
-	void update();
 };
 #endif // SURFACEGROUP_SURFACEGROUP_H
 

@@ -43,7 +43,7 @@ private:
 	gp_Trsf geoRefRotation_;
 
 	// container for surface group data
-	std::vector<std::vector<ROSCollection>> faceList_;
+	std::vector<std::vector<RCollection>> faceList_;
 	std::mutex faceListMutex_;
 
 	// flags representing the eval state of the creator
@@ -84,8 +84,8 @@ private:
 	void mergeSurfaces(const std::vector<ROSCollection>& shapeList);
 
 	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
-	void FinefilterSurfaces(const std::vector<ROSCollection>& shapeList);
-	void FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList);
+	void FinefilterSurfaces(const std::vector<ROSCollection>& shapeList, std::vector<ROSCollection>* fineFilteredShapeList);
+	void FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList, std::vector<ROSCollection>* fineFilteredShapeList);
 
 	/// @brief get the surfaces that have an area when flattened
 	std::optional<ROSCollection> getROSCollections(const TopoDS_Shape& shape);
@@ -119,7 +119,7 @@ private:
 	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
 
 	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<ROSCollection>& faceList);
+	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<RCollection>& faceList);
 
 	/// @brief get all the outer edges based on a voxelplate
 	std::vector<TopoDS_Edge> getOuterEdges(
@@ -132,7 +132,7 @@ private:
 	void sortRoofStructures();
 
 	// merges faces that are near eachother
-	void mergeRoofSurfaces();
+	void mergeRoofSurfaces(const std::vector<ROSCollection>& Collection);
 
 	// get a full xy section of voxels that is 1 voxel thick at the desired plate level
 	std::vector<int> getVoxelPlate(double platelvl);

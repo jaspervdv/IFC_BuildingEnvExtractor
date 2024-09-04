@@ -491,6 +491,7 @@ std::vector<TopoDS_Face> CJGeoCreator::cullOverlappingFaces(const std::vector<To
 		
 		std::vector<Value> qResult;
 		spatialIndex.query(bgi::intersects(bboxList[i]), std::back_inserter(qResult));
+
 		for (size_t j = 0; j < qResult.size(); j++)
 		{
 			int otherFaceIndx = qResult[j].second;
@@ -709,7 +710,7 @@ bool CJGeoCreator::isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>&
 }
 
 
-std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<ROSCollection>& faceList) {
+std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<RCollection>& faceList) {
 	// project and make indexing
 	std::vector<TopoDS_Face> evalSurfList;
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
@@ -834,11 +835,11 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 
 
 void CJGeoCreator::sortRoofStructures() {
-	std::vector<ROSCollection> tempSurfaceGroup = faceList_[0];
+	std::vector<RCollection> tempSurfaceGroup = faceList_[0];
 	faceList_.clear();
 
 	for (size_t i = 0; i < roofOutlineList_.size(); i++) {
-		faceList_.emplace_back(std::vector<ROSCollection>());
+		faceList_.emplace_back(std::vector<RCollection>());
 	}
 
 	TopExp_Explorer expl;
@@ -873,176 +874,128 @@ void CJGeoCreator::sortRoofStructures() {
 	}
 }
 
-void CJGeoCreator::mergeRoofSurfaces()
+void CJGeoCreator::mergeRoofSurfaces(const std::vector<ROSCollection>& Collection)
 {
-	//double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
-
-	//std::vector <std::vector<SurfaceGroup>> mergedFaceListBuilding;
-
-	//for (auto buildingFaceIt = faceList_.begin(); buildingFaceIt != faceList_.end(); ++buildingFaceIt)
-	//{
-	//	// loop per sub building
-	//	std::vector<SurfaceGroup > mergedFaceList;
-	//	std::vector<SurfaceGroup> faceList = *buildingFaceIt;
-
-	//	// compute the face normal
-	//	std::vector<gp_Vec> normalList = {};
-	//	for (auto faceIt = faceList.begin(); faceIt != faceList.end(); ++faceIt)
-	//	{
-	//		SurfaceGroup currentFace = *faceIt;
-	//		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace.getFaces()[0]));
-	//	}
-
-	//	bool isDub = false;
-	//	// check if any face normal is equal to another
-	//	for (size_t i = 0; i < normalList.size(); ++i) {
-	//		for (size_t j = i + 1; j < normalList.size(); ++j) {
-	//			if (normalList[i].IsParallel(normalList[j], 1.0e-4)) {
-	//				isDub = true;
-	//				break;
-	//			}
-	//		}
-	//		if (isDub)
-	//		{
-	//			break;
-	//		}
-	//	}
-	//	if (!isDub) 
-	//	{
-	//		mergedFaceListBuilding.emplace_back(faceList);
-	//		continue; 
-	//	}
-
-	//	// make index
-	//	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
-	//	std::vector<bg::model::box <BoostPoint3D>> bboxList;
-	//	for (size_t i = 0; i < faceList.size(); i++)
-	//	{
-	//		TopoDS_Face currentFace = faceList[i].getProjectedFace();
-	//		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
-	//		bboxList.emplace_back(bbox);
-	//		spatialIndex.insert(std::make_pair(bbox, (int)i));
-	//	}
-
-	//	// find mergable faces
-	//	std::vector<int> faceGroupList(faceList.size(), -1);
-	//	std::vector<int> bufferList = {0};
-	//	faceGroupList[0] = 1;
-	//	gp_Vec currentNormal = normalList[0];
-
-	//	std::vector<TopoDS_Face> neighbourFaceList;
-
-	//	BOPAlgo_Builder aBuilder;
-	//	while (true)
-	//	{
-	//		std::vector<int> tempBuffer = {};
-	//		for (auto it = bufferList.begin(); it != bufferList.end(); ++it)
-	//		{
-	//			int faceIdx = *it;
-	//			neighbourFaceList.emplace_back(faceList[faceIdx].getFaces()[0]);
-
-	//			std::vector<Value> qResult;
-	//			spatialIndex.query(bgi::intersects(bboxList[faceIdx]), std::back_inserter(qResult));
-
-	//			for (size_t j = 0; j < qResult.size(); j++)
-	//			{
-	//				int otherFaceIndx = qResult[j].second;
-
-	//				if (faceGroupList[otherFaceIndx] != -1) { continue; }
-
-	//				if (!currentNormal.IsParallel(normalList[otherFaceIndx], lowPrecision)) { continue; }
-
-	//				BRepExtrema_DistShapeShape distanceCalc(faceList[faceIdx].getFaces()[0], faceList[otherFaceIndx].getFaces()[0]);
-	//				distanceCalc.Perform();
-
-	//				if (!distanceCalc.IsDone()) { continue;  }
-	//				if (distanceCalc.Value() > lowPrecision) { continue; }
-
-	//				tempBuffer.emplace_back(otherFaceIndx);
-	//				faceGroupList[otherFaceIndx] = 1;
-
-	//			}
-	//		}
-	//		if (tempBuffer.size() == 0)
-	//		{
-	//			// merge faces
-	//			if (neighbourFaceList.size() > 1)
-	//			{
-	//				TopTools_ListOfShape toolList;
-	//				for (size_t i = 0; i < neighbourFaceList.size(); i++)
-	//				{
-	//					toolList.Append(neighbourFaceList[i]);
-	//				}
-	//				BRepAlgoAPI_Fuse fuser;
-	//				fuser.SetArguments(toolList);
-	//				fuser.SetTools(toolList);
-	//				fuser.SetFuzzyValue(lowPrecision);
-	//				fuser.Build();
-
-	//				std::vector<TopoDS_Edge> edgeList;
-
-	//				Prs3d_ShapeTool Tool(fuser.Shape()); //TODO: check this
-	//				for (Tool.InitCurve(); Tool.MoreCurve(); Tool.NextCurve())
-	//				{
-	//					const TopoDS_Edge& E = Tool.GetCurve();
-	//					if (Tool.FacesOfEdge().get()->Size() == 1) {
-	//						edgeList.emplace_back(E);
-	//					}
-	//				}
-
-	//				std::vector<TopoDS_Wire> wireList = growWires(edgeList);
-	//				std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
-	//				std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
-
-	//				for (size_t it = 0; it < cleanWireList.size(); it++)
-	//				{
-	//					for (TopExp_Explorer vertexExplorer(cleanWireList[it], TopAbs_VERTEX); vertexExplorer.More(); vertexExplorer.Next()) {
-
-	//						TopoDS_Vertex vertex = TopoDS::Vertex(vertexExplorer.Current());
-	//						gp_Pnt point = BRep_Tool::Pnt(vertex);
-	//					}
-	//				}
+	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
 
 
-	//				if (cleanedFaceList.size())
-	//				{
-	//					SurfaceGroup mergedFaceGroup(cleanedFaceList[0]);
-	//					mergedFaceGroup.projectFace();
-	//					mergedFaceList.emplace_back(mergedFaceGroup);
-	//				}
-	//			}
-	//			else {
-	//				SurfaceGroup mergedFaceGroup(neighbourFaceList[0]);
-	//				mergedFaceGroup.projectFace();
-	//				mergedFaceList.emplace_back(mergedFaceGroup);
-	//			}
+	std::vector<std::vector<TopoDS_Face>> roofObjectList;
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 
-	//			neighbourFaceList.clear();
-	//			bufferList.clear();
-	//			aBuilder.Clear();
+	for (const ROSCollection& rosItems : Collection)
+	{
+		// merge faces from a single ROS
+		std::vector<TopoDS_Face> faceCollection = rosItems.getFaces();
+		std::vector<TopoDS_Face> locallyMergedFaces = helperFunctions::mergeFaces(faceCollection);
 
-	//			for (int i = 0; i < faceGroupList.size(); i++)
-	//			{
-	//				if (faceGroupList[i] == -1)
-	//				{
-	//					bufferList = { i };
-	//					faceGroupList[i] = 1;
-	//					currentNormal = normalList[i];
-	//					break;
-	//				}
-	//			}
-	//			if (bufferList.size() == 0) { 
-	//				break; 
-	//			}
-	//			continue;
-	//		}
-	//		bufferList = tempBuffer;
-	//		tempBuffer.clear();
-	//	}
-	//	mergedFaceListBuilding.emplace_back(mergedFaceList);
-	//}
+		// store the merged ROS faces
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(rosItems.getLLLPoint(), rosItems.getURRPoint(), 0);
+		spatialIndex.insert(std::make_pair(bbox, roofObjectList.size()));
+		roofObjectList.emplace_back(locallyMergedFaces);
+	}
 
-	//faceList_ = mergedFaceListBuilding;
+	std::vector<std::vector<TopoDS_Face>> newRoofObjectList;
+	for (size_t i = 0; i < roofObjectList.size(); i++)
+	{
+		std::vector<TopoDS_Face> currentCluster = roofObjectList[i];
+		std::vector<TopoDS_Face> newCluster;
+
+		std::vector<TopoDS_Face> currentRange;
+
+		// loop through every surface of the cluster to collect potential surfaces
+		for (const TopoDS_Face& currentFace : currentCluster)
+		{
+			currentRange.clear();
+			currentRange.emplace_back(currentFace);
+
+			gp_Vec currentNomal = helperFunctions::computeFaceNormal(currentFace);
+
+			// grow from the starting surface
+			while (true)
+			{
+				double currentRangeSize = currentRange.size();
+
+				gp_Pnt lllPoint(999999, 999999, 999999);
+				gp_Pnt urrPoint(-999999, -999999, -999999);
+
+				helperFunctions::getBBoxPoints(currentRange, &lllPoint, &urrPoint);
+
+				std::vector<Value> qResult;
+				qResult.clear();
+				spatialIndex.query(bgi::intersects(helperFunctions::createBBox(lllPoint, urrPoint, 0.1)), std::back_inserter(qResult));
+
+				if (qResult.size() == 1) { break; }
+
+				for (const Value& qValue : qResult)
+				{
+					int otherClusterIndx = qValue.second;
+					if (otherClusterIndx == i) { continue; }
+
+					std::vector<TopoDS_Face> otherCluster = roofObjectList[otherClusterIndx];
+					std::vector<TopoDS_Face> updatedCluster;
+					for (const TopoDS_Face& otherFace : otherCluster)
+					{
+						if (!currentNomal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-6)) 
+						{ 
+							updatedCluster.emplace_back(otherFace);
+							continue; 
+						}
+
+						bool sharesEdge = false;
+						for (const TopoDS_Face& rangeFace : currentRange)
+						{
+							if (!helperFunctions::shareEdge(rangeFace, otherFace)) { continue; }
+							sharesEdge = true;
+							break;
+						}
+						if (!sharesEdge) {
+							updatedCluster.emplace_back(otherFace);
+							continue; 
+						}
+						
+
+						bool isDub = false;
+						for (const TopoDS_Face& rangeFace : currentRange)
+						{
+							if (rangeFace.IsEqual(otherFace))
+							{
+								isDub = true;
+								break;
+							}
+						}
+
+						if (isDub) { 
+							updatedCluster.emplace_back(otherFace);
+							continue; 
+						}
+						currentRange.emplace_back(otherFace);
+					}
+					roofObjectList[otherClusterIndx] = updatedCluster;
+				}
+
+				if (currentRangeSize == currentRange.size()) { break; }
+			}
+
+			if (currentRange.size() == 1)
+			{
+				newCluster.emplace_back(currentRange[0]);
+				continue;
+			}
+
+			for (auto test : helperFunctions::mergeCoFaces(currentRange))
+			{
+				newCluster.emplace_back(test);
+			}
+		}
+		if (newCluster.size() == 0) { continue; }
+		newRoofObjectList.emplace_back(newCluster);
+	}
+
+	for (const std::vector<TopoDS_Face>& currentCluster : newRoofObjectList)
+	{
+		if (!currentCluster.size()) { continue; }
+		faceList_[0].emplace_back(RCollection(currentCluster));
+	}
 }
 
 
@@ -1058,20 +1011,25 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFineFiltering) << std::endl;
-	FinefilterSurfaces(shapeList);
+	std::vector<ROSCollection> fineFilteredShapeList;
+	FinefilterSurfaces(shapeList, &fineFilteredShapeList);
 
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureMerging) << std::endl;
+	mergeRoofSurfaces(fineFilteredShapeList);
+	printTime(startTime, std::chrono::steady_clock::now());
+
+	startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofOutlineConstruction) << std::endl;
 
 	std::vector<TopoDS_Face> projectedFaceList;
 	for (size_t i = 0; i < faceList_.size(); i++)
 	{
-		for (ROSCollection currentGroup : faceList_[i])
+		for (RCollection currentGroup : faceList_[i])
 		{
 			projectedFaceList.emplace_back(currentGroup.getProjectedFace());
 		}
 	}
-	
 	std::vector<TopoDS_Face> cleanedFaceList = cullOverlappingFaces(projectedFaceList);
 	roofOutlineList_ = simplefyProjection(cleanedFaceList);
 
@@ -1083,11 +1041,6 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 	startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureSorting) << std::endl;
 	if (roofOutlineList_.size() != 1) { sortRoofStructures(); }
-	printTime(startTime, std::chrono::steady_clock::now());
-
-	startTime = std::chrono::steady_clock::now();
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureMerging) << std::endl;
-	mergeRoofSurfaces();
 	printTime(startTime, std::chrono::steady_clock::now());
 
 	return;
@@ -2222,7 +2175,7 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, b
 	}
 }
 
-void CJGeoCreator::FinefilterSurfaces(const std::vector<ROSCollection>& shapeList)
+void CJGeoCreator::FinefilterSurfaces(const std::vector<ROSCollection>& shapeList, std::vector<ROSCollection>* fineFilteredShapeList)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	// split the range over cores
@@ -2232,7 +2185,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<ROSCollection>& shapeLis
 	int voxelsGrown = 0;
 
 	std::vector<std::thread> threadList;
-	faceList_.emplace_back(std::vector<ROSCollection>());
+	faceList_.emplace_back(std::vector<RCollection>());
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
@@ -2240,7 +2193,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<ROSCollection>& shapeLis
 		auto endIdx = (i == coreUse - 1) ? shapeList.end() : startIdx + splitListSize;
 
 		std::vector<ROSCollection> sublist(startIdx, endIdx);
-		threadList.emplace_back([=]() {FinefilterSurface(sublist, shapeList); });
+		threadList.emplace_back([=]() {FinefilterSurface(sublist, shapeList, fineFilteredShapeList); });
 	}
 
 	for (auto& thread : threadList) {
@@ -2251,7 +2204,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<ROSCollection>& shapeLis
 	printTime(startTime, std::chrono::steady_clock::now());
 }
 
-void CJGeoCreator::FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList)
+void CJGeoCreator::FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList, std::vector<ROSCollection>* fineFilteredShapeList)
 {
 	// get the faces visible from the top 
 	std::vector<ROSCollection> cleanedShapeList;
@@ -2260,12 +2213,9 @@ void CJGeoCreator::FinefilterSurface(const std::vector<ROSCollection>& shapeList
 		ROSCollection currentSurfaceGroup = shapeList[i];
 		if (currentSurfaceGroup.testIsVisable(otherShapeList, true))
 		{
-			// clean the surface group
-			currentSurfaceGroup.update();
-
 			// make projections and outlines of the current surface group
 			std::lock_guard<std::mutex> faceLock(faceListMutex_);
-			faceList_[0].emplace_back(currentSurfaceGroup);
+			fineFilteredShapeList->emplace_back(currentSurfaceGroup);
 		}
 	}
 }
@@ -2866,9 +2816,9 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, CJT::Kernel* ker
 	std::map<std::string, std::string> semanticFootData;
 	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
-	for (std::vector<ROSCollection> faceCluster : faceList_)
+	for (std::vector<RCollection> faceCluster : faceList_)
 	{
-		for (ROSCollection surfaceGroup : faceCluster)
+		for (RCollection surfaceGroup : faceCluster)
 		{
 			TopoDS_Shape currentShape = surfaceGroup.getFlatFace();
 
@@ -2964,10 +2914,10 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 	}
 
 	std::vector<TopoDS_Shape> prismList;
-	for (std::vector<ROSCollection> faceCluster : faceList_)
+	for (std::vector<RCollection> faceCluster : faceList_)
 	{
 		std::vector<TopoDS_Face> faceCollection;
-		for (ROSCollection surfaceGroup : faceCluster)
+		for (RCollection surfaceGroup : faceCluster)
 		{
 			faceCollection.emplace_back(surfaceGroup.getFlatFace());
 		}
@@ -3026,10 +2976,10 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 	}
 
 	std::vector<TopoDS_Shape> prismList;
-	for (std::vector<ROSCollection> faceCluster : faceList_)
+	for (std::vector<RCollection> faceCluster : faceList_)
 	{
 		std::vector<TopoDS_Face> faceCollection;
-		for (ROSCollection surfaceGroup : faceCluster)
+		for (RCollection surfaceGroup : faceCluster)
 		{
 			for (TopoDS_Face surfaceFace : surfaceGroup.getFaces())
 			{

@@ -31,12 +31,26 @@
 #include <BRepBuilderAPI_GTransform.hxx>
 #include <BRepClass_FaceClassifier.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
+#include <BRepAlgoAPI_Fuse.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+
+#include <Prs3d_ShapeTool.hxx>
 
 #include <Geom_TrimmedCurve.hxx>
 #include <gp_Lin.hxx>
 #include <gp_Pln.hxx>
 
 #include <gp_Quaternion.hxx>
+
+template void helperFunctions::getBBoxPoints<TopoDS_Face>(std::vector<TopoDS_Face> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Shell>(std::vector<TopoDS_Shell> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Solid>(std::vector<TopoDS_Solid> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Shape>(std::vector<TopoDS_Shape> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+
+template void helperFunctions::getBBoxPoints<TopoDS_Face>(TopoDS_Face theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Shell>(TopoDS_Shell theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Solid>(TopoDS_Solid theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+template void helperFunctions::getBBoxPoints<TopoDS_Shape>(TopoDS_Shape theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 
 
 void helperFunctions::WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition) {
@@ -478,10 +492,10 @@ gp_Pnt helperFunctions::getHighestPoint(const TopoDS_Shape& shape)
 std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace) 
 {
 	triangulateShape(theFace);
-
 	TopLoc_Location loc;
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
+	if (mesh.IsNull()) { return std::nullopt; }
 	for (int i = 1; i <= mesh.get()->NbTriangles(); i++) 
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
@@ -648,6 +662,21 @@ double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 	return biggestAngle;
 }
 
+bool helperFunctions::shareEdge(const TopoDS_Face& theFace, const TopoDS_Face& theotherFace)
+{
+	for (TopExp_Explorer currentExpl(theFace, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
+		for (TopExp_Explorer otherExpl(theotherFace, TopAbs_EDGE); otherExpl.More(); otherExpl.Next())
+		{
+			TopoDS_Edge otherEdge = TopoDS::Edge(otherExpl.Current());
+
+			if (edgeEdgeOVerlapping(currentEdge, otherEdge)) { return true; }
+		}
+	}
+	return false;
+}
+
 
 bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge)
 {
@@ -658,9 +687,24 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 
 	double precision = SettingsCollection::getInstance().precision();
 
+	gp_Vec currentVec = gp_Vec(cP0, cP1);
+	gp_Vec otherVec = gp_Vec(oP0, oP1);
+
+	// check if edges are parallel
+	if (!currentVec.IsParallel(otherVec, precision)) { return false; }
+
+	// if edges are the same lenght
 	if (cP0.IsEqual(oP0, precision) && cP1.IsEqual(oP1, precision)) { return true; }
 	if (cP1.IsEqual(oP0, precision) && cP0.IsEqual(oP1, precision)) { return true; }
 
+	// if the distance between 3 points of the edges is the same as the full length of one edge. the edges are overlapping
+	double currentFullDistance = cP0.Distance(cP1);
+
+	if (currentFullDistance == cP0.Distance(oP0) + oP0.Distance(cP1) ||
+		currentFullDistance == cP0.Distance(oP0) + oP1.Distance(cP1) )
+	{
+		return true;
+	}
 	return false;
 }
 
@@ -836,6 +880,30 @@ bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& box)
 }
 
 
+template<typename T>
+void helperFunctions::getBBoxPoints(std::vector<T> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint)
+{
+	for (const T& theShape : theShapeList) { getBBoxPoints(theShape, lllPoint, urrPoint); }
+}
+
+template<typename T>
+void helperFunctions::getBBoxPoints(T theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint)
+{
+	TopExp_Explorer expl;
+	for (expl.Init(theShape, TopAbs_VERTEX); expl.More(); expl.Next())
+	{
+		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+		gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+		if (point.X() > urrPoint->X()) { urrPoint->SetX(point.X()); }
+		if (point.Y() > urrPoint->Y()) { urrPoint->SetY(point.Y()); }
+		if (point.Z() > urrPoint->Z()) { urrPoint->SetZ(point.Z()); }
+		if (point.X() < lllPoint->X()) { lllPoint->SetX(point.X()); }
+		if (point.Y() < lllPoint->Y()) { lllPoint->SetY(point.Y()); }
+		if (point.Z() < lllPoint->Z()) { lllPoint->SetZ(point.Z()); }
+	}
+}
+
 template<typename T1, typename T2>
 inline bool helperFunctions::isInList(const T1& list, const T2& value)
 {
@@ -860,6 +928,19 @@ double helperFunctions::getAvFaceHeight(const TopoDS_Face& face) {
 		pCount++;
 	}
 	return totalZ / pCount;
+}
+
+
+double helperFunctions::getTopFaceHeight(const std::vector<TopoDS_Face>& faceList) {
+	double maxHeight = -999999;
+
+	for (const TopoDS_Face& currentFace : faceList)
+	{
+		double currentHeight = getTopFaceHeight(currentFace);
+		if (currentHeight > maxHeight) { maxHeight = currentHeight; }
+	}
+
+	return maxHeight;
 }
 
 
@@ -993,16 +1074,79 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 	return TopoDS_Wire();
 }
 
-std::vector<TopoDS_Face> helperFunctions::mergeFaces(const TopoDS_Face& theFaceList)
+std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Face>& theFaceList)
 {
-	return {};
-}
+	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
 
-TopoDS_Face helperFunctions::mergeFace(const TopoDS_Face& theFaceList)
-{
-	return TopoDS_Face();
-}
+	std::vector<gp_Vec> faceNormalList;
+	for (const TopoDS_Face surfacePair : theFaceList)
+	{
+		faceNormalList.emplace_back(helperFunctions::computeFaceNormal(surfacePair));
+	}
 
+	if (theFaceList.size() != faceNormalList.size())
+	{
+		//TODO: add error output
+		return {};
+	}
+
+	std::vector<int> evalList(faceNormalList.size(), 0);
+	std::vector<TopoDS_Face> cleanedFaceCollection;
+	bool hasMergedFaces = false;
+
+	for (size_t i = 0; i < faceNormalList.size(); i++)
+	{
+		if (evalList[i] == 1) { continue; }
+		std::vector<TopoDS_Face> mergingPairList;
+
+		TopoDS_Face currentFace = theFaceList[i];
+		mergingPairList.emplace_back(currentFace);
+		evalList[i] = 1;
+
+		while (true)
+		{
+			int originalMergeSize = mergingPairList.size();
+
+			for (size_t j = 0; j < faceNormalList.size(); j++)
+			{
+				if (j == i) { continue; }
+				if (evalList[j] == 1) { continue; }
+
+				TopoDS_Face otherFace = theFaceList[j];
+				if (!faceNormalList[i].IsParallel(faceNormalList[j], 1e-6)) { continue; }
+
+				// find if the surface shares edge with any of the to merge faces
+				bool toMerge = false;
+				for (const TopoDS_Face mergingFace : mergingPairList)
+				{
+					if (helperFunctions::shareEdge(currentFace, mergingFace))
+					{
+						toMerge = true;
+						break;
+					}
+				}
+
+				if (!toMerge) { continue; }
+
+				mergingPairList.emplace_back(otherFace);
+				evalList[j] = 1;
+
+			}
+			if (originalMergeSize == mergingPairList.size()) { break; }
+		}
+
+		if (mergingPairList.size() == 1)
+		{
+			cleanedFaceCollection.emplace_back(currentFace);
+			continue;
+		}
+
+		std::vector<TopoDS_Face> mergedFaceList = mergeCoFaces(mergingPairList);		
+		for (const TopoDS_Face& mergedFace : mergedFaceList) { cleanedFaceCollection.emplace_back(mergedFace); }
+		
+	}
+	return cleanedFaceCollection;
+}
 
 TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 	gp_Pnt p1 = helperFunctions::getFirstPointShape(baseWire);
@@ -1016,7 +1160,109 @@ TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 }
 
 
+std::vector<TopoDS_Face> helperFunctions::mergeCoFaces(const std::vector<TopoDS_Face>& theFaceList)
+{
+	if (!theFaceList.size()) { return theFaceList; }
 
+	TopTools_ListOfShape toolList;
+	for (const TopoDS_Face& currentFace : theFaceList)
+	{
+		toolList.Append(currentFace);
+	}
+
+	BRepAlgoAPI_Fuse fuser;
+	fuser.SetArguments(toolList);
+	fuser.SetTools(toolList);
+	fuser.SetFuzzyValue(1e-6);
+	fuser.Build();
+
+	TopoDS_Shape mergedShape = fuser.Shape();
+
+	Bnd_Box boundingBox;
+	BRepBndLib::Add(mergedShape, boundingBox);
+	Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+
+	Handle(Geom_Surface) geomSurface = BRep_Tool::Surface(theFaceList[0]);
+	if (geomSurface.IsNull()) { return theFaceList; }
+	Handle(Geom_Plane) currentGeoPlane = Handle(Geom_Plane)::DownCast(geomSurface);
+	if (currentGeoPlane.IsNull()) { return theFaceList; }
+
+	TopoDS_Face largerFace = BRepBuilderAPI_MakeFace(currentGeoPlane, -1000, 1000, -1000, 1000, Precision::Confusion());
+	gp_Pnt basePoint = helperFunctions::getFirstPointShape(largerFace);
+
+	BRepAlgoAPI_Splitter splitter;
+	splitter.SetFuzzyValue(1e-4);
+	TopTools_ListOfShape splitterToolList;
+	TopTools_ListOfShape argumentList;
+
+	argumentList.Append(largerFace);
+	splitter.SetArguments(argumentList);
+
+	splitterToolList.Append(fuser.Shape());
+	splitter.SetTools(splitterToolList);
+	splitter.Build();
+
+	splitterToolList.Clear();
+	for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+
+		std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+
+		if (optionalPoint == std::nullopt) { continue; }
+		gp_Pnt currentPoint = *optionalPoint;
+
+		bool isFound = false;
+		for (const TopoDS_Face originalFace : theFaceList)
+		{
+			BRepExtrema_DistShapeShape distanceCalc1(
+				originalFace,
+				BRepBuilderAPI_MakeVertex(currentPoint)
+			);
+			distanceCalc1.Perform();
+
+			if (distanceCalc1.Value() < 1e-6) 
+			{ 
+				isFound = true;
+				break;
+			}
+		}
+		if (isFound) { continue; }
+
+		splitterToolList.Append(currentFace);
+	}
+
+	std::vector<TopoDS_Face> mergedFaces;
+	splitter.SetTools(splitterToolList);
+	splitter.Build();
+	for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+
+		std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalPoint == std::nullopt) { continue; }
+		gp_Pnt currentPoint = *optionalPoint;
+
+		bool isFound = false;
+		for (const TopoDS_Face originalFace : theFaceList)
+		{
+			BRepExtrema_DistShapeShape distanceCalc1(
+				originalFace,
+				BRepBuilderAPI_MakeVertex(currentPoint)
+			);
+			distanceCalc1.Perform();
+
+			if (distanceCalc1.Value() < 1e-6)
+			{
+				isFound = true;
+				break;
+			}
+		}
+		if (!isFound) { continue; }
+		mergedFaces.emplace_back(currentFace);
+	}
+	return mergedFaces;
+}
 
 std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface)
 {
@@ -1111,9 +1357,7 @@ int helperFunctions::invertDir(int dirIndx) {
 }
 
 
-bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& shape) {
-
-	double buffer = 0.05;
+bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& shape, double buffer) {
 	Bnd_Box boundingBox;
 	BRepBndLib::Add(shape, boundingBox);
 
