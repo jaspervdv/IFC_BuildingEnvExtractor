@@ -10,6 +10,7 @@ Current possible output shells:
 
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
+* LoD0.3 - presumed top surfaces only (currently not framework compliant LoD0.3)
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
@@ -21,11 +22,13 @@ Current supported IFC versions:
 
 * IFC2x3
 * IFC4
-* IFC4x3 (untested WIP)
+* IFC4x3
 
-For the extraction of the exterior shell the tool utilizes three different extraction methods that can be used on progressively more accurate models. Lower detail shells (LoD 0.0 & 1.0) can be extracted only based on the vertices present in a model. Middle level detail shells (Lod 0.2 w/o footprint, 1.2, 1.3, 2.2) can be extracted based on the model’s roofing structures. High level detail shells (Lod 0.2 w/ footprint and 3.2) can be extracted based on the model’s objects that are part of the building envelope. This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses. These features are often only present in models that are made manually.
+For the extraction of the exterior shell the tool utilizes three different extraction methods that can be used on progressively more accurate models. Lower detail shells (LoD0.0 & 1.0) can be extracted based on only the vertices present in a model. Middle level detail shells (Lod0.2, 0.3, 1.2, 1.3, 2.2) can be extracted based on the model’s roofing structures. High level detail shells (Lod3.2) can be extracted based on the model’s objects that are part of the building envelope. This final extraction step only functions on well-constructed models, but yields an accurate result that allows for overhang and underpasses. These features are currently in practice only present in models that are made manually.
 
 The extraction of interior shells relies more heavily on the source IFC file and does not scale like the exterior shells. For all interior export (Storeys, apartments/areas and rooms/spaces) a high quality input model is required with additional extra "special" semantic information to help the tool function.
+
+More information about the input requirement can be found at the input requirements paragraph ([here](#input-file-requirements)).
 
 Below you can see a speed comparison between the software and manual processing of the exterior shell. Note that in this comparison the software creates the exterior shells for LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 while the manual processing only creates LoD 2.2. This example is sped up 5 times.
 
@@ -106,7 +109,7 @@ To set the IFC version of the tool a single line has to be changed. In _helper.h
 #endif // USE_IFC
 ```
 
-Please note that CJT is developed in tandem with the IFcEnvExtractor. So possible version mismatches may occur due to CJT being updated later than the IFcEnvExtractor.
+Please note that CJT is developed in tandem with the IFcEnvExtractor. So possible version mismatches may occur due to CJT being updated at a slightly different time compared to the IFcEnvExtractor.
 
 ## GUI
 
@@ -129,7 +132,7 @@ These levels only apply to LoD models that are build WITHOUT interiors. If inter
 
 Lower detail shells (LoD 0.0, 1.0 & voxel shells):
 
-* Valid IFC4 or IFC2x3 file
+* Valid IFC4x4, IFC4 or IFC2x3 file
 * Valid units
 * Correctly classified objects* (recommended)
 * No or limited use of _IfcBuildingElementProxy_ objects (recommended)
@@ -147,7 +150,7 @@ High level envelopes (LoD 3.2):
 Envelopes with interior data:
 
 * Correct _IfcBuildingStorey_ use for storey creation
-* Correctly grouped objects in their respective storeys. Recommended to use NO objects that span multiple storeys.
+* No or limited use of "half storeys"
 * Correct IfcSpace use for space and apartment creation (both semantically and geometrically)**
 
 Performance of the tool is depending on the complexity of the input model. The tool has proven to function well on simple models in the current state but can struggle on more complex shapes.
@@ -184,7 +187,7 @@ The lower level LoD shells are created based on a subset of vertices of the mode
 
 ### Middle level shells
 
-Middle level detail shell (Lod 0.2  w/o footprint, 1.2, 1.3, 2.2) can be extracted primarily based on the model’s roofing structures. These roofing structures are isolated in two steps. The first step is a coarse isolation which is done via column voxelization. The second step is a filtering of the isolated objects via a column-like ray casting process. This will result in a collection of roofing surfaces.
+Middle level detail shell (Lod0.2, 1.2, 1.3, 2.2) can be extracted primarily based on the model’s roofing structures. These roofing structures are isolated in two steps. The first step is a coarse isolation which is done via column voxelization. The second step is a filtering of the isolated objects via a column-like ray casting process. This will result in a collection of roofing surfaces.
 
 To construct the LoD 0.2 and 1.2 shell these surfaces (And their vertices) are all projected to the xy plane and merged in one single surface. This surface can be converted to the LoD 0.2 shell. To get the LoD 1.2 shell this surface is extruded in a positive z-direction to the max z-height of the original model.
 
@@ -194,31 +197,35 @@ To construct the LoD 2.2 shell all the filtered roofing surfaces are extruded in
 
 ### High level shells (WIP)
 
-The high level shells (Lod 0.2 w/ footprint and 3.2) are extracted via a voxelization system that is refined by ray casting. The voxelization process is inspired by the room growing process described by [Vaart et al., (2022)](#1). The starting point is a voxel that is outside of the building. Every object that intersects with the growing shape is stored. The surfaces of each found object are then filtered with the help of a ray casting system which casts rays from points on each surface to the center of the exterior voxels. The found objects are merged into the LoD3.2 shell when done in 3D. This process can also be executed in a 2D section at the ground floor level to create the footprints.
+The high level shells (Lod3.2) are extracted via a voxelization system that is refined by ray casting. The voxelization process is inspired by the room growing process described by [Vaart et al., (2022)](#1). The starting point is a voxel that is outside of the building. Every object that intersects with the growing shape is stored. The surfaces of each found object are then filtered with the help of a ray casting system which casts rays from points on each surface to the center of the exterior voxels. The found objects are merged into the LoD3.2 shell.
 
-At this moment in time this extraction method is slow and does not return solids.
+At this moment in time this extraction method does not yet return solids.
 
 ### voxel shells
 
 Additionally the tool will also be able to export a shell based on the voxelgrid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxelgrid that is used primarily for filtering and raycasting purposes. Possibly this will follow different rules than are anticipated.
 
-## Inner shell generation methods (Experimental/WIP)
+## Inner shell generation methods
 
-**THIS EXTRACTION IS NOT YET PROPERLY IMPLEMENTED; THIS SECTION WILL NOT BE ACCURATE**.
+**THIS EXTRACTION IS NOT YET PROPERLY IMPLEMENTED; THIS SECTION WILL NOT BE COMPLETELY ACCURATE**.
 
-Inner shell creation relies heavily on both geometric and semantic data in an IFC file. This means that for (somewhat) reliable interior extraction.
+Inner shell creation relies heavily on both geometric and semantic data in an IFC file. This means that for (somewhat) reliable interior extraction the model has to be constructed in an accurate way.
 
 ### Storey extraction
 
-For storey extraction the elevations and related objects of _IfcBuildingStorey_ objects are used. The related objects are split horizontally 5 cm below the storey's stored elevation. The shapes that are created are merged into the horizontal sections representing the storeys.
-
-For simple buildings the related object detection can be disabled. The tool will now evaluate all the objects in the model, and not only the related objects to the _IfcBuildingStorey_. This improves the extraction on simple buildings that have modelling inaccuracies.
-
-For more complex buildings a bool can be added related to the _IfcBuildingStorey_ object that signifies if the tool should evaluate it or not. This could be useful when the model includes _IfcBuildingStorey_ objects that are used in a non-standard way
+For storey extraction the elevations and related objects of _IfcBuildingStorey_ objects are used. The related objects are split horizontally 50 cm above the storey's stored elevation. their outlines are projected on a horizontal plane and used to split this plane. The resulting outer wires of the split shapes are collected and converted into surfaces.
 
 ### Room/space extraction
 
-Method still in development
+For space extraction the _IfcSpace_ Objects are processed according to the LoD framework. For LoD 0.2 the top surfaces of the space objects are isolated, projected to the room's lowest z-height and merged into a single surface per room (if possible).
+
+The isolated room top surfaces are also used for LoD1.3 and 2.2. For LoD2.2 these surfaces are kept at their original height but extruded downwards to the room's lowest z-height to create solids. And for LoD1.3 these surfaces are first flattened and extruded downwards.
+
+The extraction of LoD3.2 space shapes is a 1:1 conversion of the _IfcSpace_ geometry.
+
+LoD5.0 space shells are created by using the voxelgrid but instead of growing from a point that is presumed to be exterior it is started from points that are presumed to be interior. The resulting shape is than compared to the pool of _IfcSpace_ objects in the model to find its correct space name and other semantic data.
+
+Due to the heavy reliance of the _IfcSpace_ objects there is, aside from LoD5.0 export, no space export if the model has no _IfcSpace_ objects present. The LoD5.0 spaces will be abele to approximate the space's shape but they will only have generic semantic data stored.
 
 ### Apartment/area extraction
 
