@@ -693,15 +693,16 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 	// check if edges are parallel
 	if (!currentVec.IsParallel(otherVec, precision)) { return false; }
 
-	// if edges are the same lenght
-	if (cP0.IsEqual(oP0, precision) && cP1.IsEqual(oP1, precision)) { return true; }
-	if (cP1.IsEqual(oP0, precision) && cP0.IsEqual(oP1, precision)) { return true; }
-
 	// if the distance between 3 points of the edges is the same as the full length of one edge. the edges are overlapping
 	double currentFullDistance = cP0.Distance(cP1);
-
 	if (currentFullDistance == cP0.Distance(oP0) + oP0.Distance(cP1) ||
-		currentFullDistance == cP0.Distance(oP0) + oP1.Distance(cP1) )
+		currentFullDistance == cP0.Distance(oP1) + oP1.Distance(cP1) )
+	{
+		return true;
+	}
+	double otherFullDistance = oP0.Distance(oP1);
+	if (otherFullDistance == oP0.Distance(cP0) + cP0.Distance(oP1) ||
+		otherFullDistance == oP0.Distance(cP1) + cP1.Distance(oP1))
 	{
 		return true;
 	}
@@ -1117,9 +1118,9 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 
 				// find if the surface shares edge with any of the to merge faces
 				bool toMerge = false;
-				for (const TopoDS_Face mergingFace : mergingPairList)
+				for (const TopoDS_Face& mergingFace : mergingPairList)
 				{
-					if (helperFunctions::shareEdge(currentFace, mergingFace))
+					if (helperFunctions::shareEdge(otherFace, mergingFace))
 					{
 						toMerge = true;
 						break;

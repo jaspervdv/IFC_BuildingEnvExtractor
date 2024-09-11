@@ -2918,7 +2918,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 	{
 		std::vector<TopoDS_Face> faceCollection;
 		for (RCollection surfaceGroup : faceCluster)
-		{
+		{		
 			faceCollection.emplace_back(surfaceGroup.getFlatFace());
 		}
 
