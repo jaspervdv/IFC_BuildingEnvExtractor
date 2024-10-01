@@ -56,7 +56,7 @@ private:
 	bool isSmall_ = false;
 
 	std::vector<std::shared_ptr<EvaluationPoint>> pointGrid_;
-	bool overlap(SurfaceGridPair other);
+	bool overlap(const SurfaceGridPair& other);
 
 	void Merge(const std::vector<SurfaceGridPair>& otherPairList, const TopoDS_Face& theCompleteFace);
 
@@ -73,19 +73,21 @@ public:
 
 	int getVertCount() { return vertCount_; }
 
+	std::vector<std::shared_ptr<EvaluationPoint>> getPointGrid() { return pointGrid_; }
+
 	bool isVisible() const { return visibility_; }
 	void setIsHidden() { visibility_ = false; }
 
 	void populateGrid(double distance);
 
-	bool testIsVisable(const std::vector<SurfaceGridPair>& otherSurfaces, bool preFilter = false);
+	bool testIsVisable(const std::vector<std::shared_ptr<SurfaceGridPair>>& otherSurfaces, bool preFilter = false);
 };
 
 // collection of the visible roof surfaces per IfcObject or IfcObject set
 class ROSCollection {
 private:
 	// the faces
-	std::vector<SurfaceGridPair> theFaceCollection_;
+	std::vector<std::shared_ptr<SurfaceGridPair>> theFaceCollection_;
 
 	// the wire surrounding the faceCollection
 	std::vector<TopoDS_Wire> theWireCollection_;
@@ -106,9 +108,9 @@ private:
 	void mergeCoplanarFaces();
 
 public:
-	ROSCollection(std::vector< SurfaceGridPair> theGridPairList);
+	ROSCollection(std::vector<std::shared_ptr<SurfaceGridPair>> theGridPairList);
 
-	const std::vector< SurfaceGridPair> getFaceGridPairs() { return theFaceCollection_; }
+	const std::vector<std::shared_ptr<SurfaceGridPair>> getFaceGridPairs() { return theFaceCollection_; }
 	const std::vector<TopoDS_Face> getFaces() const;
 
 	const gp_Pnt getLLLPoint() const { return lllPoint_; }
@@ -118,6 +120,9 @@ public:
 	bool testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter = false);
 
 	void setIsHidden() { visibility_ = false; }
+
+	/// removes all hidden surfaces from the collection
+	void update();
 };
 
 class RCollection {

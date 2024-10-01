@@ -38,6 +38,9 @@ private:
 	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
 
+    // unexposed settings
+    bool addCustomWallAttributes_ = false;
+
 	// variables set the deviding objects
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
@@ -54,6 +57,7 @@ private:
 	double desiredRotation_ = 0;
 
 	double footprintElevation_ = 0;
+    double horizontalSectionOffset_ = 0; // offset from the storey and footprint sections
 
 	double precision_ = 1e-6;
 	double precisionCoarse_ = 1e-4;
@@ -152,6 +156,9 @@ public:
     bool writeReport() const { return writeReport_; }
     void setWriteReport(bool value) { writeReport_ = value; }
 
+    bool storeCustomWallAttributes() const { return addCustomWallAttributes_; }
+    void setStoreCustomWallAttributes(bool value) { addCustomWallAttributes_ = value; }
+
     bool useDefaultDiv() const { return useDefaultDiv_; }
     void setUseDefaultDiv(bool value) { useDefaultDiv_ = value; }
 
@@ -179,6 +186,9 @@ public:
 
     double footprintElevation() const { return footprintElevation_; }
     void setFootprintElevation(double value) { footprintElevation_ = value; }
+
+    double horizontalSectionOffset() const { return horizontalSectionOffset_; }
+    void setHorizontalSectionOffset(double value) { horizontalSectionOffset_ = value; }
 
     double precision() const { return precision_; }
     void setPrecision(double value) { precision_ = value; }

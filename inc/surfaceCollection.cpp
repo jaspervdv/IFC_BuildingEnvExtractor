@@ -2,6 +2,10 @@
 #include "helper.h"
 #include "settingsCollection.h"
 
+#include <BRepAdaptor_Curve.hxx>
+#include <GCPnts_UniformAbscissa.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -22,16 +26,16 @@ EvaluationPoint::EvaluationPoint(const gp_Pnt& p)
 }
 
 
-ROSCollection::ROSCollection(std::vector< SurfaceGridPair> theGridPairList)
+ROSCollection::ROSCollection(std::vector<std::shared_ptr<SurfaceGridPair>> theGridPairList)
 {
 	theFaceCollection_ = theGridPairList;
 
 	lllPoint_ = gp_Pnt(999999999, 999999999, 99999999);
 	urrPoint_ = gp_Pnt(-999999999, -999999999, -99999999);
 
-	for (SurfaceGridPair surfaceGridPair : theFaceCollection_)
+	for (std::shared_ptr<SurfaceGridPair> surfaceGridPair : theFaceCollection_)
 	{
-		TopoDS_Face currentFace = surfaceGridPair.getFace();
+		TopoDS_Face currentFace = surfaceGridPair->getFace();
 		for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
 		{
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
@@ -50,9 +54,11 @@ ROSCollection::ROSCollection(std::vector< SurfaceGridPair> theGridPairList)
 const std::vector<TopoDS_Face> ROSCollection::getFaces() const
 {
 	std::vector<TopoDS_Face> faceList;
-	for (const SurfaceGridPair& currentPair : theFaceCollection_)
+	for (const std::shared_ptr<SurfaceGridPair>& currentPair : theFaceCollection_)
 	{
-		faceList.emplace_back(currentPair.getFace());
+		if (!currentPair->isVisible()) { continue; }
+
+		faceList.emplace_back(currentPair->getFace());
 	}
 	return faceList;
 }
@@ -76,19 +82,24 @@ bool ROSCollection::overlap(ROSCollection other) {
 
 bool ROSCollection::testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter)
 {
-	for (SurfaceGridPair currentGridPair : theFaceCollection_)
+	bool isVisible = false;
+	for (size_t i = 0; i < theFaceCollection_.size(); i++)
 	{
-		bool isVisible = true;
+		std::shared_ptr<SurfaceGridPair> currentGridPair = theFaceCollection_[i];
+
 		for (ROSCollection otherSurfaceGroup : otherSurfaces)
 		{
-			if (!currentGridPair.testIsVisable(otherSurfaceGroup.getFaceGridPairs()))
+			if (currentGridPair->testIsVisable(otherSurfaceGroup.getFaceGridPairs()))
 			{
-				isVisible = false;
+				isVisible = true;
+			}
+			else
+			{
 				break;
 			}
 		}
-		if (isVisible) { return true; }
 	}
+	if (isVisible) { return true; }
 	return false;
 } 
 
@@ -128,7 +139,7 @@ gp_Pnt Edge::getEnd(bool projected) const
 	return endPoint_;
 }
 
-bool SurfaceGridPair::overlap(SurfaceGridPair other)
+bool SurfaceGridPair::overlap(const SurfaceGridPair& other)
 {
 	bool inXD = false;
 	bool inYD = false;
@@ -236,7 +247,6 @@ void SurfaceGridPair::populateGrid(double distance)
 
 				for (size_t j = 0; j < xSteps; j++)
 				{
-					helperFunctions::printPoint(centerPoint.Translated(translationVec * j));
 					pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint.Translated(translationVec * j))
 					);
 				}
@@ -249,6 +259,76 @@ void SurfaceGridPair::populateGrid(double distance)
 
 	// if not triangle
 	IntCurvesFace_Intersector intersector(theFace_, 0.0001);
+
+	// get points on wire (do not use offsetter due to instability issues)
+	for (TopExp_Explorer expl(theFace_, TopAbs_EDGE); expl.More(); expl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+		BRepAdaptor_Curve curve(currentEdge);
+		Standard_Real firstParam = curve.FirstParameter();
+		Standard_Real lastParam = curve.LastParameter();
+		Standard_Real edgeLength = GCPnts_AbscissaPoint::Length(curve, firstParam, lastParam);
+		int stepCount = static_cast<int>(ceil(helperFunctions::getFirstPointShape(currentEdge).Distance(helperFunctions::getLastPointShape(currentEdge))/distance));
+		double localDistance = edgeLength / stepCount;
+
+		if (stepCount < 2)
+		{
+			stepCount = 2;
+		}
+
+		GCPnts_UniformAbscissa uniformAbscissa(curve, stepCount);
+
+		if (!uniformAbscissa.IsDone()) { continue; }
+
+		for (int i = 1; i <= uniformAbscissa.NbPoints(); ++i) {
+			Standard_Real param = uniformAbscissa.Parameter(i);
+
+			gp_Pnt point;
+			gp_Vec tangent;
+			curve.D1(param, point, tangent);
+
+			tangent.Normalize();
+			tangent = tangent * 0.005;
+
+			gp_Vec perp1Vec(tangent.Y(), -tangent.X(), 0);
+			gp_Vec perp2Vec(-tangent.Y(), tangent.X(), 0);
+
+			gp_Pnt p1 = point.Translated(perp1Vec);
+			gp_Pnt p2 = point.Translated(perp2Vec);
+			p1.SetZ(-1000);
+			p2.SetZ(-1000);
+
+			intersector.Perform(
+				gp_Lin(
+					p1,
+					gp_Dir(0, 0, 10000)),
+				-INFINITY,
+				+INFINITY);
+
+			if (intersector.NbPnt() == 1) {
+				gp_Pnt intersectionPoint = intersector.Pnt(1);
+				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
+				pointGrid_.emplace_back(evalPoint);
+				continue;
+			}
+
+			intersector.Perform(
+				gp_Lin(
+					p2,
+					gp_Dir(0, 0, 10000)),
+				-INFINITY,
+				+INFINITY);
+
+			if (intersector.NbPnt() == 1) {
+				gp_Pnt intersectionPoint = intersector.Pnt(1);
+				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
+				pointGrid_.emplace_back(evalPoint);
+				continue;
+			}
+		}
+	}
+
+	// get points on face
 	for (size_t i = 0; i <= xSteps; i++)
 	{
 		for (size_t j = 0; j <= ySteps; j++)
@@ -256,13 +336,13 @@ void SurfaceGridPair::populateGrid(double distance)
 			intersector.Perform(
 				gp_Lin(
 					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
-					gp_Dir(0, 0, 1000)),
+					gp_Dir(0, 0, 10000)),
 				-INFINITY,
 				+INFINITY);
 
 			if (intersector.NbPnt() == 1) {
 				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersector.Pnt(1));
+				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
 				pointGrid_.emplace_back(evalPoint);
 			}
 		}
@@ -271,32 +351,28 @@ void SurfaceGridPair::populateGrid(double distance)
 	return;
 }
 
-bool SurfaceGridPair::testIsVisable(const std::vector<SurfaceGridPair>& otherSurfaces, bool preFilter)
+bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGridPair>>& otherSurfaces, bool preFilter)
 {
 	double precision = SettingsCollection::getInstance().precision();
+	
+	if (!pointGrid_.size()) { populateGrid(SettingsCollection::getInstance().surfaceGridSize()); }
 
-	for (size_t i = 0; i < otherSurfaces.size(); i++)
+	for (const std::shared_ptr<SurfaceGridPair>& otherGroup : otherSurfaces)
 	{
-
-		SurfaceGridPair otherGroup = otherSurfaces[i];
-
 		if (preFilter) //TODO: spacial q
 		{
-			if (!overlap(otherGroup)) { continue; }
+			if (!overlap(*otherGroup)) { continue; }
 		}
 
-		TopoDS_Face otherFace = otherGroup.getFace();
-		gp_Pnt otherLLLPoint = otherGroup.getLLLPoint();
-		gp_Pnt otherURRPoint = otherGroup.getURRPoint();
+		TopoDS_Face otherFace = otherGroup->getFace();
+		gp_Pnt otherLLLPoint = otherGroup->getLLLPoint();
+		gp_Pnt otherURRPoint = otherGroup->getURRPoint();
 
 		if (theFace_.IsEqual(otherFace)) { continue; }
-
 		IntCurvesFace_Intersector intersector(otherFace, precision);
 
-		for (size_t k = 0; k < pointGrid_.size(); k++)
+		for (const std::shared_ptr<EvaluationPoint>& currentEvalPoint: pointGrid_)
 		{
-			std::shared_ptr<EvaluationPoint> currentEvalPoint = pointGrid_[k];
-
 			if (!currentEvalPoint->isVisible()) { continue; }
 
 			// check if the projection line falls withing the bbox of the surface
@@ -331,9 +407,9 @@ bool SurfaceGridPair::testIsVisable(const std::vector<SurfaceGridPair>& otherSur
 		}
 	}
 
-	for (size_t i = 0; i < pointGrid_.size(); i++)
+	for (const std::shared_ptr<EvaluationPoint>& currentPoint : pointGrid_)
 	{
-		if (pointGrid_[i]->isVisible())
+		if (currentPoint->isVisible())
 		{
 			return true;
 		}
@@ -461,6 +537,7 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 	std::vector<TopoDS_Wire> cleanWireListFlat = helperFunctions::cleanWires(wireListFlat);
 	if (!cleanWireListFlat.size()) { cleanWireListFlat = wireListFlat; }
 	std::vector<TopoDS_Face> cleanFaceList = helperFunctions::wireCluster2Faces(cleanWireListFlat);
+
 	theFlatFace_ = helperFunctions::projectFaceFlat(
 		cleanFaceList[0],
 		urrPoint_.Z()

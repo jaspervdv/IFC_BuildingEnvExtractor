@@ -138,7 +138,7 @@ private:
 	std::vector<int> getVoxelPlate(double platelvl);
 
 	// create list of edges by cutting objects at the floor lvl
-	std::vector<TopoDS_Wire> section2wires(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
+	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
@@ -254,6 +254,9 @@ public:
 	/// computes data related to the voxel shape such as volume and shell area
 	void extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);
 	void extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h);
+
+	void addFullSurfaceDict(CJT::GeoObject* geoObject);
+
 };
 #endif // CJGEOCREATOR_CJGEOCREATOR_H
 

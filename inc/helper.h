@@ -55,10 +55,14 @@ typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
 // helper functions that can be utilised everywhere
 struct helperFunctions{
 	/// Output shape to step file (for development only)
-	static void WriteToSTEP(const TopoDS_Solid& shape, const std::string& addition);
-	static void WriteToSTEP(const TopoDS_Shape& shape, const std::string& addition);
-	static void WriteToSTEP(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
-	static void WriteToSTEP(const std::vector<TopoDS_Shape>& shapeList, const std::string& addition);
+	template<typename T>
+	static void WriteToSTEP(const T& shape, const std::string& targetPath);
+
+	template<typename T>
+	static void WriteToSTEP(const std::vector<T>& shapeList, const std::string& targetPath);
+
+	template<typename T>
+	static void WriteToSTEP(const std::vector<std::vector<T>>& shapeList, const std::string& targetPath);
 
 	/// Ouptu shape to txt file (for development only)
 	static void WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& addition);
@@ -84,10 +88,10 @@ struct helperFunctions{
 
 	/// get the lllpoint and urr point of an TopoDS shape
 	template<typename T>
-	static void getBBoxPoints(std::vector<T> theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+	static void getBBoxPoints(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 
 	template<typename T>
-	static void getBBoxPoints(T theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
+	static void getBBoxPoints(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 
 	///	Rotate OpenCascade point around 0,0,0
 	static gp_Pnt rotatePointWorld(const gp_Pnt& p, double angle);
@@ -249,6 +253,8 @@ struct helperFunctions{
 	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 
 	static std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+
+	static double getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPlacement, bool deepOnly);
 
 };
 #endif // HELPER_HELPER_H

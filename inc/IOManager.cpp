@@ -169,11 +169,7 @@ bool IOManager::getJSONValues()
 	//JSOn related output and processing settings
 	std::string lodOutputOName = JsonObjectInEnum::getString(JsonObjectInID::lodOutput);
 	std::string jsonOname = JsonObjectInEnum::getString(JsonObjectInID::JSON);
-	std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
-	std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
-	std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
-	std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
-
+	
 	nlohmann::json outputDataJson = {};
 	if (json.contains(jsonOname)) { outputDataJson = json[jsonOname];}
 
@@ -189,6 +185,12 @@ bool IOManager::getJSONValues()
 		settingsCollection.setMake22(false);
 		settingsCollection.setMake32(false);
 		settingsCollection.setMakeV(false);
+
+		std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+		std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
+		std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
+		std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
+		std::string hSectionOffsetOName = JsonObjectInEnum::getString(JsonObjectInID::JSONSecOffset);
 
 		for (size_t i = 0; i < lodList.size(); i++) // check if interior generation is required
 		{
@@ -207,6 +209,10 @@ bool IOManager::getJSONValues()
 			settingsCollection.setFootprintElevation(outputDataJson[footprintElevOName]);
 		}
 
+		if (outputDataJson.contains(hSectionOffsetOName))
+		{
+			settingsCollection.setHorizontalSectionOffset(outputDataJson[hSectionOffsetOName]);
+		}
 		for (size_t i = 0; i < lodList.size(); i++)
 		{
 			if (lodList[i] == 0.0) { settingsCollection.setMake00(true); }

@@ -60,9 +60,10 @@ def runCode(input_path,
             make_report,
             footprint_elevation,
             voxel_size,
-            div_string):
+            div_string,
+            bool_run):
 
-    json_path = "../Pre_Build/~temp.json"
+    json_path = "../Pre_Build/~" + Path(input_path).stem + "_config.json"
     ifc2_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc2x3.exe"
     ifc4_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4.exe"
     ifc4x3_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4x3.exe"
@@ -103,12 +104,11 @@ def runCode(input_path,
     input_path_list = [part.replace('{', '').replace('}', '') for part in input_path_list]
 
     for path in input_path_list:
-        print(path)
         if(not os.path.isfile(path)):
             tkinter.messagebox.showerror("Settings Error",  "Error: No Valid input file supplied")
             return
 
-    if(not os.path.isdir(os.path.dirname(output_path)) and not len(output_path) == 0):
+    if(not os.path.isdir(os.path.dirname(output_path)) or len(output_path) == 0):
         tkinter.messagebox.showerror("Settings Error", "Error: No Valid output folder supplied\n (GUI can not create new folders)")
         return
 
@@ -171,6 +171,10 @@ def runCode(input_path,
         json.dump(json_dictionary, outfile)
 
     # get schema of the file
+    if not bool_run:
+        tkinter.messagebox.showinfo("succes", "Info: Config file has been successfully created")
+        return
+
     is_ifc4 = True
     for path in input_path_list:
         counter = 0
@@ -537,7 +541,7 @@ separator3 = ttk.Separator(main_window, orient='horizontal')
 separator3.pack(fill='x', pady=10)
 
 frame_other = tkinter.Frame(main_window)
-frame_other.pack()
+frame_other.pack(fill=tkinter.X)
 
 run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, command=lambda: runCode(
     entry_inputpath.get(),
@@ -562,9 +566,38 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     bool_makerep.get(),
     entry_footprint.get(),
     entry_voxelsize.get(),
-    message_div_objects.get('1.0', tkinter.END)
+    message_div_objects.get('1.0', tkinter.END),
+    True
 ))
 run_button.pack(side=tkinter.LEFT, padx=(5,0))
+
+generate_button = tkinter.Button(frame_other, text="Generate", width=size_button_normal, command= lambda: runCode(
+    entry_inputpath.get(),
+    entry_outputpath.get(),
+    bool_lod00.get(),
+    bool_lod02.get(),
+    bool_lod03.get(),
+    bool_lod10.get(),
+    bool_lod12.get(),
+    bool_lod13.get(),
+    bool_lod22.get(),
+    bool_lod32.get(),
+    bool_lod50.get(),
+    False,
+    bool_make_footprint.get(),
+    bool_make_roofprint.get(),
+    bool_make_interior.get(),
+    bool_summary_voxels.get(),
+    bool_igoreproxy.get(),
+    bool_useDefault.get(),
+    bool_enableCustom.get(),
+    bool_makerep.get(),
+    entry_footprint.get(),
+    entry_voxelsize.get(),
+    message_div_objects.get('1.0', tkinter.END),
+    False
+))
+generate_button.pack(side=tkinter.LEFT, padx=(0,0))
 
 close_button = tkinter.Button(frame_other, text="Close", width=size_button_normal, command= lambda : main_window.destroy())
 close_button.pack(side=tkinter.RIGHT, padx=(0,5))

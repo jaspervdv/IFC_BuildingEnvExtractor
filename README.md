@@ -171,8 +171,7 @@ CityJSON File
     ├── Outer Shell
     └── Inner Shell*
         └── Storey**
-            └── Apartment/Area* **
-                └── Space/Room**
+            └── Space/Room**
 ```
 
 *Object that does not directly store any geometry.
@@ -268,9 +267,12 @@ The settings json has a very simple structure. An example can be found below:
     },
     "JSON" : {
         "Footprint elevation": 1,
+        "Horizontal section offset": 1.2,
         "Generate footprint": 1,
         "Generate roof outline": 1,
-        "Generate interior": 1
+        "Generate interior": 1,
+        "Georeference" : 1,
+        "Merge semantic objects": 1,
     },
     "Generate report": 1,
     "Threads": 12
@@ -295,10 +297,12 @@ Optional:
 * "IFC" "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
 * "IFC" "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
 * "JSON" "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
+* "JSON" "Horizontal section offset" is an double that dictates how much the footprint and storey sections should be offset from the found/submitted elevation. Default value = 1.2.
 * "JSON" "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
 * "JSON" "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
 * "JSON" "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
 * "JSON" "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing. Default value: true.
+* "JSON" "Merge semantic objects" is an int/bool (either 0 or 1) to enable semantic objects to be merged if they have identical attributes. Default value : true
 * "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
 * "Threads" is an int to set the maximum allowed threads to be used. Default value = hardware_concurrency according to std::threads.
 

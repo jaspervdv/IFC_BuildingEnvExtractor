@@ -165,6 +165,7 @@ enum class JsonObjectInID {
 
 	JSON,
 	JSONFootprintElev,
+	JSONSecOffset,
 	JSONGenFootPrint,
 	JSONGenRoofOutline,
 	JSONGenInterior,
@@ -194,6 +195,11 @@ enum class CJObjectID {
 	CJTypeSiteObject,
 	CJTypeWindow,
 	CJTypeDoor,
+
+	CJAttHasWindow,
+
+	True,
+	False,
 
 	voxelApproxShellVolume,
 	voxelApproxBasementShellVolume,

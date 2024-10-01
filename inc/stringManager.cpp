@@ -283,6 +283,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Generate roof outline";
 	case JsonObjectInID::JSONFootprintElev:
 		return "Footprint elevation";
+	case JsonObjectInID::JSONSecOffset:
+		return "Horizontal section offset";
 	case JsonObjectInID::JSONGeoreference:
 		return "Georeference";
 	
@@ -324,6 +326,13 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "Window";
 	case CJObjectID::CJTypeDoor:
 		return "Door";
+	case CJObjectID::CJAttHasWindow:
+		return "+hasWindows";
+
+	case CJObjectID::True:
+		return "True";
+	case CJObjectID::False:
+		return "False";
 
 	case CJObjectID::voxelApproxShellVolume:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractorVApprox) + "shell volume";
