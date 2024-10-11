@@ -908,7 +908,12 @@ double helperFunctions::getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPl
 	{
 		if (storeyLocalPlacement->RelativePlacement()->data().type()->name() != "IfcAxis2Placement3D") { return 0.0; }
 		IfcSchema::IfcAxis2Placement3D* axisPlacement = storeyLocalPlacement->RelativePlacement()->as<IfcSchema::IfcAxis2Placement3D>();
+
+#if defined(USE_IFC4x3)
+		offset = axisPlacement->Location()->as<IfcSchema::IfcCartesianPoint>()->Coordinates()[2];
+#else
 		offset = axisPlacement->Location()->Coordinates()[2];
+#endif // DEBUG
 	}
 	if (localObjectPlacement == nullptr)
 	{

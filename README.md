@@ -10,7 +10,7 @@ Current possible output shells:
 
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
-* LoD0.3 - presumed top surfaces only (currently not framework compliant LoD0.3)
+* LoD0.3 - extrioir roof structure only
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
@@ -34,7 +34,7 @@ Below you can see a speed comparison between the software and manual processing 
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample2.gif "Speed comparison of the software making LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 vs making LoD 2.2 by hand.")
 
-This program is part of the [CHECK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users could also be utilized by this project.  
+This program is part of the [CHEK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users could also be utilized by this project.  
 
 ## Table of Content
 

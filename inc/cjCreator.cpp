@@ -1467,12 +1467,17 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 }
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ)
+std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ)
 {
-	std::vector<TopoDS_Shape> prismList;
-	bool allSolids = true;
+	// if only one face is present there can be no overlap that should be eliminated
+	if (inputFaceList.size() == 1)
+	{
+		TopoDS_Face outputFace = inputFaceList[0];
+		return { outputFace };
+	}
 
 	double precision = SettingsCollection::getInstance().precision();
+	std::vector<TopoDS_Face> outputFaceList;
 
 	// make extrusions of untrimmed top surfaces
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
@@ -1486,8 +1491,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
 		ExtrudedShapes.emplace_back(extrudedShape);
 	}
-
-	if (ExtrudedShapes.size() == 1) { return { ExtrudedShapes [0]}; }
 
 	// split top surfaces with the extrustions
 	std::mutex faceListMutex;
@@ -1534,9 +1537,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	}
 
 	// extrude the trimmed surfaces and join
-	BOPAlgo_Builder aBuilder;
-	aBuilder.SetFuzzyValue(precision);
-	aBuilder.SetRunParallel(Standard_True);
 	for (size_t i = 0; i < faceList.size(); i++)
 	{
 		TopoDS_Face currentFace = faceList[i];
@@ -1573,11 +1573,35 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 		if (!isHidden)
 		{
-			TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
-			if (!extrudedShape.IsNull())
-			{
-				aBuilder.AddArgument(extrudedShape);
-			}
+			outputFaceList.emplace_back(currentFace);
+		}
+	}
+	return outputFaceList;
+}
+
+std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter)
+{
+	std::vector<TopoDS_Shape> prismList;
+	bool allSolids = true;
+
+	double precision = SettingsCollection::getInstance().precision();
+
+	std::vector<TopoDS_Face> splitTopSurfaceList;
+	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
+	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ); }
+
+	// extrude the trimmed surfaces and join
+	BOPAlgo_Builder aBuilder;
+	aBuilder.SetFuzzyValue(precision);
+	aBuilder.SetRunParallel(Standard_True);
+	for (size_t i = 0; i < splitTopSurfaceList.size(); i++)
+	{
+		TopoDS_Face currentFace = splitTopSurfaceList[i];
+
+		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+		if (!extrudedShape.IsNull())
+		{
+			aBuilder.AddArgument(extrudedShape);
 		}
 	}
 	aBuilder.Perform();
@@ -2708,7 +2732,6 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 				break;
 			}
 		}
-
 		// simplefy and store the LoD0.2 faces
 		for (TopoDS_Face& face : simplefyProjection(flatFaceList))
 		{
@@ -2718,21 +2741,21 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 			{
 				CJT::GeoObject roomGeoObject02 = kernel->convertToJSON(face, "0.2");;
 				matchingCityRoomObject->addGeoObject(roomGeoObject02);
-
 			}
 			if (settingsCollection.make12())
 			{
 				TopoDS_Solid solidShape12 = extrudeFace(face, false, highestZ);
+				if (solidShape12.IsNull()) { continue; }
 				CJT::GeoObject roomGeoObject12 = kernel->convertToJSON(solidShape12, "1.2");;
 				matchingCityRoomObject->addGeoObject(roomGeoObject12);
 			}
 		}
 		if (!topFaceList.size()) { continue; }
 		
-
 		std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
 		if (roomPrismList.size() == 1)
 		{
+			if (roomPrismList[0].IsNull()) { return; } //TODO: check why this is needed for the gaia model (also at LoD12 creation)
 			roomPrismList[0].Move(localRotationTrsf);
 			helperFunctions::geoTransform(&roomPrismList[0], h->getObjectTranslation(), trs);
 			CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");;
@@ -2826,20 +2849,39 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 	return geoObject;
 }
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(helper* h, CJT::Kernel* kernel, int unitScale)
 {
-	auto startTime = std::chrono::steady_clock::now();
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
-	std::vector< CJT::GeoObject> geoObjectList;
-
 	if (!hasTopFaces_)
 	{
 		initializeBasic(h);
 	}
 	if (roofOutlineList_.size() == 0)
 	{
-		return geoObjectList;
+		return {};
 	}
+
+	std::vector<std::vector<TopoDS_Face>> nestedFaceList;
+	for (std::vector<RCollection> faceCluster : faceList_)
+	{
+		std::vector<TopoDS_Face> faceCollection;
+		for (RCollection surfaceGroup : faceCluster)
+		{
+			faceCollection.emplace_back(surfaceGroup.getFlatFace());
+		}
+
+		std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z());
+		nestedFaceList.emplace_back(faceList);
+	}
+	return nestedFaceList;
+}
+
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
+	std::vector< CJT::GeoObject> geoObjectList;
+
+	if (lod03FaceList->size() == 0) {  *lod03FaceList = makeLoD03Faces(h, kernel, 1); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -2850,12 +2892,10 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, CJT::Kernel* ker
 	std::map<std::string, std::string> semanticFootData;
 	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
-	for (std::vector<RCollection> faceCluster : faceList_)
+	for (std::vector<TopoDS_Face> faceCluster : *lod03FaceList)
 	{
-		for (RCollection surfaceGroup : faceCluster)
+		for (TopoDS_Face currentShape : faceCluster)
 		{
-			TopoDS_Shape currentShape = surfaceGroup.getFlatFace();
-
 			gp_Trsf localRotationTrsf;
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
@@ -2932,7 +2972,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
@@ -2947,16 +2987,14 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, CJT::Kernel* ker
 		return geoObjectList;
 	}
 
-	std::vector<TopoDS_Shape> prismList;
-	for (std::vector<RCollection> faceCluster : faceList_)
-	{
-		std::vector<TopoDS_Face> faceCollection;
-		for (RCollection surfaceGroup : faceCluster)
-		{		
-			faceCollection.emplace_back(surfaceGroup.getFlatFace());
-		}
+	std::vector<std::vector<TopoDS_Face>> roofList;
+	if (roofList03.size() == 0) { roofList = makeLoD03Faces(h, kernel, 1); }
+	else { roofList = roofList03; }
 
-		for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z()))
+	std::vector<TopoDS_Shape> prismList;
+	for (std::vector<TopoDS_Face> faceCluster : roofList)
+	{
+		for (TopoDS_Shape prism : computePrisms(faceCluster, h->getLllPoint().Z(), false))
 		{
 			prismList.emplace_back(prism);
 		}

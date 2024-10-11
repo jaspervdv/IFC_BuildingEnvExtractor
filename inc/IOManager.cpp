@@ -738,6 +738,9 @@ bool IOManager::run()
 
 	geoCreator.setRefRotation(geoRefRotation);
 
+	// list collects the faces from the LoD03 creation to base LoD13 output on
+	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
+
 	if (settingsCollection.make00())
 	{
 		try
@@ -776,7 +779,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo03 = geoCreator.makeLoD03(internalHelper_.get(), &kernel, 1);
+			std::vector<CJT::GeoObject> geo03 = geoCreator.makeLoD03(internalHelper_.get(), &LoD03Faces, &kernel, 1);
 			for (size_t i = 0; i < geo03.size(); i++) { cityShellObject.addGeoObject(geo03[i]); }
 			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -821,7 +824,7 @@ bool IOManager::run()
 		try
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo13 = geoCreator.makeLoD13(internalHelper_.get(), &kernel, 1);
+			std::vector<CJT::GeoObject> geo13 = geoCreator.makeLoD13(internalHelper_.get(), LoD03Faces, &kernel, 1);
 			for (size_t i = 0; i < geo13.size(); i++) { cityShellObject.addGeoObject(geo13[i]); }
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
@@ -889,7 +892,6 @@ bool IOManager::run()
 			}
 			geoCreator.makeLoD02Storeys(internalHelper_.get(), &kernel, storeyObjects, 1);
 		}
-
 		if (settingsCollection.make02() || settingsCollection.make12() ||settingsCollection.make22())
 		{
 			geoCreator.makeSimpleLodRooms(internalHelper_.get(), &kernel, roomObjects, 1);
