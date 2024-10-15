@@ -144,10 +144,10 @@ private:
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	TopoDS_Solid extrudeFace(const std::vector<TopoDS_Face>& faceList, const std::vector<TopoDS_Wire>& wireList, bool downwards,  double splittingFaceHeight = 0);
 
-	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputGroupList, double lowestZ);
+	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputGroupList, double lowestZ, const TopoDS_Face& bufferSurface = {});
 
 	/// create a solid extrusion from the projected roofoutline
-	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true);
+	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const TopoDS_Face& bufferSurface = {});
 	std::vector<TopoDS_Shape> computePrisms(const std::vector<ROSCollection>& inputGroupList, double lowestZ);
 
 	/// remove redundant edges from a solid shape
@@ -218,7 +218,7 @@ public:
 	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
 	void makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of LoD0.3 objects
-	std::vector<std::vector<TopoDS_Face>> makeLoD03Faces(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector<std::vector<TopoDS_Face>> makeLoD03Faces(helper* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
 	std::vector< CJT::GeoObject> makeLoD03(helper* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
 	CJT::GeoObject makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);

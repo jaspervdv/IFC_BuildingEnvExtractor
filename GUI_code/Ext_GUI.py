@@ -52,6 +52,7 @@ def runCode(input_path,
             make_lod51,
             make_footprint,
             make_roofprint,
+            base_foodprint,
             make_interior,
             summary_voxel,
             bool_igoreproxy,
@@ -154,10 +155,13 @@ def runCode(input_path,
         lod_list.append(1.0)
     if (make_lod12):
         lod_list.append(1.2)
+        json_dictionary["JSON"]["Footprint based"] = make_roofprint
     if (make_lod13):
         lod_list.append(1.3)
+        json_dictionary["JSON"]["Footprint based"] = make_roofprint
     if (make_lod22):
         lod_list.append(2.2)
+        json_dictionary["JSON"]["Footprint based"] = make_roofprint
     if (make_lod32):
         lod_list.append(3.2)
     if (make_lod50):
@@ -294,7 +298,7 @@ size_button_normal = 8
 
 # setup the window and the grid
 main_window = tkinter.Tk()
-main_window.geometry('500x545')
+main_window.geometry('500x560')
 main_window.resizable(1,0)
 main_window.title("IfcEnvExtactor GUI")
 
@@ -439,6 +443,9 @@ toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate f
 bool_make_roofprint = tkinter.IntVar(value=1)
 toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline (LoD0.2 only)", variable=bool_make_roofprint)
 
+bool_footprint_based = tkinter.IntVar(value=0)
+toggle_footprint = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction (LoD1.2, 1.3 & 2.2)", variable=bool_footprint_based)
+
 bool_make_interior = tkinter.IntVar(value=0)
 toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors (Detailed LoD only)", variable=bool_make_interior)
 
@@ -447,6 +454,7 @@ toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate
 
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_footprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_summaryvoxel.pack(side=tkinter.TOP, fill=tkinter.X)
 
@@ -558,6 +566,7 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     False,
     bool_make_footprint.get(),
     bool_make_roofprint.get(),
+    bool_footprint_based.get(),
     bool_make_interior.get(),
     bool_summary_voxels.get(),
     bool_igoreproxy.get(),
@@ -586,6 +595,7 @@ generate_button = tkinter.Button(frame_other, text="Generate", width=size_button
     False,
     bool_make_footprint.get(),
     bool_make_roofprint.get(),
+    bool_footprint_based.get(),
     bool_make_interior.get(),
     bool_summary_voxels.get(),
     bool_igoreproxy.get(),

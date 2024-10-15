@@ -87,7 +87,7 @@ bool IOManager::getJSONValues()
 	{
 		if (json[outputReportOName].type() != nlohmann::json::value_t::number_integer && json[outputReportOName].type() != nlohmann::json::value_t::number_unsigned)
 		{
-			
+
 			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONReportPath));
 		}
 
@@ -118,7 +118,7 @@ bool IOManager::getJSONValues()
 	}
 
 	nlohmann::json inputPaths = filePaths[inputOName];
-	if (inputPaths.type() != nlohmann::json::value_t::array )
+	if (inputPaths.type() != nlohmann::json::value_t::array)
 	{
 		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPathFormat));
 	}
@@ -138,7 +138,7 @@ bool IOManager::getJSONValues()
 		else
 		{
 			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPath) + inputPath);
-		}	
+		}
 	}
 
 	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
@@ -169,99 +169,122 @@ bool IOManager::getJSONValues()
 	//JSOn related output and processing settings
 	std::string lodOutputOName = JsonObjectInEnum::getString(JsonObjectInID::lodOutput);
 	std::string jsonOname = JsonObjectInEnum::getString(JsonObjectInID::JSON);
-	
+
 	nlohmann::json outputDataJson = {};
-	if (json.contains(jsonOname)) { outputDataJson = json[jsonOname];}
+	if (json.contains(jsonOname)) { outputDataJson = json[jsonOname]; }
 
-	if (json.contains(lodOutputOName))
+	// check for LoD output names
+	if (!json.contains(lodOutputOName))
 	{
-		nlohmann::json lodList = json[lodOutputOName];
-		settingsCollection.setMake00(false);
-		settingsCollection.setMake02(false);
-		settingsCollection.setMake03(false);
-		settingsCollection.setMake10(false);
-		settingsCollection.setMake12(false);
-		settingsCollection.setMake13(false);
-		settingsCollection.setMake22(false);
-		settingsCollection.setMake32(false);
-		settingsCollection.setMakeV(false);
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONMissingLoD));
+	}
 
-		std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
-		std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
-		std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
-		std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
-		std::string hSectionOffsetOName = JsonObjectInEnum::getString(JsonObjectInID::JSONSecOffset);
+	// reset the internal LoD values
+	nlohmann::json lodList = json[lodOutputOName];
 
-		for (size_t i = 0; i < lodList.size(); i++) // check if interior generation is required
+	// check if interior generation is required
+	std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+	for (size_t i = 0; i < lodList.size(); i++) 
+	{
+		std::unordered_set<double> LoDWInterior = settingsCollection.getLoDWInterior();
+		if (LoDWInterior.find(lodList[i]) == LoDWInterior.end()) { continue; }
+
+		if (outputDataJson.contains(generateInteriorOName))
 		{
-			std::unordered_set<double> LoDWInterior = settingsCollection.getLoDWInterior();
-			if (LoDWInterior.find(lodList[i]) == LoDWInterior.end()) { continue; }
+			settingsCollection.setMakeInterior((int)outputDataJson[generateInteriorOName]);
+		}
+		break;
+	}
 
-			if (outputDataJson.contains(generateInteriorOName))
+	// check for footprint height
+	std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
+	if (outputDataJson.contains(footprintElevOName))
+	{
+		settingsCollection.setFootprintElevation(outputDataJson[footprintElevOName]);
+	}
+
+	// check for horizontal offset
+	std::string hSectionOffsetOName = JsonObjectInEnum::getString(JsonObjectInID::JSONSecOffset);
+	if (outputDataJson.contains(hSectionOffsetOName))
+	{
+		settingsCollection.setHorizontalSectionOffset(outputDataJson[hSectionOffsetOName]);
+	}
+
+	
+	// check if roof outline and footprint have to generated and which LoD are to be created
+	std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint); // check if footprint has to be output in LoD0.2
+	std::string FootrpintBSOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintBShape); // check if footprint based output is desired (LoD1.2, 1.3 and 2.2)
+	std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline); // check if roofprint has to be output in LoD0.2
+	for (size_t i = 0; i < lodList.size(); i++)
+	{
+		if (lodList[i] == 0.0) 
+		{ 
+			settingsCollection.setMake00(true);
+			continue;
+		}
+		else if (lodList[i] == 0.2)
+		{
+			settingsCollection.setMake02(true);
+
+			if (outputDataJson.contains(generatefootprOName))
 			{
-				settingsCollection.setMakeInterior((int)outputDataJson[generateInteriorOName]);
+				settingsCollection.setMakeFootPrint((int)outputDataJson[generatefootprOName]);
 			}
-			break;
-		}
-
-		if (outputDataJson.contains(footprintElevOName))
-		{
-			settingsCollection.setFootprintElevation(outputDataJson[footprintElevOName]);
-		}
-
-		if (outputDataJson.contains(hSectionOffsetOName))
-		{
-			settingsCollection.setHorizontalSectionOffset(outputDataJson[hSectionOffsetOName]);
-		}
-		for (size_t i = 0; i < lodList.size(); i++)
-		{
-			if (lodList[i] == 0.0) { settingsCollection.setMake00(true); }
-			else if (lodList[i] == 0.2) 
-			{ 
-				settingsCollection.setMake02(true);
-
-				if (outputDataJson.contains(generatefootprOName))
-				{
-					settingsCollection.setMakeFootPrint((int)outputDataJson[generatefootprOName]);
-				}
-				if (outputDataJson.contains(generateRoofOlineOName))
-				{
-					settingsCollection.setMakeRoofPrint((int)outputDataJson[generateRoofOlineOName]);
-					if (settingsCollection.makeRoofPrint()) { settingsCollection.setMakeOutlines(true); }
-				}
-			}
-			else if (lodList[i] == 0.3)
+			if (outputDataJson.contains(generateRoofOlineOName))
 			{
-				settingsCollection.setMake03(true);
+				settingsCollection.setMakeRoofPrint((int)outputDataJson[generateRoofOlineOName]);
+				if (settingsCollection.makeRoofPrint()) { settingsCollection.setMakeOutlines(true); }
 			}
-			else if (lodList[i] == 1.0) 
-			{ 
-				settingsCollection.setMake10(true);
-			}
-			else if (lodList[i] == 1.2) 
-			{ 
-				settingsCollection.setMake12(true);
-				settingsCollection.setMakeOutlines(true);
-			}
-			else if (lodList[i] == 1.3) 
-			{ 
-				settingsCollection.setMake13(true);
-				settingsCollection.setMakeOutlines(true);
-			}
-			else if (lodList[i] == 2.2) 
-			{ 
-				settingsCollection.setMake22(true);
-				settingsCollection.setMakeOutlines(true);
-			}
-			else if (lodList[i] == 3.2) 
-			{ 
-				settingsCollection.setMake32(true);
-			}
-			else if (lodList[i] == 5.0) 
-			{ 
-				settingsCollection.setMakeV(true);
-			}
+			continue;
 		}
+
+		else if (lodList[i] == 0.3)
+		{
+			settingsCollection.setMake03(true);
+			continue;
+		}
+		else if (lodList[i] == 1.0)
+		{
+			settingsCollection.setMake10(true);
+			continue;
+		}
+		else if (lodList[i] == 1.2)
+		{
+			settingsCollection.setMake12(true);
+			settingsCollection.setMakeOutlines(true);
+
+			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			continue;
+		}
+		else if (lodList[i] == 1.3)
+		{
+			settingsCollection.setMake13(true);
+			settingsCollection.setMakeOutlines(true);
+
+			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			continue;
+		}
+		else if (lodList[i] == 2.2)
+		{
+			settingsCollection.setMake22(true);
+			settingsCollection.setMakeOutlines(true);
+
+			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			continue;
+		}
+		else if (lodList[i] == 3.2)
+		{
+			settingsCollection.setMake32(true);
+			continue;
+		}
+		else if (lodList[i] == 5.0)
+		{
+			settingsCollection.setMakeV(true);
+			continue;
+		}
+
+		//if this is reached an unexpected value has been encountered
+		//TODO: add error to the report
 	}
 
 	std::string georeferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
@@ -275,13 +298,13 @@ bool IOManager::getJSONValues()
 	 
 	// Voxel related output and processing settings
 	std::string voxelOName = JsonObjectInEnum::getString(JsonObjectInID::voxel);
-	std::string voxelSizOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSize);
-	std::string voxelSummarizeOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSummarize);
-	std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
 	if (json.contains(voxelOName))
 	{
 		nlohmann::json voxelData = json[voxelOName];
 
+		std::string voxelSizOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSize);
+		std::string voxelSummarizeOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSummarize);
+		std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
 		if (voxelData.contains(voxelSizOName))			
 		{
 			settingsCollection.setVoxelSize(voxelData[voxelSizOName]);
@@ -299,14 +322,11 @@ bool IOManager::getJSONValues()
 
 	//IFC related processing settings
 	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
-	std::string rotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
-	std::string defaultDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDefaultDiv);
-	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCIgnoreProxy);
-	std::string divObjectsOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
 
 	nlohmann::json ifcInputJson = {};
 	if (json.contains(ifcOName)) { ifcInputJson = json[ifcOName]; }
 
+	std::string rotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
 	if (ifcInputJson.contains(rotationOName))
 	{
 		nlohmann::json rotationData = ifcInputJson[rotationOName];
@@ -317,6 +337,7 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	std::string defaultDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDefaultDiv);
 	if (ifcInputJson.contains(defaultDivOName))
 	{
 		if (ifcInputJson[defaultDivOName] == 0 || ifcInputJson[defaultDivOName] == false)
@@ -325,6 +346,7 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCIgnoreProxy);
 	if (ifcInputJson.contains(ignoreProxyOName))
 	{
 		if (ifcInputJson[ignoreProxyOName] == 0 || ifcInputJson[ignoreProxyOName] == false)
@@ -333,6 +355,7 @@ bool IOManager::getJSONValues()
 		}
 	}
 
+	std::string divObjectsOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
 	if (ifcInputJson.contains(divObjectsOName))
 	{
 		std::vector<std::string> stringDivList = ifcInputJson[divObjectsOName];
@@ -718,7 +741,7 @@ bool IOManager::run()
 		}
 	}
 
-	if (settingsCollection.make02() && settingsCollection.makeFootPrint())
+	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || settingsCollection.footPrintBased())
 	{
 		try
 		{

@@ -179,6 +179,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid output path, output path should end on .json or .city.json";
 	case CommunicationStringID::errorJSONInvalOutputFolder:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Target filepath folder does not exist";
+	case CommunicationStringID::errorJSONMissingLoD:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No desired LoD output can be found";
 	case CommunicationStringID::errorJSONNoDivObjects:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No div objects are selected";
 	case CommunicationStringID::errorNoPoints:
@@ -283,6 +285,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Generate roof outline";
 	case JsonObjectInID::JSONFootprintElev:
 		return "Footprint elevation";
+	case JsonObjectInID::JSONFootprintBShape:
+		return "Footprint based";
 	case JsonObjectInID::JSONSecOffset:
 		return "Horizontal section offset";
 	case JsonObjectInID::JSONGeoreference:

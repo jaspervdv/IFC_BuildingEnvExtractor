@@ -15,23 +15,23 @@ private:
 	std::vector<std::string> inputPathList_ = {};
 	std::string outputPath_ = "";
 
-	std::unordered_set<double> LoDWInterior_ = { 0.2, 5.0 };
-
 	// sets which LoD envelopes are attampted to be created
-	bool make00_ = true;
-	bool make02_ = true;
-	bool make03_ = true;
-	bool make10_ = true;
-	bool make12_ = true;
-	bool make13_ = true;
-	bool make22_ = true;
-	bool make32_ = true;
-	bool makeV_ = true;
+	bool make00_ = false;
+	bool make02_ = false;
+	bool make03_ = false;
+	bool make10_ = false;
+	bool make12_ = false;
+	bool make13_ = false;
+	bool make22_ = false;
+	bool make32_ = false;
+	bool makeV_ = false;
 
 	bool makeOutlines_ = false;
 	bool makeFootPrint_ = false;
 	bool makeRoofPrint_ = true;
 	bool makeInterior_ = false;
+
+    bool footPrintBased_ = false;
 
 	bool geoReference_ = true;
 
@@ -83,6 +83,8 @@ private:
 
     IfcGeom::IteratorSettings iteratorSettings_;
     IfcGeom::IteratorSettings simpleIteratorSettings_;
+
+    std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
 
 public:
 	static SettingsCollection& getInstance() {
@@ -146,6 +148,9 @@ public:
 
     bool makeInterior() const { return makeInterior_; }
     void setMakeInterior(bool value) { makeInterior_ = value; }
+
+    bool footPrintBased() const { return footPrintBased_; }
+    void setFootPrintBased(bool value) { footPrintBased_ = value; }
 
     bool geoReference() const { return geoReference_; }
     void setGeoReference(bool value) { geoReference_ = value; }

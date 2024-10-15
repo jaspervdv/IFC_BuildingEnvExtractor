@@ -119,6 +119,7 @@ enum class CommunicationStringID {
 	errorJSONInvalOuputPathFormat,
 	errorJSONInvalOuputFormat,
 	errorJSONInvalOutputFolder,
+	errorJSONMissingLoD,
 	errorJSONNoDivObjects,
 	errorNoPoints,
 	errorFootprintFailed,
@@ -165,6 +166,7 @@ enum class JsonObjectInID {
 
 	JSON,
 	JSONFootprintElev,
+	JSONFootprintBShape,
 	JSONSecOffset,
 	JSONGenFootPrint,
 	JSONGenRoofOutline,
