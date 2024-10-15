@@ -267,7 +267,7 @@ The settings json has a very simple structure. An example can be found below:
     },
     "JSON" : {
         "Footprint elevation": 1,
-        "Footprint based shapes" : 0,
+        "Footprint based" : 0,
         "Horizontal section offset": 1.2,
         "Generate footprint": 1,
         "Generate roof outline": 1,
@@ -298,7 +298,7 @@ Optional:
 * "IFC" "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
 * "IFC" "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
 * "JSON" "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
-* "JSON" "Footprint based shapes" is an int/bool (either 0 or 1) to enable footprint based shape creation for LoD1.2, 1.3, and, 2.2. 
+* "JSON" "Footprint based" is an int/bool (either 0 or 1) to enable footprint based shape creation for LoD1.2, 1.3, and, 2.2. 
 * "JSON" "Horizontal section offset" is an double that dictates how much the footprint and storey sections should be offset from the found/submitted elevation. Default value = 1.2.
 * "JSON" "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
 * "JSON" "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
