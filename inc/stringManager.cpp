@@ -17,6 +17,8 @@ std::string CommunicationStringImportanceEnum::getString(CommunicationStringImpo
 		return "[WARNING] ";
 	case CommunicationStringImportanceID::error:
 		return "[Error] ";
+	case CommunicationStringImportanceID::seperator:
+		return "=============================================================";
 	default:
 		return "";
 	}

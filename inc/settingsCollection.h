@@ -62,7 +62,7 @@ private:
 	double precision_ = 1e-6;
 	double precisionCoarse_ = 1e-4;
 
-	int threadcount_ = std::thread::hardware_concurrency();
+	int threadcount_ = 0;
 
 	// how many proxy objects are present in the input
 	int proxyCount_ = 0;

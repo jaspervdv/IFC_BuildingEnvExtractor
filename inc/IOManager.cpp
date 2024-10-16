@@ -94,6 +94,8 @@ bool IOManager::getJSONValues()
 		if (json[outputReportOName] == 0) { settingsCollection.setWriteReport(false); }
 	}
 
+
+	bool threadFound = false;
 	std::string threadMaxOName = JsonObjectInEnum::getString(JsonObjectInID::maxThread);
 	if (json.contains(threadMaxOName))
 	{
@@ -101,7 +103,17 @@ bool IOManager::getJSONValues()
 		{
 			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONThreadNum));
 		}
-		if (json[threadMaxOName] > 0) { settingsCollection.setThreadcount(static_cast<int>(json[threadMaxOName])); }
+		if (json[threadMaxOName] > 0) 
+		{ 
+			settingsCollection.setThreadcount(static_cast<int>(json[threadMaxOName])); 
+			threadFound = true;
+		}
+	}
+	if (!threadFound)
+	{
+		double availableThreads = std::thread::hardware_concurrency();
+		if (availableThreads - 2 > 0) { settingsCollection.setThreadcount(availableThreads - 2); }
+		else { settingsCollection.setThreadcount(availableThreads); }
 	}
 
 	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
@@ -482,56 +494,85 @@ void IOManager::printSummary()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::cout << "=============================================================" << std::endl;
-	std::cout << "[INFO] Used settings: " << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
+	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "Used settings : " << std::endl;
+	std::cout << std::endl;
 
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "I/O settings" << std::endl;
 	std::cout << "- Input File(s):" << std::endl;
-	for (const std::string& inputPath : settingsCollection.getInputPathList()) { std::cout << "    " << inputPath << std::endl; }
+	for (const std::string& inputPath : settingsCollection.getInputPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << std::endl; }
 	std::cout << "- Output File:" << std::endl;
-	std::cout << "    " << settingsCollection.getOutputPath() << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputPath() << std::endl;
 	std::cout << "- Create Report:" << std::endl;
-	if (settingsCollection.writeReport()) { std::cout << "    yes" << std::endl; }
-	else { std::cout << "    no" << std::endl; }
+	if (settingsCollection.writeReport()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
 	std::cout << "- LoD export enabled:" << std::endl;
-	std::cout << "    " << getLoDEnabled() << std::endl;
-	std::cout << "- Space dividing objects: " << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << std::endl;
+	std::cout << std::endl;
+
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "IFC settings" << std::endl;
+	std::cout << "- Model rotation:" << std::endl;
+	if (settingsCollection.autoRotateGrid()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "automatic" << std::endl; } //TODO: add true north?
+	else
+	{ std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << std::endl;
+	}
+	std::cout << "- Space dividing objects:" << std::endl;
 	if (settingsCollection.useDefaultDiv())
 	{
-		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
+		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << std::endl; }
 	}
 	if (settingsCollection.useProxy())
 	{
-		std::cout << "    IFCBUILDINGELEMENTPROXY" << std::endl;
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY" << std::endl;
 	}
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
+	std::cout << std::endl;
+
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings" << std::endl;
 	std::cout << "- Voxel size:" << std::endl;
-	std::cout << "    " << settingsCollection.voxelSize() << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.voxelSize() << std::endl;
 	std::cout << "- Voxel logic:" << std::endl;
-	if (settingsCollection.intersectionLogic() == 0) { std::cout << "    point" << std::endl; }
-	if (settingsCollection.intersectionLogic() == 1) { std::cout << "    line" << std::endl; }
-	if (settingsCollection.intersectionLogic() == 2) { std::cout << "    plane" << std::endl; }
-	if (settingsCollection.intersectionLogic() == 3) { std::cout << "    solid" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 2) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "plane" << std::endl; }
+	if (settingsCollection.intersectionLogic() == 3) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "solid" << std::endl; }
+	std::cout << "- Store voxel summary/approximation:" << std::endl;
+	if (settingsCollection.summaryVoxels()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) <<"no" << std::endl; }
+	std::cout << std::endl;
 
-
-
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "json settings" << std::endl;
+	std::cout << "- Footprint Elevation:" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.footprintElevation() << std::endl;
+	std::cout << "- Footrint based extraction:" << std::endl;
+	if (settingsCollection.footPrintBased()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << "- horizontal section offset" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.horizontalSectionOffset() << std::endl;
 	if (settingsCollection.make02())
 	{
 		std::cout << "- Create footprint:" << std::endl;
-		if (settingsCollection.makeFootPrint()) { std::cout << "    Yes" << std::endl; }
-		else { std::cout << "    No" << std::endl; }
+		if (settingsCollection.makeFootPrint()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+		else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
 
 		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
-		if (settingsCollection.makeRoofPrint()) { std::cout << "    Yes" << std::endl; }
-		else { std::cout << "    No" << std::endl; }
+		if (settingsCollection.makeRoofPrint()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+		else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
 	}
+	std::cout << "- Generate interior:" << std::endl;
+	if (settingsCollection.makeInterior()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << "- Georeference:" << std::endl;
+	if (settingsCollection.geoReference()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
 
-	std::cout << "- Footprint Elevation:" << std::endl;
-	std::cout << "    " << settingsCollection.footprintElevation() << std::endl;
-
+	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "other settings:" << std::endl;
 	std::cout << "- Max thread count" << std::endl;
-	std::cout << "    " <<  settingsCollection.threadcount() << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) <<  settingsCollection.threadcount() << std::endl;
+	std::cout << std::endl;
 
-	std::cout << "=============================================================" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
+	std::cout << std::endl;
 }
 
 
@@ -561,33 +602,25 @@ nlohmann::json IOManager::settingsToJSON()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	nlohmann::json settingsJSON;
+	nlohmann::json settingsJSON; // overal jsonFile
 
-	settingsJSON["Input IFC file"] = settingsCollection.getInputPathList();
-	settingsJSON["Output CityJSON file"] = settingsCollection.getOutputPath();
-	settingsJSON["Create report"] = "true";
+	// store the filepath data
+	nlohmann::json ioJSON;
+	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
+	std::string inputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathsInput);
+	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
 
-	std::vector<std::string> DivList;
+	ioJSON[inputOName] = settingsCollection.getInputPathList();
+	ioJSON[outputOName] = settingsCollection.getOutputPath();
+	settingsJSON[filePathsOName] = ioJSON;
 
-	if (settingsCollection.useDefaultDiv())
-	{
-		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
-	}
-	if (settingsCollection.useProxy())
-	{
-		DivList.emplace_back("IFCBUILDINGELEMENTPROXY");
-	}
-	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
-	settingsJSON["Space bounding objects"] = DivList;
-	settingsJSON["Voxel size"] = settingsCollection.voxelSize();
+	// store the report data
+	settingsJSON[JsonObjectInEnum::getString(JsonObjectInID::outputReport)] = "true";
 
-	if (settingsCollection.make02())
-	{ 
-		settingsJSON["Footprint elevation"] = settingsCollection.footprintElevation();
-		settingsJSON["Generate footprint"] = settingsCollection.makeFootPrint();
-		settingsJSON["Generate roof outline"] = settingsCollection.makeRoofPrint();
-	}
-	
+	// store the thread data
+	settingsJSON[JsonObjectInEnum::getString(JsonObjectInID::maxThread)] = settingsCollection.threadcount();
+
+	// store the LoD output data
 	std::vector<std::string> LoDList;
 	if (settingsCollection.make00()) { LoDList.emplace_back("0.0"); }
 	if (settingsCollection.make02()) { LoDList.emplace_back("0.2"); }
@@ -596,9 +629,65 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.make13()) { LoDList.emplace_back("1.3"); }
 	if (settingsCollection.make22()) { LoDList.emplace_back("2.2"); }
 	if (settingsCollection.make32()) { LoDList.emplace_back("3.2"); }
-	if (settingsCollection.makeV()) { LoDList.emplace_back("3.2"); }
+	if (settingsCollection.makeV()) { LoDList.emplace_back("5.0"); }
 
-	settingsJSON["Desired LoD output"] = LoDList;
+	settingsJSON[JsonObjectInEnum::getString(JsonObjectInID::lodOutput)] = LoDList;
+
+	// store the voxel data
+	nlohmann::json voxelJSON;
+	std::string voxelOName = JsonObjectInEnum::getString(JsonObjectInID::voxel);
+	std::string voxelSizOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSize);
+	std::string voxelSummarizeOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSummarize);
+	std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
+
+	voxelJSON[voxelSizOName] = settingsCollection.voxelSize();
+	voxelJSON[voxelSummarizeOName] = settingsCollection.summaryVoxels();
+	voxelJSON[voxelIntersectionOName] = settingsCollection.intersectionLogic();
+	settingsJSON[voxelOName] = voxelJSON;
+
+	//store the ifc data
+	nlohmann::json ifcJSON;
+	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
+	std::string ifcRotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
+	std::string ifcDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
+	
+	ifcJSON[ifcRotationOName] = settingsCollection.gridRotation();
+	std::vector<std::string> DivList;
+	if (settingsCollection.useDefaultDiv())
+	{
+		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it)
+		{
+			DivList.emplace_back(boost::to_upper_copy(*it));
+		}
+	}
+	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
+	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
+	ifcJSON[ifcDivOName] = DivList;
+	settingsJSON[ifcOName] = ifcJSON;
+
+	// store the json data
+	nlohmann::json jsonJSON;
+	std::string jsonOName = JsonObjectInEnum::getString(JsonObjectInID::JSON);
+	std::string jsonFootprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
+	std::string jsonFootprintBSOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintBShape);
+	std::string jsonSecOffsetOName = JsonObjectInEnum::getString(JsonObjectInID::JSONSecOffset);
+	std::string jsonGenFootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
+	std::string jsonGenRootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
+	std::string jsonGenInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+	std::string jsonGeoreferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
+
+	jsonJSON[jsonFootprintElevOName] = settingsCollection.footprintElevation();
+	jsonJSON[jsonFootprintBSOName] = settingsCollection.footPrintBased();
+	jsonJSON[jsonSecOffsetOName] = settingsCollection.horizontalSectionOffset();
+	jsonJSON[jsonGenFootprintOName] = settingsCollection.makeFootPrint();
+	if (settingsCollection.make02())
+	{ 
+		jsonJSON[jsonGenFootprintOName] = settingsCollection.makeFootPrint();
+		jsonJSON[jsonGenRootprintOName] = settingsCollection.makeRoofPrint();
+	}
+	jsonJSON[jsonGenInteriorOName] = settingsCollection.makeInterior();
+	jsonJSON[jsonGeoreferenceOName] = settingsCollection.geoReference();
+	settingsJSON[jsonOName] = jsonJSON;
 
 	return settingsJSON;
 }
@@ -616,10 +705,10 @@ bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
 
 	if (!isSilent_)
 	{
-		std::wcout << "============================================================= \n" << std::endl;
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
 		std::cout << "		IFC_BuildingEnvExtractor " << buildVersion << std::endl;
 		std::cout << "    Experimental building shell extractor/approximation\n" << std::endl;
-		std::wcout << "=============================================================" << std::endl;
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
 		std::cout << std::endl;
 	}
 
@@ -1018,7 +1107,7 @@ bool IOManager::write()
 
 	if (!settingsCollection.writeReport()) { return true; }
 	nlohmann::json report;
-	report["Settings"] = settingsToJSON();
+	report["Input settings"] = settingsToJSON();
 
 	nlohmann::json timeReport;
 	addTimeToJSON(&timeReport, "Internalizing", timeInternalizing_);

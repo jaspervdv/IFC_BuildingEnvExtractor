@@ -12,7 +12,8 @@ enum class CommunicationStringImportanceID
 	indent,
 	info,
 	warning,
-	error
+	error,
+	seperator
 };
 
 class CommunicationStringImportanceEnum {

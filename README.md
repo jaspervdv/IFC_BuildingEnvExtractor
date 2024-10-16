@@ -132,7 +132,7 @@ These levels only apply to LoD models that are build WITHOUT interiors. If inter
 
 Lower detail shells (LoD 0.0, 1.0 & voxel shells):
 
-* Valid IFC4x4, IFC4 or IFC2x3 file
+* Valid IFC4x3, IFC4 or IFC2x3 file
 * Valid units
 * Correctly classified objects* (recommended)
 * No or limited use of _IfcBuildingElementProxy_ objects (recommended)
