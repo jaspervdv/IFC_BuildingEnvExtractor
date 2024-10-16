@@ -7,8 +7,83 @@ import re
 
 from pathlib import Path
 
+class LoDSettings:
+    def __init__(self):
+        self.lod00 = tkinter.IntVar(value=0)
+        self.lod02 = tkinter.IntVar(value=1)
+        self.lod03 = tkinter.IntVar(value=1)
+        self.lod10 = tkinter.IntVar(value=1)
+        self.lod12 = tkinter.IntVar(value=1)
+        self.lod13 = tkinter.IntVar(value=1)
+        self.lod22 = tkinter.IntVar(value=1)
+        self.lod32 = tkinter.IntVar(value=0)
+        self.lod50 = tkinter.IntVar(value=0)
+
+    def hasLoD(self):
+        if (not self.lod00.get() and not self.lod02.get() and not self.lod03.get() and not self.lod10.get()
+                and not self.lod12.get() and not self.lod13.get() and not self.lod22.get() and not self.lod32.get()
+                and not self.lod50.get()):
+            return False
+        return True
+
+class FootprintSettings:
+    def __init__(self):
+        self.make_footprint = tkinter.IntVar(value=1)
+        self.make_roofprint = tkinter.IntVar(value=1)
+        self.footprint_based = tkinter.IntVar(value=0)
+
+class DivSettings:
+    def __init__(self):
+        self.ignore_proxy = tkinter.IntVar(value=1)
+        self.use_default = tkinter.IntVar(value=1)
+        self.custom_enabled = tkinter.IntVar(value=0)
+
+class OtherSettings:
+    def __init__(self):
+        self.make_interior = tkinter.IntVar(value=0)
+        self.summary_voxels = tkinter.IntVar(value=0)
+        self.make_report = tkinter.IntVar(value=1)
+
+
+class Tooltip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.after_id = None
+        self.widget.bind("<Enter>", self.on_enter)
+        self.widget.bind("<Leave>", self.on_leave)
+
+    def on_enter(self, event=None):
+        self.after_id = self.widget.after(500, self.show_tooltip)
+
+    def on_leave(self, event=None):
+        # Cancel tooltip if mouse leaves before it shows
+        if self.after_id:
+            self.widget.after_cancel(self.after_id)
+            self.after_id = None
+        self.hide_tooltip()
+
+    def show_tooltip(self):
+        if not self.tooltip_window:
+            x, y, _, _ = self.widget.bbox("insert")
+            x += self.widget.winfo_rootx() + 15
+            y += self.widget.winfo_rooty() - 20
+            self.tooltip_window = tkinter.Toplevel(self.widget)
+            self.tooltip_window.wm_overrideredirect(True)
+            self.tooltip_window.wm_geometry(f"+{x}+{y}")
+            label = tkinter.Label(self.tooltip_window, text=self.text, background="white", borderwidth=1, relief="solid")
+            label.pack()
+
+    def hide_tooltip(self):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
+
+
 def getDefaultDivObjects():
     return "IfcWall\tIfcCurtainWall\tIfcWallStandardCase\tIfcRoof\tIfcSlab\tIfcWindow\tIfcColumn\tIfcBeam\tIfcDoor\tIfcCovering\tIfcMember\tIfcPlate"
+
 
 def toggleEnableDiv(widget, default_toggle, proxy_toggle, default_bool, proxy_bool):
     if  widget['state'] == "disabled":
@@ -30,6 +105,7 @@ def toggleEnableDiv(widget, default_toggle, proxy_toggle, default_bool, proxy_bo
 
     return
 
+
 def toggleEnableEntry(entry_widget, additional_bool_list):
     for additional_bool in additional_bool_list:
         if  additional_bool:
@@ -38,37 +114,22 @@ def toggleEnableEntry(entry_widget, additional_bool_list):
     entry_widget['state'] = tkinter.DISABLED
     return
 
+
 def runCode(input_path,
             output_path,
-            make_lod00,
-            make_lod02,
-            make_lod03,
-            make_lod10,
-            make_lod12,
-            make_lod13,
-            make_lod22,
-            make_lod32,
-            make_lod50,
-            make_lod51,
-            make_footprint,
-            make_roofprint,
-            base_foodprint,
-            make_interior,
-            summary_voxel,
-            bool_igoreproxy,
-            bool_useDefault,
-            bool_customEnabled,
-            make_report,
+            lod_settings,
+            footprint_settings,
+            div_settings,
+            other_settings,
             footprint_elevation,
             voxel_size,
             div_string,
             bool_run):
 
+    ifc2_exe_path = "Ifc_Envelope_Extractor_ifc2x3.exe"
+    ifc4_exe_path = "Ifc_Envelope_Extractor_ifc4.exe"
+    ifc4x3_exe_path = "Ifc_Envelope_Extractor_ifc4x3.exe"
     json_path = "../Pre_Build/~" + Path(input_path).stem + "_config.json"
-    ifc2_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc2x3.exe"
-    ifc4_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4.exe"
-    ifc4x3_exe_path = "../Pre_Build/Ifc_Envelope_Extractor_ifc4x3.exe"
-
 
     # check voxel input
     try:
@@ -89,13 +150,11 @@ def runCode(input_path,
         return
 
     # check if an LoD output is selected
-    if(not make_lod00 and not make_lod02 and not make_lod03 and not
-        make_lod10 and not make_lod12 and not make_lod13 and not make_lod22 and not
-        make_lod32 and not make_lod50 and not make_lod51):
+    if not(lod_settings.hasLoD()):
         tkinter.messagebox.showerror("Settings Error",  "Error: no LoD output selected")
         return
 
-    if(make_lod02 and not make_footprint and not make_roofprint):
+    if(lod_settings.lod02 and not footprint_settings.make_footprint and not footprint_settings.make_roofprint):
         tkinter.messagebox.showerror("Settings Error", "Error: no LoD0.2 footprint or roofoutline selected")
         return
 
@@ -121,14 +180,14 @@ def runCode(input_path,
 
     json_dictionary["Voxel"] = {}
     json_dictionary["Voxel"]["Size"] = float(voxel_size)
-    json_dictionary["Voxel"]["Store values"] = summary_voxel
+    json_dictionary["Voxel"]["Store values"] = other_settings.summary_voxels.get()
 
     json_dictionary["IFC"] = {}
     json_dictionary["IFC"]["Rotation"] = False
 
-    if not bool_customEnabled:
-        json_dictionary["IFC"]["Default div"] = bool_useDefault
-        json_dictionary["IFC"]["Ignore proxy"] = bool_igoreproxy
+    if not div_settings.custom_enabled.get():
+        json_dictionary["IFC"]["Default div"] = div_settings.use_default.get()
+        json_dictionary["IFC"]["Ignore proxy"] = div_settings.ignore_proxy.get()
     else:
         json_dictionary["IFC"]["Default div"] = False
         json_dictionary["IFC"]["Ignore proxy"] = False
@@ -136,39 +195,34 @@ def runCode(input_path,
 
     json_dictionary["JSON"] = {}
     json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)
-    json_dictionary["JSON"]["Generate interior"] = make_interior
+    json_dictionary["JSON"]["Generate interior"] = other_settings.make_interior.get()
 
-
-    json_dictionary["Generate report"] = make_report
+    json_dictionary["Generate report"] = other_settings.make_report.get()
 
     lod_list = []
-
-    if(make_lod00):
+    if(lod_settings.lod00.get()):
         lod_list.append(0.0)
-    if (make_lod02):
+    if (lod_settings.lod02.get()):
         lod_list.append(0.2)
-        json_dictionary["JSON"]["Generate footprint"] = make_footprint
-        json_dictionary["JSON"]["Generate roof outline"] = make_roofprint
-    if(make_lod03):
+        json_dictionary["JSON"]["Generate footprint"] = footprint_settings.make_footprint.get()
+        json_dictionary["JSON"]["Generate roof outline"] = footprint_settings.make_roofprint.get()
+    if(lod_settings.lod03.get()):
         lod_list.append(0.3)
-    if (make_lod10):
+    if (lod_settings.lod10.get()):
         lod_list.append(1.0)
-    if (make_lod12):
+    if (lod_settings.lod12.get()):
         lod_list.append(1.2)
-        json_dictionary["JSON"]["Footprint based"] = make_roofprint
-    if (make_lod13):
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+    if (lod_settings.lod13.get()):
         lod_list.append(1.3)
-        json_dictionary["JSON"]["Footprint based"] = make_roofprint
-    if (make_lod22):
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+    if (lod_settings.lod22).get():
         lod_list.append(2.2)
-        json_dictionary["JSON"]["Footprint based"] = make_roofprint
-    if (make_lod32):
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+    if (lod_settings.lod32.get()):
         lod_list.append(3.2)
-    if (make_lod50):
+    if (lod_settings.lod50.get()):
         lod_list.append(5.0)
-    if (make_lod51):
-        lod_list.append(5.1)
-
     json_dictionary["LoD output"] = lod_list
 
     with open(json_path, "w") as outfile:
@@ -179,18 +233,23 @@ def runCode(input_path,
         tkinter.messagebox.showinfo("succes", "Info: Config file has been successfully created")
         return
 
-    is_ifc4 = True
     for path in input_path_list:
         counter = 0
         for line in open(path):
             if "FILE_SCHEMA(('IFC2X3'))" in line or "FILE_SCHEMA (('IFC2X3'))" in line:
-                runExe(ifc2_exe_path, json_path)
+                code_path = findValidPath(ifc2_exe_path, "Ifc2x3")
+                if not(code_path == None):
+                    runExe(code_path, json_path)
                 break
             if  "FILE_SCHEMA(('IFC4'))" in line or "FILE_SCHEMA (('IFC4'))" in line:
-                runExe(ifc4_exe_path, json_path)
+                code_path = findValidPath(ifc4_exe_path, "Ifc4")
+                if not (code_path == None):
+                    runExe(code_path, json_path)
                 break
             if "FILE_SCHEMA(('IFC4X3'))" in line or "FILE_SCHEMA (('IFC4X3'))" in line:
-                runExe(ifc4x3_exe_path, json_path)
+                code_path = findValidPath(ifc4x3_exe_path, "Ifc4x3")
+                if not (code_path == None):
+                    runExe(code_path, json_path)
                 break
 
             if counter == 100:
@@ -200,6 +259,46 @@ def runCode(input_path,
             counter += 1
     os.remove(json_path)
     return
+
+
+def findValidPath(code_path, addition):
+    exe_path_root = "../Pre_Build/"
+
+    if (os.path.isfile(os.path.abspath(code_path))):
+        return code_path
+    else:
+        code_path = exe_path_root + code_path
+        if not (os.path.isfile(os.path.abspath(code_path))):
+            tkinter.messagebox.showerror("Exe Error",
+                                         "Error: Unable to find suitable executable (" + addition + ")")
+            return None
+        return code_path
+
+
+def runExe(code_path, json_path):
+    try:
+        # Run the executable and capture its output
+        result = subprocess.Popen(
+            [
+                code_path,
+                json_path
+            ],
+        )
+        while result.poll() is None:
+            continue
+
+        if result.returncode == 0:
+            tkinter.messagebox.showerror("Succes",
+                                         "Succes: Succes")
+        else:
+            tkinter.messagebox.showerror("Processing Error",
+                                         "Error: Error during process")
+            return
+
+    except subprocess.CalledProcessError as e:
+        tkinter.messagebox.showerror("Processing Error",
+                                     "Error: Was unable to process the file")
+        return
 
 def browse_(box, is_folder, window, initial_file):
     folder_path = ""
@@ -250,34 +349,6 @@ def decrement(value_field, increment_value):
     value_field.insert(0, incremented_Value)
     return
 
-def runExe(code_path, json_path):
-    try:
-        # Run the executable and capture its output
-        result = subprocess.Popen(
-            [
-                code_path,
-                json_path
-            ],
-            # stdout=subprocess.DEVNULL,
-            # stderr=subprocess.DEVNULL
-        )
-        while result.poll() is None:
-            continue
-            # do something
-
-        if result.returncode == 0:
-            tkinter.messagebox.showerror("Succes",
-                                         "Succes: Succes")
-        else:
-            tkinter.messagebox.showerror("Processing Error",
-                                         "Error: Error during process")
-            return
-
-    except subprocess.CalledProcessError as e:
-        tkinter.messagebox.showerror("Processing Error",
-                                     "Error: Was unable to process the file")
-        return
-
 def updateDivMessage(message_window, useDefault, useProxy):
     message_window['state'] = tkinter.NORMAL
 
@@ -291,6 +362,7 @@ def updateDivMessage(message_window, useDefault, useProxy):
     message_window['state'] = tkinter.DISABLED
     return
 
+
 # main variables
 size_entry_small = 13
 size_button_small = 2
@@ -302,12 +374,18 @@ main_window.geometry('500x560')
 main_window.resizable(1,0)
 main_window.title("IfcEnvExtactor GUI")
 
+# create settings classes
+lod_settings = LoDSettings()
+footprint_settings = FootprintSettings()
+div_settings = DivSettings()
+other_settings = OtherSettings()
+
 # the entry functions for the main ifc file
-text_file_browse = tkinter.Label(main_window, text="Input IFC path:")
+text_file_browse = tkinter.Label(main_window, text="Input IFC path(s):")
 text_file_browse.pack(pady=4)
 frame_file_browse = tkinter.Frame(main_window)
 frame_file_browse.pack(fill=tkinter.X)
-entry_inputpath = tkinter.Entry(frame_file_browse, text= "Input path")
+entry_inputpath = tkinter.Entry(frame_file_browse, text= "Input path(s)")
 entry_inputpath.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True, padx=4)
 button_browse = tkinter.Button(frame_file_browse, text="Browse", width=size_button_normal,
                                command= lambda: browse_(entry_inputpath, False, main_window, ""))
@@ -348,69 +426,89 @@ frame_lod_settings2.pack()
 frame_lod_settings3 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings3.pack()
 
-bool_lod00 = tkinter.IntVar(value=1)
-bool_lod02 = tkinter.IntVar(value=1)
-bool_lod03 = tkinter.IntVar(value=0)
-bool_lod10 = tkinter.IntVar(value=1)
-bool_lod12 = tkinter.IntVar(value=1)
-bool_lod13 = tkinter.IntVar(value=1)
-bool_lod22 = tkinter.IntVar(value=1)
-bool_lod32 = tkinter.IntVar(value=0)
-bool_lod50 = tkinter.IntVar(value=0)
-
-toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=bool_lod00)
+toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=lod_settings.lod00)
 toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                    text="LoD0.2",
-                                   variable=bool_lod02,
-                                   command= lambda : [toggleEnableEntry(toggle_makefootprint, {bool_lod02.get()}),
-                                                      toggleEnableEntry(toggle_makeroofprint, {bool_lod02.get()}),
+                                   variable=lod_settings.lod02,
+                                   command= lambda : [toggleEnableEntry(toggle_makefootprint, {lod_settings.lod02.get()}),
+                                                      toggleEnableEntry(toggle_makeroofprint, {lod_settings.lod02.get()}),
                                                       toggleEnableEntry(toggle_makeinterior, {
-                                                          bool_lod02.get(),
-                                                          bool_lod12.get(),
-                                                          bool_lod22.get(),
-                                                          bool_lod32.get()
+                                                          lod_settings.lod02.get(),
+                                                          lod_settings.lod12.get(),
+                                                          lod_settings.lod22.get(),
+                                                          lod_settings.lod32.get(),
+                                                          lod_settings.lod50.get()
                                                       })]
                                    )
-toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=bool_lod03)
-toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=bool_lod10)
+toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=lod_settings.lod03)
+toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=lod_settings.lod10)
 toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                    text="LoD1.2",
-                                   variable=bool_lod12,
-                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
-                                       bool_lod02.get(),
-                                       bool_lod12.get(),
-                                       bool_lod22.get(),
-                                       bool_lod32.get()
-                                                    })]
-                                   )
-toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=bool_lod13)
-toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=bool_lod22,
-                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
-                                       bool_lod02.get(),
-                                       bool_lod12.get(),
-                                       bool_lod22.get(),
-                                       bool_lod32.get()
-                                                    })]
-                                   )
+                                   variable=lod_settings.lod12,
+                                   command=lambda: [
+                                       toggleEnableEntry(toggle_makeinterior, {
+                                           lod_settings.lod02.get(),
+                                           lod_settings.lod12.get(),
+                                           lod_settings.lod22.get(),
+                                           lod_settings.lod32.get(),
+                                           lod_settings.lod50.get()
+                                       }),
+                                       toggleEnableEntry(toggle_footprint, {
+                                            lod_settings.lod12.get(),
+                                            lod_settings.lod13.get(),
+                                            lod_settings.lod22.get()
+                                       })
+                                   ])
+
+toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=lod_settings.lod13,
+                                   command=lambda: [ toggleEnableEntry(toggle_footprint, {
+                                            lod_settings.lod12.get(),
+                                            lod_settings.lod13.get(),
+                                            lod_settings.lod22.get()
+                                       })
+                                   ])
+
+toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=lod_settings.lod22,
+                                   command=lambda: [
+                                       toggleEnableEntry(toggle_makeinterior, {
+                                           lod_settings.lod02.get(),
+                                           lod_settings.lod12.get(),
+                                           lod_settings.lod22.get(),
+                                           lod_settings.lod32.get(),
+                                           lod_settings.lod50.get()
+                                       }),
+                                       toggleEnableEntry(toggle_footprint, {
+                                            lod_settings.lod12.get(),
+                                            lod_settings.lod13.get(),
+                                            lod_settings.lod22.get()
+                                       })
+                                   ])
+
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
-                                   variable=bool_lod32,
-                                   command=lambda: [toggleEnableEntry(toggle_makeinterior, {
-                                       bool_lod02.get(),
-                                       bool_lod12.get(),
-                                       bool_lod22.get(),
-                                       bool_lod32.get()
-                                   })]
-                                   )
+                                   variable=lod_settings.lod32,
+                                   command=lambda: [
+                                       toggleEnableEntry(toggle_makeinterior, {
+                                           lod_settings.lod02.get(),
+                                           lod_settings.lod12.get(),
+                                           lod_settings.lod22.get(),
+                                           lod_settings.lod32.get(),
+                                           lod_settings.lod50.get()
+                                       })
+                                   ])
+
 toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoDV.0",
-                                   variable=bool_lod50
-                                   )
-#bool_lod51 = tkinter.IntVar(value=0)
-#toggle_makelod51 = ttk.Checkbutton(frame_lod_settings3,
-#                                   text="LoDV.1",
-#                                   variable=bool_lod51
-#                                   )
+                                   variable=lod_settings.lod50,
+                                   command=lambda: [
+                                       toggleEnableEntry(toggle_makeinterior, {
+                                           lod_settings.lod02.get(),
+                                           lod_settings.lod12.get(),
+                                           lod_settings.lod22.get(),
+                                           lod_settings.lod32.get(),
+                                           lod_settings.lod50.get()
+                                       })
+                                   ])
 
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)
@@ -421,7 +519,6 @@ toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
-#toggle_makelod51.pack(side=tkinter.LEFT)
 
 # makeSplit
 frame_lod_settings_sep = ttk.Separator(frame_lod_settings_complete, orient=tkinter.VERTICAL)
@@ -437,20 +534,11 @@ frame_lod_settings_foot.pack(side=tkinter.RIGHT)
 text_lod_settings = tkinter.Label(frame_lod_settings_foot, text="Additional settings")
 text_lod_settings.pack()
 
-bool_make_footprint = tkinter.IntVar(value=1)
-toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint (LoD0.2 only)", variable=bool_make_footprint)
-
-bool_make_roofprint = tkinter.IntVar(value=1)
-toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline (LoD0.2 only)", variable=bool_make_roofprint)
-
-bool_footprint_based = tkinter.IntVar(value=0)
-toggle_footprint = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction (LoD1.2, 1.3 & 2.2)", variable=bool_footprint_based)
-
-bool_make_interior = tkinter.IntVar(value=0)
-toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors (Detailed LoD only)", variable=bool_make_interior)
-
-bool_summary_voxels = tkinter.IntVar(value=0)
-toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate areas and volumes", variable=bool_summary_voxels)
+toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint", variable=footprint_settings.make_footprint)
+toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline", variable=footprint_settings.make_roofprint)
+toggle_footprint = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction", variable=footprint_settings.footprint_based)
+toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors", variable=other_settings.make_interior)
+toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate areas and volumes", variable=other_settings.summary_voxels)
 
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
@@ -503,8 +591,7 @@ button_plus_footprint.pack(side=tkinter.LEFT)
 separatorFootprint = ttk.Separator(main_window, orient='horizontal')
 separatorFootprint.pack(fill='x', pady=10)
 
-bool_makerep = tkinter.IntVar(value=1)
-makerep_toggle = ttk.Checkbutton(main_window, text="Create report", variable=bool_makerep)
+makerep_toggle = ttk.Checkbutton(main_window, text="Create report", variable=other_settings.make_report)
 
 # The div objects
 message_div_objects = tkinter.Text(main_window,  width=300, height=5, bg="#F0F0F0", fg="#707070")
@@ -512,20 +599,16 @@ message_div_objects = tkinter.Text(main_window,  width=300, height=5, bg="#F0F0F
 frame_div_objects = tkinter.Frame(main_window)
 frame_div_objects.pack()
 
-bool_igoreproxy = tkinter.IntVar(value=1)
-bool_useDefault = tkinter.IntVar(value=1)
-
 igoreproxy_toggle = ttk.Checkbutton(frame_div_objects,
                                     text="Ignore proxy elements",
-                                    variable=bool_igoreproxy,
-                                    command= lambda : updateDivMessage(message_div_objects, bool_useDefault, bool_igoreproxy))
+                                    variable=div_settings.ignore_proxy,
+                                    command= lambda : updateDivMessage(message_div_objects,div_settings.use_default, div_settings.ignore_proxy))
 igoreproxy_toggle.pack(side=tkinter.LEFT, padx=30)
 
-bool_useDefault = tkinter.IntVar(value=1)
 useDefault_toggle = ttk.Checkbutton(frame_div_objects,
                                     text="Use default div objects",
-                                    variable=bool_useDefault,
-                                    command= lambda : updateDivMessage(message_div_objects, bool_useDefault, bool_igoreproxy))
+                                    variable=div_settings.use_default,
+                                    command= lambda : updateDivMessage(message_div_objects, div_settings.use_default, div_settings.ignore_proxy))
 useDefault_toggle.pack(side=tkinter.LEFT)
 
 # div communication
@@ -533,16 +616,15 @@ message_div_objects.insert(tkinter.INSERT, getDefaultDivObjects())
 message_div_objects['state'] = tkinter.DISABLED
 message_div_objects.pack(fill='x', padx=5, pady=10)
 
-bool_enableCustom = tkinter.IntVar(value=0)
 enableCustom_toggle = ttk.Checkbutton(main_window,
                                     text="Custom div objects",
-                                    variable=bool_enableCustom,
+                                    variable=div_settings.custom_enabled,
                                     command= lambda : toggleEnableDiv(
                                         message_div_objects,
                                         useDefault_toggle,
                                         igoreproxy_toggle,
-                                        bool_useDefault,
-                                        bool_igoreproxy))
+                                        div_settings.use_default,
+                                        div_settings.ignore_proxy))
 enableCustom_toggle.pack()
 # other buttons
 separator3 = ttk.Separator(main_window, orient='horizontal')
@@ -554,25 +636,10 @@ frame_other.pack(fill=tkinter.X)
 run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, command=lambda: runCode(
     entry_inputpath.get(),
     entry_outputpath.get(),
-    bool_lod00.get(),
-    bool_lod02.get(),
-    bool_lod03.get(),
-    bool_lod10.get(),
-    bool_lod12.get(),
-    bool_lod13.get(),
-    bool_lod22.get(),
-    bool_lod32.get(),
-    bool_lod50.get(),
-    False,
-    bool_make_footprint.get(),
-    bool_make_roofprint.get(),
-    bool_footprint_based.get(),
-    bool_make_interior.get(),
-    bool_summary_voxels.get(),
-    bool_igoreproxy.get(),
-    bool_useDefault.get(),
-    bool_enableCustom.get(),
-    bool_makerep.get(),
+    lod_settings,
+    footprint_settings,
+    div_settings,
+    other_settings,
     entry_footprint.get(),
     entry_voxelsize.get(),
     message_div_objects.get('1.0', tkinter.END),
@@ -583,25 +650,10 @@ run_button.pack(side=tkinter.LEFT, padx=(5,0))
 generate_button = tkinter.Button(frame_other, text="Generate", width=size_button_normal, command= lambda: runCode(
     entry_inputpath.get(),
     entry_outputpath.get(),
-    bool_lod00.get(),
-    bool_lod02.get(),
-    bool_lod03.get(),
-    bool_lod10.get(),
-    bool_lod12.get(),
-    bool_lod13.get(),
-    bool_lod22.get(),
-    bool_lod32.get(),
-    bool_lod50.get(),
-    False,
-    bool_make_footprint.get(),
-    bool_make_roofprint.get(),
-    bool_footprint_based.get(),
-    bool_make_interior.get(),
-    bool_summary_voxels.get(),
-    bool_igoreproxy.get(),
-    bool_useDefault.get(),
-    bool_enableCustom.get(),
-    bool_makerep.get(),
+    lod_settings,
+    footprint_settings,
+    div_settings,
+    other_settings,
     entry_footprint.get(),
     entry_voxelsize.get(),
     message_div_objects.get('1.0', tkinter.END),
@@ -609,7 +661,47 @@ generate_button = tkinter.Button(frame_other, text="Generate", width=size_button
 ))
 generate_button.pack(side=tkinter.LEFT, padx=(0,0))
 
+text_toolTip = tkinter.Label(frame_other, text="hover over settings for tooltip")
+text_toolTip.pack(side=tkinter.LEFT, padx=(15,0))
+
 close_button = tkinter.Button(frame_other, text="Close", width=size_button_normal, command= lambda : main_window.destroy())
 close_button.pack(side=tkinter.RIGHT, padx=(0,5))
+
+#tooltips
+Tooltip(entry_inputpath, "Input path(s), supports multifile IFC models")
+Tooltip(button_browse, "Input path(s), supports multifile IFC models")
+
+Tooltip(entry_outputpath, "output path, application can not create new folders")
+Tooltip(button_browse2, "output path, application can not create new folders")
+
+
+desired_lod_tooltip_txt = "Desired LoD abstractions to be created"
+Tooltip(frame_lod_settings1, desired_lod_tooltip_txt)
+Tooltip(frame_lod_settings2, desired_lod_tooltip_txt)
+Tooltip(frame_lod_settings3, desired_lod_tooltip_txt)
+
+Tooltip(toggle_makefootprint, "If active a footprint will be created at the footprint elevation (lod0.2 only)")
+Tooltip(toggle_makeroofprint, "If active a roof outline will be created (lod0.2 only)")
+Tooltip(toggle_footprint, "If active the footprint will be used to restrict the output (LoD1.2, 1.3 & 2.2)")
+Tooltip(toggle_makeinterior, "If active spaces will be stored (Lod0.2, 1.2, 2.2, 3.2 & 3.2) and storey "
+                             "objects will be created (loD0.2 only)")
+Tooltip(toggle_summaryvoxel, "If active volumes and areas of the shells, storey and spaces are approximated using the voxel grid")
+
+Tooltip(entry_voxelsize, "Voxel size to be used for the analysis")
+Tooltip(button_min_voxelsize, "Decrement size by 0.1")
+Tooltip(button_plus_voxelsize, "increment size by 0.1")
+
+Tooltip(entry_footprint, "Z height at which the footprint section is taken and the ground floor of the abstractions will be placed")
+Tooltip(button_min_footprint, "Decrement size by 0.01")
+Tooltip(button_plus_footprint, "Decrement size by 0.01")
+
+Tooltip(igoreproxy_toggle, "If active IfcBuildingProxyElements will be excluded from the process")
+Tooltip(useDefault_toggle, "If active default div objects will be used during the process")
+Tooltip(message_div_objects, "Used div objects during the process, separated by a space. Can be unlocked by toggling the Custom div objects button")
+Tooltip(enableCustom_toggle, "Enables the custom div objects list")
+
+Tooltip(run_button, "Run the tool")
+Tooltip(generate_button, "Generate and store the Configuration JSON")
+Tooltip(close_button, "Exit the application")
 
 main_window.mainloop()
