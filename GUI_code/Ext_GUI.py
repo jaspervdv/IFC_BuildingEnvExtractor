@@ -129,7 +129,7 @@ def runCode(input_path,
     ifc2_exe_path = "Ifc_Envelope_Extractor_ifc2x3.exe"
     ifc4_exe_path = "Ifc_Envelope_Extractor_ifc4.exe"
     ifc4x3_exe_path = "Ifc_Envelope_Extractor_ifc4x3.exe"
-    json_path = "../Pre_Build/~" + Path(input_path).stem + "_config.json"
+    json_path = Path(input_path).stem + "_config.json"
 
     # check voxel input
     try:
