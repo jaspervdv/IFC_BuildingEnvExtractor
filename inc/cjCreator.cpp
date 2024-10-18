@@ -3121,8 +3121,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 				prismList.emplace_back(prism);
 			}
 		}
-
-		
 	}
 
 	gp_Trsf trs;
@@ -3179,13 +3177,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	{
 		exteriorProductIndex.insert(productLookupValues[i]);
 	}
-
-	// evaluate which shapes are completely encapsulated by another shape
-	//filterEncapsulatedObjects(
-	//	&productLookupValues,
-	//	&exteriorProductIndex,
-	//	h
-	//);
 
 	// make the collection compund shape
 	BRep_Builder builder;
@@ -4261,7 +4252,8 @@ std::shared_ptr<CJT::CityObject> CJGeoCreator::createDefaultRoomObject(std::vect
 	int storeyIndx = -1;
 	for (size_t j = 0; j < storeyCityObjects.size(); j++)
 	{
-		double zDistance = abs(storeyCityObjects[j]->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcElevation)] - lowestZ);
+		nlohmann::json jsonElev = storeyCityObjects[j]->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcElevation)];
+		double zDistance = abs(static_cast<double>(jsonElev) - lowestZ);
 
 		if (smallestZDistance > zDistance)
 		{
