@@ -997,7 +997,7 @@ bool IOManager::run()
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();	
 	}
 
-	if (settingsCollection.makeInterior())
+	if (settingsCollection.makeInterior()) //TODO: make this a function
 	{
 		// get storey semantic objects
 		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalHelper_.get());
@@ -1086,7 +1086,44 @@ bool IOManager::run()
 	collection->setMetaData(metaData);
 
 	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
-	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalHelper_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
+
+	//TODO: get storey data
+	IfcSchema::IfcBuildingStorey::list::ptr storeyList = internalHelper_.get()->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
+
+	double groundHeight = settingsCollection.footprintElevation();
+	double smallestDistance = 1000000;
+	double groundFloorHeight = 0;
+	std::vector<double> storeyHeights;
+	for (auto it = storeyList->begin(); it != storeyList->end(); ++it)
+	{
+		IfcSchema::IfcBuildingStorey* storeyObject = *it;
+		double floorHeight = storeyObject->Elevation().get() * internalHelper_.get()->getScaler(0);
+		storeyHeights.emplace_back(floorHeight);
+
+		double distanceToGround = abs(floorHeight - groundHeight);
+
+		if (distanceToGround < smallestDistance)
+		{
+			smallestDistance = distanceToGround;
+			groundFloorHeight = floorHeight;
+		}
+	}
+
+	int storeyFloors = 0;
+	int basementFloors = 0;
+	for (double floorHeight : storeyHeights)
+	{
+		if (floorHeight >= groundFloorHeight) { storeyFloors++; }
+		else { basementFloors++; }
+	}
+
+	//TODO: find closest storey to ground level
+	//TODO: count storeys above this value + 1
+	//TODO: count storeys below this value
+
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysAboveGround", storeyFloors);
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysBelowGround", basementFloors);
 
 	if (settingsCollection.summaryVoxels())
 	{
