@@ -212,13 +212,13 @@ def runCode(input_path,
         lod_list.append(1.0)
     if (lod_settings.lod12.get()):
         lod_list.append(1.2)
-        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
     if (lod_settings.lod13.get()):
         lod_list.append(1.3)
-        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
     if (lod_settings.lod22).get():
         lod_list.append(2.2)
-        json_dictionary["JSON"]["Footprint based"] = footprint_settings.make_roofprint.get()
+        json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
     if (lod_settings.lod32.get()):
         lod_list.append(3.2)
     if (lod_settings.lod50.get()):

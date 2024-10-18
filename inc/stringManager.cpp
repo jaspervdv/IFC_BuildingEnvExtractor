@@ -293,6 +293,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Horizontal section offset";
 	case JsonObjectInID::JSONGeoreference:
 		return "Georeference";
+	case JsonObjectInID::JSONMergeSemantics:
+		return "Merge semantic objects";
 	
 	case JsonObjectInID::lodOutput:
 		return "LoD output";

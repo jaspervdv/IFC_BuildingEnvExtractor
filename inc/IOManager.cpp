@@ -94,7 +94,6 @@ bool IOManager::getJSONValues()
 		if (json[outputReportOName] == 0) { settingsCollection.setWriteReport(false); }
 	}
 
-
 	bool threadFound = false;
 	std::string threadMaxOName = JsonObjectInEnum::getString(JsonObjectInID::maxThread);
 	if (json.contains(threadMaxOName))
@@ -307,7 +306,16 @@ bool IOManager::getJSONValues()
 			settingsCollection.setGeoReference(false);
 		}		
 	}
-	 
+
+	std::string mergeSemantics = JsonObjectInEnum::getString(JsonObjectInID::JSONMergeSemantics);
+	if (outputDataJson.contains(mergeSemantics))
+	{
+		if (outputDataJson[mergeSemantics] == false || outputDataJson[mergeSemantics] == 0)
+		{
+			settingsCollection.setmergeSemantics(false);
+		}
+	}
+
 	// Voxel related output and processing settings
 	std::string voxelOName = JsonObjectInEnum::getString(JsonObjectInID::voxel);
 	if (json.contains(voxelOName))
@@ -564,6 +572,9 @@ void IOManager::printSummary()
 	std::cout << "- Georeference:" << std::endl;
 	if (settingsCollection.geoReference()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
 	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << "- Merge semantic objects" << std::endl;
+	if (settingsCollection.mergeSemantics()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
+	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
 
 	std::cout << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "other settings:" << std::endl;
@@ -675,6 +686,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string jsonGenRootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
 	std::string jsonGenInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
 	std::string jsonGeoreferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
+	std::string jsonMergeSemanticsOName = JsonObjectInEnum::getString(JsonObjectInID::JSONMergeSemantics);
 
 	jsonJSON[jsonFootprintElevOName] = settingsCollection.footprintElevation();
 	jsonJSON[jsonFootprintBSOName] = settingsCollection.footPrintBased();
@@ -687,6 +699,7 @@ nlohmann::json IOManager::settingsToJSON()
 	}
 	jsonJSON[jsonGenInteriorOName] = settingsCollection.makeInterior();
 	jsonJSON[jsonGeoreferenceOName] = settingsCollection.geoReference();
+	jsonJSON[jsonMergeSemanticsOName] = settingsCollection.mergeSemantics();
 	settingsJSON[jsonOName] = jsonJSON;
 
 	return settingsJSON;

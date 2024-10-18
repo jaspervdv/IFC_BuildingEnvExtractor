@@ -1612,6 +1612,11 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
 	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ, bufferSurface); }
 
+	if (splitTopSurfaceList.size() == 1)
+	{
+		prismList.emplace_back(extrudeFace(splitTopSurfaceList[0], true, lowestZ));
+	}
+
 	// extrude the trimmed surfaces and join
 	BOPAlgo_Builder aBuilder;
 	aBuilder.SetFuzzyValue(precision);
@@ -1951,42 +1956,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	if (cleanedFaceList.size() == 0) { return TopoDS_Face(); }
 
 	return cleanedFaceList[0];
-}
-
-
-std::vector<int> CJGeoCreator::getTypeValuesBySample(const TopoDS_Shape& prism, bool flat) {
-	std::vector<int> valueList;
-
-	double lowestZ = std::numeric_limits<double>::max();
-	int lowestFaceIdx = 0;
-	int faceIdx = 0;
-
-	for (TopExp_Explorer faceExp(prism, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
-		TopoDS_Face currentface = TopoDS::Face(faceExp.Current());
-		gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentface).Normalized();
-
-		if (abs(faceNormal.Z() ) < 0.0001)
-		{
-			valueList.emplace_back(2);
-			faceIdx++;
-			continue;
-		}
-		
-		valueList.emplace_back(1);
-
-		Bnd_Box bbox;
-		BRepBndLib::Add(currentface, bbox);
-		Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
-		bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
-		if (zmin < lowestZ) {
-			lowestZ = zmin;
-			lowestFaceIdx = faceIdx;
-		}
-		faceIdx++;
-	}
-
-	valueList[lowestFaceIdx] = 0;
-	return valueList;
 }
 
 
@@ -2775,6 +2744,7 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 		if (!topFaceList.size()) { continue; }
 		
 		std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
+
 		if (roomPrismList.size() == 1)
 		{
 			if (roomPrismList[0].IsNull()) { return; } //TODO: check why this is needed for the gaia model (also at LoD12 creation)
@@ -2858,15 +2828,30 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 	std::map<std::string, std::string> rMap;
 	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
-	geoObject.appendSurfaceData(grMap);
-	geoObject.appendSurfaceData(wMap);
-	geoObject.appendSurfaceData(rMap);
-	geoObject.appendSurfaceTypeValue(0);
-	geoObject.appendSurfaceTypeValue(1);
-	geoObject.appendSurfaceTypeValue(1);
-	geoObject.appendSurfaceTypeValue(1);
-	geoObject.appendSurfaceTypeValue(1);
-	geoObject.appendSurfaceTypeValue(2);
+	if (settingsCollection.mergeSemantics())
+	{
+		geoObject.appendSurfaceData(grMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(rMap);
+		geoObject.appendSurfaceTypeValue(0);
+		geoObject.appendSurfaceTypeValue(1);
+		geoObject.appendSurfaceTypeValue(1);
+		geoObject.appendSurfaceTypeValue(1);
+		geoObject.appendSurfaceTypeValue(1);
+		geoObject.appendSurfaceTypeValue(2);
+	}
+	else
+	{
+		geoObject.appendSurfaceData(grMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(rMap);
+
+		for (size_t i = 0; i < 6; i++) { geoObject.appendSurfaceTypeValue(i); }
+	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObject;
 }
@@ -2953,9 +2938,10 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD12) << std::endl;
 	if (!hasTopFaces_ || !hasGeoBase_) { { return std::vector< CJT::GeoObject>(); } }
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	std::vector<TopoDS_Face> geometryBase;
-	if (!SettingsCollection::getInstance().footPrintBased())
+	if (!settingsCollection.footPrintBased())
 	{
 		if (roofOutlineList_.size() == 0) { return {}; }
 		geometryBase = roofOutlineList_;
@@ -2977,7 +2963,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 		TopoDS_Face currentFootprint = geometryBase[i];
 
 		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 		currentFootprint.Move(localRotationTrsf);
 
 		helperFunctions::geoTransform(&currentFootprint, h->getObjectTranslation(), trs);
@@ -2986,27 +2972,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 		sweeper.Build();
 		TopoDS_Shape extrudedShape = sweeper.Shape();
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(extrudedShape, "1.2");
-		std::map<std::string, std::string> grMap;
-		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-		std::map<std::string, std::string> wMap;
-		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-		std::map<std::string, std::string> rMap;
-		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-		geoObject.appendSurfaceData(grMap);
-		geoObject.appendSurfaceData(wMap);
-		geoObject.appendSurfaceData(rMap);
-
-		int counter = 0;
-		for (TopExp_Explorer faceExp(extrudedShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
-			TopoDS_Face face = TopoDS::Face(faceExp.Current());
-			geoObject.appendSurfaceTypeValue(1);
-			counter++;
-		}
-		geoObject.setSurfaceTypeValue(counter - 2, 0);
-		geoObject.setSurfaceTypeValue(counter - 1, 2);
+		CJT::GeoObject geoObject = kernel->convertToJSON(extrudedShape, "1.2");		
+		createSemanticData(&geoObject, extrudedShape);
 		geoObjectList.emplace_back(geoObject);
 	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
@@ -3101,10 +3071,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, const std::vecto
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
 		
-		addFullSurfaceDict(&geoObject);
-		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], true);
-		geoObject.setSurfaceTypeValues(typeValueList);
-
+		createSemanticData(&geoObject, currentShape);
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3140,10 +3107,22 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 			}
 		}
 
-		for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z(), true, footprintList_[i]))
+		if (SettingsCollection::getInstance().footPrintBased())
 		{
-			prismList.emplace_back(prism);
+			for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z(), true, footprintList_[i]))
+			{
+				prismList.emplace_back(prism);
+			}
 		}
+		else
+		{
+			for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z(), true))
+			{
+				prismList.emplace_back(prism);
+			}
+		}
+
+		
 	}
 
 	gp_Trsf trs;
@@ -3161,9 +3140,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "2.2");
 		
-		addFullSurfaceDict(&geoObject);
-		std::vector<int> typeValueList = getTypeValuesBySample(prismList[i], false);
-		geoObject.setSurfaceTypeValues(typeValueList);
+		createSemanticData(&geoObject, currentShape);
 
 		geoObjectList.emplace_back(geoObject);
 	}
@@ -4301,6 +4278,76 @@ std::shared_ptr<CJT::CityObject> CJGeoCreator::createDefaultRoomObject(std::vect
 	cjRoomObject->addParent(storeyCityObjects[storeyIndx]);
 
 	return cjRoomObject;
+}
+
+void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	std::map<std::string, std::string> grMap;
+	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+	std::map<std::string, std::string> wMap;
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+	std::map<std::string, std::string> rMap;
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+
+	std::vector<int> functionList; // detect what surface is what based on the normals and face height
+	for (TopExp_Explorer faceExp(geometryShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+		TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+		gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
+		if (abs(faceNormal.Z()) > settingsCollection.precision())
+		{
+			if (helperFunctions::getTopFaceHeight(face) - settingsCollection.footprintElevation() < settingsCollection.precision()) // is floor
+			{
+				functionList.emplace_back(0);
+			}
+			else // is roof 
+			{
+				functionList.emplace_back(2);
+			}
+		}
+		else // is wall
+		{
+			functionList.emplace_back(1);
+		}
+	}
+
+	if (SettingsCollection::getInstance().mergeSemantics())
+	{
+		geoObject->appendSurfaceData(grMap);
+		geoObject->appendSurfaceData(wMap);
+		geoObject->appendSurfaceData(rMap);
+
+		for (int functionIdx : functionList)
+		{
+			geoObject->appendSurfaceTypeValue(functionIdx);
+		}
+	}
+	else
+	{
+		for (size_t j = 0; j < functionList.size(); j++)
+		{
+			int functionIdx = functionList[j];
+
+			if (functionIdx == 0)
+			{
+				geoObject->appendSurfaceData(grMap);
+				geoObject->appendSurfaceTypeValue(j);
+			}
+			else if (functionIdx == 1)
+			{
+				geoObject->appendSurfaceData(wMap);
+				geoObject->appendSurfaceTypeValue(j);
+			}
+			else
+			{
+				geoObject->appendSurfaceData(rMap);
+				geoObject->appendSurfaceTypeValue(j);
+			}
+		}
+	}
+	return;
 }
 
 CJGeoCreator::CJGeoCreator(helper* h, double vSize)

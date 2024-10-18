@@ -38,14 +38,12 @@ private:
 	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
 
-    // unexposed settings
-    bool addCustomWallAttributes_ = false;
-
 	// variables set the deviding objects
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
-
 	std::vector<std::string> CustomDivList_;
+
+    bool mergeSemantics_ = true;
 
 	// use 3 planes instead of volumetric voxel intersections
 	int intersectionLogic_ = 3;
@@ -59,15 +57,17 @@ private:
 	double footprintElevation_ = 0;
     double horizontalSectionOffset_ = 0; // offset from the storey and footprint sections
 
-	double precision_ = 1e-6;
-	double precisionCoarse_ = 1e-4;
-
 	int threadcount_ = 0;
 
-	// how many proxy objects are present in the input
-	int proxyCount_ = 0;
+    // unexposed settings
+    bool addCustomWallAttributes_ = false;
+    double precision_ = 1e-6;
+    double precisionCoarse_ = 1e-4;
 
 	// \/ generated settings \/
+    // how many proxy objects are present in the input
+    int proxyCount_ = 0;
+
 	// if LoD0.0 and 1.0 is generated only no voxels are required
 	bool requireVoxels_ = true;
 
@@ -173,6 +173,9 @@ public:
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }
     void addToCustomDivList(const std::string& value) { CustomDivList_.emplace_back(value); }
+
+    bool mergeSemantics() const { return mergeSemantics_; }
+    void setmergeSemantics(bool value) { mergeSemantics_ = value; }
 
     int intersectionLogic() const { return intersectionLogic_; }
     void setIntersectionLogic(int value) { intersectionLogic_ = value; }

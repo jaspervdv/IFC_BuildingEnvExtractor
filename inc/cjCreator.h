@@ -158,9 +158,6 @@ private:
 	/// attempts to merge faces into one big face
 	TopoDS_Face mergeFaces(const std::vector<TopoDS_Face>& mergeFaces);
 
-	/// generate the indx related to the type data for json output: 0 = GroundSurface, 1 = WallSurface, 2 = RoofSurface
-	std::vector<int> getTypeValuesBySample(const TopoDS_Shape& prism, bool flat);
-
 	/// outputs the time delta between the start and end time
 	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
 
@@ -189,6 +186,8 @@ private:
 
 	// generates default CJ object that represents a room, used for voxel rooms if no room objects are present
 	std::shared_ptr<CJT::CityObject> createDefaultRoomObject(std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum, double lowestZ);
+
+	void createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape);
 
 public:
 	explicit CJGeoCreator(helper* h, double vSize);

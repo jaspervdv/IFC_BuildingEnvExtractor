@@ -173,6 +173,7 @@ enum class JsonObjectInID {
 	JSONGenRoofOutline,
 	JSONGenInterior,
 	JSONGeoreference,
+	JSONMergeSemantics,
 
 	lodOutput,
 
