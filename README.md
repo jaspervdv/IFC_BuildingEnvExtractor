@@ -10,7 +10,7 @@ Current possible output shells:
 
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
-* LoD0.3 - extrioir roof structure only
+* LoD0.3 - exterior roof structure only
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
@@ -268,7 +268,7 @@ The settings json has a very simple structure. An example can be found below:
     "JSON" : {
         "Footprint elevation": 1,
         "Footprint based" : 0,
-        "Horizontal section offset": 1.2,
+        "Horizontal section offset": 0,
         "Generate footprint": 1,
         "Generate roof outline": 1,
         "Generate interior": 1,

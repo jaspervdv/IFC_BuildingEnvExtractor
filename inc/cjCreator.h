@@ -187,7 +187,7 @@ private:
 	// generates default CJ object that represents a room, used for voxel rooms if no room objects are present
 	std::shared_ptr<CJT::CityObject> createDefaultRoomObject(std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int roomNum, double lowestZ);
 
-	void createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape);
+	void createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape, bool isExterior = true);
 
 public:
 	explicit CJGeoCreator(helper* h, double vSize);

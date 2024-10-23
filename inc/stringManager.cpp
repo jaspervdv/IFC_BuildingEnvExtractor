@@ -324,16 +324,22 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "BuildingStorey";
 	case CJObjectID::CJTypeRoofSurface:
 		return "RoofSurface";
+	case CJObjectID::CJTypeFloorSurface:
+		return "FloorSurface";
 	case CJObjectID::CJTypeGroundSurface:
 		return "GroundSurface";
 	case CJObjectID::CJTypeWallSurface:
 		return "WallSurface";	
+	case CJObjectID::CJTypeInteriorWallSurface:
+		return "InteriorWallSurface";
 	case CJObjectID::CJTypeSiteObject:
 		return "Site";
 	case CJObjectID::CJTypeWindow:
 		return "Window";
 	case CJObjectID::CJTypeDoor:
 		return "Door";
+	case CJObjectID::CJTTypeCeilingSurface:
+		return "CeilingSurface";
 	case CJObjectID::CJAttHasWindow:
 		return "+hasWindows";
 

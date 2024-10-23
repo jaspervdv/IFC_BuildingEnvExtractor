@@ -195,10 +195,13 @@ enum class CJObjectID {
 	CJTypeStorey,
 	CJTypeRoofSurface,
 	CJTypeGroundSurface,
+	CJTypeFloorSurface,
 	CJTypeWallSurface,
+	CJTypeInteriorWallSurface,
 	CJTypeSiteObject,
 	CJTypeWindow,
 	CJTypeDoor,
+	CJTTypeCeilingSurface,
 
 	CJAttHasWindow,
 
