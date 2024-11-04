@@ -174,6 +174,7 @@ def runCode(input_path,
 
     # write data to json
     json_dictionary = {}
+
     json_dictionary["Filepaths"] = {}
     json_dictionary["Filepaths"]["Input"] = input_path_list
     json_dictionary["Filepaths"]["Output"] = output_path
@@ -183,11 +184,10 @@ def runCode(input_path,
     json_dictionary["Voxel"]["Store values"] = other_settings.summary_voxels.get()
 
     json_dictionary["IFC"] = {}
-    json_dictionary["IFC"]["Rotation"] = False
-
     if not div_settings.custom_enabled.get():
         json_dictionary["IFC"]["Default div"] = div_settings.use_default.get()
         json_dictionary["IFC"]["Ignore proxy"] = div_settings.ignore_proxy.get()
+        json_dictionary["IFC"]["Div objects"] = []
     else:
         json_dictionary["IFC"]["Default div"] = False
         json_dictionary["IFC"]["Ignore proxy"] = False

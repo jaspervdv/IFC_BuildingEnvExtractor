@@ -146,7 +146,6 @@ private:
 
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
-
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
 

@@ -159,28 +159,30 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::errorNoAreaUnit:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "SI unit for area cannot be found";
 
-	case CommunicationStringID::errorJSONReportPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid output report entry";
-	case CommunicationStringID::errorJSONThreadNum:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid thread max count entry";
-	case CommunicationStringID::errorJSONFilePath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain Filpaths Entry";
-	case CommunicationStringID::errorJSONInputPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain Input Filepath Entry";
-	case CommunicationStringID::errorJSONInvalInputPathFormat:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid input filepath entry: Input filepath entry should be array";
-	case CommunicationStringID::errorJSONNoValInputPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid input filepath entry";
-	case CommunicationStringID::errorJSONInvalInputPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains an invalid ifc input path: ";
-	case CommunicationStringID::errorJSONOutputPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain Output Filepath Entry";
-	case CommunicationStringID::errorJSONInvalOuputPathFormat:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid output path entry, output filepath entry should be string";
-	case CommunicationStringID::errorJSONInvalOuputFormat:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid output path, output path should end on .json or .city.json";
-	case CommunicationStringID::errorJSONInvalOutputFolder:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Target filepath folder does not exist";
+	case CommunicationStringID::errorJSONInvalBool:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid bool for entry: ";
+	case CommunicationStringID::errorJSONInvalInt:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid int for entry: ";
+	case CommunicationStringID::errorJSONInvalNegInt:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains an invalid negative int for entry: ";
+	case CommunicationStringID::errorJSONInvalNum:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid numeric value for entry: ";
+	case CommunicationStringID::errorJSONInvalString:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid string for entry: ";
+	case CommunicationStringID::errorJSONInvalPath:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains a path to a file with incorrect type for entry: ";
+	case CommunicationStringID::errorJsonNoRealPath:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains an invalid path for entry: ";
+	case CommunicationStringID::errorJSONInvalArray:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid array for entry: ";
+	case CommunicationStringID::errorJSONInvalEntry:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid value for entry: ";
+
+	case CommunicationStringID::errorJsonMissingEntry:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain required entry: ";
+	case CommunicationStringID::errorJsonInvalidLogic:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid logic number (2 or 3) entry: ";
+
 	case CommunicationStringID::errorJSONMissingLoD:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No desired LoD output can be found";
 	case CommunicationStringID::errorJSONNoDivObjects:

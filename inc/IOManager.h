@@ -39,7 +39,14 @@ private:
 	long long timeProcess = 0;
 	long long timeTotal = 0;
 
-	bool getTargetPathList();
+	// simple assist functions
+	bool getJsonBoolValue(const nlohmann::json& jsonBoolValue);
+	int getJsonInt(const nlohmann::json& jsonIntValue, bool requiredPositive);
+	double getJsonDouble(const nlohmann::json& jsonDouleValue);
+	std::string getJsonString(const nlohmann::json& jsonStringValue);
+	std::string getJsonPath(const nlohmann::json& jsonStringValue, const std::string& fileExtension);
+
+	std::string getTargetPath();
 	bool getOutputPathList();
 	std::string getFileName(const std::string& stringPath);
 
@@ -64,7 +71,7 @@ private:
 
 public:
 
-	bool init(const std::vector<std::string>& inputPathList, bool silent = false);
+	bool init(const std::vector<std::string>& inputPathList);
 
 	bool run();
 

@@ -12,7 +12,92 @@
 #include <boost/filesystem.hpp>
 
 
-bool IOManager::getTargetPathList()
+bool IOManager::getJsonBoolValue(const nlohmann::json& jsonBoolValue)
+{
+	if (jsonBoolValue.is_boolean())
+	{
+		return static_cast<bool>(jsonBoolValue);
+	}
+
+	if (!jsonBoolValue.is_number_integer() &&
+		!jsonBoolValue.is_number_unsigned())
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalBool));
+	}
+
+	int jsonBoolInt = static_cast<int>(jsonBoolValue);
+	if (jsonBoolInt == 0) { return false; }
+	if (jsonBoolInt == 1) { return true; }
+
+	throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalBool)); //if not 0 or 1 invalid
+}
+
+
+int IOManager::getJsonInt(const nlohmann::json& jsonIntValue, bool requiredPositive) 
+{
+	if (!jsonIntValue.is_number_integer() && 
+		!jsonIntValue.is_number_unsigned())
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInt));
+	}
+
+	if (!requiredPositive) { return static_cast<int>(jsonIntValue); }
+
+	int intValue = static_cast<int>(jsonIntValue);
+	if (intValue < 0)
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalNegInt));
+	}
+	return intValue;
+}
+
+double IOManager::getJsonDouble(const nlohmann::json& jsonDouleValue) 
+{
+	if (!jsonDouleValue.is_number_integer() &&
+		!jsonDouleValue.is_number_unsigned() &&
+		!jsonDouleValue.is_number_float())
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalNum));
+	}
+	return static_cast<double>(jsonDouleValue);
+}
+
+std::string IOManager::getJsonString(const nlohmann::json& jsonStringValue)
+{
+	if (!jsonStringValue.is_string())
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalString));
+	}
+	return static_cast<std::string>(jsonStringValue);
+}
+
+std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, const std::string& fileExtension)
+{
+	std::string jsonPathPtr = "";
+	try
+	{
+		jsonPathPtr = getJsonString(jsonStringValue);
+	}
+	catch (const std::string& exception)
+	{
+		throw exception;
+	}
+
+	if (!hasExtension(jsonPathPtr, fileExtension))
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalPath));
+	}
+	
+	if (!isValidPath(jsonPathPtr))
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonNoRealPath));
+	}
+
+	return jsonPathPtr;
+}
+
+
+std::string IOManager::getTargetPath()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -29,7 +114,7 @@ bool IOManager::getTargetPathList()
 		std::string singlepath = "";
 		std::getline(std::cin, singlepath);
 
-		if (singlepath.size() == 0 && settingsCollection.getInputPathList().size() == 0)
+		if (singlepath.size() == 0 && settingsCollection.getIfcPathList().size() == 0)
 		{
 			std::cout << stringNoFilePath << std::endl;
 			std::cout << stringJSONRequest << std::endl;
@@ -48,19 +133,8 @@ bool IOManager::getTargetPathList()
 			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
-
-		if (hasExtension(singlepath, "json"))
-		{
-			if (settingsCollection.getInputPathList().size() > 1)
-			{
-				return false;
-			}
-		}
-		settingsCollection.addToInputPathList(singlepath);
-		break;
+		return singlepath;
 	}
-	if (settingsCollection.getInputPathList().size() > 0) { return true; }
-	return false;
 }
 
 
@@ -77,104 +151,88 @@ bool IOManager::getJSONValues()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::ifstream f(settingsCollection.getInputPathList()[0]);
+	std::ifstream f(settingsCollection.getInputJSONPath());
 	nlohmann::json json = nlohmann::json::parse(f);
 
 	// in and output related settings
-	settingsCollection.clearInputPathList();
+	// get filepath object
+	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
+	if (!json.contains(filePathsOName))
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonMissingEntry) + filePathsOName);
+	}
+	nlohmann::json filePaths = json[filePathsOName];
+
+	// get ifc input path array
+	std::string inputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathsInput);
+	if (!filePaths.contains(inputOName))
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonMissingEntry) + inputOName);
+	}
+	nlohmann::json inputPaths = filePaths[inputOName];
+	if (inputPaths.type() != nlohmann::json::value_t::array)
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalArray) + inputOName);
+	}
+
+	// store input ifc paths
+	for (size_t i = 0; i < inputPaths.size(); i++) {
+		try { settingsCollection.addToIfcPathList(getJsonPath(inputPaths[i], "ifc")); }
+		catch (const std::string& exception) { throw exception + inputOName; }
+	}
+
+	// get output name
+	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
+	if (!filePaths.contains(outputOName))
+	{
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonMissingEntry) + outputOName);
+	}
+
+	try { settingsCollection.setOutputPath(getJsonPath(filePaths[outputOName], "json")); }
+	catch (const std::string& exception) { throw exception + outputOName; }
+
+	// check if output folder structure exists
+	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(settingsCollection.getOutputPath())).parent_path();
+
+	// set report output toggle
 	std::string outputReportOName = JsonObjectInEnum::getString(JsonObjectInID::outputReport);
 	if (json.contains(outputReportOName))
 	{
-		if (json[outputReportOName].type() != nlohmann::json::value_t::number_integer && json[outputReportOName].type() != nlohmann::json::value_t::number_unsigned)
+		try
 		{
-
-			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONReportPath));
+			bool reportBool = getJsonBoolValue(json[outputReportOName]);
+			settingsCollection.setWriteReport(reportBool);
 		}
-
-		if (json[outputReportOName] == 0) { settingsCollection.setWriteReport(false); }
+		catch (const std::string& exception)
+		{
+			throw exception + outputReportOName;
+		}
 	}
 
+	// set the threadcount
 	bool threadFound = false;
 	std::string threadMaxOName = JsonObjectInEnum::getString(JsonObjectInID::maxThread);
 	if (json.contains(threadMaxOName))
 	{
-		if (json[threadMaxOName].type() != nlohmann::json::value_t::number_integer && json[threadMaxOName].type() != nlohmann::json::value_t::number_unsigned)
+		try
 		{
-			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONThreadNum));
+			int desiredThreadCount = getJsonInt(json[threadMaxOName], true);
+			if (desiredThreadCount > 0)
+			{
+				settingsCollection.setThreadcount(desiredThreadCount);
+				threadFound = true;
+			}
 		}
-		if (json[threadMaxOName] > 0) 
-		{ 
-			settingsCollection.setThreadcount(static_cast<int>(json[threadMaxOName])); 
-			threadFound = true;
+		catch (const std::string& exception)
+		{
+			throw exception + threadMaxOName;
 		}
 	}
-	if (!threadFound)
+	if (!threadFound) // if entry not found set to max availble - 2
 	{
-		double availableThreads = std::thread::hardware_concurrency();
+		int availableThreads = std::thread::hardware_concurrency();
 		if (availableThreads - 2 > 0) { settingsCollection.setThreadcount(availableThreads - 2); }
 		else { settingsCollection.setThreadcount(availableThreads); }
-	}
-
-	std::string filePathsOName = JsonObjectInEnum::getString(JsonObjectInID::filePaths);
-	if (!json.contains(filePathsOName))
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONFilePath));
-	}
-	nlohmann::json filePaths = json[filePathsOName];
-
-	std::string inputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathsInput);
-	if (!filePaths.contains(inputOName))
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInputPath));
-	}
-
-	nlohmann::json inputPaths = filePaths[inputOName];
-	if (inputPaths.type() != nlohmann::json::value_t::array)
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPathFormat));
-	}
-
-	for (size_t i = 0; i < inputPaths.size(); i++) {
-		if (inputPaths[i].type() != nlohmann::json::value_t::string)
-		{
-			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONNoValInputPath));
-		}
-
-		std::string inputPath = inputPaths[i];
-
-		if (hasExtension(inputPath, "ifc") && isValidPath(inputPath))
-		{
-			settingsCollection.addToInputPathList(inputPaths[i]);
-		}
-		else
-		{
-			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalInputPath) + inputPath);
-		}
-	}
-
-	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
-	if (!filePaths.contains(outputOName))
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONOutputPath));
-	}
-
-	if (filePaths[outputOName].type() != nlohmann::json::value_t::string)
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONOutputPath));
-	}
-
-	settingsCollection.setOutputPath(filePaths[outputOName]);
-
-	if (!hasExtension(settingsCollection.getOutputPath(), "json"))
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOuputFormat));
-	}
-
-	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(settingsCollection.getOutputPath())).parent_path();
-
-	if (!boost::filesystem::exists(outputFolderPath))
-	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalOutputFolder));
 	}
 
 	//JSOn related output and processing settings
@@ -187,7 +245,7 @@ bool IOManager::getJSONValues()
 	// check for LoD output names
 	if (!json.contains(lodOutputOName))
 	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONMissingLoD));
+		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonMissingEntry) + lodOutputOName);
 	}
 
 	// reset the internal LoD values
@@ -195,14 +253,23 @@ bool IOManager::getJSONValues()
 
 	// check if interior generation is required
 	std::string generateInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+	std::unordered_set<double> LoDWInterior = settingsCollection.getLoDWInterior();
+
 	for (size_t i = 0; i < lodList.size(); i++) 
 	{
-		std::unordered_set<double> LoDWInterior = settingsCollection.getLoDWInterior();
 		if (LoDWInterior.find(lodList[i]) == LoDWInterior.end()) { continue; }
 
 		if (outputDataJson.contains(generateInteriorOName))
 		{
-			settingsCollection.setMakeInterior((int)outputDataJson[generateInteriorOName]);
+			try
+			{
+				bool interiorBool = getJsonBoolValue(outputDataJson[generateInteriorOName]);
+				settingsCollection.setMakeInterior(interiorBool);
+			}
+			catch (const std::string& exception)
+			{
+				throw exception + generateInteriorOName;
+			}
 		}
 		break;
 	}
@@ -211,21 +278,57 @@ bool IOManager::getJSONValues()
 	std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
 	if (outputDataJson.contains(footprintElevOName))
 	{
-		settingsCollection.setFootprintElevation(outputDataJson[footprintElevOName]);
+		try
+		{
+			double footprintElev = getJsonDouble(outputDataJson[footprintElevOName]);
+			settingsCollection.setFootprintElevation(footprintElev);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + footprintElevOName;
+		}	
 	}
 
 	// check for horizontal offset
 	std::string hSectionOffsetOName = JsonObjectInEnum::getString(JsonObjectInID::JSONSecOffset);
 	if (outputDataJson.contains(hSectionOffsetOName))
 	{
-		settingsCollection.setHorizontalSectionOffset(outputDataJson[hSectionOffsetOName]);
+		try
+		{
+			double sectionOffset = getJsonDouble(outputDataJson[hSectionOffsetOName]);
+			settingsCollection.setHorizontalSectionOffset(sectionOffset);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + hSectionOffsetOName;
+		}
 	}
 
-	
 	// check if roof outline and footprint have to generated and which LoD are to be created
 	std::string generatefootprOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint); // check if footprint has to be output in LoD0.2
 	std::string FootrpintBSOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintBShape); // check if footprint based output is desired (LoD1.2, 1.3 and 2.2)
 	std::string generateRoofOlineOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline); // check if roofprint has to be output in LoD0.2
+
+	bool generateFootprintBool = settingsCollection.makeFootPrint();
+	bool footprintBasedBool = settingsCollection.footPrintBased();
+	bool generateRoofprintBool = settingsCollection.makeRoofPrint();
+
+	if (outputDataJson.contains(generatefootprOName))
+	{
+		try { generateFootprintBool = getJsonBoolValue(outputDataJson[generatefootprOName]); }
+		catch (const std::string& exception) { throw exception + generatefootprOName; }
+	}
+	if (outputDataJson.contains(FootrpintBSOName)) //TODO: check if always applied matters
+	{
+		try { footprintBasedBool = getJsonBoolValue(outputDataJson[FootrpintBSOName]); }
+		catch (const std::string& exception) { throw exception + FootrpintBSOName; }
+	}
+	if (outputDataJson.contains(generateRoofOlineOName))
+	{
+		try { generateRoofprintBool = getJsonBoolValue(outputDataJson[generateRoofOlineOName]); }
+		catch (const std::string& exception) { throw exception + generateRoofOlineOName; }
+	}
+
 	for (size_t i = 0; i < lodList.size(); i++)
 	{
 		if (lodList[i] == 0.0) 
@@ -236,16 +339,9 @@ bool IOManager::getJSONValues()
 		else if (lodList[i] == 0.2)
 		{
 			settingsCollection.setMake02(true);
-
-			if (outputDataJson.contains(generatefootprOName))
-			{
-				settingsCollection.setMakeFootPrint((int)outputDataJson[generatefootprOName]);
-			}
-			if (outputDataJson.contains(generateRoofOlineOName))
-			{
-				settingsCollection.setMakeRoofPrint((int)outputDataJson[generateRoofOlineOName]);
-				if (settingsCollection.makeRoofPrint()) { settingsCollection.setMakeOutlines(true); }
-			}
+			settingsCollection.setMakeFootPrint(generateFootprintBool);
+			settingsCollection.setMakeRoofPrint(generateRoofprintBool);
+			settingsCollection.setMakeOutlines(generateRoofprintBool);
 			continue;
 		}
 
@@ -263,24 +359,21 @@ bool IOManager::getJSONValues()
 		{
 			settingsCollection.setMake12(true);
 			settingsCollection.setMakeOutlines(true);
-
-			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			settingsCollection.setFootPrintBased(footprintBasedBool);
 			continue;
 		}
 		else if (lodList[i] == 1.3)
 		{
 			settingsCollection.setMake13(true);
 			settingsCollection.setMakeOutlines(true);
-
-			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			settingsCollection.setFootPrintBased(footprintBasedBool);
 			continue;
 		}
 		else if (lodList[i] == 2.2)
 		{
 			settingsCollection.setMake22(true);
 			settingsCollection.setMakeOutlines(true);
-
-			if (outputDataJson.contains(FootrpintBSOName)) { settingsCollection.setFootPrintBased((int)outputDataJson[FootrpintBSOName]); }
+			settingsCollection.setFootPrintBased(footprintBasedBool);
 			continue;
 		}
 		else if (lodList[i] == 3.2)
@@ -295,24 +388,33 @@ bool IOManager::getJSONValues()
 		}
 
 		//if this is reached an unexpected value has been encountered
-		//TODO: add error to the report
 	}
 
 	std::string georeferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
 	if (outputDataJson.contains(georeferenceOName))
 	{
-		if (outputDataJson[georeferenceOName] == false || outputDataJson[georeferenceOName] == 0)
+		try
 		{
-			settingsCollection.setGeoReference(false);
-		}		
+			bool georeferenceBool = getJsonBoolValue(outputDataJson[georeferenceOName]);
+			settingsCollection.setGeoReference(georeferenceBool);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + georeferenceOName;
+		}	
 	}
 
 	std::string mergeSemantics = JsonObjectInEnum::getString(JsonObjectInID::JSONMergeSemantics);
 	if (outputDataJson.contains(mergeSemantics))
 	{
-		if (outputDataJson[mergeSemantics] == false || outputDataJson[mergeSemantics] == 0)
+		try
 		{
-			settingsCollection.setmergeSemantics(false);
+			bool mergeSemanticBool = getJsonBoolValue(outputDataJson[mergeSemantics]);
+			settingsCollection.setmergeSemantics(mergeSemanticBool);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + mergeSemantics;
 		}
 	}
 
@@ -327,16 +429,45 @@ bool IOManager::getJSONValues()
 		std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
 		if (voxelData.contains(voxelSizOName))			
 		{
-			settingsCollection.setVoxelSize(voxelData[voxelSizOName]);
+			try
+			{
+				double voxelSizeDouble = getJsonDouble(voxelData[voxelSizOName]);
+				settingsCollection.setVoxelSize(voxelSizeDouble);
+			}
+			catch (const std::string& exception)
+			{
+				throw exception + voxelSizOName;
+			}
 		}
 		if (voxelData.contains(voxelSummarizeOName))
-		{ 
-			if (voxelData[voxelSummarizeOName] == 1) { settingsCollection.setSummaryVoxels(true); }
+		{
+			try
+			{
+				bool summarizeVoxelBool = getJsonBoolValue(voxelData[voxelSummarizeOName]);
+				settingsCollection.setSummaryVoxels(summarizeVoxelBool);
+			}
+			catch (const std::string& exception)
+			{
+				throw exception + voxelSummarizeOName;
+			}
 		}
 		if (voxelData.contains(voxelIntersectionOName)) 
 		{
-			if (voxelData[voxelIntersectionOName] == 2) { settingsCollection.setIntersectionLogic(2); }
-			if (voxelData[voxelIntersectionOName] == 3) { settingsCollection.setIntersectionLogic(3); }
+			int voxelLogicInt = 0;
+			try
+			{
+				voxelLogicInt = getJsonInt(voxelData[voxelIntersectionOName], false);
+			}
+			catch (const std::string& exception)
+			{
+				throw exception + voxelIntersectionOName;
+			}
+			if (voxelLogicInt == 2) { settingsCollection.setIntersectionLogic(2); }
+			else if (voxelLogicInt == 3) { settingsCollection.setIntersectionLogic(3); }
+			else
+			{
+				throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJsonInvalidLogic) + voxelIntersectionOName);
+			}
 		}
 	}
 
@@ -350,28 +481,48 @@ bool IOManager::getJSONValues()
 	if (ifcInputJson.contains(rotationOName))
 	{
 		nlohmann::json rotationData = ifcInputJson[rotationOName];
-		if (rotationData.type() != nlohmann::json::value_t::boolean)
+		if (rotationData.is_boolean())
+		{
+			bool roationBool = static_cast<bool>(rotationData);
+			settingsCollection.setAutoRotateGrid(!roationBool);
+		}
+		else if (rotationData.is_number())
 		{
 			settingsCollection.setAutoRotateGrid(false);
 			settingsCollection.setDesiredRotation(static_cast<double>(rotationData)* (M_PI / 180));
+		}
+		else
+		{
+			throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorJSONInvalEntry) + rotationOName);
 		}
 	}
 
 	std::string defaultDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDefaultDiv);
 	if (ifcInputJson.contains(defaultDivOName))
 	{
-		if (ifcInputJson[defaultDivOName] == 0 || ifcInputJson[defaultDivOName] == false)
+		try
 		{
-			settingsCollection.setUseDefaultDiv(false);
+			bool defaultDivBool = getJsonBoolValue(ifcInputJson[defaultDivOName]);
+			settingsCollection.setUseDefaultDiv(defaultDivBool);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + defaultDivOName;
 		}
 	}
 
 	std::string ignoreProxyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCIgnoreProxy);
 	if (ifcInputJson.contains(ignoreProxyOName))
 	{
-		if (ifcInputJson[ignoreProxyOName] == 0 || ifcInputJson[ignoreProxyOName] == false)
+		try
 		{
-			settingsCollection.setUseProxy(true);
+			bool ignoreProxyBool = getJsonBoolValue(ifcInputJson[ignoreProxyOName]);
+			std::cout << ignoreProxyBool << std::endl;
+			settingsCollection.setUseProxy(!ignoreProxyBool);
+		}
+		catch (const std::string& exception)
+		{
+			throw exception + ignoreProxyOName;
 		}
 	}
 
@@ -476,8 +627,8 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::c
 	else { (*j)[valueName + UnitStringEnum::getString(UnitStringID::seconds)] = duration; }
 }
 
-
-void addTimeToJSON(nlohmann::json* j, const std::string& valueName, double duration)
+template<typename T>
+void addTimeToJSON(nlohmann::json* j, const std::string& valueName, T duration)
 {
 	std::string timeUnitString = "Unit";
 	std::string timeDurationString = "Duration";
@@ -508,8 +659,10 @@ void IOManager::printSummary()
 	std::cout << std::endl;
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "I/O settings" << std::endl;
+	std::cout << "- Configuration file:" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getInputJSONPath() << std::endl;
 	std::cout << "- Input File(s):" << std::endl;
-	for (const std::string& inputPath : settingsCollection.getInputPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << std::endl; }
+	for (const std::string& inputPath : settingsCollection.getIfcPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << std::endl; }
 	std::cout << "- Output File:" << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputPath() << std::endl;
 	std::cout << "- Create Report:" << std::endl;
@@ -621,7 +774,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string inputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathsInput);
 	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePatsOutput);
 
-	ioJSON[inputOName] = settingsCollection.getInputPathList();
+	ioJSON[inputOName] = settingsCollection.getIfcPathList();
 	ioJSON[outputOName] = settingsCollection.getOutputPath();
 	settingsJSON[filePathsOName] = ioJSON;
 
@@ -706,61 +859,44 @@ nlohmann::json IOManager::settingsToJSON()
 }
 
 
-bool IOManager::init(const std::vector<std::string>& inputPathList, bool silent)
+bool IOManager::init(const std::vector<std::string>& inputPathList)
 {
+	//TODO: check if silent how to deal with this
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
+	std::cout << "		IFC_BuildingEnvExtractor " << buildVersion << std::endl;
+	std::cout << "    Experimental building shell extractor/approximation\n" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
+	std::cout << std::endl;
+
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	timeTotal = 0;
-	bool isSilent_ = silent;
-
-	// find if input has IFC format
-	bool isIFC = true;
-
-	if (!isSilent_)
+	if (inputPathList.size() == 0) { settingsCollection.setInputJSONPath(getTargetPath()); } //request data from user
+	else if (inputPathList.size() > 1) { return false; } // too many args
+	else // read arg json
 	{
-		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
-		std::cout << "		IFC_BuildingEnvExtractor " << buildVersion << std::endl;
-		std::cout << "    Experimental building shell extractor/approximation\n" << std::endl;
-		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
-		std::cout << std::endl;
+		std::string inputPath = inputPathList[0];
+		if (!isValidPath(inputPath))
+		{
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoValFilePaths) << std::endl;
+			return false;
+		}
+		else if (hasExtension(inputPath, "json")) {
+			settingsCollection.setInputJSONPath(inputPath);
+		}
 	}
-
-	bool hasDirectInterface = false;
-	bool pathIsValid = isValidPath(inputPathList);
-
-	if (inputPathList.size() == 0)
-	{
-		getTargetPathList();
-		hasDirectInterface = true;
-	}
-	else if (!isValidPath(inputPathList))
-	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoValFilePaths) << std::endl;
-		return false;
-	}
-	else if (hasExtension(inputPathList, "json") && isValidPath(inputPathList)) {
-		settingsCollection.setInputPathList(inputPathList);
-	}
-
-	if (inputPathList.size() > 1) { return false; }
-
 	try { getJSONValues(); }
 	catch (const std::string& exceptionString)
 	{
 		throw exceptionString;
 	}
 
-	if (!isSilent_)
-	{
-		std::cout << std::endl;
-		printSummary();
-	}
-	auto internalizingTime = std::chrono::high_resolution_clock::now(); // Time Collection Starts
+	std::cout << std::endl;
+	printSummary();
 	
-	internalHelper_ = std::make_unique<helper>(settingsCollection.getInputPathList());
+	internalHelper_ = std::make_unique<helper>(settingsCollection.getIfcPathList());
 	helper* internalHelperPtr = internalHelper_.get();
-	if (!internalHelperPtr->isPopulated()) { return 0; }
-	if (!internalHelperPtr->hasSetUnits()) { return 0; }
+	if (!internalHelperPtr->isPopulated()) { return false; }
+	if (!internalHelperPtr->hasSetUnits()) { return false; }
 
 	return true;
 }

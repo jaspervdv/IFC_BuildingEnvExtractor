@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 	else { 
 		try
 		{
-			success = manager.init({}, false);
+			success = manager.init({});
 		}
 		catch (const std::string& exceptionString)
 		{

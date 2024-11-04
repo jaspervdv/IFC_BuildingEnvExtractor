@@ -12,7 +12,8 @@ private:
 	// if true no comminucation is pushed to console
 	bool isSilent_ = false;
 
-	std::vector<std::string> inputPathList_ = {};
+    std::string InputJsonPath_;
+	std::vector<std::string> inputIFCPathList_ = {};
 	std::string outputPath_ = "";
 
 	// sets which LoD envelopes are attampted to be created
@@ -99,10 +100,13 @@ public:
     bool isSilent() const { return isSilent_; }
     void setSilent(bool value) { isSilent_ = value; }
 
-    const std::vector<std::string>& getInputPathList() const { return inputPathList_; }
-    void setInputPathList(const std::vector<std::string>& value) { inputPathList_ = value; }
-    void addToInputPathList(const std::string& value) { inputPathList_.emplace_back(value); }
-    void clearInputPathList() { inputPathList_.clear(); }
+    void setInputJSONPath(const std::string& inputString) { InputJsonPath_ = inputString; }
+    std::string getInputJSONPath() { return InputJsonPath_; }
+
+    const std::vector<std::string>& getIfcPathList() const { return inputIFCPathList_; }
+    void setIfcPathList(const std::vector<std::string>& value) { inputIFCPathList_ = value; }
+    void addToIfcPathList(const std::string& value) { inputIFCPathList_.emplace_back(value); }
+    void clearIfcPathList() { inputIFCPathList_.clear(); }
 
     const std::string& getOutputPath() const { return outputPath_; }
     void setOutputPath(const std::string& value) { outputPath_ = value; }
