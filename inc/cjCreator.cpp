@@ -1286,7 +1286,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 	catch (const std::exception&)
 	{
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorFootprintFailed));
+		throw std::invalid_argument("");
 		return;
 	}
 
@@ -1352,7 +1352,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		catch (const std::exception&)
 		{
 			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-			//throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorStoreyFailed));
+			ErrorCollection::getInstance().addError(ErrorID::errorStoreyFailed, storeyObject->GlobalId());
 			continue;
 		}
 	}
@@ -1390,8 +1390,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectio
 
 	if (!splitFaceList.size())
 	{
-		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
-		return{};
+		throw std::invalid_argument("");
 	}
 
 	// merge the splitting faces
@@ -1670,7 +1669,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 	if (!allSolids)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolid) << std::endl;
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
 	}
 	return prismList;
 }
@@ -3152,7 +3151,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
 	if (productLookupValues.size() <= 0)
 	{
-		throw std::invalid_argument(CommunicationStringEnum::getString(CommunicationStringID::errorLoD02StoreyFailed));
+		throw ErrorID::failedLoD32;
 		return{};
 	}
 
@@ -3522,7 +3521,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolidLoD50) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "LoD5.0");
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
 		CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
 
@@ -3552,7 +3552,8 @@ void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::s
 	bool genData = false;
 	if (!h->getSpaceIndexPointer()->size())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoIfcRoomObjects) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoRoomObjects);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoRoomObjects) << std::endl;
 		genData = true;
 	}
 
@@ -3572,7 +3573,7 @@ void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::s
 
 		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 		{
-			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSolidLoD50) << std::endl;
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
 			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
 
 			if (!potentialRoomCityObjectList.size() || genData) 
@@ -3642,7 +3643,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 		if (geoCount > 1)
 		{
-			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningDubSites) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningIfcDubSites);
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcDubSites) << std::endl;
 			return std::vector<CJT::CityObject>();
 		}
 
@@ -3683,7 +3685,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 	
 	if (completeFuseToolList.Size() == 0)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSites) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSites);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSites) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 
@@ -3773,7 +3776,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 	if (!toolList.Size())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningSiteReconstructionFailed) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcSiteReconstructionFailed);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcSiteReconstructionFailed) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 
@@ -3856,7 +3860,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kern
 
 	if (!fuser.IsDone())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningSiteReconstructionFailed) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcSiteReconstructionFailed);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcSiteReconstructionFailed) << std::endl;
 		return std::vector<CJT::CityObject>();
 	}
 

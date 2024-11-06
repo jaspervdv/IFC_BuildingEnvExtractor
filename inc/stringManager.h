@@ -1,6 +1,8 @@
 #include <string>
 #include <map>
 
+#include "errorCollection.h"
+
 #include <nlohmann/json.hpp>
 
 #ifndef STRINGMANAGER_H
@@ -52,7 +54,7 @@ public:
 	static std::string getString(UnitStringID id);
 };
 
-// collects all the direct cout communication with the user
+// collects all the normal cout communication with the user
 enum class CommunicationStringID {
 	infoJsonRequest,
 	infoNoFilePath,
@@ -101,53 +103,17 @@ enum class CommunicationStringID {
 	indentExteriorSpaceGrown,
 	indentInteriorSpaceGrown,
 	indentPairedVoxels,
-
-	errorNoValFilePaths,
-	errorUnableToProcessFile,
-	errorNoUnits,
-	errorMultipleUnits,
-	errorNoLengthUnit,
-	errorNoAreaUnit,
-
-	errorJSONInvalBool,
-	errorJSONInvalInt,
-	errorJSONInvalNegInt,
-	errorJSONInvalNum,
-	errorJSONInvalString,
-	errorJSONInvalPath,
-	errorJsonNoRealPath,
-	errorJSONInvalArray,
-	errorJSONInvalEntry,
-
-	errorJsonMissingEntry,
-	errorJsonInvalidLogic,
-
-	errorJSONMissingLoD,
-	errorJSONNoDivObjects,
-
-	errorNoPoints,
-	errorFootprintFailed,
-	errorStoreyFailed,
-	errorLoD02StoreyFailed,
-
-	warningUnableToParseIFC,
-	warningNoValidIFC,
-	warningIncompIFC,
-	warningNoSlab,
-	warningMultipleProjections,
-	warningNoVolumeUnit,
-	warmingIssueencountered,
-	warningNoSolid,
-	warningNoSolidLoD50,
-	warningDubSites,
-	warningNoSites,
-	warningSiteReconstructionFailed,
-	warningNoIfcRoomObjects
 };
 
 class CommunicationStringEnum {
 public:
 	static std::string getString(CommunicationStringID id);
+};
+
+// collects all the errors and warnings for both cout and error object description
+class errorWarningStringEnum {
+public:
+	static std::string getString(ErrorID id, bool withImportance = true);
 };
 
 // collects all the JSON object of the config files

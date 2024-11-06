@@ -24,7 +24,7 @@
 int main(int argc, char** argv) {
 	std::cout << " " << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
-	std::string issueEncounterString = CommunicationStringEnum::getString(CommunicationStringID::warmingIssueencountered);
+	std::string issueEncounterString = errorWarningStringEnum::getString(ErrorID::warningIssueencountered);
 
 	// outputs errors related to the selected objects
 	if (false) { Logger::SetOutput(&std::cout, &std::cout); }
@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
 		{
 			std::cout << issueEncounterString << std::endl;
 			std::cout << exceptionString << std::endl;
-			return 0;
+			success = false;
 		}
 	}
 	else { 
@@ -52,18 +52,19 @@ int main(int argc, char** argv) {
 		{
 			std::cout << issueEncounterString << std::endl;
 			std::cout << exceptionString << std::endl;
-			return 0;
+			success = false;
 		}
 	}
 	if (!success)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorUnableToProcessFile) << std::endl;
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorUnableToProcessFile) << std::endl;
+		manager.write(true);
 		return 1;
 	}
 
 	if (!manager.run())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorUnableToProcessFile) << std::endl;
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorUnableToProcessFile) << std::endl;
 		manager.write();
 		return 1;
 	}

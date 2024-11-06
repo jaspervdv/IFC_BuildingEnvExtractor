@@ -23,6 +23,8 @@ private:
 	bool timeLoD00IsS_ = false;
 	long long timeLoD02_ = 0;
 	bool timeLoD02IsS_ = false;
+	long long timeLoD03_ = 0;
+	bool timeLoD03IsS_ = false;
 	long long timeLoD10_ = 0;
 	bool timeLoD10IsS_ = false;
 	long long timeLoD12_ = 0;
@@ -45,21 +47,18 @@ private:
 	double getJsonDouble(const nlohmann::json& jsonDouleValue);
 	std::string getJsonString(const nlohmann::json& jsonStringValue);
 	std::string getJsonPath(const nlohmann::json& jsonStringValue, const std::string& fileExtension);
-
-	std::string getTargetPath();
-	bool getOutputPathList();
-	std::string getFileName(const std::string& stringPath);
-
-
-	// attempts to get the settings from json file
-	bool getJSONValues();
-
+	
 	// checks if the string has the extension that is supplied
-	bool hasExtension(const std::vector<std::string>& stringList, const std::string& ext);
 	bool hasExtension(const std::string& string, const std::string& ext);
 
-	bool isValidPath(const std::vector<std::string>& path);
+	//  checks if the string supplied is a path that exists on the system
 	bool isValidPath(const std::string& path);
+
+	// get target path from user when program is started with no args
+	std::string getTargetPath();
+
+	// attempts to get the settings from json file
+	bool getJSONValues(const std::string& inputPath);
 
 	// console outputs the settings that are utilized
 	void printSummary();
@@ -75,11 +74,7 @@ public:
 
 	bool run();
 
-	bool write();
-
-	// temp data
-
-	helper* getHelper() { return internalHelper_.get(); }
+	bool write(bool reportOnly = false);
 
 	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
 		"IFCSLAB",

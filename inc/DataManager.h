@@ -143,14 +143,11 @@ private:
 	std::vector<std::shared_ptr<lookupValue>> SpaceLookup_;
 
 	bool hasIndex_ = false;
-
+	
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
 	bool useCustom_ = false;
 	bool useCustomFull_ = false;
-
-	std::unordered_set<std::string> openingObjects_ = {};// = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };  // read only!
-	std::unordered_set<std::string> cuttingObjects_  = { "IfcWindow", "IfcDoor", "IfcColumn"}; // read only!
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
@@ -161,14 +158,11 @@ private:
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 
-	/// compute vector from the lll corner to the originpoint
+	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
 	void computeObjectTranslation(gp_Vec* vec);
 
 	/// returns a bbox of a ifcproduct that functions with boost
 	bg::model::box <BoostPoint3D> makeObjectBox(const TopoDS_Shape& productShape, double rotationAngle);
-	bg::model::box <BoostPoint3D> makeObjectBox(IfcSchema::IfcProduct* product, double rotationAngle);
-	bg::model::box <BoostPoint3D> makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products, double rotationAngle);
-	TopoDS_Solid makeSolidBox(const gp_Pnt& lll, const gp_Pnt& urr, double angle, double extraAngle = 0);
 
 	/// check if shape is inside of a wall, floor or roof
 	bool isInWall(const bg::model::box <BoostPoint3D>& bbox);
@@ -183,9 +177,6 @@ private:
 	/// get all the points of all the instances of an objecttype
 	template <typename T>
 	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr, bool simple = false);
-
-	template<typename T>
-	void getAllTypePointsPtr(const T& typePtr, std::vector<gp_Pnt>* pointList, bool simple);
 
 	/// gets shapes from memory without checking for correct adjusted boolean
 	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
@@ -258,8 +249,6 @@ public:
 	std::shared_ptr<lookupValue> getSpaceLookup(int i) { return SpaceLookup_.at(i); }
 
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
-
-	std::vector<TopoDS_Face> getObjectFaces(IfcSchema::IfcProduct* product, bool simple = false);
 
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
 	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, int memoryLocation = -1);

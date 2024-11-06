@@ -126,7 +126,6 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoExteriorSpaceGrowing:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Exterior space growing";
 
-
 	case CommunicationStringID::indentValidIFCFound:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Valid IFC file found";
 	case CommunicationStringID::indentcompIFCFound:
@@ -145,84 +144,194 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Interior space succesfully grown";
 	case CommunicationStringID::indentPairedVoxels:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Voxel pairing succesful";
+	default:
+		return "Output string not found";
+	}
+}
 
-	case CommunicationStringID::errorNoValFilePaths:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No valid filepath has been supplied";
-	case CommunicationStringID::errorUnableToProcessFile:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Unable to process file(s)";
-	case CommunicationStringID::errorNoUnits:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No unit assignment has been found";
-	case CommunicationStringID::errorMultipleUnits:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Multiple unit assignments have been found";
-	case CommunicationStringID::errorNoLengthUnit:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "SI unit for length cannot be found";
-	case CommunicationStringID::errorNoAreaUnit:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "SI unit for area cannot be found";
+std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
+{
+	switch (id) {
+	case ErrorID::errorNoValFilePaths: {
+		const std::string coms = "No valid filepath has been supplied";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorUnableToProcessFile: {
+		const std::string coms = "Unable to process file(s)";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorNoUnits: {
+		const std::string coms = "No unit assignment has been found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorMultipleUnits: {
+		const std::string coms = "Multiple unit assignments have been found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorNoLengthUnit: {
+		const std::string coms = "SI unit for length cannot be found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorNoAreaUnit: {
+		const std::string coms = "SI unit for area cannot be found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
 
-	case CommunicationStringID::errorJSONInvalBool:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid bool for entry: ";
-	case CommunicationStringID::errorJSONInvalInt:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid int for entry: ";
-	case CommunicationStringID::errorJSONInvalNegInt:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains an invalid negative int for entry: ";
-	case CommunicationStringID::errorJSONInvalNum:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid numeric value for entry: ";
-	case CommunicationStringID::errorJSONInvalString:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid string for entry: ";
-	case CommunicationStringID::errorJSONInvalPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains a path to a file with incorrect type for entry: ";
-	case CommunicationStringID::errorJsonNoRealPath:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file contains an invalid path for entry: ";
-	case CommunicationStringID::errorJSONInvalArray:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid array for entry: ";
-	case CommunicationStringID::errorJSONInvalEntry:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain a valid value for entry: ";
+	case ErrorID::errorJsonInvalBool: {
+		const std::string coms = "JSON file does not contain a valid bool for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalInt: {
+		const std::string coms = "JSON file does not contain a valid int for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalNegInt: {
+		const std::string coms = "JSON file contains an invalid negative int for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalNum: {
+		const std::string coms = "JSON file does not contain a valid numeric value for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalString: {
+		const std::string coms = "JSON file does not contain a valid string for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalPath: {
+		const std::string coms = "JSON file contains a path to a file with incorrect type for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonNoRealPath: {
+		const std::string coms = "JSON file contains an invalid path for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalArray: {
+		const std::string coms = "JSON file does not contain a valid array for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalEntry: {
+		const std::string coms = "JSON file does not contain a valid value for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
 
-	case CommunicationStringID::errorJsonMissingEntry:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain required entry: ";
-	case CommunicationStringID::errorJsonInvalidLogic:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "JSON file does not contain valid logic number (2 or 3) entry: ";
+	case ErrorID::errorJsonMissingEntry: {
+		const std::string coms = "JSON file does not contain required entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
+	case ErrorID::errorJsonInvalidLogic: {
+		const std::string coms = "JSON file does not contain valid logic number (2 or 3) entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
 
-	case CommunicationStringID::errorJSONMissingLoD:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No desired LoD output can be found";
-	case CommunicationStringID::errorJSONNoDivObjects:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No div objects are selected";
-	case CommunicationStringID::errorNoPoints:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "No points could be extracted from the IFC file";
-	case CommunicationStringID::errorFootprintFailed:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "Footprint extraction failed";
-	case CommunicationStringID::errorStoreyFailed:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "storey extraction failed";
-	case CommunicationStringID::errorLoD02StoreyFailed:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + "LoD0.2 Storey shape extraction failed";
+	case ErrorID::errorJsonInvalidLod: {
+		const std::string coms = "JSON file contains unsupported required LoD";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
 
+	case ErrorID::errorJsonMissingLoD: {
+		const std::string coms = "No desired LoD output can be found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorJsonNoDivObjects: {
+		const std::string coms = "No div objects are selected";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorNoPoints: {
+		const std::string coms = "No points could be extracted from the IFC file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorFootprintFailed: {
+		const std::string coms = "Footprint extraction failed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorStoreyFailed: {
+		const std::string coms = "storey extraction failed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
+	case ErrorID::errorLoD02StoreyFailed: {
+		const std::string coms = "LoD0.2 Storey shape extraction failed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		return coms; }
 
-	case CommunicationStringID::warningUnableToParseIFC:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Unable to parse .ifc file";
-	case CommunicationStringID::warningNoValidIFC:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No valid ifc scheme found";
-	case CommunicationStringID::warningIncompIFC:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Incompatible scheme found: ";
-	case CommunicationStringID::warningNoSlab:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No slab objects were found";
-	case CommunicationStringID::warningMultipleProjections:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Multiple map projections detected";
-	case CommunicationStringID::warningNoVolumeUnit:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "SI unit for volume cannot be found";
-	case CommunicationStringID::warmingIssueencountered:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Encountered an issue";
-	case CommunicationStringID::warningNoSolid:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Not all shapes could be converted to solids, output might be incorrect or inaccurate";
-	case CommunicationStringID::warningNoSolidLoD50:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "Unable to create solid shape, multisurface stored";	
-	case CommunicationStringID::warningDubSites:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "More than one Site Element found, site export terminated";	
-	case CommunicationStringID::warningNoSites:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No Geographic or Site Element was found";	
-	case CommunicationStringID::warningSiteReconstructionFailed:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No site could be reconstructed";
-	case CommunicationStringID::warningNoIfcRoomObjects:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + "No room objects present in model, generic semantic data is created";
+	case ErrorID::warningIfcUnableToParse: {
+		const std::string coms = "Unable to parse .ifc file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms + ": "; }
+		return coms; }
+	case ErrorID::warningIfcNotValid: {
+		const std::string coms = "No valid ifc scheme found in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms + ": "; }
+		return coms; }
+	case ErrorID::warningIfcNoSchema: {
+		const std::string coms = "No scheme found in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms + ": "; }
+		return coms; }
+	case ErrorID::warningIfcIncomp: {
+		const std::string coms = "Incompatible scheme found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms + ": "; }
+		return coms; }
+	case ErrorID::warningIfcNoSlab: {
+		const std::string coms = "No slab objects were found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcMultipleProjections: {
+		const std::string coms = "Multiple map projections detected";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcNoVolumeUnit: {
+		const std::string coms = "SI unit for volume cannot be found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcDubSites: {
+		const std::string coms = "More than one Site Element found, site export terminated";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcNoSites: {
+		const std::string coms = "No Geographic or Site Element was found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcSiteReconstructionFailed: {
+		const std::string coms = "No site could be reconstructed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcNoRoomObjects: {
+		const std::string coms = "No room objects present in model, generic semantic data is created";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcMultipleBuildingObjects: {
+		const std::string coms = "Multiple building objects in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcNobuildingName: {
+		const std::string coms = "Building name could not be found in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningIfcNobuildingNameLong: {
+		const std::string coms = "Long building name could not be found in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }	
+	case ErrorID::WarningIfcMultipleProjects : {
+		const std::string coms = "Multiple project objects in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::WarningIfcNoProjectsName: {
+		const std::string coms = "Project name could not be found in file";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+
+	case ErrorID::warningIssueencountered: {
+		const std::string coms = "Encountered an issue";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningNoSolid: {
+		const std::string coms = "Not all shapes could be converted to solids, output might be incorrect or inaccurate";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+
+	case ErrorID::warningFailedObjectSimplefication: {
+		const std::string coms = "Simplefication of complex object has failed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+
 	default:
 		return "Output string not found";
 	}

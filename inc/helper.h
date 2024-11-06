@@ -202,7 +202,7 @@ struct helperFunctions{
 	static bg::model::box <BoostPoint3D> createBBox(const std::vector<gp_Pnt>& pointList);
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
 
-	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0);
+	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0, double horizontalAngle = 0.0, double verticalAngle = 0.0);
 
 	/// creates face with middlepont 0,0,0 ranging from -x to x and -y to y at z
 	static TopoDS_Face createHorizontalFace(double x, double y, double z);

@@ -4,6 +4,7 @@
 #ifndef SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 
+// collection of all the settings used by the extractor, both user set and internal code settings
 struct SettingsCollection {
 
 private:
@@ -78,14 +79,25 @@ private:
 	// if LoD13 output is done and the same as LoD22, copy the data
 	bool Lod123IsFlat_ = false;
 	
-	double gridRotation_ = 0; // software computes itself or sets it to the desired rotation
+    // software computes itself or sets it to the desired rotation
+	double gridRotation_ = 0; 
+
+    // set of the supported versions of the tool (read only!)
+    std::unordered_set<std::string> ifcVersionList_ = { "IFC2X3", "IFC4X3", "IFC4" };
+
+    // set of the ifc objects that have voids that could be closed (read only!)
+    std::unordered_set<std::string> openingObjects_ = {};// = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };
+
+    // set of the ifc objects that could fit in voids of other objects (read only!)
+    std::unordered_set<std::string> cuttingObjects_ = { "IfcWindow", "IfcDoor", "IfcColumn" };
+
+    // set of the LoD abstractions that could include the iteriors (read only!)
+    std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
 
 	SettingsCollection() = default;
 
     IfcGeom::IteratorSettings iteratorSettings_;
     IfcGeom::IteratorSettings simpleIteratorSettings_;
-
-    std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
 
 public:
 	static SettingsCollection& getInstance() {
@@ -225,6 +237,10 @@ public:
 
     double gridRotation() const { return gridRotation_; }
     void setGridRotation(double value) { gridRotation_ = value; }
+
+    std::unordered_set<std::string> getSupportedIfcVersionList() { return ifcVersionList_; }
+    std::unordered_set<std::string> getOpeningObjectsList() { return openingObjects_; }
+    std::unordered_set<std::string> getCuttingObjectsList() { return cuttingObjects_; }
 
     IfcGeom::IteratorSettings iteratorSettings()  const { return iteratorSettings_; }
     void setIterator(const IfcGeom::IteratorSettings& settingsObject) { iteratorSettings_ = settingsObject; }

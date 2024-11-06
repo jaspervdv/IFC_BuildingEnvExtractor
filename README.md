@@ -84,7 +84,7 @@ If it is desired to compile the code locally the following libraries are require
 To set the IFC version of the tool a single line has to be changed. In _helper.h_ the first lines are "#define _IfcVersion_". The _IfcVersion_ can be changed to the supported IFC versions preceded by USE_. The currently supported versions are: USE_IFC2x3, USE_IFC4 and USE_IFC4x3. Each version creates an executable that can ONLY process IFC files of the version that the executable was created for.
 
 ```c++
-#define USE_IFC4x3 //<- change this line to change supported ifc verion
+#define USE_IFC4x3 //<- change this line to change supported ifc version
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -248,6 +248,7 @@ The settings json has a very simple structure. An example can be found below:
         5.0,
         0.0,
         0.2,
+        0.3,
         1.0,
         1.2,
         1.3,

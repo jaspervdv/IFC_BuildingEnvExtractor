@@ -1363,7 +1363,6 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 
 
 int helperFunctions::invertDir(int dirIndx) {
-
 	if (dirIndx % 2 == 1) { return dirIndx - 1; }
 	else { return dirIndx + 1; }
 }
@@ -1470,24 +1469,41 @@ bg::model::box <BoostPoint3D>  helperFunctions::createBBox(const gp_Pnt& p1, con
 }
 
 
-TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& urr, double buffer) {
-	BRep_Builder brepBuilder;
-	BRepBuilderAPI_Sewing brepSewer;
+TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& urr, double buffer, double horizontalAngle, double verticalAngle) {
+	gp_Ax1 vertRotation(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0));
 
+	BRep_Builder brepBuilder;
 	TopoDS_Shell shell;
 	brepBuilder.MakeShell(shell);
-	TopoDS_Solid outerbb;
-	brepBuilder.MakeSolid(outerbb);
+	TopoDS_Solid solidbox;
+	brepBuilder.MakeSolid(solidbox);
 
-	gp_Pnt p0 = gp_Pnt(lll.X() - buffer, lll.Y() - buffer, lll.Z() - buffer);
-	gp_Pnt p4 = gp_Pnt(urr.X() + buffer, urr.Y() + buffer, urr.Z() + buffer);
+	gp_Pnt p0(helperFunctions::rotatePointWorld(lll.Rotated(vertRotation, verticalAngle), -horizontalAngle));
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
+	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
 
-	gp_Pnt p1 = gp_Pnt(p0.X(), p4.Y(), p0.Z());
-	gp_Pnt p2 = gp_Pnt(p4.X(), p4.Y(), p0.Z());
-	gp_Pnt p3 = gp_Pnt(p4.X(), p0.Y(), p0.Z());
-	gp_Pnt p5 = gp_Pnt(p0.X(), p4.Y(), p4.Z());
-	gp_Pnt p6 = gp_Pnt(p0.X(), p0.Y(), p4.Z());
-	gp_Pnt p7 = gp_Pnt(p4.X(), p0.Y(), p4.Z());
+	gp_Pnt p4(helperFunctions::rotatePointWorld(urr.Rotated(vertRotation, verticalAngle), -horizontalAngle));
+	gp_Pnt p5 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
+	gp_Pnt p6 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
+	gp_Pnt p7 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()).Rotated(vertRotation, verticalAngle), -horizontalAngle);
+
+	bool sameXCoordinate = true;
+	bool sameYCoordinate = true;
+	bool sameZCoordinate = true;
+
+	double xCoord = p0.X();
+	double yCoord = p0.Y();
+	double zCoord = p0.Z();
+	for (const auto& p : { p1, p2, p3, p4, p5, p6, p7 }) {
+		if (abs(p.X() - xCoord) > 0.01) { sameXCoordinate = false; }
+		if (abs(p.Y() - yCoord) > 0.01) { sameYCoordinate = false; }
+		if (abs(p.Z() - zCoord) > 0.01) { sameZCoordinate = false; }
+
+		if (!sameXCoordinate && !sameYCoordinate && !sameZCoordinate) { break; }
+	}
+
+	if (sameXCoordinate || sameYCoordinate || sameZCoordinate) { return TopoDS_Solid(); }
 
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
@@ -1513,12 +1529,12 @@ TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& ur
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
 	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
 
+	BRepBuilderAPI_Sewing brepSewer;
 	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
-
 	brepSewer.Perform();
-	brepBuilder.Add(outerbb, brepSewer.SewedShape());
+	brepBuilder.Add(solidbox, brepSewer.SewedShape());
 
-	return outerbb;
+	return solidbox;
 }
 
 
@@ -1780,7 +1796,7 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 			}
 			else
 			{
-				ErrorCollection::getInstance().addError(errorID::missingProptery, propertyIdName);
+				ErrorCollection::getInstance().addError(ErrorID::propertyNotImplemented, propertyIdName);
 			}
 		}
 	}

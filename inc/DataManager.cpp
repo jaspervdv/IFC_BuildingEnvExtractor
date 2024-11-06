@@ -17,12 +17,14 @@ helper::helper(const std::vector<std::string>& pathList) {
 	{
 		std::string path = pathList[i];
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoParsingFile) << path << std::endl;
-		if (!findSchema(pathList[i])) { continue; }
+		if (!findSchema(path)) { 
+			continue;
+		}
 		std::unique_ptr<fileKernelCollection> dataCollection = std::make_unique<fileKernelCollection>(path);
 		if (!dataCollection.get()->isGood())
 		{
-			std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningUnableToParseIFC) << std::endl;
-			return;
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcUnableToParse) << " " << path << std::endl;
+			continue;
 		}
 
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentValidIFCFound) << std::endl;
@@ -39,15 +41,16 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 	std::ifstream infile(path);
 	std::string line;
 	int linecount = 0;
+	std::unordered_set<std::string> ifcVersionList = SettingsCollection::getInstance().getSupportedIfcVersionList();
 
-	std::vector<std::string> ifcVersionList { "IFC2X3", "IFC4X3", "IFC4" };
 	while (linecount < 100 && std::getline(infile, line))
 	{
 		if (line[0] == '#')
 		{
 			if (!quiet)
 			{
-				std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoValidIFC) << std::endl;
+				std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSchema) << path << std::endl;
+				ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSchema, path);
 			}
 			infile.close();
 			return false;
@@ -60,28 +63,33 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 
 		for (std::string ifcVersion : ifcVersionList)
 		{
-			if (line.find(ifcVersion) != std::string::npos) {
-				if (buildVersion != ifcVersion)
-				{
-					if (!quiet)
-					{
-						std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningIncompIFC) + ifcVersion << std::endl;
-					}
-					infile.close();
-					return false;
-				}
-				else {
-					if (!quiet)
-					{
-						std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentcompIFCFound) + ifcVersion << std::endl;
-					}
-					infile.close();
-					return true;
-				}
+			if (line.find(ifcVersion) == std::string::npos) {
+				continue;
 			}
+
+			if (buildVersion != ifcVersion)
+			{
+				if (!quiet)
+				{
+					std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcIncomp) + ifcVersion << std::endl;
+					ErrorCollection::getInstance().addError(ErrorID::warningIfcIncomp, path);
+				}
+				infile.close();
+				return false;
+			}
+			else {
+				if (!quiet)
+				{
+					std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentcompIFCFound) + ifcVersion << std::endl;
+				}
+				infile.close();
+				return true;
+			}			
 		}
 	}
 	infile.close();
+	std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSchema) << path << std::endl;
+	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSchema, path);
 	return false;
 }
 
@@ -129,7 +137,8 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 
 	if (!pointList.size())
 	{
-		throw std::string(CommunicationStringEnum::getString(CommunicationStringID::errorNoPoints));
+		ErrorCollection::getInstance().addError(ErrorID::errorNoPoints);
+		throw std::string(errorWarningStringEnum::getString(ErrorID::errorNoPoints));
 	}
 
 	// approximate smalles bbox
@@ -143,6 +152,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
 		return;
 	} //bypass rotation comp if not required
+
 	double smallestDistance = lllPoint->Distance(*urrPoint);
 
 	for (size_t i = 0; i < maxIt; i++)
@@ -185,19 +195,22 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 void helper::computeObjectTranslation(gp_Vec* vec)
 {
 	// get a point to translate the model to
-	IfcSchema::IfcSlab::list::ptr slabList = datacollection_[0]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		IfcSchema::IfcSlab::list::ptr slabList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
 
-	if (!slabList.get()->size()) {
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoSlab) << std::endl;
-		return; 
+		if (!slabList.get()->size()) { continue; }
+		IfcSchema::IfcSlab* slab = *slabList->begin();
+
+		gp_Pnt lllPoint;
+		gp_Pnt urrPoint;
+		TopoDS_Shape siteShape = getObjectShape(slab, false, false);
+		helperFunctions::rotatedBBoxDiagonal(helperFunctions::shape2PointList(siteShape), &lllPoint, &urrPoint, 0);
+		*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
+		return;
 	}
-	IfcSchema::IfcSlab* slab = *slabList->begin();
-
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-	TopoDS_Shape siteShape = getObjectShape(slab, false, false);
-	helperFunctions::rotatedBBoxDiagonal(helperFunctions::shape2PointList(siteShape), &lllPoint, &urrPoint, 0);
-	*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
+	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
+	throw std::string(errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab));
 	return;
 }
 
@@ -218,21 +231,6 @@ std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr, bool simple)
 }
 
 
-template<typename T>
-void helper::getAllTypePointsPtr(const T& typePtr, std::vector<gp_Pnt>* pointList, bool simple)
-{
-	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
-		IfcSchema::IfcProduct* product = *it;
-
-		std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
-
-		for (const auto& point : temp) {
-			pointList->emplace_back(point);
-		}
-	}
-}
-
-
 bool helper::hasSetUnits() {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
@@ -248,10 +246,12 @@ void helper::internalizeGeo()
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
+
 	gp_Vec accuracyObjectTranslation;
 	computeObjectTranslation(&accuracyObjectTranslation);
 	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
 	elementCountSummary(&hasProxy_, &hasLotProxy_);
+
 	try
 	{
 		computeBoundingData(&lllPoint_, &urrPoint_);
@@ -275,118 +275,118 @@ void helper::indexGeo()
 	// the bbox does thus comply with the model bbox but not with the actual objects original location
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	if (!hasIndex_)
+	if (hasIndex_) { return; }
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCreateSpatialIndex) << std::endl;
+
+	if (settingsCollection.useDefaultDiv())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCreateSpatialIndex) << std::endl;
-		if (settingsCollection.useDefaultDiv())
+		// add the floorslabs to the rtree
+		auto startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>());
+		std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcRoof>());
+		std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		// add the walls to the rtree
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWall>());
+		std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCovering>());
+		std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		// add the columns to the rtree TODO sweeps
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcColumn>());
+		std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		// add the beams to the rtree
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
+		std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		// add the curtain walls to the rtree 
+		//TODO: check this
+		/*startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCurtainWall>());
+		std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;*/
+
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcPlate>());
+		std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcMember::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcMember>());
+		std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+		// add doors to the rtree (for the appartment detection)
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcDoor>());
+		std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
+		std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+
+		if (settingsCollection.useProxy())
 		{
-			// add the floorslabs to the rtree
-			auto startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-				addObjectToIndex<IfcSchema::IfcSlab::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>());
-			std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
 			startTime = std::chrono::high_resolution_clock::now();
 			for (size_t i = 0; i < dataCollectionSize_; i++)
-				addObjectToIndex<IfcSchema::IfcRoof::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcRoof>());
-			std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			// add the walls to the rtree
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-				addObjectToIndex<IfcSchema::IfcWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWall>());
-			std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcCovering::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCovering>());
-			std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			// add the columns to the rtree TODO sweeps
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcColumn::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcColumn>());
-			std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			// add the beams to the rtree
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
-			std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			// add the curtain walls to the rtree 
-			//TODO: check this
-			/*startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCurtainWall>());
-			std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;*/
-
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcPlate::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcPlate>());
-			std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcMember::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcMember>());
-			std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-			// add doors to the rtree (for the appartment detection)
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcDoor::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcDoor>());
-			std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++) 
-				addObjectToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
-			std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-			if (settingsCollection.useProxy())
-			{
-				startTime = std::chrono::high_resolution_clock::now();
-				for (size_t i = 0; i < dataCollectionSize_; i++) 
-					addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
-				std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-			}
+				addObjectToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
+			std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 		}
-		else // add custom set div objects
-		{
-				std::vector<std::string> roomBoundingObjects_ = settingsCollection.getCustomDivList();
-
-				for (std::string roomBoundingObject : roomBoundingObjects_)
-				{
-					auto startTime = std::chrono::high_resolution_clock::now();
-
-					IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
-					for (size_t i = 0; i < dataCollectionSize_; i++)
-					{
-						IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
-						for (auto et = productList->begin(); et != productList->end(); ++et)
-						{
-							IfcSchema::IfcProduct* product = *et;
-							if (roomBoundingObject == boost::to_upper_copy<std::string>(product->data().type()->name()))
-							{
-								selectedlist.get()->push(product);
-							}
-						}	
-					}
-					addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
-					std::cout << "\t" + roomBoundingObject + " objects finished in : " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-				}
-		}
-		if (settingsCollection.makeInterior())
-		{
-			auto startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-				addObjectToIndex<IfcSchema::IfcSpace::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSpace>(), true);
-			std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-		}
-		std::cout << std::endl;
-
-		// find valid voids
-		applyVoids();
-		hasIndex_ = true;
 	}
+	else // add custom set div objects
+	{
+		std::vector<std::string> customDivTypeList = settingsCollection.getCustomDivList();
+
+		for (const std::string& customDivType : customDivTypeList)
+		{
+			IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
+			for (size_t i = 0; i < dataCollectionSize_; i++)
+			{
+				IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
+				for (auto et = productList->begin(); et != productList->end(); ++et)
+				{
+					IfcSchema::IfcProduct* product = *et;
+					if (customDivType != boost::to_upper_copy<std::string>(product->data().type()->name())) { continue; }
+					selectedlist.get()->push(product);
+				}
+			}
+
+			auto startTime = std::chrono::high_resolution_clock::now();
+			addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
+			std::cout << "\t" + customDivType + " objects finished in : " <<
+				std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
+				UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+		}
+	}
+
+	if (settingsCollection.makeInterior())
+	{
+		auto startTime = std::chrono::high_resolution_clock::now();
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+			addObjectToIndex<IfcSchema::IfcSpace::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSpace>(), true);
+		std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+	}
+	std::cout << std::endl;
+
+	// find valid voids
+	applyVoids();
+	hasIndex_ = true;
 }
 
 
@@ -408,123 +408,6 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& produc
 }
 
 
-bg::model::box < BoostPoint3D > helper::makeObjectBox(IfcSchema::IfcProduct* product, double rotationAngle)
-{
-	std::vector<gp_Pnt> productVert = getObjectPoints(product);
-	if (productVert.size() <= 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
-
-	// only outputs 2 corners of the three needed corners!
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-
-	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
-
-	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
-	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
-
-	return bg::model::box < BoostPoint3D >(boostlllpoint, boosturrpoint);
-}
-
-
-bg::model::box < BoostPoint3D > helper::makeObjectBox(const std::vector<IfcSchema::IfcProduct*>& products, double rotationAngle)
-{
-	std::vector<gp_Pnt> productVert;
-
-	for (size_t i = 0; i < products.size(); i++)
-	{
-		std::vector<gp_Pnt> singleVerts = getObjectPoints(products[i]);
-
-		for (size_t j = 0; j < singleVerts.size(); j++)
-		{
-			productVert.emplace_back(singleVerts[j]);
-		}
-	}
-
-	if (productVert.size() <= 1) { return bg::model::box < BoostPoint3D >({ 0,0,0 }, { 0,0,0 }); }
-
-	// only outputs 2 corners of the three needed corners!
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-
-	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
-
-	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
-	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
-
-	return bg::model::box < BoostPoint3D >(boostlllpoint, boosturrpoint);
-}
-
-
-TopoDS_Solid helper::makeSolidBox(const gp_Pnt& lll, const gp_Pnt& urr, double angle, double extraAngle)
-{
-	gp_Ax1 vertRotation(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0));
-
-	BRep_Builder brepBuilder;
-	TopoDS_Shell shell;
-	brepBuilder.MakeShell(shell);
-	TopoDS_Solid solidbox;
-	brepBuilder.MakeSolid(solidbox);
-
-	gp_Pnt p0(helperFunctions::rotatePointWorld(lll.Rotated(vertRotation, extraAngle), -angle));
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
-	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()).Rotated(vertRotation, extraAngle), -angle);
-
-	gp_Pnt p4(helperFunctions::rotatePointWorld(urr.Rotated(vertRotation, extraAngle), -angle));
-	gp_Pnt p5 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
-	gp_Pnt p6 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
-	gp_Pnt p7 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()).Rotated(vertRotation, extraAngle), -angle);
-
-	bool sameXCoordinate = true;
-	bool sameYCoordinate = true;
-	bool sameZCoordinate = true;
-
-	double xCoord = p0.X();
-	double yCoord = p0.Y();
-	double zCoord = p0.Z();
-	for (const auto& p : { p1, p2, p3, p4, p5, p6, p7 }) {
-		if (abs(p.X() - xCoord) > 0.01) { sameXCoordinate = false; }
-		if (abs(p.Y() - yCoord) > 0.01) { sameYCoordinate = false; }
-		if (abs(p.Z() - zCoord) > 0.01) { sameZCoordinate = false; }
-
-		if (!sameXCoordinate && !sameYCoordinate && !sameZCoordinate) { break; }
-	}
-
-	if (sameXCoordinate || sameYCoordinate || sameZCoordinate) { return TopoDS_Solid(); }
-
-	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
-	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
-	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
-	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
-
-	TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
-	TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
-	TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
-	TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
-
-	TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
-	TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
-	TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
-	TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
-
-	std::vector<TopoDS_Face> faceList;
-
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
-
-	BRepBuilderAPI_Sewing brepSewer;
-	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
-	brepSewer.Perform();
-	brepBuilder.Add(solidbox, brepSewer.SewedShape());
-
-	return solidbox;
-}
-
-
 bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 {
 	gp_Pnt lll = helperFunctions::Point3DBTO(bbox.min_corner());
@@ -539,13 +422,15 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 	qResult.clear();
 	index_.query(bgi::intersects(bbox), std::back_inserter(qResult));
 
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
+
 	for (size_t i = 0; i < qResult.size(); i++)
 	{
 		std::shared_ptr<lookupValue> lookup = productLookup_.at(qResult[i].second);
 		IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
 		std::string qProductType = qProduct->data().type()->name();
 
-		if (openingObjects_.find(qProductType) == openingObjects_.end()) { continue; }
+		if (openingObjects.find(qProductType) == openingObjects.end()) { continue; }
 
 		std::string objectType = qProduct->data().type()->name();
 
@@ -573,7 +458,7 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 }
 
 
-TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
+TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this
 {
 	// find most occuring horizontal and vertical edge
 	std::vector<gp_Pnt> pointList;
@@ -716,9 +601,9 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape)
 
 	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
 	{
-		return makeSolidBox(lllPoint1, urrPoint1, angleFlat, angleVert);
+		return helperFunctions::createBBOXOCCT(lllPoint1, urrPoint1, 0.0, angleFlat, angleVert);
 	}
-	return makeSolidBox(lllPoint2, urrPoint2, angleFlat, -angleVert);
+	return  helperFunctions::createBBOXOCCT(lllPoint2, urrPoint2, 0.0, angleFlat, -angleVert);
 }
 
 void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
@@ -728,7 +613,10 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 #if defined(USE_IFC4) || defined(USE_IFC4x3)
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObejct->instances_by_type<IfcSchema::IfcMapConversion>();
 	if (mapList->size() == 0) { return; }
-	if (mapList->size() > 1) { std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningMultipleProjections) << std::endl; }
+	if (mapList->size() > 1) { 
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleProjections);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcMultipleProjections) << std::endl;
+	}
 	
 	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
 
@@ -863,7 +751,7 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 	return;
 }
 
-std::map<std::string, std::string> helper::getBuildingInformation()
+std::map<std::string, std::string> helper::getBuildingInformation() //TODO: go through this
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 
@@ -956,7 +844,7 @@ std::string helper::getBuildingName()
 	
 	if (buildingList->size() > 1)
 	{
-		ErrorCollection::getInstance().addError(errorID::multipleBuildingObjects);
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleBuildingObjects); //TODO: add file path to error
 	}
 	
 	for (IfcSchema::IfcBuilding* building : *buildingList)
@@ -966,13 +854,13 @@ std::string helper::getBuildingName()
 			return building->Name().get();
 		}
 	}
-	ErrorCollection::getInstance().addError(errorID::nobuildingName);
+	ErrorCollection::getInstance().addError(ErrorID::warningIfcNobuildingName);
 
 	return "";
 }
 
 
-std::string helper::getBuildingLongName()
+std::string helper::getBuildingLongName() //TODO: implement
 {
 	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 
@@ -980,7 +868,7 @@ std::string helper::getBuildingLongName()
 
 	if (buildingList->size() > 1)
 	{
-		ErrorCollection::getInstance().addError(errorID::multipleBuildingObjects);
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleBuildingObjects);
 	}
 
 	for (IfcSchema::IfcBuilding* building : *buildingList)
@@ -990,7 +878,7 @@ std::string helper::getBuildingLongName()
 			return building->LongName().get();
 		}
 	}
-	ErrorCollection::getInstance().addError(errorID::nobuildingNameLong);
+	ErrorCollection::getInstance().addError(ErrorID::warningIfcNobuildingNameLong);
 
 	return "";
 }
@@ -1003,7 +891,7 @@ std::string helper::getProjectName()
 
 	if (projectList->size() > 1)
 	{
-		ErrorCollection::getInstance().addError(errorID::multipleProjectNames);
+		ErrorCollection::getInstance().addError(ErrorID::WarningIfcMultipleProjects);
 	}
 
 	for (IfcSchema::IfcProject* project : *projectList)
@@ -1013,7 +901,7 @@ std::string helper::getProjectName()
 			return project->Name().get();
 		}
 	}
-	ErrorCollection::getInstance().addError(errorID::noProjectName);
+	ErrorCollection::getInstance().addError(ErrorID::WarningIfcNoProjectsName);
 	return "";
 }
 
@@ -1022,6 +910,7 @@ template <typename T>
 void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 
 	std::vector<std::string> failedConversionList;
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
 	for (auto it = object->begin(); it != object->end(); ++it) {
 		IfcSchema::IfcProduct* product = *it;
@@ -1049,7 +938,7 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 
 		TopoDS_Shape simpleShape;
 
-		if (openingObjects_.find(productType) != openingObjects_.end())
+		if (openingObjects.find(productType) != openingObjects.end())
 		{ 
 			simpleShape = getObjectShape(product, true);
 		}
@@ -1095,7 +984,7 @@ void helper::addObjectToIndex(const T& object, bool addToRoomIndx) {
 	}
 	if (failedConversionList.size())
 	{
-		ErrorCollection::getInstance().addError(errorID::failedConvert, failedConversionList);
+		ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, failedConversionList);
 	}	
 }
 
@@ -1105,16 +994,6 @@ std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool
 	TopoDS_Shape productShape = getObjectShape(product, simple, false);
 	std::vector<gp_Pnt> pointList = helperFunctions::shape2PointList(productShape);
 	return pointList;
-}
-
-
-std::vector<TopoDS_Face> helper::getObjectFaces(IfcSchema::IfcProduct* product, bool simple)
-{
-	if (!product->Representation()) { return {}; }
-
-	TopoDS_Shape rShape = getObjectShape(product, simple);
-	std::vector<TopoDS_Face> faceList = helperFunctions::shape2FaceList(rShape);
-	return faceList;
 }
 
 
@@ -1137,7 +1016,9 @@ TopoDS_Shape helper::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool 
 {
 	// filter with lookup
 	std::string objectType = product->data().type()->name();
-	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
+
+	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
 
 	int obbjectShapeLocation = getObjectShapeLocation(product);
 
@@ -1158,7 +1039,8 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
 
 	// filter with lookup
-	if (openingObjects_.find(objectType) == openingObjects_.end()) { adjusted = false; }
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
+	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
 
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);
 	if (!potentialShape.IsNull()) { return potentialShape; }
@@ -1179,7 +1061,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	}
 
 	bool hasHoles = false;
-	if (openingObjects_.find(objectType) != openingObjects_.end()) { hasHoles = true; }
+	if (openingObjects.find(objectType) != openingObjects.end()) { hasHoles = true; }
 
 	if (ifc_representation == nullptr)
 	{
@@ -1284,7 +1166,6 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 
 
 	// filter with lookup
-
 	if (productIndxLookup_.find(objectType) == productIndxLookup_.end())
 	{
 		return;
@@ -1380,6 +1261,9 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 template <typename T>
 void helper::voidShapeAdjust(T products)
 {
+	std::unordered_set<std::string> cuttingObjects = SettingsCollection::getInstance().getCuttingObjectsList();
+
+
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* wallProduct = *it;
 		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, true);
@@ -1421,7 +1305,7 @@ void helper::voidShapeAdjust(T products)
 				std::shared_ptr<lookupValue> lookup = getLookup(qResult[i].second);
 				IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
 
-				if (cuttingObjects_.find(qProduct->data().type()->name()) == cuttingObjects_.end()) { continue; }
+				if (cuttingObjects.find(qProduct->data().type()->name()) == cuttingObjects.end()) { continue; }
 
 				TopoDS_Shape qShape = getObjectShape(qProduct);
 
@@ -1580,8 +1464,6 @@ fileKernelCollection::fileKernelCollection(const std::string& filePath)
 }
 
 
-
-
 double fileKernelCollection::getScaleValue(const IfcSchema::IfcSIUnit& unitItem) {
 	IfcSchema::IfcSIUnitName::Value unitType = unitItem.Name();
 
@@ -1617,15 +1499,16 @@ void fileKernelCollection::setUnits()
 
 	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
 	if (presentUnits.get()->size() == 0) {
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoUnits) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::errorNoUnits);
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoUnits) << std::endl;
 		return;
 	}
 	else if (presentUnits.get()->size() > 1)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorMultipleUnits) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::errorMultipleUnits);
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorMultipleUnits) << std::endl;
 		return;
 	}
-
 
 	for (IfcSchema::IfcUnitAssignment::list::it it = presentUnits->begin(); it != presentUnits->end(); ++it)
 	{
@@ -1676,7 +1559,8 @@ void fileKernelCollection::setUnits()
 	std::string lenghtOutputString = "\tLength in ";
 	if (!length)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::errorNoLengthUnit) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::errorNoLengthUnit);
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoLengthUnit) << std::endl;
 		return;
 	}
 	else if (length == 1) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
@@ -1686,7 +1570,8 @@ void fileKernelCollection::setUnits()
 	std::string areaOutputString = "\tArea in square ";
 	if (!area)
 	{
-		std::cout <<CommunicationStringEnum::getString(CommunicationStringID::errorNoAreaUnit) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::errorNoAreaUnit);
+		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoAreaUnit) << std::endl;
 		return;
 	}
 	else if (area == 1) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
@@ -1696,9 +1581,11 @@ void fileKernelCollection::setUnits()
 	std::string volumeOutputString = "\tVolume in cubic ";
 	if (!volume)
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::warningNoVolumeUnit) << std::endl;
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoDefaultVolumeUnit) << std::endl;
-		volume = 1;
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoVolumeUnit);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoVolumeUnit) << std::endl;
+		return;
+		//std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoDefaultVolumeUnit) << std::endl;
+		//volume = 1;
 	}
 	else if (volume == 1) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
 	else if (volume == 0.000000001) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
