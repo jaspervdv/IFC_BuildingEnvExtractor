@@ -20,7 +20,8 @@
 #include <gp_Vec.hxx>
 #include <TopoDS.hxx>
 
-#include <mutex>
+#include <shared_mutex> 
+#include <mutex> 
 
 #ifndef DATAMANAGER_DATAMANAGER_H
 #define DATAMANAGER_DATAMANAGER_H
@@ -137,10 +138,16 @@ private:
 	int dataCollectionSize_ = 0;
 
 	static const int treeDepth = 5;
+	
+	std::shared_mutex indexMutex_;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
-	bgi::rtree<Value, bgi::rstar<treeDepth>> SpaceIndex_;
 	std::vector<std::shared_ptr<lookupValue>> productLookup_;
+
+	std::mutex spaceIndexMutex_;
+	bgi::rtree<Value, bgi::rstar<treeDepth>> spaceIndex_;
 	std::vector<std::shared_ptr<lookupValue>> SpaceLookup_;
+
+	std::mutex convertMutex_;
 
 	bool hasIndex_ = false;
 	
@@ -162,7 +169,7 @@ private:
 	void computeObjectTranslation(gp_Vec* vec);
 
 	/// returns a bbox of a ifcproduct that functions with boost
-	bg::model::box <BoostPoint3D> makeObjectBox(const TopoDS_Shape& productShape, double rotationAngle);
+	bg::model::box <BoostPoint3D> makeObjectBox(const TopoDS_Shape& productShape, const double& rotationAngle);
 
 	/// check if shape is inside of a wall, floor or roof
 	bool isInWall(const bg::model::box <BoostPoint3D>& bbox);
@@ -172,7 +179,11 @@ private:
 
 	/// adds all instances of an objectype to the spatial index
 	template <typename T>
-	void addObjectToIndex(const T& object, bool addToRoomIndx = false);
+	void addObjectListToIndex(const T& objectList, bool addToRoomIndx = false);
+	
+	template <typename T>
+	void addObjectToIndex(const T& productList, bool addToRoomIndx = false);
+	void addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx = false);
 
 	/// get all the points of all the instances of an objecttype
 	template <typename T>
@@ -180,6 +191,9 @@ private:
 
 	/// gets shapes from memory without checking for correct adjusted boolean
 	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
+
+	// update the lll and urr point
+	void updateBoudingData(const bg::model::box <BoostPoint3D>& box);
 
 public:
 	/*
@@ -240,7 +254,7 @@ public:
 
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
 
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &SpaceIndex_; }
+	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &spaceIndex_; }
 
 	bool hasIndex() { return hasIndex_; }
 

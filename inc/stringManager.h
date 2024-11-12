@@ -60,6 +60,7 @@ enum class CommunicationStringID {
 	infoNoFilePath,
 	infoNoValFilePath,
 	infoParsingFile,
+	infoParsingFiles,
 	infoInternalizingGeo,
 	infoCreateSpatialIndex,
 	infoFoundUnits,

@@ -187,9 +187,6 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	try { settingsCollection.setOutputPath(getJsonPath(filePaths[outputOName], "json")); }
 	catch (const ErrorID& exceptionId) { throw std::string(errorWarningStringEnum::getString(exceptionId) + outputOName); }
 
-	// check if output folder structure exists
-	boost::filesystem::path outputFolderPath = boost::filesystem::path(std::string(settingsCollection.getOutputPath())).parent_path();
-
 	// set report output toggle
 	std::string outputReportOName = JsonObjectInEnum::getString(JsonObjectInID::outputReport);
 	if (json.contains(outputReportOName))
@@ -299,7 +296,7 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	}
 
 	// check for footprint height
-	std::string footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
+	const std::string& footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
 	if (outputDataJson.contains(footprintElevOName))
 	{
 		try
@@ -628,8 +625,9 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 
 	// set ifcGeomsettings
 	IfcGeom::IteratorSettings iteratorSettings;
+
 	IfcGeom::IteratorSettings simpleIteratorSettings;
-	iteratorSettings.set(simpleIteratorSettings.DISABLE_OPENING_SUBTRACTIONS, true);
+	simpleIteratorSettings.set(simpleIteratorSettings.DISABLE_OPENING_SUBTRACTIONS, true);
 
 	settingsCollection.setIterator(iteratorSettings);
 	settingsCollection.setSimpleIterator(simpleIteratorSettings);

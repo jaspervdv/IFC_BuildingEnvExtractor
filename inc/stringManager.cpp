@@ -61,7 +61,9 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoNoValFilePath:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "No valid filepath has been supplied";
 	case CommunicationStringID::infoParsingFile:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Parsing file ";
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Parsing file: ";
+	case CommunicationStringID::infoParsingFiles:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Parsing file(s): ";
 	case CommunicationStringID::infoInternalizingGeo:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Internalizing Geometry of Construction Model";
 	case CommunicationStringID::infoCreateSpatialIndex:

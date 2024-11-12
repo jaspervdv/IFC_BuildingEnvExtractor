@@ -1,5 +1,6 @@
 #include <map>
 #include <nlohmann/json.hpp>
+#include <mutex>
 
 #ifndef ERRORCOLLECTION_ERRORCOLLECTION_H
 #define ERRORCOLLECTION_ERRORCOLLECTION_H
@@ -104,6 +105,9 @@ private:
 	std::map<ErrorID, ErrorObject> errorCollection_; 
 	// collection of all the possible errors and issues
 	std::map<ErrorID, ErrorObject> errorMap_;
+
+	//Prevents datarace when writing to the instance
+	std::mutex dataMutex_;
 	
 	explicit ErrorCollection();
 

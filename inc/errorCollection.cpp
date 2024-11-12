@@ -109,6 +109,7 @@ ErrorCollection::ErrorCollection() {
 
 void ErrorCollection::addError(ErrorID id, const std::string& objectName) 
 {
+	std::lock_guard<std::mutex> errorLock(dataMutex_);
 	//search if error is present ignore or add object
 	if (errorCollection_.find(id) != errorCollection_.end())
 	{
