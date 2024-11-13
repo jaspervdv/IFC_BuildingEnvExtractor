@@ -79,8 +79,6 @@ private:
 
 	// The unit multipliers found
 	double length_ = 0;
-	double area_ = 0;
-	double volume_ = 0;
 
 public:
 	fileKernelCollection(const std::string& file);
@@ -88,7 +86,8 @@ public:
 	~fileKernelCollection() {
 	}
 
-	double getScaleValue(const IfcSchema::IfcSIUnit& unitItem);
+	double getSiPrefixValue(const IfcSchema::IfcSIUnit& unitItem);
+	double getSiScaleValue(const IfcSchema::IfcSIUnit& unitItem);
 
 	/// returns the pointer to the file object
 	IfcParse::IfcFile* getFilePtr()  { return file_; }
@@ -99,17 +98,8 @@ public:
 	/// internalizes the units that are stored in the file
 	void setUnits();
 
-	// returns a vector with length, area and volume multipliers
-	std::vector<double> getUnits() const { return { length_, area_, volume_ }; }
-
 	// returns the length multiplier
 	double getLengthMultiplier() const { return length_; }
-
-	// returns the area multiplier
-	double getAreaMultiplier() const { return area_; }
-
-	// returns the volume multiplier
-	double getVolumeMultiplier() const { return volume_; }
 
 	bool isGood() { return good_; }
 };

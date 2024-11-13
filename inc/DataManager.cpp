@@ -236,11 +236,9 @@ std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr, bool simple)
 bool helper::hasSetUnits() {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		if (!datacollection_[i]->getAreaMultiplier() || 
-			!datacollection_[i]->getLengthMultiplier() || 
-			!datacollection_[i]->getVolumeMultiplier()) { return false; }
+		if (!datacollection_[i]->getLengthMultiplier()) { return false; }
 	}
-	{ return true; }
+	return true; 
 }
 
 
@@ -1526,23 +1524,50 @@ fileKernelCollection::fileKernelCollection(const std::string& filePath)
 }
 
 
-double fileKernelCollection::getScaleValue(const IfcSchema::IfcSIUnit& unitItem) {
-	IfcSchema::IfcSIUnitName::Value unitType = unitItem.Name();
-
+double fileKernelCollection::getSiPrefixValue(const IfcSchema::IfcSIUnit& unitItem) {
 	boost::optional<IfcSchema::IfcSIPrefix::Value> prefixOption = unitItem.Prefix();
 	if (!prefixOption) { return 1; }
 
+	switch (*prefixOption) {
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_EXA:   return 1e18;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_PETA:  return 1e15;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_TERA:  return 1e12;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_GIGA:  return 1e9;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_MEGA:  return 1e6;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_KILO:  return 1e3;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_HECTO: return 1e2;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_DECA:  return 10;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_DECI:  return 1e-1;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_CENTI: return 1e-2;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI: return 1e-3;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_MICRO: return 1e-6;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_NANO:  return 1e-9;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_PICO:  return 1e-12;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_FEMTO: return 1e-15;
+		case IfcSchema::IfcSIPrefix::IfcSIPrefix_ATTO:	return 1e-18;
+		default: return 0;
+	}
+}
+
+
+double fileKernelCollection::getSiScaleValue(const IfcSchema::IfcSIUnit& unitItem) {
+	
+	double prefixValue = getSiPrefixValue(unitItem);
+	if (!prefixValue) { return 0; }
+
+	IfcSchema::IfcSIUnitName::Value unitType = unitItem.Name();
 	if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_METRE)
 	{
-		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-3; }
+		return prefixValue;
 	}
 	else if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_SQUARE_METRE)
 	{
-		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-6; }
+		return prefixValue * prefixValue;
+
 	}
 	else if (unitType == IfcSchema::IfcSIUnitName::IfcSIUnitName_SQUARE_METRE)
 	{
-		if (prefixOption == IfcSchema::IfcSIPrefix::IfcSIPrefix_MILLI) { return 1e-9; }
+		return prefixValue * prefixValue * prefixValue;
 	}
 	return 0;
 }
@@ -1554,111 +1579,53 @@ void fileKernelCollection::setUnits()
 	double area = 0;
 	double volume = 0;
 
-	// unit names if the unit is not standard
-	std::string lengthUnitName = "";
-	std::string areaUnitName = "";
-	std::string volumeUnitName = "";
-
-	IfcSchema::IfcUnitAssignment::list::ptr presentUnits = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
-	if (presentUnits.get()->size() == 0) {
+	IfcSchema::IfcUnitAssignment::list::ptr assignedUnitListObjects = file_->instances_by_type<IfcSchema::IfcUnitAssignment>();
+	if (assignedUnitListObjects.get()->size() == 0) {
 		ErrorCollection::getInstance().addError(ErrorID::errorNoUnits);
 		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoUnits) << std::endl;
 		return;
 	}
-	else if (presentUnits.get()->size() > 1)
+	else if (assignedUnitListObjects.get()->size() > 1)
 	{
 		ErrorCollection::getInstance().addError(ErrorID::errorMultipleUnits);
 		std::cout << errorWarningStringEnum::getString(ErrorID::errorMultipleUnits) << std::endl;
 		return;
 	}
 
-	for (IfcSchema::IfcUnitAssignment::list::it it = presentUnits->begin(); it != presentUnits->end(); ++it)
+	IfcSchema::IfcUnitAssignment* assignedUnitListObject = *assignedUnitListObjects->begin();
+	IfcSchema::IfcUnit::list::ptr assignedUnitList = assignedUnitListObject->Units();
+
+	for (IfcSchema::IfcUnit::list::it unitIterator = assignedUnitList->begin(); unitIterator != assignedUnitList->end(); ++unitIterator)
 	{
-		const IfcSchema::IfcUnitAssignment* itUnits = *it;
-		auto units = itUnits->Units();
+		IfcSchema::IfcUnit* currentUnit = *unitIterator;
 
-		for (auto et = units.get()->begin(); et != units.get()->end(); et++) {
-			auto unit = *et;
+		if (currentUnit->declaration().name() == "IfcSIUnit") //comput SI units
+		{
+			IfcSchema::IfcSIUnit* currentSiUnit = currentUnit->as<IfcSchema::IfcSIUnit>();
 
-			int typeInt = unit->declaration().type();
-			if (typeInt == 902 || typeInt == 765 ) // select the IfcSIUnit
+			if (currentSiUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_LENGTHUNIT) 
 			{
-				IfcSchema::IfcSIUnit* siUnit = unit->as<IfcSchema::IfcSIUnit>();
-
-				if (siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_LENGTHUNIT) { length = getScaleValue(*siUnit); }
-				else if(siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_AREAUNIT) { area = getScaleValue(*siUnit); }
-				if (siUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_VOLUMEUNIT) { volume = getScaleValue(*siUnit); }
-			}
-
-			if (typeInt == 233) // select the conversions
-			{
-				IfcSchema::IfcConversionBasedUnit* conversionUnit = unit->as<IfcSchema::IfcConversionBasedUnit>();
-				if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_LENGTHUNIT)
-				{
-					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
-					length = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
-					lengthUnitName = conversionUnit->Name();
-				}
-				else if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_AREAUNIT)
-				{
-					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
-					area = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
-					areaUnitName = conversionUnit->Name();
-				}
-				if (conversionUnit->UnitType() == IfcSchema::IfcUnitEnum::IfcUnit_VOLUMEUNIT)
-				{
-					double conversionScale = conversionUnit->ConversionFactor()->ValueComponent()->data().getArgument(0)->operator double();
-					volume = conversionScale * getScaleValue(*conversionUnit->ConversionFactor()->UnitComponent()->as<IfcSchema::IfcSIUnit>());
-					volumeUnitName = conversionUnit->Name();
-				}
+				length = getSiScaleValue(*currentSiUnit); 
+				continue;
 			}
 		}
 	}
 
-	// check if units have been found
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFoundUnits) << std::endl;
-
-	std::string lenghtOutputString = "\tLength in ";
+	//internalize the data
 	if (!length)
 	{
 		ErrorCollection::getInstance().addError(ErrorID::errorNoLengthUnit);
 		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoLengthUnit) << std::endl;
 		return;
 	}
-	else if (length == 1) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
-	else if (length == 0.001) { std::cout << lenghtOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
-	else { std::cout << lenghtOutputString << boost::algorithm::to_lower_copy(lengthUnitName) << std::endl; }
 
-	std::string areaOutputString = "\tArea in square ";
-	if (!area)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::errorNoAreaUnit);
-		std::cout << errorWarningStringEnum::getString(ErrorID::errorNoAreaUnit) << std::endl;
-		return;
-	}
-	else if (area == 1) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
-	else if (area == 0.000001) { std::cout << areaOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
-	else { std::cout << areaOutputString << boost::algorithm::to_lower_copy(areaUnitName) << std::endl;}
-
-	std::string volumeOutputString = "\tVolume in cubic ";
-	if (!volume)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoVolumeUnit);
-		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoVolumeUnit) << std::endl;
-		return;
-		//std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoDefaultVolumeUnit) << std::endl;
-		//volume = 1;
-	}
-	else if (volume == 1) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::meterFull) << std::endl; }
-	else if (volume == 0.000000001) { std::cout << volumeOutputString << UnitStringEnum::getString(UnitStringID::millimeterFull) << std::endl; }
-	else { std::cout << volumeOutputString << boost::algorithm::to_lower_copy(volumeUnitName) << std::endl; }
-
-	std::cout << std::endl;
-
-	//internalize the data
 	length_ = length;
-	area_ = area;
-	volume_ = volume;
+
+
+	// print found data to user
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFoundUnits) << std::endl;
+	std::cout << "\tLength multiplier = " << length_ << std::endl;
+	std::cout << std::endl;
 
 	return;
 }

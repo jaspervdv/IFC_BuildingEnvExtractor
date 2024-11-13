@@ -91,7 +91,11 @@ std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, bool v
 	if (valFolder)
 	{
 		std::filesystem::path folderPath(jsonPathPtr);
-		jsonPathPtr = folderPath.parent_path().string();
+		if (!isValidPath(folderPath.parent_path().string()))
+		{
+			throw ErrorID::errorJsonNoRealPath;
+		}
+		return jsonPathPtr;
 	}
 
 	if (!isValidPath(jsonPathPtr))

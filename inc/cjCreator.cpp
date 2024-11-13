@@ -1316,7 +1316,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 		IfcSchema::IfcBuildingStorey* storeyObject = *it;
 		IfcSchema::IfcObjectPlacement* storeyObjectPlacement = storeyObject->ObjectPlacement();
 
-		double storeyElevation = helperFunctions::getObjectZOffset(storeyObjectPlacement, false);
+		double storeyElevation = helperFunctions::getObjectZOffset(storeyObjectPlacement, false) * h->getScaler(0);
 		double userStoreyElevation = storeyObject->Elevation().get() * h->getScaler(0);
 
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentStoreyAtZ) << userStoreyElevation << " (" <<  storeyElevation << ")" << std::endl;
