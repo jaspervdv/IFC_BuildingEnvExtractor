@@ -71,7 +71,7 @@ std::string IOManager::getJsonString(const nlohmann::json& jsonStringValue)
 	return static_cast<std::string>(jsonStringValue);
 }
 
-std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, const std::string& fileExtension)
+std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, bool valFolder, const std::string& fileExtension)
 {
 	std::string jsonPathPtr = "";
 	try
@@ -86,6 +86,12 @@ std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, const 
 	if (!hasExtension(jsonPathPtr, fileExtension))
 	{
 		throw ErrorID::errorJsonInvalPath;
+	}
+
+	if (valFolder)
+	{
+		std::filesystem::path folderPath(jsonPathPtr);
+		jsonPathPtr = folderPath.parent_path().string();
 	}
 
 	if (!isValidPath(jsonPathPtr))
@@ -184,7 +190,7 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 		throw std::string(errorWarningStringEnum::getString(ErrorID::errorJsonMissingEntry) + outputOName);
 	}
 
-	try { settingsCollection.setOutputPath(getJsonPath(filePaths[outputOName], "json")); }
+	try { settingsCollection.setOutputPath(getJsonPath(filePaths[outputOName], true, "json")); }
 	catch (const ErrorID& exceptionId) { throw std::string(errorWarningStringEnum::getString(exceptionId) + outputOName); }
 
 	// set report output toggle
@@ -219,7 +225,7 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 
 	// store input ifc paths
 	for (size_t i = 0; i < inputPaths.size(); i++) {
-		try { settingsCollection.addToIfcPathList(getJsonPath(inputPaths[i], "ifc")); }
+		try { settingsCollection.addToIfcPathList(getJsonPath(inputPaths[i], false, "ifc")); }
 		catch (const ErrorID& exceptionId) 
 		{
 			ErrorCollection::getInstance().addError(exceptionId, inputOName);

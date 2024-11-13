@@ -1101,7 +1101,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
 
-	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);
+	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted); 
 	if (!potentialShape.IsNull()) { return potentialShape; }
 
 	IfcSchema::IfcRepresentation* ifc_representation = nullptr;
@@ -1202,7 +1202,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		std::lock_guard<std::mutex> lock(convertMutex_);
 		brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
 	}
-
 	if (brep == nullptr) { return {}; }
 
 	TopoDS_Compound comp;
