@@ -1207,7 +1207,11 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	gp_Trsf placement;
 	gp_Trsf trs;
 	trs.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), SettingsCollection::getInstance().gridRotation());
+	
+	convertMutex_.lock();
 	kernelObject->convert_placement(ifc_representation, placement);
+	convertMutex_.unlock();
+
 	comp = brep->geometry().as_compound();
 	comp.Move(trsf * placement); // location in global space
 	comp.Move(objectTranslation_);
