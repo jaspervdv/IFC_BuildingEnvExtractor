@@ -1096,8 +1096,11 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
 
 	// filter with lookup
+	bool hasHoles = false; //TODO: check this
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
+	if (SettingsCollection::getInstance().useSimpleGeo()) { adjusted = true; hasHoles = true; }//TODO: remove this once it is returned to normal behavior
+	if (openingObjects.find(objectType) != openingObjects.end()) { hasHoles = true; }
 
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted); 
 	if (!potentialShape.IsNull()) { return potentialShape; }
@@ -1117,8 +1120,6 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 		}
 	}
 
-	bool hasHoles = false; //TODO: check this
-	if (openingObjects.find(objectType) != openingObjects.end()) { hasHoles = true; }
 	if (ifc_representation == nullptr)
 	{
 #if defined(USE_IFC4) || defined(USE_IFC4x3)

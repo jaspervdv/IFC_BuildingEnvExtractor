@@ -47,6 +47,8 @@ private:
 	double getJsonDouble(const nlohmann::json& jsonDouleValue);
 	std::string getJsonString(const nlohmann::json& jsonStringValue);
 	std::string getJsonPath(const nlohmann::json& jsonStringValue, bool valFolder, const std::string& fileExtension);
+
+	std::string boolToString(const bool boolValue);
 	
 	// checks if the string has the extension that is supplied
 	bool hasExtension(const std::string& string, const std::string& ext);

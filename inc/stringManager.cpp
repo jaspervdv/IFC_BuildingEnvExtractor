@@ -389,6 +389,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Ignore proxy";
 	case JsonObjectInID::IFCDivObject:
 		return "Div objects";
+	case JsonObjectInID::IFCsimplefyGeo:
+		return "Simplify geometry";
 
 	case JsonObjectInID::JSON:
 		return "JSON";

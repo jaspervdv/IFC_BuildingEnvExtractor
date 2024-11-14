@@ -134,6 +134,7 @@ enum class JsonObjectInID {
 	IFCDefaultDiv,
 	IFCIgnoreProxy,
 	IFCDivObject,
+	IFCsimplefyGeo,
 
 	JSON,
 	JSONFootprintElev,

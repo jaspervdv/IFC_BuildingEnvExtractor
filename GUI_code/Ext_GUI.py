@@ -37,6 +37,7 @@ class DivSettings:
         self.ignore_proxy = tkinter.IntVar(value=1)
         self.use_default = tkinter.IntVar(value=1)
         self.custom_enabled = tkinter.IntVar(value=0)
+        self.simple_geo = tkinter.IntVar(value=0)
 
 class OtherSettings:
     def __init__(self):
@@ -192,6 +193,7 @@ def runCode(input_path,
         json_dictionary["IFC"]["Default div"] = False
         json_dictionary["IFC"]["Ignore proxy"] = False
         json_dictionary["IFC"]["Div objects"] = div_string.split()
+    json_dictionary["IFC"]["Simplify geometry"] = div_settings.simple_geo.get()
 
     json_dictionary["JSON"] = {}
     json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)
@@ -616,7 +618,10 @@ message_div_objects.insert(tkinter.INSERT, getDefaultDivObjects())
 message_div_objects['state'] = tkinter.DISABLED
 message_div_objects.pack(fill='x', padx=5, pady=10)
 
-enableCustom_toggle = ttk.Checkbutton(main_window,
+frame_final_objects = tkinter.Frame(main_window)
+frame_final_objects.pack()
+
+enableCustom_toggle = ttk.Checkbutton(frame_final_objects,
                                     text="Custom div objects",
                                     variable=div_settings.custom_enabled,
                                     command= lambda : toggleEnableDiv(
@@ -625,7 +630,13 @@ enableCustom_toggle = ttk.Checkbutton(main_window,
                                         igoreproxy_toggle,
                                         div_settings.use_default,
                                         div_settings.ignore_proxy))
-enableCustom_toggle.pack()
+enableCustom_toggle.pack(side=tkinter.LEFT)
+
+simpleGeo_toggle = ttk.Checkbutton(frame_final_objects,
+                                    text="Use simple geo",
+                                    variable=div_settings.simple_geo)
+simpleGeo_toggle.pack(side=tkinter.LEFT, padx=5)
+
 # other buttons
 separator3 = ttk.Separator(main_window, orient='horizontal')
 separator3.pack(fill='x', pady=10)
@@ -699,6 +710,7 @@ Tooltip(igoreproxy_toggle, "If active IfcBuildingProxyElements will be excluded 
 Tooltip(useDefault_toggle, "If active default div objects will be used during the process")
 Tooltip(message_div_objects, "Used div objects during the process, separated by a space. Can be unlocked by toggling the Custom div objects button")
 Tooltip(enableCustom_toggle, "Enables the custom div objects list")
+Tooltip(simpleGeo_toggle, "Use simplefied geometry for the evaluations (voids are ignored)")
 
 Tooltip(run_button, "Run the tool")
 Tooltip(generate_button, "Generate and store the Configuration JSON")

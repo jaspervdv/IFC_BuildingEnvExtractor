@@ -44,6 +44,7 @@ private:
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
 	std::vector<std::string> CustomDivList_;
+    bool useSimpleGeo_ = false;
 
     bool mergeSemantics_ = true;
 
@@ -185,6 +186,9 @@ public:
 
     bool useProxy() const { return useProxy_; }
     void setUseProxy(bool value) { useProxy_ = value; }
+
+    bool useSimpleGeo() const { return useSimpleGeo_; }
+    void setSimpleGeo(bool value) { useSimpleGeo_ = value; }
 
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }

@@ -106,6 +106,13 @@ std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, bool v
 	return jsonPathPtr;
 }
 
+
+std::string IOManager::boolToString(const bool boolValue)
+{
+	if (boolValue) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "yes"; }
+	else { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "no" ; }
+}
+
 bool IOManager::hasExtension(const std::string& string, const std::string& ext)
 {
 	std::string substring = boost::to_lower_copy<std::string>(string.substr(string.find_last_of(".") + 1));
@@ -584,6 +591,23 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 		}
 	}
 
+	std::string simpleGeoOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
+	if (ifcInputJson.contains(simpleGeoOName))
+	{
+		try
+		{
+			std::cout << ifcInputJson[simpleGeoOName] << std::endl;
+			bool simpleGeoBool = getJsonBoolValue(ifcInputJson[simpleGeoOName]);
+			settingsCollection.setSimpleGeo(simpleGeoBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, simpleGeoOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + simpleGeoOName);
+		}
+	}
+
+
 	std::string divObjectsOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
 	if (ifcInputJson.contains(divObjectsOName))
 	{
@@ -691,8 +715,7 @@ void IOManager::printSummary()
 	std::cout << "- Output File:" << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputPath() << std::endl;
 	std::cout << "- Create Report:" << std::endl;
-	if (settingsCollection.writeReport()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << boolToString(settingsCollection.writeReport()) << std::endl;
 	std::cout << "- LoD export enabled:" << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << std::endl;
 	std::cout << std::endl;
@@ -703,6 +726,8 @@ void IOManager::printSummary()
 	else
 	{ std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << std::endl;
 	}
+	std::cout << "- simplify geometry:" << std::endl;
+	std::cout << boolToString(settingsCollection.useSimpleGeo()) << std::endl;
 	std::cout << "- Space dividing objects:" << std::endl;
 	if (settingsCollection.useDefaultDiv())
 	{
@@ -722,37 +747,30 @@ void IOManager::printSummary()
 	if (settingsCollection.intersectionLogic() == 2) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "plane" << std::endl; }
 	if (settingsCollection.intersectionLogic() == 3) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "solid" << std::endl; }
 	std::cout << "- Store voxel summary/approximation:" << std::endl;
-	if (settingsCollection.summaryVoxels()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) <<"no" << std::endl; }
+	std::cout << boolToString(settingsCollection.summaryVoxels()) << std::endl;
 	std::cout << std::endl;
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "json settings" << std::endl;
 	std::cout << "- Footprint Elevation:" << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.footprintElevation() << std::endl;
 	std::cout << "- Footrint based extraction:" << std::endl;
-	if (settingsCollection.footPrintBased()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << boolToString(settingsCollection.footPrintBased()) << std::endl;
 	std::cout << "- horizontal section offset" << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.horizontalSectionOffset() << std::endl;
 	if (settingsCollection.make02())
 	{
 		std::cout << "- Create footprint:" << std::endl;
-		if (settingsCollection.makeFootPrint()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-		else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+		std::cout << boolToString(settingsCollection.makeFootPrint()) << std::endl;
 
 		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
-		if (settingsCollection.makeRoofPrint()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-		else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+		std::cout << boolToString(settingsCollection.makeRoofPrint()) << std::endl;
 	}
 	std::cout << "- Generate interior:" << std::endl;
-	if (settingsCollection.makeInterior()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << boolToString(settingsCollection.makeInterior()) << std::endl;
 	std::cout << "- Georeference:" << std::endl;
-	if (settingsCollection.geoReference()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << boolToString(settingsCollection.geoReference()) << std::endl;
 	std::cout << "- Merge semantic objects" << std::endl;
-	if (settingsCollection.mergeSemantics()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "yes" << std::endl; }
-	else { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "no" << std::endl; }
+	std::cout << boolToString(settingsCollection.mergeSemantics()) << std::endl;
 
 	std::cout << std::endl;
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "other settings:" << std::endl;
@@ -839,6 +857,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
 	std::string ifcRotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotation);
 	std::string ifcDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
+	std::string ifcSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
 	
 	ifcJSON[ifcRotationOName] = settingsCollection.gridRotation();
 	std::vector<std::string> DivList;
@@ -852,6 +871,7 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	ifcJSON[ifcDivOName] = DivList;
+	ifcJSON[ifcSimpleOName] = settingsCollection.useSimpleGeo();
 	settingsJSON[ifcOName] = ifcJSON;
 
 	// store the json data
