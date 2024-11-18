@@ -291,95 +291,95 @@ The configuration json has a very simple structure. An example can be found belo
 }
 ```
 
-The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used. Variables are available in <span style="color: #FFA500;"> the configuration JSON file only</span> or in both <span style="color: #FF4500;"> the configuration JSON and the GUI</span>. The mentioned default values are selected if the entry is missing from the configuration JSON. For certain cases, such as the <span style="color: #FFA500;"> "IFC" "Rotation angle" </span> and the <span style="color: #FFA500;"> "Threads" </span> options it is only possible to trigger the default behavior by not adding them to the configuration JSON.
+The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used. Variables are available in the configuration JSON file only ( :ballot_box_with_check: ) or in both the configuration JSON and the GUI ( :white_check_mark: ). The mentioned default values are selected if the entry is missing from the configuration JSON. For certain cases, such as the "IFC" "Rotation angle" and the "Threads" options it is only possible to trigger the default behavior by not adding them to the configuration JSON.
 
 Mandatory:
 
-* <span style="color: #FF4500;"> "Filepaths" "Input"</span>
+* :white_check_mark: "Filepaths" "Input" :white_check_mark:
   * Array filled with string, size 1 to ∞
   * All required paths representing all the IFC files constructing a single building.
-* <span style="color: #FF4500;"> "Filepaths" "Output"</span>
+* :white_check_mark: "Filepaths" "Output" :white_check_mark:
   * String
   * The output CityJSON filepath. Folder structure is required to be existing. The file name should end with .json or .city.json/
-* <span style="color: #FF4500;"> "LoD output"</span>
+* :white_check_mark: "LoD output" :white_check_mark:
   * Array filled with floats/double, size 1 to ∞
   * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape).
 
 Optional:
 
-* <span style="color: #FFA500;"> "Filepaths" "Report" </span>
+* :ballot_box_with_check: "Filepaths" "Report" :ballot_box_with_check:
   * String
   * The output report JSON filepath. Folder structure is required to be existing. The file name should end with .json.
-  * Default value = <span style="color: #FF4500;"> "Filepaths" "Output"</span> path with "_report" added to the file name.
-* <span style="color: #FF4500;"> "Voxel" "Size" </span>
+  * Default value = "Filepaths" "Output" path with "_report" added to the file name.
+* :white_check_mark: "Voxel" "Size" :white_check_mark:
   * Float/double
   * The x, y and z dimension of the voxels that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings.
   * Default value = 0.5
-* <span style="color: #FF4500;"> "Voxel" "Store values" </span>
+* :white_check_mark: "Voxel" "Store values" :white_check_mark:
   * Boolean
   * Toggles the computation of general shell summary values based on the voxelized shape and stores this as semantic attributes.
   * Default value = false
-* <span style="color: #FFA500;"> "Voxel" "Logic" </span>
+* :ballot_box_with_check: "Voxel" "Logic" :ballot_box_with_check:
   * Integer (either 2 or 3)
   * Toggle the voxel intersection logic; 2 = 2D/plane intersection, 3 = 3D/solid intersection.
   * Default value = 3
-* <span style="color: #FFA500;"> "IFC" "Rotation angle" </span>
+* :ballot_box_with_check: "IFC" "Rotation angle" :ballot_box_with_check:
   * Float/Double
   * Sets the angle for a custom IFC object rotation around the Z-axis during processing. The value in degrees will be used as rotation angle.
   * Default value = rotation that gives smallest bounding box
-* <span style="color: #FF4500;"> "IFC" "Default div" </span>
+* :white_check_mark: "IFC" "Default div" :white_check_mark:
   * Boolean
   * Toggles the use of the default space bounding objects.
   * Default value = true
-* <span style="color: #FF4500;"> "IFC" "Ignore proxy" </span>
+* :white_check_mark: "IFC" "Ignore proxy" :white_check_mark:
   * Boolean
   * Toggles the use of the IfcBuildingElementProxy objects.
   * Default value: yes
-* <span style="color: #FF4500;"> "IFC" "Div objects" </span>
+* :white_check_mark: "IFC" "Div objects" :white_check_mark:
   * Array filled with string, size 0 to ∞
   * Adds more custom space bounding objects to the processing.
   * Default value = empty
-* <span style="color: #FF4500;"> "IFC" "Simplify geometry" </span>
+* :white_check_mark: "IFC" "Simplify geometry" :white_check_mark:
   * Boolean
   * Toggles the use of void objects on the IFC objects. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
   * Default value = false
-* <span style="color: #FF4500;"> "JSON" "Footprint elevation" </span>
+* :white_check_mark: "JSON" "Footprint elevation" :white_check_mark:
   * Float/double
   * Sets the level at which a horizontal section will be taken of the building. This section is used to create the footprint.
   * Default value = 0
-* <span style="color: #FF4500;"> "JSON" "Footprint based" </span>
+* :white_check_mark: "JSON" "Footprint based" :white_check_mark:
   * Boolean
   * Toggles footprint based shape creation for LoD1.2, 1.3, and, 2.2.
   * Default value = false
-* <span style="color: #FFA500;"> "JSON" "Horizontal section offset" </span>
+* :ballot_box_with_check: "JSON" "Horizontal section offset" :ballot_box_with_check:
   * Float/double
   * Sets how much the footprint and storey sections should be offset from the found/submitted elevation.
   * Default value = 0
-* <span style="color: #FF4500;"> "JSON" "Generate footprint" </span>
+* :white_check_mark: "JSON" "Generate footprint" :white_check_mark:
   * Boolean
   * Toggles the export of the footprint for LoD0.2. If false the roof outline will be placed at footprint level.
   * Default value = false
-* <span style="color: #FF4500;"> "JSON" "Generate interior" </span>
+* :white_check_mark: "JSON" "Generate interior" :white_check_mark:
   * Boolean
   * Toggles IfcSpaces to be exported as interior spaces.
   * Default value = false
-* <span style="color: #FF4500;"> "JSON" "Generate roof outline" </span>
+* :white_check_mark: "JSON" "Generate roof outline" :white_check_mark:
   * Boolean
   * Toggles the roof outline to be exported for LoD0.2
   * Default value = true
-* <span style="color: #FFA500;"> "JSON" "Georeference" </span>
+* :ballot_box_with_check: "JSON" "Georeference" :ballot_box_with_check:
   * Boolean
   * Toggles (attempted) georeferencing of the output JSON file.
   * Default value = true
-* <span style="color: #FFA500;"> "JSON" "Merge semantic objects" </span>
+* :ballot_box_with_check: "JSON" "Merge semantic objects" :ballot_box_with_check:
   * Boolean
   * Toggles semantic objects to be merged if they have identical attributes.
   * Default value = true
-* <span style="color: #FF4500;"> "Output report" </span>
+* :white_check_mark: "Output report" :white_check_mark:
   * Boolean
   * Toggles the output of a report file, see [this section](#report-json) for more info.
   * Default value = true
-* <span style="color: #FFA500;"> "Threads" </span>
+* :ballot_box_with_check: "Threads" :ballot_box_with_check:
   * Integer (>0)
   * Sets the maximum allowed threads to be used.
   * Default value = hardware_concurrency - 2 according to std::threads
