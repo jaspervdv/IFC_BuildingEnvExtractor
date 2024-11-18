@@ -3,15 +3,6 @@
 <!-- markdownlint-disable MD033 -->
 <!-- markdownlint-disable MD034 -->
 
-<style>
-    .highlight-text-GUI {
-        color: #FF4500; /* OrangeRed */
-    }
-    .highlight-text-unique {
-        color: #FFA500; /* Orange */
-    }
-</style>
-
 The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. This is one of the steps required to close the gap between architecture/BIM and city scale models.
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample.gif "An example of the created LoD envelopes based on an input file")
@@ -300,95 +291,95 @@ The configuration json has a very simple structure. An example can be found belo
 }
 ```
 
-The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used. Variables are available in <span class="highlight-text-unique"> the configuration JSON file only</span> or in both <span class="highlight-text-GUI"> the configuration JSON and the GUI</span>. The mentioned default values are selected if the entry is missing from the configuration JSON. For certain cases, such as the <span class="highlight-text-unique"> "IFC" "Rotation angle" </span> and the <span class="highlight-text-unique"> "Threads" </span> options it is only possible to trigger the default behavior by not adding them to the configuration JSON.
+The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used. Variables are available in <span style="color: #FFA500;"> the configuration JSON file only</span> or in both <span style="color: #FF4500;"> the configuration JSON and the GUI</span>. The mentioned default values are selected if the entry is missing from the configuration JSON. For certain cases, such as the <span style="color: #FFA500;"> "IFC" "Rotation angle" </span> and the <span style="color: #FFA500;"> "Threads" </span> options it is only possible to trigger the default behavior by not adding them to the configuration JSON.
 
 Mandatory:
 
-* <span class="highlight-text-GUI"> "Filepaths" "Input"</span>
+* <span style="color: #FF4500;"> "Filepaths" "Input"</span>
   * Array filled with string, size 1 to ∞
   * All required paths representing all the IFC files constructing a single building.
-* <span class="highlight-text-GUI"> "Filepaths" "Output"</span>
+* <span style="color: #FF4500;"> "Filepaths" "Output"</span>
   * String
   * The output CityJSON filepath. Folder structure is required to be existing. The file name should end with .json or .city.json/
-* <span class="highlight-text-GUI"> "LoD output"</span>
+* <span style="color: #FF4500;"> "LoD output"</span>
   * Array filled with floats/double, size 1 to ∞
   * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape).
 
 Optional:
 
-* <span class="highlight-text-unique"> "Filepaths" "Report" </span>
+* <span style="color: #FFA500;"> "Filepaths" "Report" </span>
   * String
   * The output report JSON filepath. Folder structure is required to be existing. The file name should end with .json.
-  * Default value = <span class="highlight-text-GUI"> "Filepaths" "Output"</span> path with "_report" added to the file name.
-* <span class="highlight-text-GUI"> "Voxel" "Size" </span>
+  * Default value = <span style="color: #FF4500;"> "Filepaths" "Output"</span> path with "_report" added to the file name.
+* <span style="color: #FF4500;"> "Voxel" "Size" </span>
   * Float/double
-  * The x,y and z dimension of the voxels that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings.
+  * The x, y and z dimension of the voxels that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings.
   * Default value = 0.5
-* <span class="highlight-text-GUI"> "Voxel" "Store values" </span>
+* <span style="color: #FF4500;"> "Voxel" "Store values" </span>
   * Boolean
   * Toggles the computation of general shell summary values based on the voxelized shape and stores this as semantic attributes.
   * Default value = false
-* <span class="highlight-text-unique"> "Voxel" "Logic" </span>
-  * integer (either 2 or 3)
+* <span style="color: #FFA500;"> "Voxel" "Logic" </span>
+  * Integer (either 2 or 3)
   * Toggle the voxel intersection logic; 2 = 2D/plane intersection, 3 = 3D/solid intersection.
   * Default value = 3
-* <span class="highlight-text-unique"> "IFC" "Rotation angle" </span>
+* <span style="color: #FFA500;"> "IFC" "Rotation angle" </span>
   * Float/Double
   * Sets the angle for a custom IFC object rotation around the Z-axis during processing. The value in degrees will be used as rotation angle.
   * Default value = rotation that gives smallest bounding box
-* <span class="highlight-text-GUI"> "IFC" "Default div" </span>
+* <span style="color: #FF4500;"> "IFC" "Default div" </span>
   * Boolean
   * Toggles the use of the default space bounding objects.
   * Default value = true
-* <span class="highlight-text-GUI"> "IFC" "Ignore proxy" </span>
+* <span style="color: #FF4500;"> "IFC" "Ignore proxy" </span>
   * Boolean
   * Toggles the use of the IfcBuildingElementProxy objects.
   * Default value: yes
-* <span class="highlight-text-GUI"> "IFC" "Div objects" </span>
+* <span style="color: #FF4500;"> "IFC" "Div objects" </span>
   * Array filled with string, size 0 to ∞
   * Adds more custom space bounding objects to the processing.
   * Default value = empty
-* <span class="highlight-text-GUI"> "IFC" "Simplify geometry" </span>
+* <span style="color: #FF4500;"> "IFC" "Simplify geometry" </span>
   * Boolean
   * Toggles the use of void objects on the IFC objects. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
   * Default value = false
-* <span class="highlight-text-GUI"> "JSON" "Footprint elevation" </span>
+* <span style="color: #FF4500;"> "JSON" "Footprint elevation" </span>
   * Float/double
   * Sets the level at which a horizontal section will be taken of the building. This section is used to create the footprint.
   * Default value = 0
-* <span class="highlight-text-GUI"> "JSON" "Footprint based" </span>
+* <span style="color: #FF4500;"> "JSON" "Footprint based" </span>
   * Boolean
   * Toggles footprint based shape creation for LoD1.2, 1.3, and, 2.2.
   * Default value = false
-* <span class="highlight-text-unique"> "JSON" "Horizontal section offset" </span>
+* <span style="color: #FFA500;"> "JSON" "Horizontal section offset" </span>
   * Float/double
   * Sets how much the footprint and storey sections should be offset from the found/submitted elevation.
   * Default value = 0
-* <span class="highlight-text-GUI"> "JSON" "Generate footprint" </span>
+* <span style="color: #FF4500;"> "JSON" "Generate footprint" </span>
   * Boolean
   * Toggles the export of the footprint for LoD0.2. If false the roof outline will be placed at footprint level.
   * Default value = false
-* <span class="highlight-text-GUI"> "JSON" "Generate interior" </span>
+* <span style="color: #FF4500;"> "JSON" "Generate interior" </span>
   * Boolean
   * Toggles IfcSpaces to be exported as interior spaces.
   * Default value = false
-* <span class="highlight-text-GUI"> "JSON" "Generate roof outline" </span>
+* <span style="color: #FF4500;"> "JSON" "Generate roof outline" </span>
   * Boolean
   * Toggles the roof outline to be exported for LoD0.2
   * Default value = true
-* <span class="highlight-text-unique"> "JSON" "Georeference" </span>
+* <span style="color: #FFA500;"> "JSON" "Georeference" </span>
   * Boolean
   * Toggles (attempted) georeferencing of the output JSON file.
   * Default value = true
-* <span class="highlight-text-unique"> "JSON" "Merge semantic objects" </span>
+* <span style="color: #FFA500;"> "JSON" "Merge semantic objects" </span>
   * Boolean
   * Toggles semantic objects to be merged if they have identical attributes.
   * Default value = true
-* <span class="highlight-text-GUI"> "Output report" </span>
+* <span style="color: #FF4500;"> "Output report" </span>
   * Boolean
   * Toggles the output of a report file, see [this section](#report-json) for more info.
   * Default value = true
-* <span class="highlight-text-unique"> "Threads" </span>
+* <span style="color: #FFA500;"> "Threads" </span>
   * Integer (>0)
   * Sets the maximum allowed threads to be used.
   * Default value = hardware_concurrency - 2 according to std::threads
