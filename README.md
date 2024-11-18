@@ -1,5 +1,17 @@
 # IfcEnvelopeExtractor
 
+<!-- markdownlint-disable MD033 -->
+<!-- markdownlint-disable MD034 -->
+
+<style>
+    .highlight-text-GUI {
+        color: #FF4500; /* OrangeRed */
+    }
+    .highlight-text-unique {
+        color: #FFA500; /* Orange */
+    }
+</style>
+
 The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. This is one of the steps required to close the gap between architecture/BIM and city scale models.
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample.gif "An example of the created LoD envelopes based on an input file")
@@ -36,6 +48,8 @@ Below you can see a speed comparison between the software and manual processing 
 
 This program is part of the [CHEK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users could also be utilized by this project.  
 
+**Development of this tool will continue until the end of September 2025, after this current funding will end.**
+
 ## Table of Content
 
 * [How to execute](#how-to-execute)
@@ -46,13 +60,14 @@ This program is part of the [CHEK project](https://chekdbp.eu/). Any suggestions
 * [Outer shell generation methods](#outer-shell-generation-methods)
   * [Lower detail shells](#lower-detail-shells)
   * [Middle level shells](#middle-level-shells)
-  * [High level shells](#high-level-shells)
-  * [Voxel shells](#voxel-shells-wip)
-* [Inner shell generation methods](#inner-shell-generation-methods-experimentalwip)
+  * [High level shells](#high-level-shells-wip)
+  * [Voxel shells](#voxel-shells)
+* [Inner shell generation methods](#inner-shell-generation-methods)
   * [Storey extraction](#storey-extraction)
   * [Room/space extraction](#roomspace-extraction)
   * [Apartment/area extraction](#apartmentarea-extraction)
-* [Settings JSON](#settings-json)
+* [Configuration JSON](#configuration-json)
+* [Report JSON](#report-json)
 * [Additional stored attributes](#additional-stored-attributes)
   * [Georeferencing](#georeferencing)
   * [Voxel summary values](#voxel-summary-values)
@@ -67,7 +82,7 @@ The tool can be used directly with the executables located in the Pre_Build fold
 * Ifc_Envelope_Extractor_ifc4x3.exe
 * Ext_GUI.exe
 
-The _Ifc_Envelope_Extractor_ifc2x3.exe_, _Ifc_Envelope_Extractor_ifc4.exe_ or _Ifc_Envelope_Extractor_ifc4x3.exe_ can be called with a path to a settings JSON file. This file is used to give the tool the needed information related to the IFC model ([more info](#settings-json)). This enables the .exe to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
+The _Ifc_Envelope_Extractor_ifc2x3.exe_, _Ifc_Envelope_Extractor_ifc4.exe_ or _Ifc_Envelope_Extractor_ifc4x3.exe_ can be called with a path to a configuration JSON file. This file is used to give the tool the needed information related to the IFC model ([more info](#configuration-json)). This enables the .exe to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
 
 If a more direct (human) user friendly approach is desired both the aforementioned .exe can be called with the help of the _Ext_GUI.exe_ ([more info](#gui)).
 
@@ -113,7 +128,7 @@ Please note that CJT is developed in tandem with the IFcEnvExtractor. So possibl
 
 ## GUI
 
-IfcEnvelopeExtractor can now also be operated via an GUI. This GUI enables the user to easily change the settings. The goal of the GUI is making the tool more accessible for non-expert users. The GUI is a python based front that automatically generates the Settings JSON and calls the suitable extractor executable.
+IfcEnvelopeExtractor can now also be operated via an GUI. This GUI enables the user to easily change the settings. The goal of the GUI is making the tool more accessible for non-expert users. The GUI is a python based front that automatically generates the configuration JSON and calls the suitable extractor executable.
 
 The GUI can be accessed via two routes:
 
@@ -123,6 +138,8 @@ The GUI can be accessed via two routes:
 <p align="center" width="100%">
     <img src="https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/GUI_example.JPG" alt= “” width="300">
 </p>
+
+Only a subset of the settings is available from the GUI, if more advanced settings are required a configuration JSON file has to be created. This can be initialized by using the generate button instead of the run button. This will generate a configuration JSON representing the settings set in the GUI and place it in the same folder as the GUI. This configuration JSON can then further be edited. For more info related to the settings see [here](#configuration-json). This section also explains the settings that can be accessed via the GUI.
 
 ## Input file requirements
 
@@ -202,7 +219,7 @@ At this moment in time this extraction method does not yet return solids.
 
 ### voxel shells
 
-Additionally the tool will also be able to export a shell based on the voxelgrid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxelgrid that is used primarily for filtering and raycasting purposes. Possibly this will follow different rules than are anticipated.
+Additionally the tool will also be able to export a shell based on the voxel grid that is used in the other processes. This will be stored as LoD5.0. Note that this is a voxel grid that is used primarily for filtering and ray-casting purposes. Possibly this will follow different rules than are anticipated.
 
 ## Inner shell generation methods
 
@@ -222,7 +239,7 @@ The isolated room top surfaces are also used for LoD1.3 and 2.2. For LoD2.2 thes
 
 The extraction of LoD3.2 space shapes is a 1:1 conversion of the _IfcSpace_ geometry.
 
-LoD5.0 space shells are created by using the voxelgrid but instead of growing from a point that is presumed to be exterior it is started from points that are presumed to be interior. The resulting shape is than compared to the pool of _IfcSpace_ objects in the model to find its correct space name and other semantic data.
+LoD5.0 space shells are created by using the voxel grid but instead of growing from a point that is presumed to be exterior it is started from points that are presumed to be interior. The resulting shape is than compared to the pool of _IfcSpace_ objects in the model to find its correct space name and other semantic data.
 
 Due to the heavy reliance of the _IfcSpace_ objects there is, aside from LoD5.0 export, no space export if the model has no _IfcSpace_ objects present. The LoD5.0 spaces will be abele to approximate the space's shape but they will only have generic semantic data stored.
 
@@ -230,9 +247,9 @@ Due to the heavy reliance of the _IfcSpace_ objects there is, aside from LoD5.0 
 
 Method still in development
 
-## Settings JSON
+## Configuration JSON
 
-The settings json has a very simple structure. An example can be found below:
+The configuration json has a very simple structure. An example can be found below:
 
 ```json
 {
@@ -242,7 +259,8 @@ The settings json has a very simple structure. An example can be found below:
             "path to IFC file",
             "Potential path to other IFC file"
         ],
-        "Output" : "path to export (City)JSON file"
+        "Output" : "path to export (City)JSON file",
+        "Report" : "path to export report JSON file"
     },
     "LoD output": [
         5.0,
@@ -261,10 +279,11 @@ The settings json has a very simple structure. An example can be found below:
         "Logic" : 3
     },
     "IFC": {
-        "Rotation" : false,
+        "Rotation angle" : 90,
         "Default div": true,
         "Ignore proxy": true,
-        "Div objects" : []
+        "Div objects" : [],
+        "Simplify geometry" : false
     },
     "JSON" : {
         "Footprint elevation": 1,
@@ -281,35 +300,112 @@ The settings json has a very simple structure. An example can be found below:
 }
 ```
 
-The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used.
+The json has mandatory and optional inputs. If the mandatory inputs are missing the process will not execute properly. If optional inputs are missing a default value will be used. Variables are available in <span class="highlight-text-unique"> the configuration JSON file only</span> or in both <span class="highlight-text-GUI"> the configuration JSON and the GUI</span>. The mentioned default values are selected if the entry is missing from the configuration JSON. For certain cases, such as the <span class="highlight-text-unique"> "IFC" "Rotation angle" </span> and the <span class="highlight-text-unique"> "Threads" </span> options it is only possible to trigger the default behavior by not adding them to the configuration JSON.
 
 Mandatory:
 
-* The "Filepaths" "Input" is an array including 1 to ∞ input paths representing all the files constructing a single building.
-* The "Filepaths" "Output" is a string representing the output filepath.
+* <span class="highlight-text-GUI"> "Filepaths" "Input"</span>
+  * Array filled with string, size 1 to ∞
+  * All required paths representing all the IFC files constructing a single building.
+* <span class="highlight-text-GUI"> "Filepaths" "Output"</span>
+  * String
+  * The output CityJSON filepath. Folder structure is required to be existing. The file name should end with .json or .city.json/
+* <span class="highlight-text-GUI"> "LoD output"</span>
+  * Array filled with floats/double, size 1 to ∞
+  * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape).
 
 Optional:
 
-* "LoD output" is an array including the desired LoD output. The options are 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape). Default value: 0.0, 0.2, 1.0, 1.2, 1.3, 2.2, 3.2.
-* "Voxel" "Size" is a double that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings. Default value = 0.5.
-* "Voxel" "Store values" is an int/bool (either 0 or 1) to enable the computation and storage of general shell summary values based on the voxelized shape as semantic attributes. Default value = 0.
-* "Logic" is an int (either 2 or 3) that can toggle between the logic used for voxel intersection. 2 = 2D/plane intersection, 3 = 3D/solid intersection. Default value = 3.
-* "IFC" "Rotation" is an bool OR double value that indicates a custom rotation of the input shape before processing. If bool false is used as input the tool will automatically compute the optimal rotation. Default value = false.
-* "IFC" "Default div" is an int/bool (either 0 or 1) to set if the default space bounding objects are used. Default value = true.
-* "IFC" "Ignore proxy" is an int/bool (either 0 or 1) to tell the tool to use IfcBuildingElementProxy as a space dividing object class. 0 = no, 1 = yes. Default value: yes
-* "IFC" "Div objects" is an array including the additional space dividing objects (the Ifc types). Default value = empty
-* "JSON" "Footprint elevation" is a double that will be the level at which a horizontal section will be taken of the building. This section is used to create the footprint from. Default value = 0.
-* "JSON" "Footprint based" is an int/bool (either 0 or 1) to enable footprint based shape creation for LoD1.2, 1.3, and, 2.2. 
-* "JSON" "Horizontal section offset" is an double that dictates how much the footprint and storey sections should be offset from the found/submitted elevation. Default value = 1.2.
-* "JSON" "Generate footprint" is an int/bool (either 0 or 1) to enable the footprint export for LoD0.2. If off the roof outline will be placed at footprint level
-* "JSON" "Generate interior" is an int/bool (either 0 or 1) to enable interior shapes to be stored to the exported file.
-* "JSON" "Generate roof outline" is an int/bool (either 0 or 1) to enable the roof outline export for LoD0.2
-* "JSON" "Georeference" is an int/bool (either 0 or 1) to enable the Georeferencing. Default value: true.
-* "JSON" "Merge semantic objects" is an int/bool (either 0 or 1) to enable semantic objects to be merged if they have identical attributes. Default value : true
-* "Output report" is an int/bool (either 0 or 1) to set the tool to output a report file or not. 0 = no, 1 = yes. Default value = true.
-* "Threads" is an int to set the maximum allowed threads to be used. Default value = hardware_concurrency according to std::threads.
+* <span class="highlight-text-unique"> "Filepaths" "Report" </span>
+  * String
+  * The output report JSON filepath. Folder structure is required to be existing. The file name should end with .json.
+  * Default value = <span class="highlight-text-GUI"> "Filepaths" "Output"</span> path with "_report" added to the file name.
+* <span class="highlight-text-GUI"> "Voxel" "Size" </span>
+  * Float/double
+  * The x,y and z dimension of the voxels that will be used for the extraction process. A value between 0.5 and 1 often suffices for normal buildings.
+  * Default value = 0.5
+* <span class="highlight-text-GUI"> "Voxel" "Store values" </span>
+  * Boolean
+  * Toggles the computation of general shell summary values based on the voxelized shape and stores this as semantic attributes.
+  * Default value = false
+* <span class="highlight-text-unique"> "Voxel" "Logic" </span>
+  * integer (either 2 or 3)
+  * Toggle the voxel intersection logic; 2 = 2D/plane intersection, 3 = 3D/solid intersection.
+  * Default value = 3
+* <span class="highlight-text-unique"> "IFC" "Rotation angle" </span>
+  * Float/Double
+  * Sets the angle for a custom IFC object rotation around the Z-axis during processing. The value in degrees will be used as rotation angle.
+  * Default value = rotation that gives smallest bounding box
+* <span class="highlight-text-GUI"> "IFC" "Default div" </span>
+  * Boolean
+  * Toggles the use of the default space bounding objects.
+  * Default value = true
+* <span class="highlight-text-GUI"> "IFC" "Ignore proxy" </span>
+  * Boolean
+  * Toggles the use of the IfcBuildingElementProxy objects.
+  * Default value: yes
+* <span class="highlight-text-GUI"> "IFC" "Div objects" </span>
+  * Array filled with string, size 0 to ∞
+  * Adds more custom space bounding objects to the processing.
+  * Default value = empty
+* <span class="highlight-text-GUI"> "IFC" "Simplify geometry" </span>
+  * Boolean
+  * Toggles the use of void objects on the IFC objects. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
+  * Default value = false
+* <span class="highlight-text-GUI"> "JSON" "Footprint elevation" </span>
+  * Float/double
+  * Sets the level at which a horizontal section will be taken of the building. This section is used to create the footprint.
+  * Default value = 0
+* <span class="highlight-text-GUI"> "JSON" "Footprint based" </span>
+  * Boolean
+  * Toggles footprint based shape creation for LoD1.2, 1.3, and, 2.2.
+  * Default value = false
+* <span class="highlight-text-unique"> "JSON" "Horizontal section offset" </span>
+  * Float/double
+  * Sets how much the footprint and storey sections should be offset from the found/submitted elevation.
+  * Default value = 0
+* <span class="highlight-text-GUI"> "JSON" "Generate footprint" </span>
+  * Boolean
+  * Toggles the export of the footprint for LoD0.2. If false the roof outline will be placed at footprint level.
+  * Default value = false
+* <span class="highlight-text-GUI"> "JSON" "Generate interior" </span>
+  * Boolean
+  * Toggles IfcSpaces to be exported as interior spaces.
+  * Default value = false
+* <span class="highlight-text-GUI"> "JSON" "Generate roof outline" </span>
+  * Boolean
+  * Toggles the roof outline to be exported for LoD0.2
+  * Default value = true
+* <span class="highlight-text-unique"> "JSON" "Georeference" </span>
+  * Boolean
+  * Toggles (attempted) georeferencing of the output JSON file.
+  * Default value = true
+* <span class="highlight-text-unique"> "JSON" "Merge semantic objects" </span>
+  * Boolean
+  * Toggles semantic objects to be merged if they have identical attributes.
+  * Default value = true
+* <span class="highlight-text-GUI"> "Output report" </span>
+  * Boolean
+  * Toggles the output of a report file, see [this section](#report-json) for more info.
+  * Default value = true
+* <span class="highlight-text-unique"> "Threads" </span>
+  * Integer (>0)
+  * Sets the maximum allowed threads to be used.
+  * Default value = hardware_concurrency - 2 according to std::threads
 
-more options will be added in the future.
+More options will be added in the future.
+
+## Report JSON
+
+**THE REPORT JSON IS STILL BEING DEVELOPED SO CERTAIN ELEMENTS CAN BE MISSING OR PARTIALLY IMPLEMENTED**.
+
+The report JSON documents all the processes that have been executed by the application. The report JSON can be split in three different sections, the input settings, duration and errors.
+
+The input settings section of the json show which settings have been used to generate the related CityJSON file. These settings use the same variable and object names as used in the configuration JSON. Thus, the report JSON will reflect the configuration JSON but extended with the used default settings, if there were default settings present.
+
+the duration section shows the computing time for each part of the process. This is clocked by the chrono library.
+
+The errors section shows the issues that the tool encountered during processing. This section will also include warnings. If the process was terminated in an unexpected way possibly this section will document the reason for the termination.
 
 ## Additional stored attributes
 
@@ -334,5 +430,5 @@ These attributes are prefaced with "Env_ex V" to highlight that these values are
 
 ## References
 
-<a id="1"></a> 
-van der Vaart, J. A. J. (2022, June 6). Automatic Building Feature Detection and Reconstruction in IFC models. TU Delft Repositories. Retrieved March 30, 2023, from https://repository.tudelft.nl/islandora/object/uuid:db6edbfc-5310-47db-b2c7-3d8e2b62de0f 
+<a id="1"></a>
+van der Vaart, J. A. J. (2022, June 6). Automatic Building Feature Detection and Reconstruction in IFC models. TU Delft Repositories. Retrieved March 30, 2023, from https://repository.tudelft.nl/islandora/object/uuid:db6edbfc-5310-47db-b2c7-3d8e2b62de0f

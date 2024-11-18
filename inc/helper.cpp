@@ -8,7 +8,6 @@
 #include <string>
 #include <filesystem>
 
-
 #include <sys/stat.h>
 
 #include <BOPAlgo_Splitter.hxx>

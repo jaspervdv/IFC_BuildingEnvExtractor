@@ -238,15 +238,25 @@ endif()
 
 add_executable(${PROJECT_NAME} 
 main.cpp
+inc/cjCreator.h
 inc/cjCreator.cpp
+inc/DataManager.h
 inc/DataManager.cpp
+inc/errorCollection.h
 inc/errorCollection.cpp
+inc/helper.h
 inc/helper.cpp
+inc/IOManager.h
 inc/IOManager.cpp
+inc/settingsCollection.h
 inc/settingsCollection.cpp
+inc/stringManager.h
 inc/stringManager.cpp
+inc/surfaceCollection.h
 inc/surfaceCollection.cpp
+inc/voxel.h
 inc/voxel.cpp
+inc/voxelGrid.h
 inc/voxelGrid.cpp
 )
 

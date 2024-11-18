@@ -56,6 +56,7 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::errorJsonInvalBool, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorJsonInvalBool, false))},
 		{ErrorID::errorJsonInvalInt, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorJsonInvalArray, false))},
 		{ErrorID::errorJsonInvalNegInt, ErrorObject("J0002", errorWarningStringEnum::getString(ErrorID::errorJsonInvalNegInt, false))},
+		{ErrorID::errorJsonInvalZeroInt, ErrorObject("J0002", errorWarningStringEnum::getString(ErrorID::errorJsonInvalZeroInt, false))},
 		{ErrorID::errorJsonInvalNum, ErrorObject("J0003", errorWarningStringEnum::getString(ErrorID::errorJsonInvalNum, false))},
 		{ErrorID::errorJsonInvalString, ErrorObject("J0004", errorWarningStringEnum::getString(ErrorID::errorJsonInvalString, false))},
 		{ErrorID::errorJsonInvalPath, ErrorObject("J0005", errorWarningStringEnum::getString(ErrorID::errorJsonInvalPath, false))},

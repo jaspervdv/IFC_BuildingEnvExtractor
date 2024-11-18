@@ -191,6 +191,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "JSON file contains an invalid negative int for entry";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
 		return coms; }
+	case ErrorID::errorJsonInvalZeroInt: {
+		const std::string coms = "JSON file contains an invalid zero int for entry";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
+		return coms; }
 	case ErrorID::errorJsonInvalNum: {
 		const std::string coms = "JSON file does not contain a valid numeric value for entry";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms + ": "; }
@@ -364,8 +368,10 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Filepaths";
 	case JsonObjectInID::filePathsInput:
 		return "Input";
-	case JsonObjectInID::filePatsOutput:
+	case JsonObjectInID::filePathOutput:
 		return "Output";
+	case JsonObjectInID::filePathReport:
+		return "Report";
 
 	case JsonObjectInID::outputReport:
 		return "Output report";
@@ -381,8 +387,10 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 
 	case JsonObjectInID::IFC:
 		return "IFC";
-	case JsonObjectInID::IFCRotation:
-		return "Rotation";
+	case JsonObjectInID::IFCRotationAuto:
+		return "Rotation auto";
+	case JsonObjectInID::IFCRotationAngle:
+		return "Rotation angle";
 	case JsonObjectInID::IFCDefaultDiv:
 		return "Default div";
 	case JsonObjectInID::IFCIgnoreProxy:

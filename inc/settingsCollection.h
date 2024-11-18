@@ -1,5 +1,9 @@
 #include <vector>
 #include <thread>
+#include <unordered_set>
+
+#include <nlohmann/json.hpp>
+#include "helper.h"
 
 #ifndef SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
 #define SETTINGSCOLLECTION_SETTINGSCOLLECTION_H
@@ -15,7 +19,8 @@ private:
 
     std::string InputJsonPath_;
 	std::vector<std::string> inputIFCPathList_ = {};
-	std::string outputPath_ = "";
+	std::string outputCityPath_ = "";
+	std::string outputReportPath_ = "";
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = false;
@@ -110,22 +115,40 @@ public:
 	SettingsCollection(const SettingsCollection&) = delete;
 	SettingsCollection& operator=(const SettingsCollection&) = delete;
 
+    // read and store the json component related settings
+    void setJSONRelatedSettings(const nlohmann::json& json);
+    // read and store the voxel component related settings
+    void setVoxelRelatedSettings(const nlohmann::json& json);
+    // read and store the ifc component related settings
+    void setIFCRelatedSettings(const nlohmann::json& json);
+    // set the generative settings related to the user submitted settings
+    void generateGeneralSettings();
+
     bool isSilent() const { return isSilent_; }
     void setSilent(bool value) { isSilent_ = value; }
 
-    void setInputJSONPath(const std::string& inputString) { InputJsonPath_ = inputString; }
+    // check if path is valid and stores it
+    void setInputJSONPath(const std::string& inputString, bool validate);
     std::string getInputJSONPath() { return InputJsonPath_; }
+
+    // populates all the paths except the JSON config path
+    void setIOPaths(const nlohmann::json& json);
 
     const std::vector<std::string>& getIfcPathList() const { return inputIFCPathList_; }
     void setIfcPathList(const std::vector<std::string>& value) { inputIFCPathList_ = value; }
     void addToIfcPathList(const std::string& value) { inputIFCPathList_.emplace_back(value); }
     void clearIfcPathList() { inputIFCPathList_.clear(); }
 
-    const std::string& getOutputPath() const { return outputPath_; }
-    void setOutputPath(const std::string& value) { outputPath_ = value; }
+    const std::string& getOutputIFCPath() const { return outputCityPath_; }
+    void setOutputIFCPath(const std::string& value) { outputCityPath_ = value; }
+
+    const std::string& getOutputReportPath() const { return outputReportPath_; }
+    void setOutputReportPath(const std::string& value) { outputReportPath_ = value; }
 
     const std::unordered_set<double>& getLoDWInterior() const { return LoDWInterior_; }
     void setLoDWInterior(const std::unordered_set<double>& value) { LoDWInterior_ = value; }
+
+    void setLoD(const nlohmann::json& json);
 
     bool make00() const { return make00_; }
     void setMake00(bool value) { make00_ = value; }
@@ -156,55 +179,72 @@ public:
 
     bool makeOutlines() const { return makeOutlines_; }
     void setMakeOutlines(bool value) { makeOutlines_ = value; }
+    void setMakeOutlines(const nlohmann::json& json);
 
     bool makeFootPrint() const { return makeFootPrint_; }
     void setMakeFootPrint(bool value) { makeFootPrint_ = value; }
+    void setMakeFootPrint(const nlohmann::json& json);
 
     bool makeRoofPrint() const { return makeRoofPrint_; }
     void setMakeRoofPrint(bool value) { makeRoofPrint_ = value; }
+    void setMakeRoofPrint(const nlohmann::json& json);
 
     bool makeInterior() const { return makeInterior_; }
     void setMakeInterior(bool value) { makeInterior_ = value; }
+    void setMakeInterior(const nlohmann::json& json);
 
     bool footPrintBased() const { return footPrintBased_; }
     void setFootPrintBased(bool value) { footPrintBased_ = value; }
+    void setFootPrintBased(const nlohmann::json& json);
 
     bool geoReference() const { return geoReference_; }
     void setGeoReference(bool value) { geoReference_ = value; }
+    void setGeoReference(const nlohmann::json& json);
 
     bool summaryVoxels() const { return summaryVoxels_; }
     void setSummaryVoxels(bool value) { summaryVoxels_ = value; }
+    void setSummaryVoxels(const nlohmann::json& json);
 
     bool writeReport() const { return writeReport_; }
     void setWriteReport(bool value) { writeReport_ = value; }
+    void setWriteReport(const nlohmann::json& json);
 
     bool storeCustomWallAttributes() const { return addCustomWallAttributes_; }
     void setStoreCustomWallAttributes(bool value) { addCustomWallAttributes_ = value; }
 
     bool useDefaultDiv() const { return useDefaultDiv_; }
     void setUseDefaultDiv(bool value) { useDefaultDiv_ = value; }
+    void setUseDefaultDiv(const nlohmann::json& json);
 
     bool useProxy() const { return useProxy_; }
     void setUseProxy(bool value) { useProxy_ = value; }
+    void setUseProxy(const nlohmann::json& json);
 
     bool useSimpleGeo() const { return useSimpleGeo_; }
     void setSimpleGeo(bool value) { useSimpleGeo_ = value; }
+    void setSimpleGeo(const nlohmann::json& json);
 
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }
+    void setCustomDivList(const nlohmann::json& json);
     void addToCustomDivList(const std::string& value) { CustomDivList_.emplace_back(value); }
 
     bool mergeSemantics() const { return mergeSemantics_; }
     void setmergeSemantics(bool value) { mergeSemantics_ = value; }
+    void setmergeSemantics(const nlohmann::json& json);
 
     int intersectionLogic() const { return intersectionLogic_; }
     void setIntersectionLogic(int value) { intersectionLogic_ = value; }
+    void setIntersectionLogic(const nlohmann::json& json);
 
     double voxelSize() const { return voxelSize_; }
     void setVoxelSize(double value) { voxelSize_ = value; }
+    void setVoxelSize(const nlohmann::json& json);
 
     double surfaceGridSize() const { return surfaceGridSize_; }
     void setSurfaceGridSize(double value) { surfaceGridSize_ = value; }
+
+    void setRotation(const nlohmann::json& json);
 
     bool autoRotateGrid() const { return autoRotateGrid_; }
     void setAutoRotateGrid(bool value) { autoRotateGrid_ = value; }
@@ -214,9 +254,11 @@ public:
 
     double footprintElevation() const { return footprintElevation_; }
     void setFootprintElevation(double value) { footprintElevation_ = value; }
+    void setFootprintElevation(const nlohmann::json& json);
 
     double horizontalSectionOffset() const { return horizontalSectionOffset_; }
     void setHorizontalSectionOffset(double value) { horizontalSectionOffset_ = value; }
+    void setHorizontalSectionOffset(const nlohmann::json& json);
 
     double precision() const { return precision_; }
     void setPrecision(double value) { precision_ = value; }
@@ -226,6 +268,7 @@ public:
 
     int threadcount() const { return threadcount_; }
     void setThreadcount(int value) { threadcount_ = value; }
+    void setThreadcount(const nlohmann::json& json);
 
     int proxyCount() const { return proxyCount_; }
     void setProxyCount(int value) { proxyCount_ = value; }

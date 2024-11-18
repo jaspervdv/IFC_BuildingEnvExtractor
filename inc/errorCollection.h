@@ -15,6 +15,7 @@ enum class ErrorID {
 	errorJsonInvalBool,
 	errorJsonInvalInt,
 	errorJsonInvalNegInt,
+	errorJsonInvalZeroInt,
 	errorJsonInvalNum,
 	errorJsonInvalString,
 	errorJsonInvalPath,

@@ -122,7 +122,8 @@ enum class JsonObjectInID {
 	outputReport,
 	filePaths,
 	filePathsInput,
-	filePatsOutput,
+	filePathOutput,
+	filePathReport,
 
 	voxel,
 	voxelSize,
@@ -130,7 +131,8 @@ enum class JsonObjectInID {
 	voxelIntersection,
 
 	IFC,
-	IFCRotation,
+	IFCRotationAuto,
+	IFCRotationAngle,
 	IFCDefaultDiv,
 	IFCIgnoreProxy,
 	IFCDivObject,
