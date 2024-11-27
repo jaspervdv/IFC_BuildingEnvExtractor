@@ -242,6 +242,8 @@ inc/cjCreator.h
 inc/cjCreator.cpp
 inc/DataManager.h
 inc/DataManager.cpp
+inc/DebugUtils.h
+inc/DebugUtils.cpp
 inc/errorCollection.h
 inc/errorCollection.cpp
 inc/helper.h

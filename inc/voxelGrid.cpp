@@ -7,7 +7,7 @@
 #include <execution>
 #include <thread>   
 
-bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
+bool VoxelGrid::addVoxel(int indx, DataManager* h, bool checkIfInt)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	
@@ -54,7 +54,7 @@ bool VoxelGrid::addVoxel(int indx, helper* h, bool checkIfInt)
 }
 
 
-void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount)
+void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount)
 {
 	std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex);
 	voxelCountLock.unlock();
@@ -86,7 +86,7 @@ void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxel
 	}
 }
 
-VoxelGrid::VoxelGrid(helper* h)
+VoxelGrid::VoxelGrid(DataManager* h)
 {
 	anchor_ = h->getLllPoint();
 
@@ -201,7 +201,7 @@ VoxelGrid::VoxelGrid(helper* h)
 	return;
 }
 
-void VoxelGrid::computeSurfaceSemantics(helper* h)
+void VoxelGrid::computeSurfaceSemantics(DataManager* h)
 {
 	if (hasSemanticSurfaces_) { return; } // if already processed no reprocessing is needed
 	hasSemanticSurfaces_ = true;
@@ -226,7 +226,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 			{
 				currentVoxel->addWindowSemantic(indxdir);
 
-				int cidxDir = helperFunctions::invertDir(indxdir);
+				int cidxDir = invertDir(indxdir);
 
 				int boundNeighbourIndx =  getNeighbour(currentVoxel, cidxDir);
 
@@ -240,7 +240,7 @@ void VoxelGrid::computeSurfaceSemantics(helper* h)
 	}
 }
 
-void VoxelGrid::populatedVoxelGrid(helper* h)
+void VoxelGrid::populatedVoxelGrid(DataManager* h)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -830,7 +830,7 @@ std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelI
 	return std::vector<TopoDS_Edge>();
 }
 
-bool VoxelGrid::voxelBeamWindowIntersection(helper* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
+bool VoxelGrid::voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -938,7 +938,7 @@ BoostPoint3D VoxelGrid::worldToRelPoint(BoostPoint3D p)
 }
 
 
-void VoxelGrid::growExterior(int startIndx, int roomnum, helper* h)
+void VoxelGrid::growExterior(int startIndx, int roomnum, DataManager* h)
 {
 	// set up starting data
 	std::vector<int> buffer = { startIndx };
@@ -1068,3 +1068,7 @@ void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
 	return;
 }
 
+int VoxelGrid::invertDir(int dirIndx) { //TODO: this seems voxel related code?
+	if (dirIndx % 2 == 1) { return dirIndx - 1; }
+	else { return dirIndx + 1; }
+}

@@ -3,6 +3,7 @@
 #include "helper.h"
 #include "voxel.h"
 #include "stringManager.h"
+#include "DebugUtils.h"
 
 #include <nlohmann/json.hpp>
 
@@ -380,81 +381,6 @@ std::vector<Edge> CJGeoCreator::mergeOverlappingEdges(const std::vector<Edge>& u
 		cleanedEdgeList.emplace_back(Edge(edge));
 	}
 	return cleanedEdgeList;
-}
-
-
-std::vector<Edge> CJGeoCreator::splitIntersectingEdges(const std::vector<Edge>& edges, bool project) {
-	
-	std::vector<Edge> splitEdgeList;
-	std::vector<int> discardIndx;
-	
-	for (int i = 0; i < edges.size(); i++)
-	{
-		std::vector<gp_Pnt> intPoints;
-
-		Edge currentEdge = edges[i];
-		gp_Pnt startPoint = currentEdge.getStart(project);
-		gp_Pnt endPoint = currentEdge.getEnd(project);
-
-		for (size_t j = 0; j < edges.size(); j++)
-		{
-			if (i == j) { continue; }
-			std::optional<gp_Pnt> intersection = helperFunctions::linearLineIntersection(currentEdge, edges[j], project);
-			if (intersection == std::nullopt) { continue; }
-			intPoints.emplace_back(*intersection);;
-		}
-		if (intPoints.size() == 0) 
-		{ 
-			splitEdgeList.emplace_back(currentEdge);
-			continue;
-		}
-		discardIndx.emplace_back(i);
-
-		std::vector<gp_Pnt> cleanedPoints = helperFunctions::getUniquePoints(intPoints);
-
-		std::vector<int> evaluated(cleanedPoints.size());
-		gp_Pnt currentPoint = startPoint;
-		while (true)
-		{
-			double smallestDistance = 99999999;
-			int nextPoint;
-			bool found = false;
-			for (int j = 0; j < cleanedPoints.size(); j++)
-			{
-				if (evaluated[j] == 1) { continue; }
-
-				double distance = currentPoint.Distance(cleanedPoints[j]);
-				if (distance < smallestDistance)
-				{
-					smallestDistance = distance;
-					nextPoint = j;
-					found = true;
-				}
-			}
-
-			if (found)
-			{
-				evaluated[nextPoint] = 1;
-
-				if (currentPoint.IsEqual(cleanedPoints[nextPoint], 0.0001))
-				{
-					currentPoint = cleanedPoints[nextPoint];
-					continue;
-				}
-
-				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, cleanedPoints[nextPoint]);
-				splitEdgeList.emplace_back(Edge(edge));
-				currentPoint = cleanedPoints[nextPoint];
-			}
-			else {
-				if (currentPoint.IsEqual(endPoint, 0.0001)) { break; }
-				TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(currentPoint, endPoint);
-				splitEdgeList.emplace_back(Edge(edge));
-				break;
-			}
-		}
-	}
-	return splitEdgeList;
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::cullOverlappingFaces(const std::vector<TopoDS_Face> inputFaceList)
@@ -916,7 +842,7 @@ void CJGeoCreator::mergeRoofSurfaces(const std::vector<ROSCollection>& Collectio
 				gp_Pnt lllPoint(999999, 999999, 999999);
 				gp_Pnt urrPoint(-999999, -999999, -999999);
 
-				helperFunctions::getBBoxPoints(currentRange, &lllPoint, &urrPoint);
+				helperFunctions::bBoxDiagonal(currentRange, &lllPoint, &urrPoint, 0, 0, 0);
 
 				std::vector<Value> qResult;
 				qResult.clear();
@@ -999,7 +925,7 @@ void CJGeoCreator::mergeRoofSurfaces(const std::vector<ROSCollection>& Collectio
 }
 
 
-void CJGeoCreator::initializeBasic(helper* cluster) {
+void CJGeoCreator::initializeBasic(DataManager* cluster) {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPreProcessing) << std::endl;
 	// generate data required for most exports
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoarseFiltering) << std::endl;
@@ -1049,7 +975,7 @@ void CJGeoCreator::initializeBasic(helper* cluster) {
 }
 
 
-std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& productLookupValues, helper* h, double cutlvl)
+std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl)
 {
 	std::vector<TopoDS_Face> spltFaceCollection;
 	double precision = SettingsCollection::getInstance().precision();
@@ -1263,7 +1189,7 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const std::vector<TopoDS_Face>& faceList,
 }
 
 
-void CJGeoCreator::makeFootprint(helper* h)
+void CJGeoCreator::makeFootprint(DataManager* h)
 {
 	// get footprint
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -1297,7 +1223,7 @@ void CJGeoCreator::makeFootprint(helper* h)
 }
 
 
-void CJGeoCreator::makeFloorSectionCollection(helper* h)
+void CJGeoCreator::makeFloorSectionCollection(DataManager* h)
 {
 	//TODO: find out where to take the storeys from
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingStoreys) << std::endl;
@@ -1362,7 +1288,7 @@ void CJGeoCreator::makeFloorSectionCollection(helper* h)
 }
 
 
-std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(helper* h, double sectionHeight)
+std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(DataManager* h, double sectionHeight)
 {
 	// create plane on which the projection has to be made
 	gp_Pnt lll = h->getLllPoint();
@@ -1552,7 +1478,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	for (size_t i = 0; i < faceList.size(); i++)
 	{
 		TopoDS_Face currentFace = faceList[i];
-		if (helperFunctions::getHighestPoint(currentFace).Z() <= lowestZ) { continue; }
+		if (helperFunctions::getHighestZ(currentFace) <= lowestZ) { continue; }
 
 		bool isHidden = false;
 
@@ -2052,7 +1978,7 @@ TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vecto
 }
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(helper* h)
+std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 {
 	auto startTime = std::chrono::steady_clock::now();
 
@@ -2370,7 +2296,7 @@ std::optional<ROSCollection> CJGeoCreator::getROSCollections(const TopoDS_Shape&
 }
 
 
-std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(helper* h)
+std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(DataManager* h)
 {
 	std::vector<std::shared_ptr<CJT::CityObject>> cityStoreyObjects;
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
@@ -2400,7 +2326,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(he
 	return cityStoreyObjects;
 }
 
-std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects)
+std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects)
 {
 	std::vector<std::shared_ptr<CJT::CityObject>> cityRoomObjects;
 
@@ -2484,7 +2410,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(help
 	return cityRoomObjects;
 }
 
-CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -2512,7 +2438,7 @@ CJT::GeoObject CJGeoCreator::makeLoD00(helper* h, CJT::Kernel* kernel, int unitS
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD02) << std::endl;
@@ -2581,7 +2507,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(helper* h, CJT::Kernel* ker
 }
 
 
-void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale) {
+void CJGeoCreator::makeLoD02Storeys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale) {
 	gp_Trsf trs;
 	trs.SetRotation(geoRefRotation_.GetRotation());
 	gp_Trsf localRotationTrsf;
@@ -2623,7 +2549,7 @@ void CJGeoCreator::makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<
 	}
 }
 
-void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
+void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
 	
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
@@ -2656,8 +2582,8 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 
 		// get height values
 		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
-		double lowestZ = helperFunctions::getLowestPoint(spaceShape, false).Z();
-		double highestZ = helperFunctions::getHighestPoint(spaceShape).Z();
+		double lowestZ = helperFunctions::getLowestZ(spaceShape);
+		double highestZ = helperFunctions::getHighestZ(spaceShape);
 
 		// get the top faces
 		std::vector<TopoDS_Face> flatFaceList;
@@ -2769,7 +2695,7 @@ void CJGeoCreator::makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vecto
 }
 
 
-CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale)
+CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD10) << std::endl;
@@ -2838,7 +2764,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(helper* h, CJT::Kernel* kernel, int unitS
 	return geoObject;
 }
 
-std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(helper* h, CJT::Kernel* kernel, int unitScale, bool footprintBased)
+std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased)
 {
 	if (!hasTopFaces_)
 	{
@@ -2875,7 +2801,7 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(helper* h, CJ
 	return nestedFaceList;
 }
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
@@ -2915,7 +2841,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(helper* h, std::vector<std:
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD12) << std::endl;
@@ -2964,7 +2890,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(helper* h, CJT::Kernel* ker
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
@@ -3061,7 +2987,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(helper* h, const std::vecto
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale) 
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale) 
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
@@ -3129,7 +3055,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(helper* h, CJT::Kernel* ker
 }
 
 
-std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -3464,7 +3390,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(helper* h, CJT::Kernel* kern
 }
 
 
-void CJGeoCreator::makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
+void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
 	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
 	
 	gp_Trsf trs;
@@ -3502,7 +3428,7 @@ void CJGeoCreator::makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vect
 	return;
 }
 
-std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
@@ -3543,7 +3469,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(helper* h, CJT::Kernel* kernel, 
 	return geoObjectList;
 }
 
-void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale)
+void CJGeoCreator::makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50Rooms) << std::endl;
 
@@ -3578,7 +3504,7 @@ void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::s
 
 			if (!potentialRoomCityObjectList.size() || genData) 
 			{ 
-				double lowestZ = helperFunctions::getLowestPoint(sewedShape, false).Z();
+				double lowestZ = helperFunctions::getLowestZ(sewedShape);
 				std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
 				if (!cjRoomObject->getParents().size()) { continue; }
 				cjRoomObject->addGeoObject(geoObject);
@@ -3603,7 +3529,7 @@ void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::s
 
 		if (!potentialRoomCityObjectList.size() || genData)
 		{
-			double lowestZ = helperFunctions::getLowestPoint(sewedShape, false).Z();
+			double lowestZ = helperFunctions::getLowestZ(sewedShape);
 			std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
 
 			if (!cjRoomObject->getParents().size()) { continue; }
@@ -3620,7 +3546,7 @@ void CJGeoCreator::makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::s
 	printTime(startTime, std::chrono::steady_clock::now());
 }
 
-std::vector<CJT::CityObject> CJGeoCreator::makeSite(helper* h, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExtractingSite) << std::endl;
 	std::vector<CJT::CityObject> siteObjectList;
@@ -3913,7 +3839,7 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vect
 	return;
 }
 
-void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot)
+void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, DataManager* h, double footprintHeight, double geoRot)
 {
 	voxelGrid_->computeSurfaceSemantics(h);
 
@@ -3996,7 +3922,7 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, helper
 	shellObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvVoxelRotation), voxelGrid_->getRotation() + geoRot);
 }
 
-void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h)
+void CJGeoCreator::extractInnerVoxelSummary(CJT::CityObject* shellObject, DataManager* h)
 {
 	double totalRoomVolume = 0;
 
@@ -4047,7 +3973,7 @@ void CJGeoCreator::addFullSurfaceDict(CJT::GeoObject* geoObject)
 	}
 }
 
-std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum)
+std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum)
 {
 	gp_Pnt roomPoint = helperFunctions::rotatePointWorld(voxelGrid_->getPointInRoom(roomNum), 0); //TODO: update this to find all the room objects?
 	std::vector<Value> qResult;
@@ -4123,7 +4049,7 @@ void CJGeoCreator::populateVoxelIndex(
 }
 
 
-void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, helper* h)
+void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, DataManager* h)
 {
 	bgi::rtree<Value, bgi::rstar<25>> cleandExteriorProductIndex;
 	std::vector<Value> cleanedProductLookupValues;
@@ -4281,7 +4207,7 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 	}
 
 
-	double lowestShapeZ = helperFunctions::getLowestPoint(geometryShape, false).Z();
+	double lowestShapeZ = helperFunctions::getLowestZ(geometryShape);
 
 	std::vector<int> functionList; // detect what surface is what based on the normals and face height
 	for (TopExp_Explorer faceExp(geometryShape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
@@ -4290,7 +4216,7 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 		gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
 		if (abs(faceNormal.Z()) > settingsCollection.precision())
 		{
-			if (helperFunctions::getTopFaceHeight(face) - lowestShapeZ < settingsCollection.precision()) // is floor
+			if (helperFunctions::getHighestZ(face) - lowestShapeZ < settingsCollection.precision()) // is floor
 			{
 				functionList.emplace_back(0);
 			}
@@ -4342,7 +4268,7 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 	return;
 }
 
-CJGeoCreator::CJGeoCreator(helper* h, double vSize)
+CJGeoCreator::CJGeoCreator(DataManager* h, double vSize)
 {
 	// compute generic voxelfield data
 	voxelGrid_ = std::make_shared<VoxelGrid>(h);

@@ -14,15 +14,17 @@
 #include <mutex> 
 
 
-helper::helper(const std::vector<std::string>& pathList) {
-	for (size_t i = 0; i < pathList.size(); i++)
+DataManager::DataManager(const std::vector<std::string>& pathList) {
+	for (const std::string& path : pathList)
 	{
-		std::string path = pathList[i];
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoParsingFile) << path << std::endl;
 		if (!findSchema(path)) { 
 			continue;
 		}
+
+		// make new collection
 		std::unique_ptr<fileKernelCollection> dataCollection = std::make_unique<fileKernelCollection>(path);
+		
 		if (!dataCollection.get()->isGood())
 		{
 			std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcUnableToParse) << " " << path << std::endl;
@@ -39,7 +41,7 @@ helper::helper(const std::vector<std::string>& pathList) {
 	return;
 }
 
-bool helper::findSchema(const std::string& path, bool quiet) {
+bool DataManager::findSchema(const std::string& path, bool quiet) {
 	std::ifstream infile(path);
 	std::string line;
 	int linecount = 0;
@@ -96,29 +98,34 @@ bool helper::findSchema(const std::string& path, bool quiet) {
 }
 
 
-void helper::elementCountSummary(bool* hasProxy, bool* hasLotProxy)
+void DataManager::elementCountSummary()
 {
 	// count the proxy amount
+	int proxyCount = 0;
+	int objectCount = 0;
+
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 		IfcSchema::IfcProduct::list::ptr products = fileObject->instances_by_type<IfcSchema::IfcProduct>();
 		IfcSchema::IfcBuildingElementProxy::list::ptr proxyProducts = fileObject->instances_by_type<IfcSchema::IfcBuildingElementProxy>();
 
-		objectCount_ += products->size();
-		proxyCount_ += proxyProducts->size();
+		objectCount += products->size();
+		proxyCount += proxyProducts->size();
 	}
 
-	std::cout << "\t" << objectCount_ << " objects found" << std::endl;
-	std::cout << "\t" << proxyCount_ << " IfcBuildingElementProxy objects found" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << 
+		objectCount << " objects found" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << 
+		proxyCount << " IfcBuildingElementProxy objects found" << std::endl;
 
-	if (proxyCount_ > 0) { *hasProxy = true; }
-	if (proxyCount_ / objectCount_ >= maxProxyP_) { *hasLotProxy = true; }
+	SettingsCollection::getInstance().setProxyCount(proxyCount);
+	SettingsCollection::getInstance().setObjectCount(proxyCount);
 	return;
 }
 
 
-void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
+void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 {
 	auto startTime = std::chrono::high_resolution_clock::now();
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -149,7 +156,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	int maxIt = 15;
 
 	// set data for a bbox
-	helperFunctions::rotatedBBoxDiagonal(pointList, lllPoint, urrPoint, rotation);
+	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation);
 	if (!settingsCollection.autoRotateGrid()) {
 		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
 		return;
@@ -167,8 +174,8 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		gp_Pnt rghtLllPoint;
 		gp_Pnt rghtUrrPoint;
 
-		helperFunctions::rotatedBBoxDiagonal(pointList, &leftLllPoint, &leftUrrPoint, rotation - angle);
-		helperFunctions::rotatedBBoxDiagonal(pointList, &rghtLllPoint, &rghtUrrPoint, rotation + angle);
+		helperFunctions::bBoxDiagonal(pointList, &leftLllPoint, &leftUrrPoint, 0, rotation - angle);
+		helperFunctions::bBoxDiagonal(pointList, &rghtLllPoint, &rghtUrrPoint, 0,  rotation + angle);
 
 		double leftDistance = leftLllPoint.Distance(leftUrrPoint);
 		double rghtDistance = rghtLllPoint.Distance(rghtUrrPoint);
@@ -194,7 +201,7 @@ void helper::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 }
 
 
-void helper::computeObjectTranslation(gp_Vec* vec)
+void DataManager::computeObjectTranslation(gp_Vec* vec)
 {
 	// get a point to translate the model to
 	for (size_t i = 0; i < dataCollectionSize_; i++)
@@ -206,8 +213,8 @@ void helper::computeObjectTranslation(gp_Vec* vec)
 
 		gp_Pnt lllPoint;
 		gp_Pnt urrPoint;
-		TopoDS_Shape siteShape = getObjectShape(slab, false, false);
-		helperFunctions::rotatedBBoxDiagonal(helperFunctions::shape2PointList(siteShape), &lllPoint, &urrPoint, 0);
+		TopoDS_Shape slabShape = getObjectShape(slab, true, false);
+		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
 		*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
 		return;
 	}
@@ -218,7 +225,7 @@ void helper::computeObjectTranslation(gp_Vec* vec)
 
 
 template<typename T>
-std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr, bool simple)
+std::vector<gp_Pnt> DataManager::getAllTypePoints(const T& typePtr, bool simple)
 {
 	std::vector<gp_Pnt> pointList;
 	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
@@ -233,7 +240,7 @@ std::vector<gp_Pnt> helper::getAllTypePoints(const T& typePtr, bool simple)
 }
 
 
-bool helper::hasSetUnits() {
+bool DataManager::hasSetUnits() {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		if (!datacollection_[i]->getLengthMultiplier()) { return false; }
@@ -242,7 +249,7 @@ bool helper::hasSetUnits() {
 }
 
 
-void helper::internalizeGeo()
+void DataManager::internalizeGeo()
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
@@ -250,7 +257,7 @@ void helper::internalizeGeo()
 	gp_Vec accuracyObjectTranslation;
 	computeObjectTranslation(&accuracyObjectTranslation);
 	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
-	elementCountSummary(&hasProxy_, &hasLotProxy_);
+	elementCountSummary();
 
 	try
 	{
@@ -269,7 +276,7 @@ void helper::internalizeGeo()
 }
 
 
-void helper::indexGeo()
+void DataManager::indexGeo()
 {
 	// this indexing is done based on the rotated bboxes of the objects
 	// the bbox does thus comply with the model bbox but not with the actual objects original location
@@ -391,16 +398,16 @@ void helper::indexGeo()
 }
 
 
-bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& productShape, const double& rotationAngle)
+bg::model::box < BoostPoint3D > DataManager::makeObjectBox(const TopoDS_Shape& productShape, const double& rotationAngle)
 {
-	std::vector<gp_Pnt> productVert = helperFunctions::shape2PointList(productShape);
+	std::vector<gp_Pnt> productVert = helperFunctions::getPoints(productShape);
 	if (productVert.size() <= 1) { throw ErrorID::warningFailedObjectSimplefication; }
 
 	// only outputs 2 corners of the three needed corners!
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 
-	helperFunctions::rotatedBBoxDiagonal(productVert, &lllPoint, &urrPoint, rotationAngle);
+	helperFunctions::bBoxDiagonal(productVert, &lllPoint, &urrPoint, 0, rotationAngle);
 
 	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
 	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
@@ -409,7 +416,7 @@ bg::model::box < BoostPoint3D > helper::makeObjectBox(const TopoDS_Shape& produc
 }
 
 
-bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
+bool DataManager::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 {
 	gp_Pnt lll = helperFunctions::Point3DBTO(bbox.min_corner());
 	gp_Pnt urr = helperFunctions::Point3DBTO(bbox.max_corner());
@@ -469,7 +476,7 @@ bool helper::isInWall(const bg::model::box<BoostPoint3D>& bbox)
 }
 
 
-TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this
+TopoDS_Shape DataManager::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this
 {
 	// find most occuring horizontal and vertical edge
 	std::vector<gp_Pnt> pointList;
@@ -606,8 +613,8 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through t
 	gp_Pnt lllPoint2;
 	gp_Pnt urrPoint1;
 	gp_Pnt urrPoint2;
-	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint1, &urrPoint1, angleFlat, angleVert);
-	helperFunctions::rotatedBBoxDiagonal(pointList, &lllPoint2, &urrPoint2, angleFlat, -angleVert);
+	helperFunctions::bBoxDiagonal(pointList, &lllPoint1, &urrPoint1, 0, angleFlat, angleVert);
+	helperFunctions::bBoxDiagonal(pointList, &lllPoint2, &urrPoint2, 0, angleFlat, -angleVert);
 	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) { std::cout << "false" << std::endl; return TopoDS_Shape(); }
 
 	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
@@ -618,7 +625,7 @@ TopoDS_Shape helper::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through t
 }
 
 
-void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
+void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 
@@ -763,7 +770,7 @@ void helper::getProjectionData(CJT::ObjectTransformation* transformation, CJT::m
 	return;
 }
 
-std::map<std::string, std::string> helper::getBuildingInformation() //TODO: go through this
+std::map<std::string, std::string> DataManager::getBuildingInformation() //TODO: go through this
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 
@@ -848,7 +855,7 @@ std::map<std::string, std::string> helper::getBuildingInformation() //TODO: go t
 }
 
 
-std::string helper::getBuildingName()
+std::string DataManager::getBuildingName()
 {
 	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 
@@ -872,7 +879,7 @@ std::string helper::getBuildingName()
 }
 
 
-std::string helper::getBuildingLongName() //TODO: implement
+std::string DataManager::getBuildingLongName() //TODO: implement
 {
 	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 
@@ -896,7 +903,7 @@ std::string helper::getBuildingLongName() //TODO: implement
 }
 
 
-std::string helper::getProjectName()
+std::string DataManager::getProjectName()
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
 	IfcSchema::IfcProject::list::ptr projectList = fileObejct->instances_by_type<IfcSchema::IfcProject>();
@@ -919,7 +926,7 @@ std::string helper::getProjectName()
 
 
 template <typename T>
-void helper::addObjectListToIndex(const T& objectList, bool addToRoomIndx) {
+void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx) {
 
 	int coreCount = SettingsCollection::getInstance().threadcount();
 	int coreUse = coreCount;
@@ -952,7 +959,7 @@ void helper::addObjectListToIndex(const T& objectList, bool addToRoomIndx) {
 }
 
 template <typename T>
-void helper::addObjectToIndex(const T& objectList, bool addToRoomIndx) {
+void DataManager::addObjectToIndex(const T& objectList, bool addToRoomIndx) {
 	for (auto it = objectList->begin(); it != objectList->end(); ++it)
 	{
 		addObjectToIndex(*it, addToRoomIndx);
@@ -960,7 +967,7 @@ void helper::addObjectToIndex(const T& objectList, bool addToRoomIndx) {
 }
 
 
-void helper::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx)
+void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx)
 {
 	std::string productType = product->data().type()->name();
 
@@ -1035,15 +1042,15 @@ void helper::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx
 }
 
 
-std::vector<gp_Pnt> helper::getObjectPoints(IfcSchema::IfcProduct* product, bool simple)
+std::vector<gp_Pnt> DataManager::getObjectPoints(IfcSchema::IfcProduct* product, bool simple)
 {
 	TopoDS_Shape productShape = getObjectShape(product, simple, false);
-	std::vector<gp_Pnt> pointList = helperFunctions::shape2PointList(productShape);
+	std::vector<gp_Pnt> pointList = helperFunctions::getPoints(productShape);
 	return pointList;
 }
 
 
-int helper::getObjectShapeLocation(IfcSchema::IfcProduct* product)
+int DataManager::getObjectShapeLocation(IfcSchema::IfcProduct* product)
 {
 	std::string objectType = product->data().type()->name();
 	std::shared_lock<std::shared_mutex> lock(indexMutex_);
@@ -1056,7 +1063,7 @@ int helper::getObjectShapeLocation(IfcSchema::IfcProduct* product)
 }
 
 
-void helper::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
+void DataManager::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
 {
 	if (lllPoint_.X() > box.min_corner().get<0>()) { lllPoint_.SetX(box.min_corner().get<0>()); }
 	if (lllPoint_.Y() > box.min_corner().get<1>()) { lllPoint_.SetY(box.min_corner().get<1>()); }
@@ -1068,7 +1075,7 @@ void helper::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
 }
 
 
-TopoDS_Shape helper::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted)
+TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted)
 {
 	// filter with lookup
 	std::string objectType = product->data().type()->name();
@@ -1088,7 +1095,7 @@ TopoDS_Shape helper::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool 
 }
 
 
-TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, int memoryLocation)
+TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, int memoryLocation)
 {
 	bool memorize = false;
 	if (memoryLocation != -1) { memorize = true; }
@@ -1221,7 +1228,7 @@ TopoDS_Shape helper::getObjectShape(IfcSchema::IfcProduct* product, bool adjuste
 }
 
 
-void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape)
+void DataManager::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape)
 {
 	if (!product->Representation()) { return; }
 
@@ -1247,7 +1254,7 @@ void helper::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shap
 }
 
 
-void helper::applyVoids()
+void DataManager::applyVoids()
 {
 	for (size_t i = 0; i < dataCollectionSize_; i++) //TODO: multithread
 	{
@@ -1257,7 +1264,7 @@ void helper::applyVoids()
 }
 
 
-std::map<std::string, std::string> helper::getProductPropertySet(const std::string& productGui, int fileNum)
+std::map<std::string, std::string> DataManager::getProductPropertySet(const std::string& productGui, int fileNum)
 {
 	std::map<std::string, std::string> productPoperties;
 	IfcSchema::IfcRelDefinesByProperties::list::ptr ODevList = datacollection_[fileNum]->getFilePtr()->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
@@ -1325,13 +1332,12 @@ std::map<std::string, std::string> helper::getProductPropertySet(const std::stri
 
 
 template <typename T>
-void helper::voidShapeAdjust(T products)
+void DataManager::voidShapeAdjust(T products)
 {
 	std::unordered_set<std::string> cuttingObjects = SettingsCollection::getInstance().getCuttingObjectsList();
 	for (auto it = products->begin(); it != products->end(); ++it) {
 		IfcSchema::IfcProduct* wallProduct = *it;
 		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, true);
-		helperFunctions::printFaces(untrimmedWallShape);
 
 		// get the voids
 		IfcSchema::IfcElement* wallElement = wallProduct->as<IfcSchema::IfcElement>();
@@ -1344,10 +1350,9 @@ void helper::voidShapeAdjust(T products)
 			IfcSchema::IfcRelVoidsElement* voidElement = *et;
 			IfcSchema::IfcFeatureElementSubtraction* openingElement = voidElement->RelatedOpeningElement();
 			TopoDS_Shape substractionShape = getObjectShape(openingElement);
-
 			gp_Pnt lllPoint;
 			gp_Pnt urrPoint;
-			helperFunctions::rotatedBBoxDiagonal(getObjectPoints(openingElement), &lllPoint, &urrPoint, 0);
+			helperFunctions::bBoxDiagonal(getObjectPoints(openingElement), &lllPoint, &urrPoint, 0);
 
 			std::vector<Value> qResult;
 			boost::geometry::model::box<BoostPoint3D> qBox = bg::model::box<BoostPoint3D>(helperFunctions::Point3DOTB(lllPoint), helperFunctions::Point3DOTB(urrPoint));
@@ -1410,7 +1415,7 @@ void helper::voidShapeAdjust(T products)
 		else if (validVoidShapes.size() > 0 && voidElementList->size() > 0) 
 		{
 			// get a basepoint of the wall
-			std::vector<gp_Pnt> pList = helperFunctions::shape2PointList(untrimmedWallShape);
+			std::vector<gp_Pnt> pList = helperFunctions::getPoints(untrimmedWallShape);
 
 			// bool out voidShape
 			BOPAlgo_Splitter aSplitter;
@@ -1478,16 +1483,16 @@ lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& 
 
 	if (!cBox_.IsNull())
 	{
-		productPointList_ = helperFunctions::shape2PointList(cBox_);
+		productPointList_ = helperFunctions::getPoints(cBox_);
 		
 	}
 	if (!simpleShape.IsNull())
 	{
-		productPointList_ = helperFunctions::shape2PointList(simpleShape);
+		productPointList_ = helperFunctions::getPoints(simpleShape);
 	}
 	else
 	{
-		productPointList_ = helperFunctions::shape2PointList(productShape);
+		productPointList_ = helperFunctions::getPoints(productShape);
 	}
 
 	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())

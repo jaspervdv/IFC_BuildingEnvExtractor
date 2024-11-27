@@ -180,8 +180,8 @@ SurfaceGridPair::SurfaceGridPair(const TopoDS_Face& theFace)
 	}
 	vertCount_ = vertCount;
 
-	avHeight_ = helperFunctions::getAvFaceHeight(theFace);
-	topHeight_ = helperFunctions::getTopFaceHeight(theFace);
+	avHeight_ = helperFunctions::getAverageZ(theFace);
+	topHeight_ = helperFunctions::getHighestZ(theFace);
 }
 
 void SurfaceGridPair::populateGrid(double distance)
@@ -443,8 +443,8 @@ void SurfaceGridPair::Merge(const std::vector<SurfaceGridPair>& otherPairList, c
 	}
 	vertCount_ = vertCount;
 
-	avHeight_ = helperFunctions::getAvFaceHeight(theCompleteFace);
-	topHeight_ = helperFunctions::getTopFaceHeight(theCompleteFace);
+	avHeight_ = helperFunctions::getAverageZ(theCompleteFace);
+	topHeight_ = helperFunctions::getHighestZ(theCompleteFace);
 
 	theFace_ = theCompleteFace;
 
@@ -460,7 +460,7 @@ void SurfaceGridPair::Merge(const std::vector<SurfaceGridPair>& otherPairList, c
 RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 {
 	theFaceCollection_ = theFaceColletion;
-	helperFunctions::getBBoxPoints(theFaceCollection_, &lllPoint_, &urrPoint_);
+	helperFunctions::bBoxDiagonal(theFaceCollection_, &lllPoint_, &urrPoint_, 0, 0, 0);
 
 	if (theFaceColletion.size() == 1)
 	{

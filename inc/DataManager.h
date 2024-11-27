@@ -40,7 +40,6 @@ private:
 	std::vector<gp_Pnt> productPointList_;
 	TopoDS_Shape cBox_;
 
-
 public:
 	lookupValue(
 		IfcSchema::IfcProduct* productPtr, 
@@ -104,19 +103,14 @@ public:
 	bool isGood() { return good_; }
 };
 
-
-class helper
+/// <summary>
+/// Manages the IFC file collection
+/// </summary>
+class DataManager
 {
 private:
-	double objectCount_ = 0;
-
 	bool hasGeo_ = false;
 	bool isPopulated_ = false;
-
-	double maxProxyP_ = 0.3;
-	double proxyCount_ = 0;
-	bool hasProxy_ = false;
-	bool hasLotProxy_ = false;
 
 	gp_Pnt lllPoint_;
 	gp_Pnt urrPoint_;
@@ -140,17 +134,13 @@ private:
 	std::mutex convertMutex_;
 
 	bool hasIndex_ = false;
-	
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
-
-	bool useCustom_ = false;
-	bool useCustomFull_ = false;
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
 
 	/// count the elements in the file and set the related bools
-	void elementCountSummary(bool* hasProxy, bool* hasLotProxy);
+	void elementCountSummary();
 
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
@@ -191,13 +181,13 @@ public:
 	creates and stores SI unit mulitpliers for length, area and volume
 	creates and stores the file and kernel for quick acess
 	*/
-	explicit helper() {};
-	explicit helper(const std::vector<std::string>& path);
+	explicit DataManager() {};
+	explicit DataManager(const std::vector<std::string>& path);
 
 	// returns true if helper is well populated
 	bool isPopulated() { return isPopulated_; }
 
-	// returns true when length, area and volume multiplier are not 0
+	// returns true when length, area and volume multiplier of the internal geo ifc kernels are not 0
 	bool hasSetUnits();
 
 	// internalises the geometry while approximating a smallest bbox around the geometry
@@ -227,14 +217,6 @@ public:
 	double getScaler(int i) const { return datacollection_[i].get()->getLengthMultiplier(); }
 
 	bool getHasGeo() { return hasGeo_; }
-
-	double getProxyNum() { return proxyCount_; }
-
-	double getObjectCount() { return objectCount_; }
-
-	bool getHasProxy() { return hasProxy_; }
-
-	bool getHasLotProxy() { return hasLotProxy_; }
 
 	const gp_Pnt& getLllPoint() { return lllPoint_; }
 

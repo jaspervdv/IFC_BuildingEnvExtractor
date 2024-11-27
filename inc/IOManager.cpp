@@ -478,8 +478,8 @@ bool IOManager::init(const std::vector<std::string>& inputPathList)
 	std::cout << std::endl;
 	printSummary();
 	
-	internalHelper_ = std::make_unique<helper>(SettingsCollection::getInstance().getIfcPathList());
-	helper* internalHelperPtr = internalHelper_.get();
+	internalHelper_ = std::make_unique<DataManager>(SettingsCollection::getInstance().getIfcPathList());
+	DataManager* internalHelperPtr = internalHelper_.get();
 	if (!internalHelperPtr->isPopulated()) { return false; }
 	if (!internalHelperPtr->hasSetUnits()) { return false; }
 

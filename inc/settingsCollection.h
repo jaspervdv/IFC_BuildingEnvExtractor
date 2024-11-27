@@ -71,11 +71,9 @@ private:
     bool addCustomWallAttributes_ = false;
     double precision_ = 1e-6;
     double precisionCoarse_ = 1e-4;
+    double maxProxyPercentage_ = 0.3;
 
 	// \/ generated settings \/
-    // how many proxy objects are present in the input
-    int proxyCount_ = 0;
-
 	// if LoD0.0 and 1.0 is generated only no voxels are required
 	bool requireVoxels_ = true;
 
@@ -99,6 +97,13 @@ private:
 
     // set of the LoD abstractions that could include the iteriors (read only!)
     std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
+
+    // \/ stats \/
+    // how many proxy objects are present in the input
+    int proxyCount_ = 0;
+
+    // how many objects are present in the input
+    int objectCount_ = 0;
 
 	SettingsCollection() = default;
 
@@ -266,12 +271,18 @@ public:
     double precisionCoarse() const { return precisionCoarse_; }
     void setPrecisionCoarse(double value) { precisionCoarse_ = value; }
 
+    double maxProxyPercentage() const { return maxProxyPercentage_; }
+    void setMaxProxyPercentage(double value) { maxProxyPercentage_ = value; }
+
     int threadcount() const { return threadcount_; }
     void setThreadcount(int value) { threadcount_ = value; }
     void setThreadcount(const nlohmann::json& json);
 
     int proxyCount() const { return proxyCount_; }
     void setProxyCount(int value) { proxyCount_ = value; }
+
+    int objectCount() const { return objectCount_; }
+    void setObjectCount(int value) { objectCount_ = value; }
 
     bool requireVoxels() const { return requireVoxels_; }
     void setRequireVoxels(bool value) { requireVoxels_ = value; }

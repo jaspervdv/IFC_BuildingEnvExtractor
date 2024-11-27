@@ -69,12 +69,12 @@ private:
 	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
 	// create a group of voxels representing a rough room
-	std::vector<int> growExterior(int startIndx, int roomnum, helper* h);
+	std::vector<int> growExterior(int startIndx, int roomnum, DataManager* h);
 
 	void markVoxelBuilding(int startIndx, int roomnum);
 
 	/// @brief get the top geometry objects of the model
-	std::vector<TopoDS_Shape> getTopObjects(helper* h);
+	std::vector<TopoDS_Shape> getTopObjects(DataManager* h);
 
 	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
 	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<ROSCollection>* shapeList);
@@ -106,9 +106,6 @@ private:
 	/// @bried merges all the overlapping edges that have the same direction
 	std::vector<Edge> mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project=true);
 
-	/// splits all the edges so that no edges overlap but all rest against eachother with their start and endpoints
-	std::vector<Edge> splitIntersectingEdges(const std::vector<Edge>& edges, bool project = true);
-
 	/// removes the faces from the list that are completely lying on eachother
 	std::vector<TopoDS_Face> cullOverlappingFaces(const std::vector<TopoDS_Face> inputFaceList);
 
@@ -138,7 +135,7 @@ private:
 	std::vector<int> getVoxelPlate(double platelvl);
 
 	// create list of edges by cutting objects at the floor lvl
-	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, helper* h, double cutlvl);
+	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
@@ -176,7 +173,7 @@ private:
 	);
 
 	/// remove objects that are completely encapsulated by other objects
-	void filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, helper* h);
+	void filterEncapsulatedObjects(std::vector<Value>* productLookupValues, bgi::rtree<Value, bgi::rstar<25>>* exteriorProductIndex, DataManager* h);
 
 	/// remove dublicate values from valueList
 	std::vector<Value> makeUniqueValueList(const std::vector<Value>& valueList);
@@ -190,51 +187,51 @@ private:
 	void createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape, bool isExterior = true);
 
 public:
-	explicit CJGeoCreator(helper* h, double vSize);
+	explicit CJGeoCreator(DataManager* h, double vSize);
 
 	/// computes and internalizes the data that is required to do the basic city scale output
-	void initializeBasic(helper* h);
+	void initializeBasic(DataManager* h);
 
 	/// computes and internalizes the data that is required to do footprint related city scale output
-	void makeFootprint(helper* h);
+	void makeFootprint(DataManager* h);
 
-	void makeFloorSectionCollection(helper* h);
-	std::vector<TopoDS_Face> makeFloorSection(helper* h, double sectionHeight);
+	void makeFloorSectionCollection(DataManager* h);
+	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
 
 	/// store the roofoutline data to LoD 02
 	void useroofprint0() { useRoofprints_ = true; }
 
 	/// generates the empty storey objects for the ifc storeys in a file
-	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(helper* h);
+	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(DataManager* h);
 
 	/// generates the empty room objects for the ifc storeys in a file
-	std::vector<std::shared_ptr<CJT::CityObject>> makeRoomObjects(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects);
+	std::vector<std::shared_ptr<CJT::CityObject>> makeRoomObjects(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& cityStoreyObjects);
 
 	/// generates an LoD0.0 object
-	CJT::GeoObject makeLoD00(helper* h, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
-	std::vector< CJT::GeoObject>  makeLoD02(helper* h, CJT::Kernel* kernel, int unitScale);
-	void makeLoD02Storeys(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
-	void makeSimpleLodRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
+	std::vector< CJT::GeoObject>  makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	void makeLoD02Storeys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
+	void makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of LoD0.3 objects
-	std::vector<std::vector<TopoDS_Face>> makeLoD03Faces(helper* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
-	std::vector< CJT::GeoObject> makeLoD03(helper* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale);
+	std::vector<std::vector<TopoDS_Face>> makeLoD03Faces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
+	std::vector< CJT::GeoObject> makeLoD03(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
-	CJT::GeoObject makeLoD10(helper* h, CJT::Kernel* kernel, int unitScale);
+	CJT::GeoObject makeLoD10(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.2 objects
-	std::vector< CJT::GeoObject> makeLoD12(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD12(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.3 objects
-	std::vector< CJT::GeoObject> makeLoD13(helper* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD13(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
-	std::vector< CJT::GeoObject> makeLoD22(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
-	std::vector< CJT::GeoObject> makeLoD32(helper* h, CJT::Kernel* kernel, int unitScale);
-	void makeComplexLoDRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of voxelized objects
-	std::vector< CJT::GeoObject> makeV(helper* h, CJT::Kernel* kernel, int unitScale);
-	void makeVRooms(helper* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
+	std::vector< CJT::GeoObject> makeV(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	void makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of the site and its outline
-	std::vector<CJT::CityObject> makeSite(helper* h, CJT::Kernel* kernel, int unitScale);
+	std::vector<CJT::CityObject> makeSite(DataManager* h, CJT::Kernel* kernel, int unitScale);
 
 
 	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
@@ -246,15 +243,15 @@ public:
 	TopoDS_Shape voxels2ExtriorShape(int buildingNum);
 
 	// fetches the room related data from the ifc model
-	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(helper* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
+	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
 
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	double approximateRoomArea(int roomNum);
 	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);
 
 	/// computes data related to the voxel shape such as volume and shell area
-	void extractOuterVoxelSummary(CJT::CityObject* shellObject, helper* h, double footprintHeight, double geoRot);
-	void extractInnerVoxelSummary(CJT::CityObject* shellObject, helper* h);
+	void extractOuterVoxelSummary(CJT::CityObject* shellObject, DataManager* h, double footprintHeight, double geoRot);
+	void extractInnerVoxelSummary(CJT::CityObject* shellObject, DataManager* h);
 
 	void addFullSurfaceDict(CJT::GeoObject* geoObject);
 

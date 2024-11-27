@@ -167,7 +167,7 @@ std::vector<std::vector<int>> voxel::getPlaneEdges()
 }
 
 
-bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, helper* h, int intersectionLogic)
+bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, DataManager* h, int intersectionLogic)
 {
 	hasEvalIntt_ = true;
 	if (!voxelPoints.size()) { return false; }

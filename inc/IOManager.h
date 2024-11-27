@@ -7,9 +7,12 @@
 #include <string>
 #include <vector>
 
+/// <summary>
+/// Manages and facilitates the communication between the user and the rest of the application
+/// </summary>
 class IOManager {
 private:
-	std::unique_ptr<helper> internalHelper_;
+	std::unique_ptr<DataManager> internalHelper_;
 
 	std::shared_ptr<CJT::CityCollection> cityCollection_;
 

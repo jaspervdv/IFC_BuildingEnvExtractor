@@ -30,11 +30,11 @@ private:
 	bool hasSemanticSurfaces_ = false;
 
 	/// create the voxelgrid and find intersections of voxels
-	void populatedVoxelGrid(helper* h);
+	void populatedVoxelGrid(DataManager* h);
 
 	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	bool addVoxel(int indx, helper* h, bool checkIfInt = true); /// returns true if intersects
-	void addVoxelColumn(int beginIindx, int endIdx, helper* h, int* voxelGrowthCount = nullptr);
+	bool addVoxel(int indx, DataManager* h, bool checkIfInt = true); /// returns true if intersects
+	void addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount = nullptr);
 	void countVoxels(const int* voxelGrowthCount);
 
 	// transform coordinates
@@ -46,7 +46,7 @@ private:
 	BoostPoint3D worldToRelPoint(BoostPoint3D p);
 
 	/// grow the exterior voxelized shape
-	void growExterior(int startIndx, int roomnum, helper* h);
+	void growExterior(int startIndx, int roomnum, DataManager* h);
 
 	/// mark the voxels to which building they are part off
 	void markVoxelBuilding(int startIndx, int buildnum);
@@ -60,13 +60,15 @@ private:
 	std::vector<TopoDS_Edge> getTransitionalEdges(int dirIndx, int voxelIndx);
 
 	// returns true if beam casted from voxel intersects with a facade opening
-	bool voxelBeamWindowIntersection(helper* h, std::shared_ptr<voxel> currentVoxel, int indxDir);
+	bool voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir);
 
+	/// inverts the dirInx for neighbourSearching
+	static int invertDir(int dirIndx);
 
 public:
-	VoxelGrid(helper* h);
+	VoxelGrid(DataManager* h);
 
-	void computeSurfaceSemantics(helper* h);
+	void computeSurfaceSemantics(DataManager* h);
 
 	/// get a list of idx representing the neighbours of the input voxel
 	std::vector<int> getNeighbours(std::shared_ptr<voxel> boxel, bool connect6 = false);
