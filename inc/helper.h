@@ -85,14 +85,16 @@ struct helperFunctions{
 	/// get the lllpoint and urr point of a list of TopoDS shape
 	/// the rotation values will rotate the shape before creating the points of the box, afterwards the box needs to be rotated back to represent that actual bounding box
 	template<typename T>
-	static void bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer = 0, const double& angle = 0, const double& secondAngle = 0);
+	static void bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer = 0, const double angle = 0, const double secondAngle = 0);
 	/// get the lllpoint and urr point of an TopoDS shape
 	/// the rotation values will rotate the shape before creating the points of the box, afterwards the box needs to be rotated back to represent that actual bounding box
 	template<typename T>
-	static void bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer = 0, const double& angle = 0, const double& secondAngle = 0);
+	static void bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer = 0, const double angle = 0, const double secondAngle = 0);
 	/// get the lllpoint and urr point of list of points
 	/// the rotation values will rotate the shape before creating the points of the box, afterwards the box needs to be rotated back to represent that actual bounding box
-	static bool bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer = 0, const double& angle = 0, const double& secondAngle = 0);
+	static bool bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer = 0, const double angle = 0, const double secondAngle = 0);
+	/// construct the smallest orientated bounding box
+	static void bBoxOrientated(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* rotationAngle, const double buffer = 0);
 	/// construct a bbox from a shape 
 	static bg::model::box <BoostPoint3D> createBBox(const TopoDS_Shape& shape, double buffer = 0.05);
 	/// construct a bbox from a list of shapes
@@ -103,6 +105,9 @@ struct helperFunctions{
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.05);
 	/// construct a OCCTbbox from the urr and lll points
 	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0, double horizontalAngle = 0.0, double verticalAngle = 0.0);
+	/// applies the buffer values to the lll and urr point
+	static void applyBuffer(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer = 0.0);
+
 
 	/// Height (z) computing code
 

@@ -12,7 +12,7 @@
 /// </summary>
 class IOManager {
 private:
-	std::unique_ptr<DataManager> internalHelper_;
+	std::unique_ptr<DataManager> internalDataManager_;
 
 	std::shared_ptr<CJT::CityCollection> cityCollection_;
 

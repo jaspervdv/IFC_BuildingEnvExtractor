@@ -1,8 +1,10 @@
 import os
+import time
 import tkinter
 from tkinter import ttk, filedialog, messagebox
 import json
 import subprocess
+import threading
 import re
 
 from pathlib import Path
@@ -279,28 +281,64 @@ def findValidPath(code_path, addition):
 
 def runExe(code_path, json_path):
     try:
+
+        stop_event = threading.Event()
+        stop_event.clear()
         # Run the executable and capture its output
-        result = subprocess.Popen(
+        env_extractor_process = subprocess.Popen(
             [
                 code_path,
                 json_path
             ],
         )
-        while result.poll() is None:
-            continue
+        def poll_process():
+            while not stop_event.is_set():
+                if env_extractor_process.poll() is not None:  # Check if process has finished
+                    break
 
-        if result.returncode == 0:
-            tkinter.messagebox.showerror("Succes",
-                                         "Succes: Succes")
-        else:
-            tkinter.messagebox.showerror("Processing Error",
-                                         "Error: Error during process")
-            return
+            if stop_event.is_set():  # If the loop exits because of `stop_event`, terminate the process
+                if env_extractor_process.poll() is None:  # If process is still running
+                    env_extractor_process.terminate()
+                    tkinter.messagebox.showinfo("Process cancelled", "Process cancelled by user")
+            else:
+                if env_extractor_process.returncode == 0:
+                    tkinter.messagebox.showinfo("Success", "Success: Process completed successfully")
+                else:
+                    tkinter.messagebox.showerror("Processing Error", "Error: Error during process")
+
+            run_button.config(text="Run", command=lambda: runCode(
+                entry_inputpath.get(),
+                entry_outputpath.get(),
+                lod_settings,
+                footprint_settings,
+                div_settings,
+                other_settings,
+                entry_footprint.get(),
+                entry_voxelsize.get(),
+                message_div_objects.get('1.0', tkinter.END),
+                True
+            ))
+            generate_button.config(state="normal")
+            close_button.config(state="normal")
+
+
+        def stop_process():
+            stop_event.set()
+
+        # swap out run button
+        run_button.config(text="Cancel", command=lambda:stop_process())
+        generate_button.config(state="disabled")
+        close_button.config(state="disabled")
+
+        # Start the polling thread
+        time.sleep(0.5)
+        threading.Thread(target=poll_process, daemon=True).start()
 
     except subprocess.CalledProcessError as e:
         tkinter.messagebox.showerror("Processing Error",
                                      "Error: Was unable to process the file")
-        return
+
+    return
 
 def browse_(box, is_folder, window, initial_file):
     folder_path = ""

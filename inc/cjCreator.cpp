@@ -999,8 +999,9 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& p
 		TopoDS_Shape currentShape;
 
 		std::vector<TopoDS_Edge> edgeList;
-		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
-		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
+		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
+		else { currentShape = lookup->getProductShape(); }
+
 		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next()) 
 		{
 			TopoDS_Face face = TopoDS::Face(expl.Current());
@@ -2014,8 +2015,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 					std::shared_ptr<lookupValue> lookup = h->getLookup(internalValue.second);
 					TopoDS_Shape currentShape;
 
-					if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
-					else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
+					if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
+					else { currentShape = lookup->getProductShape(); }
 
 					topValues.emplace_back(internalValue);
 					topObjects.emplace_back(currentShape);
@@ -3104,11 +3105,10 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	{
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
-
 		TopoDS_Shape currentShape;
 		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
 		{
-			if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
+			if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
 			else { continue; }
 		}
 		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
@@ -3144,6 +3144,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 
 					for (const Value& productValue : productQResult)
 					{
+
 						// get the potential faces
 						TopoDS_Shape otherShape;
 
@@ -3152,19 +3153,24 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 
 						if (otherLookupType == "IfcDoor" || otherLookupType == "IfcWindow")
 						{
-							if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
+							if (otherLookup->hasSimpleShape()) { otherShape = otherLookup->getSimpleShape(); }
 							else { continue; }
 						}
 						else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
 
 						for (TopExp_Explorer otherExplorer(otherShape, TopAbs_FACE); otherExplorer.More(); otherExplorer.Next())
 						{
+
 							//test for linear intersections (get function from helper class)
 							const TopoDS_Face& otherFace = TopoDS::Face(otherExplorer.Current());
 							TopLoc_Location loc;
 							auto mesh = BRep_Tool::Triangulation(otherFace, loc);
 
 							if (currentFace.IsEqual(otherFace)) { continue; }
+
+							if (mesh.IsNull()) { 
+								//TODO: add error
+								continue; }
 
 							for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: find out if there is use to keep the opencascade structure
 							{
@@ -3200,7 +3206,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			if (!faceIsExterior) { continue; }
 
 			//store the plane representing the surface
-
 			outerSurfaceList.emplace_back(currentFace);
 
 			// add the face to the compound
@@ -3224,6 +3229,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 				if (pointOnface == std::nullopt)
 				{
 					typeValueList.emplace_back(1);
+					std::cout << "out" << std::endl;
 					continue;
 				}
 
@@ -4061,8 +4067,8 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues->at(i).second);
 		TopoDS_Shape currentShape;
 
-		if (lookup->hasCBox()) { currentShape = lookup->getCBox(); }
-		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
+		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
+		else { currentShape = lookup->getProductShape(); }
 
 		bg::model::box <BoostPoint3D> box = productLookupValues->at(i).first;
 
@@ -4077,7 +4083,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 			std::shared_ptr<lookupValue> otherLookup = h->getLookup(qResult[k].second);
 
 			TopoDS_Shape otherShape;
-			if (otherLookup->hasCBox()) { otherShape = otherLookup->getCBox(); }
+			if (otherLookup->hasSimpleShape()) { otherShape = otherLookup->getSimpleShape(); }
 			else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
 
 			if (currentShape.IsEqual(otherShape)) { continue; }

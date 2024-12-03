@@ -63,15 +63,15 @@ template double helperFunctions::getHighestZ<TopoDS_Shell>(const std::vector<Top
 template double helperFunctions::getHighestZ<TopoDS_Solid>(const std::vector<TopoDS_Solid>& faceList);
 template double helperFunctions::getHighestZ<TopoDS_Shape>(const std::vector<TopoDS_Shape>& faceList);
 
-template void helperFunctions::bBoxDiagonal<TopoDS_Face>(const std::vector<TopoDS_Face>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const std::vector<TopoDS_Shell>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const std::vector<TopoDS_Solid>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Face>(const std::vector<TopoDS_Face>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const std::vector<TopoDS_Shell>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const std::vector<TopoDS_Solid>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 
-template void helperFunctions::bBoxDiagonal<TopoDS_Face>(const TopoDS_Face& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const TopoDS_Shell& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const TopoDS_Solid& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
-template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const TopoDS_Shape& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Face>(const TopoDS_Face& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const TopoDS_Shell& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const TopoDS_Solid& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
+template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const TopoDS_Shape& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 
 template void helperFunctions::geoTransform<TopoDS_Face>(TopoDS_Face* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
 template void helperFunctions::geoTransform<TopoDS_Shell>(TopoDS_Shell* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
@@ -250,13 +250,13 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 
 
 template<typename T>
-void helperFunctions::bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle)
+void helperFunctions::bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle)
 {
 	for (const T& theShape : theShapeList) { bBoxDiagonal(theShape, lllPoint, urrPoint, buffer, angle, secondAngle); }
 }
 
 template<typename T>
-void helperFunctions::bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle)
+void helperFunctions::bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle)
 {
 	//TODO: implement rotation
 	for (TopExp_Explorer expl(theShape, TopAbs_VERTEX); expl.More(); expl.Next())
@@ -273,15 +273,11 @@ void helperFunctions::bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* 
 		if (point.Z() < lllPoint->Z()) { lllPoint->SetZ(point.Z()); }
 	}
 
-	urrPoint->SetX(urrPoint->X() + buffer);
-	urrPoint->SetY(urrPoint->Y() + buffer);
-	urrPoint->SetZ(urrPoint->Z() + buffer);
-	lllPoint->SetX(lllPoint->X() - buffer);
-	lllPoint->SetY(lllPoint->Y() - buffer);
-	lllPoint->SetZ(lllPoint->Z() - buffer);
+	applyBuffer(lllPoint, urrPoint, buffer);
+	return;
 }
 
-bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double& buffer, const double& angle, const double& secondAngle)
+bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle)
 {
 	*lllPoint = helperFunctions::rotatePointWorld(pointList[0], angle).Rotated(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0)), -secondAngle);
 	*urrPoint = helperFunctions::rotatePointWorld(pointList[0], angle).Rotated(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 1, 0)), -secondAngle);
@@ -300,14 +296,53 @@ bool helperFunctions::bBoxDiagonal(const std::vector<gp_Pnt>& pointList, gp_Pnt*
 	}
 	if (lllPoint->IsEqual(*urrPoint, 0.01)) { return false; }
 
-	urrPoint->SetX(urrPoint->X() + buffer);
-	urrPoint->SetY(urrPoint->Y() + buffer);
-	urrPoint->SetZ(urrPoint->Z() + buffer);
-	lllPoint->SetX(lllPoint->X() - buffer);
-	lllPoint->SetY(lllPoint->Y() - buffer);
-	lllPoint->SetZ(lllPoint->Z() - buffer);
-
+	applyBuffer(lllPoint, urrPoint, buffer);
 	return true;
+}
+
+void helperFunctions::bBoxOrientated(const std::vector<gp_Pnt>& pointList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, double* rotationAngle, const double buffer)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	// approximate smalles bbox
+	double angle = 22.5 * (M_PI / 180);
+	int maxIt = 15; //TODO: maybe add this to the settings collection
+	double smallestDistance = lllPoint->Distance(*urrPoint);
+
+	for (size_t i = 0; i < maxIt; i++)
+	{
+		std::tuple<gp_Pnt, gp_Pnt, double> left;
+		std::tuple<gp_Pnt, gp_Pnt, double> right;
+
+		gp_Pnt leftLllPoint;
+		gp_Pnt leftUrrPoint;
+		gp_Pnt rghtLllPoint;
+		gp_Pnt rghtUrrPoint;
+
+		bBoxDiagonal(pointList, &leftLllPoint, &leftUrrPoint, 0, *rotationAngle - angle);
+		bBoxDiagonal(pointList, &rghtLllPoint, &rghtUrrPoint, 0, *rotationAngle + angle);
+
+		double leftDistance = leftLllPoint.Distance(leftUrrPoint);
+		double rghtDistance = rghtLllPoint.Distance(rghtUrrPoint);
+
+		if (leftDistance > rghtDistance && smallestDistance > rghtDistance)
+		{
+			*rotationAngle = *rotationAngle + angle;
+			smallestDistance = rghtDistance;
+			*lllPoint = rghtLllPoint;
+			*urrPoint = rghtUrrPoint;
+		}
+		else if (smallestDistance > leftDistance)
+		{
+			*rotationAngle = *rotationAngle - angle;
+			smallestDistance = leftDistance;
+			*lllPoint = leftLllPoint;
+			*urrPoint = leftUrrPoint;
+		}
+		angle = angle / 2;
+	}
+	applyBuffer(lllPoint, urrPoint, buffer);
+	return;
 }
 
 bg::model::box <BoostPoint3D> helperFunctions::createBBox(const TopoDS_Shape& shape, double buffer)
@@ -420,6 +455,17 @@ TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& ur
 	brepBuilder.Add(solidbox, brepSewer.SewedShape());
 
 	return solidbox;
+}
+
+void helperFunctions::applyBuffer(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer)
+{
+	urrPoint->SetX(urrPoint->X() + buffer);
+	urrPoint->SetY(urrPoint->Y() + buffer);
+	urrPoint->SetZ(urrPoint->Z() + buffer);
+	lllPoint->SetX(lllPoint->X() - buffer);
+	lllPoint->SetY(lllPoint->Y() - buffer);
+	lllPoint->SetZ(lllPoint->Z() - buffer);
+	return;
 }
 
 

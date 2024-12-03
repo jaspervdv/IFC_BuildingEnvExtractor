@@ -26,26 +26,39 @@
 #ifndef DATAMANAGER_DATAMANAGER_H
 #define DATAMANAGER_DATAMANAGER_H
 
+class MeshTriangle
+{
+private:
+	std::vector<gp_Pnt> points_ = {};
+public:
+	MeshTriangle(const std::vector<gp_Pnt> points) { points_ = points; }
+	std::vector<gp_Pnt> getPoints() { return points_; }
+};
+
 // lookup for the major spatial index used in the code (indexing all the objects in the ifc file)
 class lookupValue
 {
 private:
+	// unique pointer to the product and its data
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
+	// full shape of the product
 	TopoDS_Shape productShape_;
+	// simplefied shape of the product (can be empty)
 	TopoDS_Shape simpleShape_;
 
-	bgi::rtree<Value, bgi::rstar<25>> spatialIndex_;
-	std::vector<std::vector<gp_Pnt>> productTrianglePoints_;
+	// spatial index of the triangles constructing the mesh of the object
+	bgi::rtree<Value, bgi::rstar<25>> triangleIndex_;
+	// vector containing the triangle points related to the index
+	std::vector<MeshTriangle> productTrianglePoints_;
 
-	std::vector<gp_Pnt> productPointList_;
-	TopoDS_Shape cBox_;
+	// boolean that signifies if an object is detailed in nature, such as windows and doors
+	bool isDetailed_ = false;
 
 public:
 	lookupValue(
-		IfcSchema::IfcProduct* productPtr, 
+		IfcSchema::IfcProduct* productPtr,
 		const TopoDS_Shape& productShape,
-		const TopoDS_Shape& simpleShape,
-		const TopoDS_Shape& cBox);
+		const TopoDS_Shape& simpleShape);
 
 	~lookupValue() {
 	}
@@ -53,20 +66,15 @@ public:
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
 
 	const TopoDS_Shape& getProductShape() { return productShape_; }
-	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
-	const std::vector<gp_Pnt>& getProductPoints() { return productPointList_; }
-
-	bgi::rtree<Value, bgi::rstar<25>>* getIndxPointer() { return &spatialIndex_; }
-	const std::vector<std::vector<gp_Pnt>> & getProductTriangleList() { return productTrianglePoints_; }
-	const std::vector<gp_Pnt>& getProductTriangle(int i) { return productTrianglePoints_[i]; }
-
-	bool hasCBox() { return !cBox_.IsNull(); }
-
-	const TopoDS_Shape& getCBox() { return cBox_; }
 
 	void setSimpleShape(const TopoDS_Shape& newShape) { simpleShape_ = newShape; }
-};
+	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
 
+	bgi::rtree<Value, bgi::rstar<25>>* getIndxPointer() { return &triangleIndex_; }
+	const std::vector<MeshTriangle>& getProductTriangleList() { return productTrianglePoints_; }
+
+	bool hasSimpleShape() { return !simpleShape_.IsNull(); }
+};
 
 class fileKernelCollection 
 {
@@ -148,32 +156,40 @@ private:
 	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
 	void computeObjectTranslation(gp_Vec* vec);
 
-	/// returns a bbox of a ifcproduct that functions with boost
-	bg::model::box <BoostPoint3D> makeObjectBox(const TopoDS_Shape& productShape, const double& rotationAngle);
-
-	/// check if shape is inside of a wall, floor or roof
-	bool isInWall(const bg::model::box <BoostPoint3D>& bbox);
-
 	/// create orientated bbox representing a simplefied shape of the input
 	TopoDS_Shape boxSimplefy(const TopoDS_Shape& shape);
 
-	/// adds all instances of an objectype to the spatial index
+	/// adds all instances of the template type to the index and reports to user
+	template <typename IfcType>
+	void timedAddObjectListToIndex(const std::string& typeName, bool addToRoomIndx = false);
+
+	/// adds all instances of the string type to the index and reports to user
+	void timedAddObjectListToIndex(const std::string& typeName);
+
+	/// splits the object list over the available threads and adds all instances of an objectype to the spatial index
 	template <typename T>
 	void addObjectListToIndex(const T& objectList, bool addToRoomIndx = false);
-	
-	template <typename T>
-	void addObjectToIndex(const T& productList, bool addToRoomIndx = false);
-	void addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx = false);
 
-	/// get all the points of all the instances of an objecttype
-	template <typename T>
-	std::vector<gp_Pnt> getAllTypePoints(const T& typePtr, bool simple = false);
+	/// adds all instances of an objecttype to the spatial index
+	void addObjectToIndex(IfcSchema::IfcProduct::list::ptr productList, bool addToRoomIndx = false);
+
+	/// adds the product to the spatial index
+	void addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx = false);
 
 	/// gets shapes from memory without checking for correct adjusted boolean
 	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
 
+	/// get the product representation from the object from the kernel
+	IfcSchema::IfcRepresentation* getProductRepPtr(IfcSchema::IfcProduct* product);
+
 	// update the lll and urr point
 	void updateBoudingData(const bg::model::box <BoostPoint3D>& box);
+
+	/// get object shapes from the objects that are grouped in the current product
+	TopoDS_Shape getNestedObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false);
+
+	/// get the kernel which contains the product with the supplied product guid
+	IfcGeom::Kernel* getKernelObject(const std::string& productGuid);
 
 public:
 	/*
@@ -234,10 +250,13 @@ public:
 
 	std::shared_ptr<lookupValue> getSpaceLookup(int i) { return SpaceLookup_.at(i); }
 
+	template<typename T>
+	std::vector<gp_Pnt> getObjectListPoints(const T& productList, bool simple = false);
+
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false, int memoryLocation = -1);
+	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false);
 	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
 	void applyVoids();
 

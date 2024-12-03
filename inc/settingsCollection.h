@@ -300,10 +300,8 @@ public:
     std::unordered_set<std::string> getOpeningObjectsList() { return openingObjects_; }
     std::unordered_set<std::string> getCuttingObjectsList() { return cuttingObjects_; }
 
-    IfcGeom::IteratorSettings iteratorSettings()  const { return iteratorSettings_; }
+    IfcGeom::IteratorSettings iteratorSettings(bool simple = false);
     void setIterator(const IfcGeom::IteratorSettings& settingsObject) { iteratorSettings_ = settingsObject; }
-
-    IfcGeom::IteratorSettings simpleIteratorSettings()  const { return simpleIteratorSettings_; }
     void setSimpleIterator(const IfcGeom::IteratorSettings& settingsObject) { simpleIteratorSettings_ = settingsObject; }
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

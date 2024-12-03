@@ -13,6 +13,43 @@
 #include <shared_mutex> 
 #include <mutex> 
 
+lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape, const TopoDS_Shape& simpleShape)
+{
+	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
+	productShape_ = productShape;
+	simpleShape_ = simpleShape;
+
+	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
+	{
+		TopoDS_Face productFace = TopoDS::Face(expl.Current());
+
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(productFace, loc);
+
+		if (mesh.IsNull()) { continue; }
+
+		for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
+		{
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+
+			std::vector<gp_Pnt> trianglePoints{
+				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+			};
+
+			auto box = helperFunctions::createBBox(trianglePoints);
+			triangleIndex_.insert(std::make_pair(helperFunctions::createBBox(trianglePoints), productTrianglePoints_.size()));
+			productTrianglePoints_.emplace_back(MeshTriangle(trianglePoints));
+		}
+	}
+
+	std::string productType = productPtr_->data().type()->name();
+	if (productType == "IfcDoor" || productType == "IfcWindow")
+	{
+		isDetailed_ = true;
+	}
+}
 
 DataManager::DataManager(const std::vector<std::string>& pathList) {
 	for (const std::string& path : pathList)
@@ -130,16 +167,17 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	auto startTime = std::chrono::high_resolution_clock::now();
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-
+	// get the slab pointlist to base the inital bbox on
 	std::vector<gp_Pnt> pointList;
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 		IfcSchema::IfcSlab::list::ptr slabList = fileObject->instances_by_type<IfcSchema::IfcSlab>();
+
 		std::vector<gp_Pnt> pointLisSlab;
 		if (slabList->size())
 		{
-			pointLisSlab = getAllTypePoints<IfcSchema::IfcSlab::list::ptr>(slabList);
+			pointLisSlab = getObjectListPoints<IfcSchema::IfcSlab::list::ptr>(slabList);
 		}
 		pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
 	}
@@ -150,52 +188,17 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		throw std::string(errorWarningStringEnum::getString(ErrorID::errorNoPoints));
 	}
 
-	// approximate smalles bbox
-	double angle = 22.5 * (M_PI / 180);
-	double rotation = settingsCollection.desiredRotation(); // if not pre set by the user the default grid rotation = 0
-	int maxIt = 15;
-
-	// set data for a bbox
-	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation);
-	if (!settingsCollection.autoRotateGrid()) {
+	// if custom roration is required use that for bbox creation
+	double rotation = settingsCollection.desiredRotation();
+	if (!settingsCollection.autoRotateGrid()) 
+	{
+		helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation);
 		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
 		return;
-	} //bypass rotation comp if not required
-
-	double smallestDistance = lllPoint->Distance(*urrPoint);
-
-	for (size_t i = 0; i < maxIt; i++)
-	{
-		std::tuple<gp_Pnt, gp_Pnt, double> left;
-		std::tuple<gp_Pnt, gp_Pnt, double> right;
-
-		gp_Pnt leftLllPoint;
-		gp_Pnt leftUrrPoint;
-		gp_Pnt rghtLllPoint;
-		gp_Pnt rghtUrrPoint;
-
-		helperFunctions::bBoxDiagonal(pointList, &leftLllPoint, &leftUrrPoint, 0, rotation - angle);
-		helperFunctions::bBoxDiagonal(pointList, &rghtLllPoint, &rghtUrrPoint, 0,  rotation + angle);
-
-		double leftDistance = leftLllPoint.Distance(leftUrrPoint);
-		double rghtDistance = rghtLllPoint.Distance(rghtUrrPoint);
-
-		if (leftDistance > rghtDistance && smallestDistance > rghtDistance)
-		{
-			rotation = rotation + angle;
-			smallestDistance = rghtDistance;
-			*lllPoint = rghtLllPoint;
-			*urrPoint = rghtUrrPoint;
-		}
-		else if (smallestDistance > leftDistance)
-		{
-			rotation = rotation - angle;
-			smallestDistance = leftDistance;
-			*lllPoint = leftLllPoint;
-			*urrPoint = leftUrrPoint;
-		}
-		angle = angle / 2;
 	}
+
+	// compute the smallest orientated bbox
+	helperFunctions::bBoxOrientated(pointList, lllPoint, urrPoint, &rotation, 0);
 	settingsCollection.setGridRotation(rotation);
 	return;
 }
@@ -213,7 +216,7 @@ void DataManager::computeObjectTranslation(gp_Vec* vec)
 
 		gp_Pnt lllPoint;
 		gp_Pnt urrPoint;
-		TopoDS_Shape slabShape = getObjectShape(slab, true, false);
+		TopoDS_Shape slabShape = getObjectShape(slab, true);
 		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
 		*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
 		return;
@@ -222,23 +225,6 @@ void DataManager::computeObjectTranslation(gp_Vec* vec)
 	throw std::string(errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab));
 	return;
 }
-
-
-template<typename T>
-std::vector<gp_Pnt> DataManager::getAllTypePoints(const T& typePtr, bool simple)
-{
-	std::vector<gp_Pnt> pointList;
-	for (auto it = typePtr->begin(); it != typePtr->end(); ++it) {
-		IfcSchema::IfcProduct* product = *it;
-		std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
-
-		for (const auto& point : temp) {
-			pointList.emplace_back(point);
-		}
-	}
-	return std::vector<gp_Pnt>(pointList);
-}
-
 
 bool DataManager::hasSetUnits() {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
@@ -284,199 +270,50 @@ void DataManager::indexGeo()
 
 	if (hasIndex_) { return; }
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCreateSpatialIndex) << std::endl;
-	auto t = datacollection_[0]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
 
 	if (settingsCollection.useDefaultDiv())
 	{
-		// add the floorslabs to the rtree
-		auto startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcSlab::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>());
-		std::cout << "\tIfcSlab objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcRoof::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcRoof>());
-		std::cout << "\tIfcRoof objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		// add the walls to the rtree
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWall>());
-		std::cout << "\tIfcWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcCovering::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCovering>());
-		std::cout << "\tIfcCovering objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		// add the columns to the rtree TODO sweeps
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcColumn::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcColumn>());
-		std::cout << "\tIfcColumn objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		// add the beams to the rtree
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcBeam::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBeam>());
-		std::cout << "\tIfcBeam objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		// add the curtain walls to the rtree 
-		//TODO: check this
-		/*startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectToIndex<IfcSchema::IfcCurtainWall::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcCurtainWall>());
-		std::cout << "\tIfcCurtainWall objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << "s" << std::endl;*/
-
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcPlate::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcPlate>());
-		std::cout << "\tIfcPlate objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcMember::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcMember>());
-		std::cout << "\tIfcMember objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-		// add doors to the rtree (for the appartment detection)
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcDoor::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcDoor>());
-		std::cout << "\tIfcDoor objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
-
-		startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcWindow::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcWindow>());
-		std::cout << "\tIfcWindow objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+		timedAddObjectListToIndex<IfcSchema::IfcSlab>("IfcSlab", false);
+		timedAddObjectListToIndex<IfcSchema::IfcRoof>("IfcRoof", false);
+		timedAddObjectListToIndex<IfcSchema::IfcWall>("IfcWall", false);
+		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcCovering", false);
+		timedAddObjectListToIndex<IfcSchema::IfcColumn>("IfcColumn", false);
+		timedAddObjectListToIndex<IfcSchema::IfcPlate>("IfcPlate", false);
+		timedAddObjectListToIndex<IfcSchema::IfcMember>("IfcMember", false);
+		timedAddObjectListToIndex<IfcSchema::IfcWindow>("IfcWindow", false);
+		timedAddObjectListToIndex<IfcSchema::IfcDoor>("IfcDoor", false);
+		//addObjectListToIndex<IfcSchema::IfcCurtainWall>("IfcCurtainWall", false);
 
 		if (settingsCollection.useProxy())
 		{
-			startTime = std::chrono::high_resolution_clock::now();
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-				addObjectListToIndex<IfcSchema::IfcBuildingElementProxy::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcBuildingElementProxy>());
-			std::cout << "\tIfcBuildingElementProxy objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+			timedAddObjectListToIndex<IfcSchema::IfcBuildingElementProxy>("IfcBuildingElementProxy", false);
 		}
 	}
 	else // add custom set div objects
 	{
 		std::vector<std::string> customDivTypeList = settingsCollection.getCustomDivList();
-
 		for (const std::string& customDivType : customDivTypeList)
 		{
-			IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
-			for (size_t i = 0; i < dataCollectionSize_; i++)
-			{
-				IfcSchema::IfcProduct::list::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcProduct>();
-				for (auto et = productList->begin(); et != productList->end(); ++et)
-				{
-					IfcSchema::IfcProduct* product = *et;
-					if (customDivType != boost::to_upper_copy<std::string>(product->data().type()->name())) { continue; }
-					selectedlist.get()->push(product);
-				}
-			}
-
-			auto startTime = std::chrono::high_resolution_clock::now();
-			addObjectListToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
-			std::cout << "\t" + customDivType + " objects finished in : " <<
-				std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
-				UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+			timedAddObjectListToIndex(customDivType);
 		}
 	}
 
 	if (settingsCollection.makeInterior())
 	{
-		auto startTime = std::chrono::high_resolution_clock::now();
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-			addObjectListToIndex<IfcSchema::IfcSpace::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSpace>(), true);
-		std::cout << "\tIfcRoom objects finished in: " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+		timedAddObjectListToIndex<IfcSchema::IfcSpace>("IfcSpace", true);
 	}
 	std::cout << std::endl;
 
 	// find valid voids
-	//applyVoids(); 
+	if (!settingsCollection.useSimpleGeo())
+	{
+		applyVoids();
+	}
 	hasIndex_ = true;
 }
 
 
-bg::model::box < BoostPoint3D > DataManager::makeObjectBox(const TopoDS_Shape& productShape, const double& rotationAngle)
-{
-	std::vector<gp_Pnt> productVert = helperFunctions::getPoints(productShape);
-	if (productVert.size() <= 1) { throw ErrorID::warningFailedObjectSimplefication; }
-
-	// only outputs 2 corners of the three needed corners!
-	gp_Pnt lllPoint;
-	gp_Pnt urrPoint;
-
-	helperFunctions::bBoxDiagonal(productVert, &lllPoint, &urrPoint, 0, rotationAngle);
-
-	BoostPoint3D boostlllpoint = helperFunctions::Point3DOTB(lllPoint);
-	BoostPoint3D boosturrpoint = helperFunctions::Point3DOTB(urrPoint);
-
-	return bg::model::box < BoostPoint3D >(boostlllpoint, boosturrpoint);
-}
-
-
-bool DataManager::isInWall(const bg::model::box<BoostPoint3D>& bbox)
-{
-	gp_Pnt lll = helperFunctions::Point3DBTO(bbox.min_corner());
-	gp_Pnt urr = helperFunctions::Point3DBTO(bbox.max_corner());
-	gp_Pnt mP = gp_Pnt((lll.X() + urr.X()) / 2, (lll.Y() + urr.Y()) / 2, (lll.Z() + urr.Z()) / 2);
-
-	BRepExtrema_DistShapeShape distanceMeasurer;
-	distanceMeasurer.LoadS1(BRepBuilderAPI_MakeVertex(mP));
-
-	// get potential nesting objects
-	std::vector<Value> qResult;
-	qResult.clear();
-	index_.query(bgi::intersects(bbox), std::back_inserter(qResult));
-
-	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
-
-	for (size_t i = 0; i < qResult.size(); i++)
-	{
-		indexMutex_.lock_shared();
-		std::shared_ptr<lookupValue> lookup = productLookup_.at(qResult[i].second);
-		indexMutex_.unlock_shared();
-
-		IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
-		std::string qProductType = qProduct->data().type()->name();
-
-		if (openingObjects.find(qProductType) == openingObjects.end()) { continue; }
-
-		std::string objectType = qProduct->data().type()->name();
-
-		indexMutex_.lock_shared();
-		auto typeSearch = productIndxLookup_.find(objectType);
-		if (typeSearch == productIndxLookup_.end()) 
-		{ 
-			indexMutex_.unlock_shared();
-			continue; 
-		}
-		indexMutex_.unlock_shared();
-
-		auto objectSearch = typeSearch->second.find(qProduct->GlobalId());
-		if (objectSearch == typeSearch->second.end()) { continue; }
-		
-		indexMutex_.lock_shared();
-		TopoDS_Shape qUntrimmedShape = productLookup_[objectSearch->second]->getProductShape();
-		indexMutex_.unlock_shared();
-		TopExp_Explorer expl;
-		for (expl.Init(qUntrimmedShape, TopAbs_SOLID); expl.More(); expl.Next()) {
-			// get distance to isolated actual object
-			distanceMeasurer.LoadS2(expl.Current());
-			distanceMeasurer.Perform();
-
-			if (!distanceMeasurer.InnerSolution()) { continue; }
-			if (distanceMeasurer.Value() > 0.2) { continue; }
-
-			return true;
-		}
-	}
-	return false;
-}
-
-
-TopoDS_Shape DataManager::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this
+TopoDS_Shape DataManager::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this and add to helper
 {
 	// find most occuring horizontal and vertical edge
 	std::vector<gp_Pnt> pointList;
@@ -615,13 +452,23 @@ TopoDS_Shape DataManager::boxSimplefy(const TopoDS_Shape& shape) //TODO: go thro
 	gp_Pnt urrPoint2;
 	helperFunctions::bBoxDiagonal(pointList, &lllPoint1, &urrPoint1, 0, angleFlat, angleVert);
 	helperFunctions::bBoxDiagonal(pointList, &lllPoint2, &urrPoint2, 0, angleFlat, -angleVert);
-	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) { std::cout << "false" << std::endl; return TopoDS_Shape(); }
+	
+	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) 
+	{ 
+		return TopoDS_Shape(); 
+	}
 
+	TopoDS_Shape boxShape;
 	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
 	{
-		return helperFunctions::createBBOXOCCT(lllPoint1, urrPoint1, 0.0, angleFlat, angleVert);
+		boxShape = helperFunctions::createBBOXOCCT(lllPoint1, urrPoint1, 0.0, angleFlat, angleVert);
 	}
-	return  helperFunctions::createBBOXOCCT(lllPoint2, urrPoint2, 0.0, angleFlat, -angleVert);
+	else
+	{
+		boxShape = helperFunctions::createBBOXOCCT(lllPoint2, urrPoint2, 0.0, angleFlat, -angleVert);
+	}
+	helperFunctions::triangulateShape(boxShape);
+	return boxShape;
 }
 
 
@@ -926,16 +773,18 @@ std::string DataManager::getProjectName()
 
 
 template <typename T>
-void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx) {
+void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx)
+{
+	if (!objectList->size()) { return; }
 
 	int coreCount = SettingsCollection::getInstance().threadcount();
 	int coreUse = coreCount;
 	int splitListSize = static_cast<int>(floor(objectList->size() / coreUse));
-	int voxelsGrown = 0;
 
 	std::vector<std::thread> threadList;
 
 	if (splitListSize == 0) { coreUse = 1; } //if less objects than threads are present just use 1 thread
+	coreUse = 1; //TODO: fix this
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
@@ -948,7 +797,7 @@ void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx) 
 		{
 			subList->push(*subIterator);
 		}
-		threadList.emplace_back([=]() { addObjectToIndex<IfcSchema::IfcProduct::list::ptr>(subList, addToRoomIndx); });
+		threadList.emplace_back([=]() { addObjectToIndex(subList, addToRoomIndx); });
 	}
 
 	for (auto& thread : threadList) {
@@ -958,39 +807,62 @@ void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx) 
 	}
 }
 
-template <typename T>
-void DataManager::addObjectToIndex(const T& objectList, bool addToRoomIndx) {
+template<typename IfcType>
+void DataManager::timedAddObjectListToIndex(const std::string& typeName, bool addToRoomIndx)
+{
+	auto startTime = std::chrono::high_resolution_clock::now();
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		addObjectListToIndex<IfcType::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcType>());
+	}
+	
+	std::cout << "\t" << typeName << " objects finished in: " << 
+		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
+		UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+}
+
+void DataManager::addObjectToIndex(const IfcSchema::IfcProduct::list::ptr objectList, bool addToRoomIndx) {
 	for (auto it = objectList->begin(); it != objectList->end(); ++it)
 	{
 		addObjectToIndex(*it, addToRoomIndx);
 	}
 }
 
+void DataManager::timedAddObjectListToIndex(const std::string& typeName)
+{
+	IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		aggregate_of_instance::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type(typeName);
+
+		if (productList == nullptr) { continue; }
+		if (!productList->size()) { continue; }
+
+		for (auto et = productList->begin(); et != productList->end(); ++et)
+		{
+			IfcUtil::IfcBaseClass* test = *et;
+			IfcSchema::IfcProduct* product = (*et)->as<IfcSchema::IfcProduct>();
+			selectedlist.get()->push(product);
+		}
+	}
+
+	auto startTime = std::chrono::high_resolution_clock::now();
+	addObjectListToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
+	std::cout << "\t" + typeName + " objects finished in : " <<
+		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() <<
+		UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+}
 
 void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx)
 {
-	std::string productType = product->data().type()->name();
-
 	// pass over if dub
-	bool dub = false;
-	indexMutex_.lock_shared();
-	for (size_t i = 0; i < productLookup_.size(); i++)
-	{
-		if (productLookup_.at(i)->getProductPtr()->data().id() == product->data().id()) //TODO: optimize this
-		{
-			dub = true;
-			break;
-		}
-	}
-	indexMutex_.unlock_shared();
-	if (dub) { return; }
-
+	if (getObjectShapeLocation(product) != -1) { return; }
 	TopoDS_Shape shape = getObjectShape(product); //TODO: rewrite to function for family related objects
 
 	bg::model::box <BoostPoint3D> box;
 	try
 	{
-		box = makeObjectBox(shape, 0);
+		box = helperFunctions::createBBox(shape, 0);
 	}
 	catch (const ErrorID&)
 	{
@@ -999,23 +871,23 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 	}
 
 	TopoDS_Shape simpleShape;
+	std::string productType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 	if (openingObjects.find(productType) != openingObjects.end())
 	{
 		simpleShape = getObjectShape(product, true);
 	}
 
-	TopoDS_Shape cbbox;
 	if (productType == "IfcDoor" || productType == "IfcWindow")
 	{
-		cbbox = boxSimplefy(shape);
-		if (cbbox.IsNull())
+		simpleShape = boxSimplefy(shape);
+		if (simpleShape.IsNull())
 		{
 			ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
 			return;
 		}
 	}
-	std::shared_ptr<lookupValue> lookup = std::make_shared<lookupValue>(product, shape, simpleShape, cbbox);
+	std::shared_ptr<lookupValue> lookup = std::make_shared<lookupValue>(product, shape, simpleShape);
 	if (addToRoomIndx)
 	{
 		std::lock_guard<std::mutex> spaceLock(spaceIndexMutex_);
@@ -1041,12 +913,26 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 	return;
 }
 
-
 std::vector<gp_Pnt> DataManager::getObjectPoints(IfcSchema::IfcProduct* product, bool simple)
 {
-	TopoDS_Shape productShape = getObjectShape(product, simple, false);
+	TopoDS_Shape productShape = getObjectShape(product, simple);
 	std::vector<gp_Pnt> pointList = helperFunctions::getPoints(productShape);
 	return pointList;
+}
+
+template<typename T>
+std::vector<gp_Pnt> DataManager::getObjectListPoints(const T& productList, bool simple)
+{
+	std::vector<gp_Pnt> pointList;
+	for (auto it = productList->begin(); it != productList->end(); ++it) {
+		IfcSchema::IfcProduct* product = *it;
+		std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
+
+		for (const auto& point : temp) {
+			pointList.emplace_back(point);
+		}
+	}
+	return std::vector<gp_Pnt>(pointList);
 }
 
 
@@ -1062,6 +948,25 @@ int DataManager::getObjectShapeLocation(IfcSchema::IfcProduct* product)
 	return objectSearch->second;
 }
 
+IfcSchema::IfcRepresentation* DataManager::getProductRepPtr(IfcSchema::IfcProduct* product)
+{
+	IfcSchema::IfcRepresentation* ifc_representation = nullptr;
+	if (product->Representation())
+	{
+		IfcSchema::IfcProductRepresentation* prodrep = product->Representation();
+		IfcSchema::IfcRepresentation::list::ptr reps = prodrep->Representations();
+
+		for (IfcSchema::IfcRepresentation::list::it it = reps->begin(); it != reps->end(); ++it) {
+			IfcSchema::IfcRepresentation* rep = *it;
+			if (rep->RepresentationIdentifier().get() == "Body") {
+				ifc_representation = rep;
+				break;
+			}
+		}
+	}
+	return ifc_representation;
+}
+
 
 void DataManager::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
 {
@@ -1074,6 +979,59 @@ void DataManager::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
 	return;
 }
 
+TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, bool adjusted)
+{
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+	IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
+#else
+	IfcSchema::IfcRelDecomposes::list::ptr decomposedProducts = product->IsDecomposedBy();
+#endif // USE_IFC4
+
+	if (decomposedProducts->size() > 0)
+	{
+		BRep_Builder builder;
+		TopoDS_Compound collection;
+		builder.MakeCompound(collection);
+
+		for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+			IfcSchema::IfcRelAggregates* aggregates = *et;
+#else
+			IfcSchema::IfcRelDecomposes* aggregates = *et;
+#endif // USE_IFC4
+			IfcSchema::IfcObjectDefinition::list::ptr aggDef = aggregates->RelatedObjects();
+
+			for (auto rt = aggDef->begin(); rt != aggDef->end(); ++rt) {
+
+				IfcSchema::IfcObjectDefinition* aggDef = *rt;
+				IfcSchema::IfcProduct* addprod = aggDef->as<IfcSchema::IfcProduct>();
+
+				TopoDS_Shape addshapeSimple = getObjectShape(addprod, adjusted);
+				builder.Add(collection, addshapeSimple);
+			}
+		}
+		return collection;
+	}
+	return {};
+}
+
+IfcGeom::Kernel* DataManager::getKernelObject(const std::string& productGuid)
+{
+	if (dataCollectionSize_ == 1)
+	{
+		return datacollection_[0]->getKernelPtr();
+	}
+	else {
+		for (size_t i = 0; i < dataCollectionSize_; i++)
+		{
+			try { datacollection_[i]->getFilePtr()->instance_by_guid(productGuid)->data().toString(); }
+			catch (const std::exception&) { continue; }
+
+			return datacollection_[i]->getKernelPtr();
+		}
+	}
+	return nullptr;
+}
 
 TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted)
 {
@@ -1095,119 +1053,36 @@ TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, 
 }
 
 
-TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted, int memoryLocation)
+TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool adjusted)
 {
-	bool memorize = false;
-	if (memoryLocation != -1) { memorize = true; }
-	std::string objectType = product->data().type()->name();
-	if (objectType == "IfcFastener") { return {}; } //TODO: check why this does what it does
-
 	// filter with lookup
-	bool hasHoles = false; //TODO: check this
+	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
-	if (SettingsCollection::getInstance().useSimpleGeo()) { adjusted = true; hasHoles = true; }//TODO: remove this once it is returned to normal behavior
-	if (openingObjects.find(objectType) != openingObjects.end()) { hasHoles = true; }
+	if (SettingsCollection::getInstance().useSimpleGeo()) { adjusted = true; }
 
-	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted); 
+	// get the object from memory if available
+	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);
 	if (!potentialShape.IsNull()) { return potentialShape; }
 
-	IfcSchema::IfcRepresentation* ifc_representation = nullptr;
-	if (product->Representation())
-	{
-		IfcSchema::IfcProductRepresentation* prodrep = product->Representation();
-		IfcSchema::IfcRepresentation::list::ptr reps = prodrep->Representations();
-
-		for (IfcSchema::IfcRepresentation::list::it it = reps->begin(); it != reps->end(); ++it) {
-			IfcSchema::IfcRepresentation* rep = *it;
-			if (rep->RepresentationIdentifier().get() == "Body") {
-				ifc_representation = rep;
-				break;
-			}
-		}
-	}
-
+	IfcSchema::IfcRepresentation* ifc_representation = getProductRepPtr(product);
 	if (ifc_representation == nullptr)
 	{
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-		IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
-#else
-		IfcSchema::IfcRelDecomposes::list::ptr decomposedProducts = product->IsDecomposedBy();
-#endif // USE_IFC4
+		return getNestedObjectShape(product, adjusted);
+	}	
 
-		if (decomposedProducts->size() > 0)
-		{
-			BRep_Builder builder;
-			TopoDS_Compound collection;
-			builder.MakeCompound(collection);
+	IfcGeom::Kernel* kernelObject = getKernelObject(product->GlobalId());
+	if (kernelObject == nullptr) { return {}; }
 
-			for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-				IfcSchema::IfcRelAggregates* aggregates = *et;
-#else
-				IfcSchema::IfcRelDecomposes* aggregates = *et;
-#endif // USE_IFC4
-				IfcSchema::IfcObjectDefinition::list::ptr aggDef = aggregates->RelatedObjects();
-
-				for (auto rt = aggDef->begin(); rt != aggDef->end(); ++rt) {
-					IfcSchema::IfcObjectDefinition* aggDef = *rt;
-
-					IfcSchema::IfcProduct* addprod = aggDef->as<IfcSchema::IfcProduct>();
-
-					if (adjusted)
-					{
-						TopoDS_Shape addshapeSimple = getObjectShape(addprod, true, false);
-						builder.Add(collection, addshapeSimple);
-					}
-					else
-					{
-						TopoDS_Shape addshape = getObjectShape(addprod, false, false);
-						builder.Add(collection, addshape);
-					}
-				}
-			}
-			return collection;
-		}
-		return {};
-	}
-
-	IfcGeom::Kernel* kernelObject = nullptr;
-	if (dataCollectionSize_ == 1)
-	{
-		kernelObject = datacollection_[0]->getKernelPtr();
-	}
-	else {
-		for (size_t i = 0; i < dataCollectionSize_; i++)
-		{
-			try { datacollection_[i]->getFilePtr()->instance_by_guid(product->GlobalId())->data().toString(); }
-			catch (const std::exception&) { continue; }
-
-			kernelObject = datacollection_[i]->getKernelPtr();
-		}
-	}
-	if (kernelObject == nullptr)
-	{
-		return {};
-	}
 	gp_Trsf trsf;
-
 	convertMutex_.lock();
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	convertMutex_.unlock();
 
-	IfcGeom::BRepElement* brep = nullptr;
-
-	if (hasHoles && adjusted) {
-		IfcGeom::IteratorSettings iteratorSettings = SettingsCollection::getInstance().simpleIteratorSettings();
-		std::lock_guard<std::mutex> lock(convertMutex_);
-		brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
-	}
-	else
-	{
-		IfcGeom::IteratorSettings iteratorSettings = SettingsCollection::getInstance().iteratorSettings();
-		std::lock_guard<std::mutex> lock(convertMutex_);
-		brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
-	}
+	IfcGeom::IteratorSettings iteratorSettings = SettingsCollection::getInstance().iteratorSettings(adjusted);
+	convertMutex_.lock();
+	IfcGeom::BRepElement* brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
+	convertMutex_.unlock();
 	if (brep == nullptr) { return {}; }
 
 	TopoDS_Compound comp;
@@ -1224,6 +1099,7 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool ad
 	comp.Move(objectTranslation_);
 	comp.Move(trs);
 	helperFunctions::triangulateShape(comp);
+
 	return comp;
 }
 
@@ -1329,7 +1205,6 @@ std::map<std::string, std::string> DataManager::getProductPropertySet(const std:
 	}
 	return productPoperties;
 }
-
 
 template <typename T>
 void DataManager::voidShapeAdjust(T products)
@@ -1467,56 +1342,6 @@ void DataManager::voidShapeAdjust(T products)
 				}
 			}
 			updateShapeLookup(wallProduct, finalShape);
-		}
-	}
-}
-
-
-lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape,  const TopoDS_Shape& simpleShape, const TopoDS_Shape& cBox)
-{
-	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
-	productShape_ = productShape;
-	simpleShape_ = simpleShape;
-	cBox_ = cBox;
-
-	helperFunctions::triangulateShape(cBox_);
-
-	if (!cBox_.IsNull())
-	{
-		productPointList_ = helperFunctions::getPoints(cBox_);
-		
-	}
-	if (!simpleShape.IsNull())
-	{
-		productPointList_ = helperFunctions::getPoints(simpleShape);
-	}
-	else
-	{
-		productPointList_ = helperFunctions::getPoints(productShape);
-	}
-
-	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
-	{
-		TopoDS_Face productFace = TopoDS::Face(expl.Current());
-
-		TopLoc_Location loc;
-		auto mesh = BRep_Tool::Triangulation(productFace, loc);
-
-		if (mesh.IsNull()) { continue; }
-
-		for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
-		{
-			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
-
-			std::vector<gp_Pnt> trianglePoints{
-				mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
-				mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
-				mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
-			};
-
-			auto box = helperFunctions::createBBox(trianglePoints);
-			spatialIndex_.insert(std::make_pair(helperFunctions::createBBox(trianglePoints), productTrianglePoints_.size()));
-			productTrianglePoints_.emplace_back(trianglePoints);
 		}
 	}
 }

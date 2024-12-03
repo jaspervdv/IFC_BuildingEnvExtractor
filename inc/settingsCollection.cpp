@@ -415,18 +415,18 @@ void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 void SettingsCollection::setMakeFootPrint(const nlohmann::json& json)
 {
 	// check for footprint height
-	const std::string& footprintElevOName = JsonObjectInEnum::getString(JsonObjectInID::JSONFootprintElev);
-	if (json.contains(footprintElevOName))
+	const std::string& footprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
+	if (json.contains(footprintOName))
 	{
 		try
 		{
-			double footprintElev = getJsonDouble(json[footprintElevOName]);
-			setFootprintElevation(footprintElev);
+			bool makeFootprint = getJsonBoolValue(json[footprintOName]);
+			setMakeFootPrint(makeFootprint);
 		}
 		catch (const ErrorID& exceptionId)
 		{
-			ErrorCollection::getInstance().addError(exceptionId, footprintElevOName);
-			throw std::string(errorWarningStringEnum::getString(exceptionId) + footprintElevOName);
+			ErrorCollection::getInstance().addError(exceptionId, footprintOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + footprintOName);
 		}
 	}
 	return;
@@ -647,7 +647,7 @@ void SettingsCollection::setCustomDivList(const nlohmann::json& json)
 			continue;
 		}
 
-		if (availableIfcTypes.find(potentialType) != availableIfcTypes.end())
+		if (availableIfcTypes.find(potentialType) == availableIfcTypes.end())
 		{
 			continue;
 		}
@@ -808,6 +808,15 @@ void SettingsCollection::setThreadcount(const nlohmann::json& json)
 		else { setThreadcount(availableThreads); }
 	}
 	return;
+}
+
+IfcGeom::IteratorSettings SettingsCollection::iteratorSettings(bool simple)
+{
+	if (simple)
+	{
+		return simpleIteratorSettings_;
+	}
+	return iteratorSettings_;
 }
 
 

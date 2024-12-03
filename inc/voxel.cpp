@@ -174,13 +174,13 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	// get the product
 	IfcSchema::IfcProduct* product = lookup.getProductPtr();
 	std::string productType = product->data().type()->name();
-	std::vector<std::vector<gp_Pnt>> trianglePointList = lookup.getProductTriangleList();
+	std::vector<MeshTriangle> trianglePointList = lookup.getProductTriangleList();
 	TopoDS_Shape productShape = lookup.getProductShape();
 
 	if (productType == "IfcDoor" || productType == "IfcWindow") // only use simplefied opening geo
 	{
-		if (!lookup.hasCBox()) { return false; }
-		productShape = lookup.getCBox();
+		if (!lookup.hasSimpleShape()) { return false; }
+		productShape = lookup.getSimpleShape();
 	}
 
 	if (!lookup.getSimpleShape().IsNull())
@@ -198,7 +198,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 
 	for (const Value& qResult : qResultList)
 	{
-		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second];
+		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second].getPoints();
 		if (helperFunctions::triangleIntersecting({ centerPoint,  offsetPoint }, trianglePoints))
 		{
 			counter++;
@@ -216,7 +216,7 @@ bool voxel::checkIntersecting(lookupValue& lookup, const std::vector<gp_Pnt>& vo
 	std::vector<gp_Pnt> productPoints;
 	for (const Value& qResult : qResultList)
 	{
-		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second];
+		std::vector<gp_Pnt> trianglePoints = trianglePointList[qResult.second].getPoints();
 		for (gp_Pnt currentPoint : trianglePoints)
 		{
 			productPoints.emplace_back(currentPoint);
