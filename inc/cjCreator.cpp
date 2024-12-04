@@ -1070,7 +1070,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
 	brepSewer.Add(evalFace);
 	brepSewer.Add(projectedFace.Reversed());
-
 	int edgeCount = 0;
 	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
 		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
@@ -1412,6 +1411,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	for (const TopoDS_Face currentFace : inputFaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+		if (extrudedShape.IsNull()) { continue; }
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
 
 		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
@@ -2909,52 +2909,51 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 	}
 
 	std::vector<std::vector<TopoDS_Face>> roofList;
-	if (roofList03.size() == 0) { roofList = makeLoD03Faces(h, kernel, 1, settingsCollection.footPrintBased()); }
-	else 
+	if (roofList03.size() == 0) {
+		roofList = makeLoD03Faces(h, kernel, 1, settingsCollection.footPrintBased());
+	}
+	else if (!settingsCollection.footPrintBased())
 	{
-		if (!settingsCollection.footPrintBased())
+		roofList = roofList03;
+	}
+	else { //TODO: make this a function
+		for (size_t i = 0; i < roofList03.size(); i++)
 		{
-			roofList = roofList03;
-		}
-		else { //TODO: make this a function
-			for (size_t i = 0; i < roofList03.size(); i++)
+			std::vector<TopoDS_Face> splittedFaceList;
+
+			const std::vector<TopoDS_Face>& untrimmedFaceGroup = roofList03[i];
+			TopoDS_Solid extrudedShape = extrudeFace(footprintList_[i], false, 10000);
+
+
+			BOPAlgo_Splitter divider;
+			divider.SetFuzzyValue(settingsCollection.precision());
+			divider.SetRunParallel(Standard_False);
+			divider.AddTool(extrudedShape);
+
+			for (const TopoDS_Face& untrimmedFace : untrimmedFaceGroup)
 			{
-				std::vector<TopoDS_Face> splittedFaceList;
-
-				const std::vector<TopoDS_Face>& untrimmedFaceGroup = roofList03[i];
-				TopoDS_Solid extrudedShape = extrudeFace(footprintList_[i], false, 10000);
-
-
-				BOPAlgo_Splitter divider;
-				divider.SetFuzzyValue(settingsCollection.precision());
-				divider.SetRunParallel(Standard_False);
-				divider.AddTool(extrudedShape);
-
-				for (const TopoDS_Face& untrimmedFace : untrimmedFaceGroup)
-				{
-					divider.AddArgument(untrimmedFace);
-				}
-
-				divider.Perform();
-
-				for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-					TopoDS_Face subFace = TopoDS::Face(expl.Current());
-					std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(subFace);
-					if (optionalBasePoint == std::nullopt) { continue; }
-
-					gp_Pnt basePoint = *optionalBasePoint;
-					gp_Pnt bottomPoint = gp_Pnt(basePoint.X(), basePoint.Y(), basePoint.Z() - 100000);
-
-					// test if falls within buffersurface
-					TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
-
-					BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, footprintList_[i]);
-					if (distanceWireCalc.Value() > 1e-6) { continue; }
-
-					splittedFaceList.emplace_back(subFace);
-				}
-				roofList.emplace_back(splittedFaceList);
+				divider.AddArgument(untrimmedFace);
 			}
+
+			divider.Perform();
+
+			for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+				TopoDS_Face subFace = TopoDS::Face(expl.Current());
+				std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(subFace);
+				if (optionalBasePoint == std::nullopt) { continue; }
+
+				gp_Pnt basePoint = *optionalBasePoint;
+				gp_Pnt bottomPoint = gp_Pnt(basePoint.X(), basePoint.Y(), basePoint.Z() - 100000);
+
+				// test if falls within buffersurface
+				TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
+
+				BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, footprintList_[i]);
+				if (distanceWireCalc.Value() > 1e-6) { continue; }
+
+				splittedFaceList.emplace_back(subFace);
+			}
+			roofList.emplace_back(splittedFaceList);
 		}
 	}
 
