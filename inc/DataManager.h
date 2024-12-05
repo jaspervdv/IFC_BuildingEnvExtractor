@@ -263,7 +263,10 @@ public:
 	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);
 
 	template <typename T>
-	void voidShapeAdjust(T products);
+	void timedVoidShapeAdjust(const std::string& typeName);
+
+	template <typename T>
+	void voidShapeAdjust(T productList);
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

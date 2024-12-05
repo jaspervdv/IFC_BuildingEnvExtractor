@@ -90,7 +90,7 @@ private:
     std::unordered_set<std::string> ifcVersionList_ = { "IFC2X3", "IFC4X3", "IFC4" };
 
     // set of the ifc objects that have voids that could be closed (read only!)
-    std::unordered_set<std::string> openingObjects_ = {};// = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };
+    std::unordered_set<std::string> openingObjects_ = { "IfcWall", "IfcWallStandardCase", "IfcRoof", "IfcSlab" };
 
     // set of the ifc objects that could fit in voids of other objects (read only!)
     std::unordered_set<std::string> cuttingObjects_ = { "IfcWindow", "IfcDoor", "IfcColumn" };

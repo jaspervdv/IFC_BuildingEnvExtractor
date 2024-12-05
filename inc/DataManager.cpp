@@ -815,13 +815,14 @@ void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx)
 template<typename IfcType>
 void DataManager::timedAddObjectListToIndex(const std::string& typeName, bool addToRoomIndx)
 {
+	std::cout << "\t" + typeName + " objects ";
 	auto startTime = std::chrono::high_resolution_clock::now();
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		addObjectListToIndex<IfcType::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcType>());
 	}
 	
-	std::cout << "\t" << typeName << " objects finished in: " << 
+	std::cout << "finished in: " <<
 		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() << 
 		UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 }
@@ -835,6 +836,7 @@ void DataManager::addObjectToIndex(const IfcSchema::IfcProduct::list::ptr object
 
 void DataManager::timedAddObjectListToIndex(const std::string& typeName)
 {
+	std::cout << "\t" + typeName + " objects ";
 	IfcSchema::IfcProduct::list::ptr selectedlist = boost::make_shared<IfcSchema::IfcProduct::list>();
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
@@ -853,7 +855,7 @@ void DataManager::timedAddObjectListToIndex(const std::string& typeName)
 
 	auto startTime = std::chrono::high_resolution_clock::now();
 	addObjectListToIndex<IfcSchema::IfcProduct::list::ptr>(selectedlist);
-	std::cout << "\t" + typeName + " objects finished in : " <<
+	std::cout << "finished in: " <<
 		std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() <<
 		UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 }
@@ -1137,11 +1139,11 @@ void DataManager::updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape
 
 void DataManager::applyVoids()
 {
-	for (size_t i = 0; i < dataCollectionSize_; i++) //TODO: multithread
-	{
-		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
-		voidShapeAdjust<IfcSchema::IfcWall::list::ptr>(fileObject->instances_by_type<IfcSchema::IfcWall>());
-	}
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoApplyVoids) << std::endl;
+	timedVoidShapeAdjust<IfcSchema::IfcWall>("IfcWall");
+	timedVoidShapeAdjust<IfcSchema::IfcSlab>("IfcSlab");
+	timedVoidShapeAdjust<IfcSchema::IfcRoof>("IfcRoof");
+	std::cout << "\n";
 }
 
 
@@ -1212,10 +1214,28 @@ std::map<std::string, std::string> DataManager::getProductPropertySet(const std:
 }
 
 template <typename T>
-void DataManager::voidShapeAdjust(T products)
+void DataManager::timedVoidShapeAdjust(const std::string& typeName)
+{
+	std::cout << "\t" + typeName + " objects ";
+	auto startTime = std::chrono::high_resolution_clock::now();
+
+	for (size_t i = 0; i < dataCollectionSize_; i++) //TODO: multithread
+	{
+		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
+		voidShapeAdjust(datacollection_[i]->getFilePtr()->instances_by_type<T>());
+
+		std::cout << "finished in: " <<
+			std::chrono::duration_cast<std::chrono::seconds>(std::chrono::high_resolution_clock::now() - startTime).count() <<
+			UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
+		return;
+	}
+}
+
+template <typename T>
+void DataManager::voidShapeAdjust(T productList)
 {
 	std::unordered_set<std::string> cuttingObjects = SettingsCollection::getInstance().getCuttingObjectsList();
-	for (auto it = products->begin(); it != products->end(); ++it) {
+	for (auto it = productList->begin(); it != productList->end(); ++it) {
 		IfcSchema::IfcProduct* wallProduct = *it;
 		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, true);
 
@@ -1292,7 +1312,7 @@ void DataManager::voidShapeAdjust(T products)
 			updateShapeLookup(wallProduct, finalShape);
 		}
 
-		else if (validVoidShapes.size() > 0 && voidElementList->size() > 0) 
+		else if (validVoidShapes.size() > 0 && voidElementList->size() > 0)
 		{
 			// get a basepoint of the wall
 			std::vector<gp_Pnt> pList = helperFunctions::getPoints(untrimmedWallShape);
@@ -1349,6 +1369,7 @@ void DataManager::voidShapeAdjust(T products)
 			updateShapeLookup(wallProduct, finalShape);
 		}
 	}
+	
 }
 
 

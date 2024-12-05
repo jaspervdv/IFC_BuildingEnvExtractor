@@ -68,6 +68,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Internalizing Geometry of Construction Model";
 	case CommunicationStringID::infoCreateSpatialIndex:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Create Spatial Index";
+	case CommunicationStringID::infoApplyVoids:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "apply voids";
 	case CommunicationStringID::infoFoundUnits:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Found units:";
 	case CommunicationStringID::infoDefaultVolumeUnit:
