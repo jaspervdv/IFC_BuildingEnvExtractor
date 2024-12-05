@@ -183,7 +183,7 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 		setUseDefaultDiv(ifcDataJson);
 		setUseProxy(ifcDataJson);
 		setCustomDivList(ifcDataJson);
-		setSimpleGeo(ifcDataJson);
+		setSimpleGeoGrade(ifcDataJson);
 	}
 	catch (const std::string& errorString)
 	{
@@ -607,15 +607,22 @@ void SettingsCollection::setUseProxy(const nlohmann::json& json)
 	return;
 }
 
-void SettingsCollection::setSimpleGeo(const nlohmann::json& json)
+void SettingsCollection::setSimpleGeoGrade(const nlohmann::json& json)
 {
 	std::string simpleGeoOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
 	if (json.contains(simpleGeoOName))
 	{
 		try
 		{
-			bool simpleGeoBool = getJsonBoolValue(json[simpleGeoOName]);
-			setSimpleGeo(simpleGeoBool);
+			int simpleGeoInt = getJsonInt(json[simpleGeoOName], false, false);
+
+			if (simpleGeoInt < 0 && simpleGeoInt > 3)
+			{
+				//TODO: add error
+				return;
+			}
+
+			setSimpleGeoGrade(simpleGeoInt);
 		}
 		catch (const ErrorID& exceptionId)
 		{

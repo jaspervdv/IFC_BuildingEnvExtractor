@@ -278,8 +278,8 @@ void IOManager::printSummary()
 	else
 	{ std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << std::endl;
 	}
-	std::cout << "- simplify geometry:" << std::endl;
-	std::cout << boolToString(settingsCollection.useSimpleGeo()) << std::endl;
+	std::cout << "- Simplify geometry grade:" << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.simplefyGeoGrade() << std::endl;
 	std::cout << "- Space dividing objects:" << std::endl;
 	if (settingsCollection.useDefaultDiv())
 	{
@@ -423,7 +423,7 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
 	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
 	ifcJSON[ifcDivOName] = DivList;
-	ifcJSON[ifcSimpleOName] = settingsCollection.useSimpleGeo();
+	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeoGrade();
 	settingsJSON[ifcOName] = ifcJSON;
 
 	// store the json data

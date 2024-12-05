@@ -19,6 +19,8 @@ lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& 
 	productShape_ = productShape;
 	simpleShape_ = simpleShape;
 
+	ErrorCollection& errorCollection = ErrorCollection::getInstance();
+
 	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
 	{
 		TopoDS_Face productFace = TopoDS::Face(expl.Current());
@@ -26,7 +28,10 @@ lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& 
 		TopLoc_Location loc;
 		auto mesh = BRep_Tool::Triangulation(productFace, loc);
 
-		if (mesh.IsNull()) { continue; }
+		if (mesh.IsNull()) { 
+			errorCollection.addError(ErrorID::warningUnableToMesh, productPtr->GlobalId());
+			continue; 
+		}
 
 		for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
 		{
@@ -305,7 +310,7 @@ void DataManager::indexGeo()
 	std::cout << std::endl;
 
 	// find valid voids
-	if (!settingsCollection.useSimpleGeo())
+	if (settingsCollection.simplefyGeoGrade() == 1)
 	{
 		applyVoids();
 	}
@@ -1059,7 +1064,7 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool ad
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
-	if (SettingsCollection::getInstance().useSimpleGeo()) { adjusted = true; }
+	if (SettingsCollection::getInstance().simplefyGeoGrade() != 0) { adjusted = true; }
 
 	// get the object from memory if available
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);

@@ -332,6 +332,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "Not all shapes could be converted to solids, output might be incorrect or inaccurate";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
+	case ErrorID::warningUnableToMesh: {
+		const std::string coms = "Not all shapes could be completely meshed, some surfaces are ignored";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
 
 	case ErrorID::warningFailedObjectSimplefication: {
 		const std::string coms = "Simplefication of complex object has failed";

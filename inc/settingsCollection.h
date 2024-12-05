@@ -49,7 +49,7 @@ private:
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
 	std::vector<std::string> CustomDivList_;
-    bool useSimpleGeo_ = false;
+    int simplefyGeoGrade_ = 0;
 
     bool mergeSemantics_ = true;
 
@@ -225,9 +225,9 @@ public:
     void setUseProxy(bool value) { useProxy_ = value; }
     void setUseProxy(const nlohmann::json& json);
 
-    bool useSimpleGeo() const { return useSimpleGeo_; }
-    void setSimpleGeo(bool value) { useSimpleGeo_ = value; }
-    void setSimpleGeo(const nlohmann::json& json);
+    int simplefyGeoGrade() const { return simplefyGeoGrade_; }
+    void setSimpleGeoGrade(int value) { simplefyGeoGrade_ = value; }
+    void setSimpleGeoGrade(const nlohmann::json& json);
 
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }

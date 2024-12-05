@@ -195,7 +195,12 @@ def runCode(input_path,
         json_dictionary["IFC"]["Default div"] = False
         json_dictionary["IFC"]["Ignore proxy"] = False
         json_dictionary["IFC"]["Div objects"] = div_string.split()
-    json_dictionary["IFC"]["Simplify geometry"] = div_settings.simple_geo.get()
+
+    if div_settings.simple_geo.get():
+        print("hit")
+        json_dictionary["IFC"]["Simplify geometry"] = 2
+    else:
+        json_dictionary["IFC"]["Simplify geometry"] = 0
 
     json_dictionary["JSON"] = {}
     json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)

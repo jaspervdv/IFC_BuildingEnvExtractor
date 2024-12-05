@@ -57,6 +57,7 @@ enum class ErrorID {
 
 	warningIssueencountered,
 	warningNoSolid,
+	warningUnableToMesh,
 
 	failedLoD00, // LoD0.0 creation failed
 	failedLoD02, // LoD0.2 creation failed
