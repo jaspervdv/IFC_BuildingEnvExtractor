@@ -67,6 +67,13 @@ void DebugUtils::printPoint(const gp_Pnt2d& p) {
 	std::cout << pointToString2D(p);
 }
 
+void DebugUtils::printPoint(const std::vector<gp_Pnt>& pList) {
+	for (const auto& p : pList)
+	{
+		printPoint(p);
+	}
+}
+
 void DebugUtils::printPoint(const BoostPoint3D& p) {
 	std::cout << bg::get<0>(p) << ", " << bg::get<1>(p) << ", " << bg::get<2>(p) << "\n";
 }

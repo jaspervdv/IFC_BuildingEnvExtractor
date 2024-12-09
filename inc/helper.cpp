@@ -457,6 +457,59 @@ TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& ur
 	return solidbox;
 }
 
+TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
+{
+	std::vector<gp_Pnt> pointList = getPoints(shape);
+	gp_Vec hVector = getShapedir(pointList, true);
+	gp_Vec vVector = getShapedir(pointList, false);
+
+	// compute horizontal rotaion
+	gp_Pnt p1 = gp_Pnt(0, 0, 0);
+	gp_Pnt p2 = p1.Translated(hVector);
+
+	double angleFlat = 0;
+
+	if (abs(p1.Y() - p2.Y()) > 0.00001)
+	{
+		double os = abs(p1.Y() - p2.Y()) / p1.Distance(p2);
+		angleFlat = asin(os);
+
+		gp_Pnt tempP = helperFunctions::rotatePointPoint(p2, p1, angleFlat);
+
+		if (Abs(p1.X() - tempP.X()) > 0.01 && Abs(p1.Y() - tempP.Y()) > 0.01)
+		{
+			angleFlat = -angleFlat;
+		}
+	}
+
+	// compute vertical rotation
+	gp_Pnt p3 = gp_Pnt(0, 0, 0);
+	gp_Pnt p4 = helperFunctions::rotatePointPoint(p3.Translated(vVector), p3, angleFlat);
+
+	bool isRotated = false;
+	if (abs(p3.X() - p4.X()) < 0.01)
+	{
+		p3 = helperFunctions::rotatePointWorld(p3, M_PI / 2.0);
+		p4 = helperFunctions::rotatePointWorld(p4, M_PI / 2.0);
+		angleFlat += M_PI / 2.0;
+		isRotated = true;
+	}
+	double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
+
+	gp_Pnt lllPoint;
+	gp_Pnt urrPoint;
+	helperFunctions::bBoxDiagonal(pointList, &lllPoint, &urrPoint, 0, angleFlat, angleVert);
+
+	if (lllPoint.IsEqual(urrPoint, SettingsCollection::getInstance().precision()))
+	{
+		return TopoDS_Shape();
+	}
+
+	TopoDS_Shape boxShape = helperFunctions::createBBOXOCCT(lllPoint, urrPoint, 0.0, angleFlat, angleVert);
+	helperFunctions::triangulateShape(boxShape);
+	return boxShape;
+}
+
 void helperFunctions::applyBuffer(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer)
 {
 	urrPoint->SetX(urrPoint->X() + buffer);
@@ -668,6 +721,54 @@ double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 	double angle2 = v02.Angle(v12);
 
 	return std::max({ angle0, angle1, angle2 });
+}
+
+gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal)
+{
+	std::vector<std::pair<gp_Vec, int>> vecCountMap;
+	for (size_t i = 0; i < pointList.size(); i += 2)
+	{
+		gp_Pnt p1 = pointList[i];
+		gp_Pnt p2 = pointList[i + 1];
+
+		if (isHorizontal)
+		{
+			p1.SetZ(0);
+			p2.SetZ(0);
+		}
+
+		if (p1.Distance(p2) < 0.01) { continue; }
+		gp_Vec vec = gp_Vec(p1, p2);
+
+		if (!isHorizontal)
+		{
+			if (abs(vec.Z()) < 0.001) {
+				continue;
+			}
+		}
+
+		bool vFound = false;
+		for (auto& vecPair : vecCountMap)
+		{
+			if (vecPair.first.IsParallel(vec, 0.001))
+			{
+				vecPair.second += 1;
+				vFound = true;
+				break;
+			}
+		}
+		if (vFound) { continue; }
+		vecCountMap.emplace_back(std::pair<gp_Vec, int>(vec, 1));
+	}
+	std::pair<gp_Vec, int> RotationVecPair = *vecCountMap.begin();
+	for (auto& vecPair : vecCountMap)
+	{
+		if (RotationVecPair.second < vecPair.second)
+		{
+			RotationVecPair = vecPair;
+		}
+	}
+	return RotationVecPair.first;
 }
 
 

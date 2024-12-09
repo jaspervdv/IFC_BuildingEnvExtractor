@@ -156,9 +156,6 @@ private:
 	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
 	void computeObjectTranslation(gp_Vec* vec);
 
-	/// create orientated bbox representing a simplefied shape of the input
-	TopoDS_Shape boxSimplefy(const TopoDS_Shape& shape);
-
 	/// adds all instances of the template type to the index and reports to user
 	template <typename IfcType>
 	void timedAddObjectListToIndex(const std::string& typeName, bool addToRoomIndx = false);

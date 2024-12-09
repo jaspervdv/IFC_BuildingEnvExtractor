@@ -318,165 +318,6 @@ void DataManager::indexGeo()
 }
 
 
-TopoDS_Shape DataManager::boxSimplefy(const TopoDS_Shape& shape) //TODO: go through this and add to helper
-{
-	// find most occuring horizontal and vertical edge
-	std::vector<gp_Pnt> pointList;
-
-	TopExp_Explorer expl;
-	for (expl.Init(shape, TopAbs_VERTEX); expl.More(); expl.Next())
-	{
-		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-		gp_Pnt p = BRep_Tool::Pnt(vertex);
-		pointList.emplace_back(p);
-	}
-
-	std::vector<std::pair<gp_Vec, int>> HorizontalVertPair;
-	std::vector<std::pair<gp_Vec, int>> VerticalVertPair;
-
-	for (size_t i = 0; i < pointList.size(); i += 2)
-	{
-		gp_Pnt p1 = pointList[i];
-		gp_Pnt p2 = pointList[i + 1];
-
-		gp_Vec edgeVec = gp_Vec(p1, p2);
-
-		if (p1.Distance(p2) < 0.01)
-		{
-			continue;
-		}
-
-		p1.SetZ(0);
-		p2.SetZ(0);
-
-		if (p1.Distance(p2) != 0)
-		{
-			gp_Vec projectedVec = gp_Vec(p1, p2);
-
-
-			bool hFound = false;
-			for (auto& vecPair : HorizontalVertPair)
-			{
-				if (vecPair.first.IsParallel(projectedVec, 0.001))
-				{
-					vecPair.second += 1;
-					hFound = true;
-					break;
-				}
-			}
-
-			if (!hFound)
-			{
-				HorizontalVertPair.emplace_back(std::pair<gp_Vec, int>(projectedVec, 1));
-			}
-		}
-
-		if (abs(edgeVec.Z()) < 0.001 ) { 
-			continue; 
-		}
-
-		bool vFound = false;
-		for (auto& vecPair : VerticalVertPair)
-		{
-			if (vecPair.first.IsParallel(edgeVec, 0.001))
-			{
-				vecPair.second += 1;
-				vFound = true;
-				break;
-			}
-		}
-
-		if (!vFound)
-		{
-			VerticalVertPair.emplace_back(std::pair<gp_Vec, int>(edgeVec, 1));
-		}
-
-	}
-
-	if (!HorizontalVertPair.size() || !VerticalVertPair.size())
-	{
-		return TopoDS_Shape();
-	}
-
-	std::pair<gp_Vec, int> hRotationVec = HorizontalVertPair[0];
-	std::pair<gp_Vec, int> vRotationVec = VerticalVertPair[0];
-
-	for (auto& vecPair : HorizontalVertPair)
-	{
-		if (hRotationVec.second < vecPair.second)
-		{
-			hRotationVec = vecPair;
-		}
-	}
-
-	for (auto& vecPair : VerticalVertPair)
-	{
-		if (vRotationVec.second < vecPair.second)
-		{
-			vRotationVec = vecPair;
-		}
-	}
-
-	// compute horizontal rotaion
-	gp_Pnt p1 = gp_Pnt(0,0,0);
-	gp_Pnt p2 = p1.Translated(hRotationVec.first);
-
-	double angleFlat = 0;
-
-	if (abs(p1.Y() - p2.Y()) > 0.00001)
-	{
-		double os = abs(p1.Y() - p2.Y()) / p1.Distance(p2);
-		angleFlat = asin(os);
-
-		gp_Pnt tempP = helperFunctions::rotatePointPoint(p2, p1, angleFlat);
-
-		if (Abs(p1.X() - tempP.X()) > 0.01 && Abs(p1.Y() - tempP.Y()) > 0.01)
-		{
-			angleFlat = -angleFlat;
-		}
-	}
-
-	// compute vertical rotation
-	gp_Pnt p3 = gp_Pnt(0, 0, 0);
-	gp_Pnt p4 = helperFunctions::rotatePointPoint(p3.Translated(vRotationVec.first), p3, angleFlat);
-
-	bool isRotated = false;
-	if (abs(p3.X() - p4.X()) < 0.01)
-	{
-		p3 = helperFunctions::rotatePointWorld(p3, M_PI / 2.0);
-		p4 = helperFunctions::rotatePointWorld(p4, M_PI / 2.0);
-		angleFlat += M_PI / 2.0;
-		isRotated = true;
-	}
-
-	double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
-
-	gp_Pnt lllPoint1;
-	gp_Pnt lllPoint2;
-	gp_Pnt urrPoint1;
-	gp_Pnt urrPoint2;
-	helperFunctions::bBoxDiagonal(pointList, &lllPoint1, &urrPoint1, 0, angleFlat, angleVert);
-	helperFunctions::bBoxDiagonal(pointList, &lllPoint2, &urrPoint2, 0, angleFlat, -angleVert);
-	
-	if (lllPoint1.IsEqual(urrPoint1, SettingsCollection::getInstance().precision())) 
-	{ 
-		return TopoDS_Shape(); 
-	}
-
-	TopoDS_Shape boxShape;
-	if (lllPoint1.Distance(urrPoint1) < lllPoint2.Distance(urrPoint2))
-	{
-		boxShape = helperFunctions::createBBOXOCCT(lllPoint1, urrPoint1, 0.0, angleFlat, angleVert);
-	}
-	else
-	{
-		boxShape = helperFunctions::createBBOXOCCT(lllPoint2, urrPoint2, 0.0, angleFlat, -angleVert);
-	}
-	helperFunctions::triangulateShape(boxShape);
-	return boxShape;
-}
-
-
 void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
 {
 	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
@@ -887,7 +728,7 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 
 	if (productType == "IfcDoor" || productType == "IfcWindow")
 	{
-		simpleShape = boxSimplefy(shape);
+		simpleShape = helperFunctions::boxSimplefyShape(shape);
 		if (simpleShape.IsNull())
 		{
 			ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
@@ -1065,8 +906,11 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool ad
 	// filter with lookup
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
-	if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
-	if (SettingsCollection::getInstance().simplefyGeoGrade() != 0) { adjusted = true; }
+
+	if (SettingsCollection::getInstance().simplefyGeoGrade() == 0) { adjusted = false; }
+	else if (SettingsCollection::getInstance().simplefyGeoGrade() == 2) { adjusted = true; }
+	else if (openingObjects.find(objectType) == openingObjects.end()) { adjusted = false; }
+
 
 	// get the object from memory if available
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, adjusted);

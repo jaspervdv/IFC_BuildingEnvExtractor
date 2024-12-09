@@ -19,6 +19,7 @@ struct DebugUtils {
 
 	static void printPoint(const gp_Pnt& p);
 	static void printPoint(const gp_Pnt2d& p);
+	static void printPoint(const std::vector<gp_Pnt>& pList);
 	static void printPoint(const BoostPoint3D& p);
 	static void printPoint(const gp_Vec& p);
 	static void printPoint(const gp_Vec2d& p);

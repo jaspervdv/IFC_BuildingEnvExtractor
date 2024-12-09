@@ -105,6 +105,8 @@ struct helperFunctions{
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.05);
 	/// construct a OCCTbbox from the urr and lll points
 	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0, double horizontalAngle = 0.0, double verticalAngle = 0.0);
+	/// simplefies shape by creating a smallest bbox around it that is fully orientated
+	static TopoDS_Shape boxSimplefyShape(const TopoDS_Shape& shape);
 	/// applies the buffer values to the lll and urr point
 	static void applyBuffer(gp_Pnt* lllPoint, gp_Pnt* urrPoint, double buffer = 0.0);
 
@@ -147,6 +149,8 @@ struct helperFunctions{
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
 	/// compute the largest angle of the edges, returns 0 if not found
 	static double computeLargestAngle(const TopoDS_Face& theFace);
+	/// compute the horizontal dir based on vector count
+	static gp_Vec getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal);
 
 	/// overlapping object code
 

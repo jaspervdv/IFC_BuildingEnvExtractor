@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
+#include <sys/stat.h>
 
 #include <algorithm>
 #include <vector>
@@ -20,9 +21,7 @@ bool hasExtension(const std::string& string, const std::string& ext)
 
 bool isValidPath(const std::string& path)
 {
-	struct stat info;
-	if (stat(path.c_str(), &info) != 0) { return false; }
-	return true;
+	return boost::filesystem::exists(path);
 }
 
 bool getJsonBoolValue(const nlohmann::json& jsonBoolValue)
@@ -290,7 +289,8 @@ void SettingsCollection::setIOPaths(const nlohmann::json& json)
 		boost::filesystem::path filePath(getOutputIFCPath());
 		boost::filesystem::path parentFolder = filePath.parent_path();
 		boost::filesystem::path fileNameStem = filePath.stem();
-		setOutputReportPath(parentFolder.append(fileNameStem).string() + "_report.json");
+		std::string reportPath = (parentFolder / (fileNameStem.string() + "_report.json")).string();
+		setOutputReportPath(reportPath);
 	}
 	
 	// get ifc input path array
