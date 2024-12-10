@@ -459,16 +459,16 @@ TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& ur
 
 TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
 {
+	// get the vectors of the shape
 	std::vector<gp_Pnt> pointList = getPoints(shape);
 	gp_Vec hVector = getShapedir(pointList, true);
 	gp_Vec vVector = getShapedir(pointList, false);
 
-	// compute horizontal rotaion
+	// compute horizontal rotation
 	gp_Pnt p1 = gp_Pnt(0, 0, 0);
 	gp_Pnt p2 = p1.Translated(hVector);
 
 	double angleFlat = 0;
-
 	if (abs(p1.Y() - p2.Y()) > 0.00001)
 	{
 		double os = abs(p1.Y() - p2.Y()) / p1.Distance(p2);
@@ -476,7 +476,8 @@ TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
 
 		gp_Pnt tempP = helperFunctions::rotatePointPoint(p2, p1, angleFlat);
 
-		if (Abs(p1.X() - tempP.X()) > 0.01 && Abs(p1.Y() - tempP.Y()) > 0.01)
+		if (Abs(p1.X() - tempP.X()) > 0.01 && 
+			Abs(p1.Y() - tempP.Y()) > 0.01)
 		{
 			angleFlat = -angleFlat;
 		}
@@ -486,24 +487,18 @@ TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
 	gp_Pnt p3 = gp_Pnt(0, 0, 0);
 	gp_Pnt p4 = helperFunctions::rotatePointPoint(p3.Translated(vVector), p3, angleFlat);
 
-	bool isRotated = false;
 	if (abs(p3.X() - p4.X()) < 0.01)
 	{
 		p3 = helperFunctions::rotatePointWorld(p3, M_PI / 2.0);
 		p4 = helperFunctions::rotatePointWorld(p4, M_PI / 2.0);
 		angleFlat += M_PI / 2.0;
-		isRotated = true;
 	}
 	double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
 
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 	helperFunctions::bBoxDiagonal(pointList, &lllPoint, &urrPoint, 0, angleFlat, angleVert);
-
-	if (lllPoint.IsEqual(urrPoint, SettingsCollection::getInstance().precision()))
-	{
-		return TopoDS_Shape();
-	}
+	if (lllPoint.IsEqual(urrPoint, SettingsCollection::getInstance().precision())) { return TopoDS_Shape(); }
 
 	TopoDS_Shape boxShape = helperFunctions::createBBOXOCCT(lllPoint, urrPoint, 0.0, angleFlat, angleVert);
 	helperFunctions::triangulateShape(boxShape);

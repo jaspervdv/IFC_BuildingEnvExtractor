@@ -213,12 +213,12 @@ public:
 	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf);
 	/// gets the generic building information
 	std::map<std::string, std::string> getBuildingInformation();
-	/// gets the building name
-	std::string getBuildingName();
-	/// gets the long building name
-	std::string getBuildingLongName();
-	/// gets the project name
-	std::string getProjectName();
+	/// gets the object list name or long name
+	template <typename T>
+	std::string getObjectName(const std::string& objectTypeName, bool isLong);
+	/// gets the object name or long name
+	template <typename T>
+	std::string getObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
 
 	// returns a pointer to the sourcefile
 	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }

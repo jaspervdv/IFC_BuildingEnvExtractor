@@ -13,6 +13,12 @@
 #include <shared_mutex> 
 #include <mutex> 
 
+template std::string DataManager::getObjectName<IfcSchema::IfcBuilding>(const std::string& objectTypeName, bool isLong);
+template std::string DataManager::getObjectName<IfcSchema::IfcSite>(const std::string& objectTypeName, bool isLong);
+
+template std::string DataManager::getObjectName<IfcSchema::IfcBuilding>(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
+template std::string DataManager::getObjectName<IfcSchema::IfcSite>(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
+
 lookupValue::lookupValue(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape, const TopoDS_Shape& simpleShape)
 {
 	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
@@ -547,73 +553,61 @@ std::map<std::string, std::string> DataManager::getBuildingInformation() //TODO:
 	return dictionary;
 }
 
-
-std::string DataManager::getBuildingName()
+template <typename T>
+std::string DataManager::getObjectName(const std::string& objectTypeName, bool isLong)
 {
-	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
-
-	IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
-	
-	if (buildingList->size() > 1)
+	std::vector<std::string> stringList;
+	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleBuildingObjects); //TODO: add file path to error
+		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
+		std::string nameString = getObjectName<T>(objectTypeName, fileObject, isLong);
+		if (nameString == "") { continue; }
+		stringList.emplace_back(nameString);
 	}
-	
-	for (IfcSchema::IfcBuilding* building : *buildingList)
+
+	if (stringList.size() == 0) { return ""; }
+
+	std::string baseString = stringList[0];
+	for (size_t i = 1; i < dataCollectionSize_; i++)
 	{
-		if (building->Name().has_value())
+		if (baseString != stringList[i])
 		{
-			return building->Name().get();
+			ErrorCollection::getInstance().addError(ErrorID::warningIfcObjectDifferentName, objectTypeName);
+			break;
 		}
 	}
-	ErrorCollection::getInstance().addError(ErrorID::warningIfcNobuildingName);
-
-	return "";
+	return baseString;
 }
 
-
-std::string DataManager::getBuildingLongName() //TODO: implement
+template <typename T>
+std::string DataManager::getObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong)
 {
-	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
+	T::list::ptr objectList = filePtr->instances_by_type<T>();
 
-	IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
-
-	if (buildingList->size() > 1)
+	if (objectList->size() > 1)
 	{
-		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleBuildingObjects);
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleUniqueObjects, objectTypeName);
+		return "";
 	}
 
-	for (IfcSchema::IfcBuilding* building : *buildingList)
+	for (T* object : *objectList)
 	{
-		if (building->LongName().has_value())
+		if (isLong)
 		{
-			return building->LongName().get();
+			if (object->LongName().has_value())
+			{
+				return object->LongName().get();
+			}
+		}
+		else
+		{
+			if (object->Name().has_value())
+			{
+				return object->Name().get();
+			}
 		}
 	}
-	ErrorCollection::getInstance().addError(ErrorID::warningIfcNobuildingNameLong);
-
-	return "";
-}
-
-
-std::string DataManager::getProjectName()
-{
-	IfcParse::IfcFile* fileObejct = datacollection_[0]->getFilePtr();
-	IfcSchema::IfcProject::list::ptr projectList = fileObejct->instances_by_type<IfcSchema::IfcProject>();
-
-	if (projectList->size() > 1)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::WarningIfcMultipleProjects);
-	}
-
-	for (IfcSchema::IfcProject* project : *projectList)
-	{
-		if (project->Name().has_value())
-		{
-			return project->Name().get();
-		}
-	}
-	ErrorCollection::getInstance().addError(ErrorID::WarningIfcNoProjectsName);
+	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoObjectName, objectTypeName);
 	return "";
 }
 

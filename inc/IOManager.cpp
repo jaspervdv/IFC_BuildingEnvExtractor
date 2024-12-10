@@ -526,8 +526,8 @@ bool IOManager::run()
 	CJT::CityObject cityShellObject;
 	CJT::CityObject cityInnerShellObject;
 
-	std::string BuildingName = internalDataManager_.get()->getBuildingName();
-	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getProjectName(); }
+	std::string BuildingName = internalDataManager_.get()->getObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
+	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getObjectName<IfcSchema::IfcSite>("IfcSite", false); }
 
 	cityBuildingObject.setName(BuildingName);
 	cityBuildingObject.setType(CJT::Building_Type::Building);

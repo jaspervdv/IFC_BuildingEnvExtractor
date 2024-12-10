@@ -305,26 +305,23 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "No room objects present in model, generic semantic data is created";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
-	case ErrorID::warningIfcMultipleBuildingObjects: {
-		const std::string coms = "Multiple building objects in file";
+	case ErrorID::warningIfcMultipleUniqueObjects: {
+		const std::string coms = "Multiple assumed unique objects in file";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
-	case ErrorID::warningIfcNobuildingName: {
-		const std::string coms = "Building name could not be found in file";
+	case ErrorID::warningIfcNoObjectName: {
+		const std::string coms = "Object name could not be found in file";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
-	case ErrorID::warningIfcNobuildingNameLong: {
-		const std::string coms = "Long building name could not be found in file";
+	case ErrorID::warningIfcNoObjectNameLong: {
+		const std::string coms = "Long Object name could not be found in file";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }	
-	case ErrorID::WarningIfcMultipleProjects : {
-		const std::string coms = "Multiple project objects in file";
+	case ErrorID::warningIfcObjectDifferentName: {
+		const std::string coms = "Objects have different names in different files, name of first object is taken";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
-	case ErrorID::WarningIfcNoProjectsName: {
-		const std::string coms = "Project name could not be found in file";
-		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
-		return coms; }
+
 
 	case ErrorID::warningIssueencountered: {
 		const std::string coms = "Encountered an issue";
