@@ -354,7 +354,8 @@ void DataManager::timedAddObjectListToIndex(const std::string& typeName, bool ad
 	auto startTime = std::chrono::high_resolution_clock::now();
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		addObjectListToIndex<IfcType::list::ptr>(datacollection_[i]->getFilePtr()->instances_by_type<IfcType>(), addToRoomIndx);
+		typename IfcType::list::ptr objectList = datacollection_[i]->getFilePtr()->instances_by_type<IfcType>();
+		addObjectListToIndex<typename IfcType::list::ptr>(objectList, addToRoomIndx);
 	}
 
 	std::cout << "finished in: " <<
@@ -1107,7 +1108,7 @@ std::string DataManager::getIfcObjectName(const std::string& objectTypeName, boo
 template <typename T>
 std::string DataManager::getIfcObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong)
 {
-	T::list::ptr objectList = filePtr->instances_by_type<T>();
+	typename T::list::ptr objectList = filePtr->instances_by_type<T>();
 
 	if (objectList->size() > 1)
 	{
