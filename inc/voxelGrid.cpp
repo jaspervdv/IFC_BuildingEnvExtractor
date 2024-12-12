@@ -33,7 +33,7 @@ bool VoxelGrid::addVoxel(int indx, DataManager* h, bool checkIfInt)
 		h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
 		for (size_t k = 0; k < qResult.size(); k++)
 		{
-			std::shared_ptr<lookupValue> lookup = h->getLookup(qResult[k].second);
+			std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(qResult[k].second);
 			std::string productType = lookup->getProductPtr()->data().type()->name();
 
 			//if (productTypesList.find(productType) != productTypesList.end()) { continue; }

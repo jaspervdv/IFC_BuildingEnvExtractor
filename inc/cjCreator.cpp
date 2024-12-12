@@ -995,7 +995,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& p
 
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
-		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
 		TopoDS_Shape currentShape;
 
 		std::vector<TopoDS_Edge> edgeList;
@@ -1266,7 +1266,7 @@ void CJGeoCreator::makeFloorSectionCollection(DataManager* h)
 			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcElevation), std::to_string(storeyObject->Elevation().get() * h->getScaler(0)));
 			semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::ifcGuid), storeyObject->GlobalId());
 
-			std::map<std::string, std::string> storeyAttributeCollection = h->getProductPropertySet(storeyObject->GlobalId(), 0);
+			std::map<std::string, std::string> storeyAttributeCollection = h->getProductPsetData(storeyObject->GlobalId(), 0);
 
 			for (const auto& pair : storeyAttributeCollection) {
 				semanticStoreyData.emplace(sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + pair.first, pair.second);
@@ -2012,7 +2012,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 					}
 					if (dub) { continue; }
 
-					std::shared_ptr<lookupValue> lookup = h->getLookup(internalValue.second);
+					std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(internalValue.second);
 					TopoDS_Shape currentShape;
 
 					if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
@@ -3102,7 +3102,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	std::vector<TopoDS_Face> outerSurfaceList;
 	for (size_t i = 0; i < productLookupValues.size(); i++) //TODO: multithread?
 	{
-		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues[i].second);
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
 		TopoDS_Shape currentShape;
 		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
@@ -3147,7 +3147,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 						// get the potential faces
 						TopoDS_Shape otherShape;
 
-						std::shared_ptr<lookupValue> otherLookup = h->getLookup(productValue.second);
+						std::shared_ptr<IfcProductSpatialData> otherLookup = h->getLookup(productValue.second);
 						std::string otherLookupType = otherLookup->getProductPtr()->data().type()->name();
 
 						if (otherLookupType == "IfcDoor" || otherLookupType == "IfcWindow")
@@ -3999,7 +3999,7 @@ std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(D
 		// find the room that point is located in
 
 		bool encapsulating = true;
-		std::shared_ptr<lookupValue> lookup = h->getSpaceLookup(qResult[k].second);
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getSpaceLookup(qResult[k].second);
 		IfcSchema::IfcProduct* product = lookup->getProductPtr();
 
 		TopoDS_Shape productShape = h->getObjectShape(product, true);
@@ -4063,7 +4063,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 	for (size_t i = 0; i < productLookupValues->size(); i++)
 	{
 		bool isExposed = true;
-		std::shared_ptr<lookupValue> lookup = h->getLookup(productLookupValues->at(i).second);
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues->at(i).second);
 		TopoDS_Shape currentShape;
 
 		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
@@ -4079,7 +4079,7 @@ void CJGeoCreator::filterEncapsulatedObjects(std::vector<Value>* productLookupVa
 		{
 			bool encapsulating = true;
 
-			std::shared_ptr<lookupValue> otherLookup = h->getLookup(qResult[k].second);
+			std::shared_ptr<IfcProductSpatialData> otherLookup = h->getLookup(qResult[k].second);
 
 			TopoDS_Shape otherShape;
 			if (otherLookup->hasSimpleShape()) { otherShape = otherLookup->getSimpleShape(); }

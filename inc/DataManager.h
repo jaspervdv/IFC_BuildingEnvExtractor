@@ -26,17 +26,20 @@
 #ifndef DATAMANAGER_DATAMANAGER_H
 #define DATAMANAGER_DATAMANAGER_H
 
+// container for mesh triangles
 class MeshTriangle
 {
 private:
+	/// the three points of the triangle (do not store any other larger vector)
 	std::vector<gp_Pnt> points_ = {};
 public:
 	MeshTriangle(const std::vector<gp_Pnt> points) { points_ = points; }
+	/// return the three points of the triangle
 	std::vector<gp_Pnt> getPoints() { return points_; }
 };
 
 // lookup for the major spatial index used in the code (indexing all the objects in the ifc file)
-class lookupValue
+class IfcProductSpatialData
 {
 private:
 	// unique pointer to the product and its data
@@ -55,24 +58,26 @@ private:
 	bool isDetailed_ = false;
 
 public:
-	lookupValue(
+	IfcProductSpatialData(
 		IfcSchema::IfcProduct* productPtr,
 		const TopoDS_Shape& productShape,
 		const TopoDS_Shape& simpleShape);
 
-	~lookupValue() {
+	~IfcProductSpatialData() {
 	}
-
+	/// returns the pointer of the product 
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
-
+	/// returns the shape of the product
 	const TopoDS_Shape& getProductShape() { return productShape_; }
-
+	/// replaces or sets the stored simple shape of the product
 	void setSimpleShape(const TopoDS_Shape& newShape) { simpleShape_ = newShape; }
+	/// returns the simplefied shape of the product
 	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
-
+	/// returns the index for the triangulated shape
 	bgi::rtree<Value, bgi::rstar<25>>* getIndxPointer() { return &triangleIndex_; }
+	/// returns the triangulated shape vector that coorperates with the index
 	const std::vector<MeshTriangle>& getProductTriangleList() { return productTrianglePoints_; }
-
+	/// check if the object has a simplefied shape
 	bool hasSimpleShape() { return !simpleShape_.IsNull(); }
 };
 
@@ -82,10 +87,11 @@ private:
 	IfcParse::IfcFile* file_; //TODO: find out why memory needs to be leaked
 	std::unique_ptr<IfcGeom::Kernel> kernel_;
 
-	bool good_ = false;
-
 	// The unit multipliers found
 	double length_ = 0;
+
+	double getSiPrefixValue(const IfcSchema::IfcSIUnit& unitItem);
+	double getSiScaleValue(const IfcSchema::IfcSIUnit& unitItem);
 
 public:
 	fileKernelCollection(const std::string& file);
@@ -93,22 +99,17 @@ public:
 	~fileKernelCollection() {
 	}
 
-	double getSiPrefixValue(const IfcSchema::IfcSIUnit& unitItem);
-	double getSiScaleValue(const IfcSchema::IfcSIUnit& unitItem);
-
 	/// returns the pointer to the file object
 	IfcParse::IfcFile* getFilePtr()  { return file_; }
-
 	/// returns the pointer to the kernel object
 	IfcGeom::Kernel* getKernelPtr() { return kernel_.get(); }
+	/// returns the length multiplier
+	double getLengthMultiplier() const { return length_; }
+	/// returns if the file object is good (functioning)
+	bool isGood() { return file_->good(); }
 
 	/// internalizes the units that are stored in the file
 	void setUnits();
-
-	// returns the length multiplier
-	double getLengthMultiplier() const { return length_; }
-
-	bool isGood() { return good_; }
 };
 
 /// <summary>
@@ -117,7 +118,6 @@ public:
 class DataManager
 {
 private:
-	bool hasGeo_ = false;
 	bool isPopulated_ = false;
 
 	gp_Pnt lllPoint_;
@@ -133,60 +133,77 @@ private:
 	
 	std::shared_mutex indexMutex_;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> index_;
-	std::vector<std::shared_ptr<lookupValue>> productLookup_;
+	std::vector<std::shared_ptr<IfcProductSpatialData>> productLookup_;
 
 	std::mutex spaceIndexMutex_;
 	bgi::rtree<Value, bgi::rstar<treeDepth>> spaceIndex_;
-	std::vector<std::shared_ptr<lookupValue>> SpaceLookup_;
+	std::vector<std::shared_ptr<IfcProductSpatialData>> SpaceLookup_;
 
 	std::mutex convertMutex_;
 
-	bool hasIndex_ = false;
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
-
 	/// count the elements in the file and set the related bools
 	void elementCountSummary();
-
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
-
 	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
 	void computeObjectTranslation(gp_Vec* vec);
 
 	/// adds all instances of the template type to the index and reports to user
 	template <typename IfcType>
 	void timedAddObjectListToIndex(const std::string& typeName, bool addToRoomIndx = false);
-
 	/// adds all instances of the string type to the index and reports to user
 	void timedAddObjectListToIndex(const std::string& typeName);
-
 	/// splits the object list over the available threads and adds all instances of an objectype to the spatial index
 	template <typename T>
 	void addObjectListToIndex(const T& objectList, bool addToRoomIndx = false);
-
 	/// adds all instances of an objecttype to the spatial index
 	void addObjectToIndex(IfcSchema::IfcProduct::list::ptr productList, bool addToRoomIndx = false);
-
 	/// adds the product to the spatial index
 	void addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoomIndx = false);
-
+	
+	/// get the kernel which contains the product with the supplied product guid
+	IfcGeom::Kernel* getKernelObject(const std::string& productGuid);
 	/// gets shapes from memory without checking for correct adjusted boolean
 	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
+	/// search the object shape from memory only
+	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);
 
 	/// get the product representation from the object from the kernel
 	IfcSchema::IfcRepresentation* getProductRepPtr(IfcSchema::IfcProduct* product);
+	/// get object shapes from the objects that are grouped in the current product
+	TopoDS_Shape getNestedObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);
+	/// get flat pointlist of the input product list
+	template<typename T>
+	std::vector<gp_Pnt> getObjectListPoints(const T& productList, bool simple = false);
+	/// get flat pointlist of the input product 
+	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
+	/// replace the simple shape of a spatial data object in memory
+	void updateShapeMemory(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
+	
+	/// apply voids to opening objects
+	void applyVoids();
+	/// applies the voids to all of the template type to the index and reports to user
+	template <typename T>
+	void timedVoidShapeAdjust(const std::string& typeName);
+	/// applies the voids to all of the template type to the index
+	template <typename T>
+	void voidShapeAdjust(T productList);
+	/// returns the voids that have no objects placed inside of it
+	std::vector<TopoDS_Shape> computeEmptyVoids(IfcSchema::IfcRelVoidsElement::list::ptr voidElementList);
+	/// returns a shape which is the voidobjectlist voids applied to the untrimmed input shape
+	TopoDS_Shape applyVoidtoShape(const TopoDS_Shape& untrimmedShape, std::vector<TopoDS_Shape>& voidObjectList);
 
 	// update the lll and urr point
 	void updateBoudingData(const bg::model::box <BoostPoint3D>& box);
 
-	/// get object shapes from the objects that are grouped in the current product
-	TopoDS_Shape getNestedObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false);
+	/// search for related propertysets by matching the Guid
+	IfcSchema::IfcPropertySet* getRelatedPset(const std::string& objectGuid, int fileInt);
 
-	/// get the kernel which contains the product with the supplied product guid
-	IfcGeom::Kernel* getKernelObject(const std::string& productGuid);
+	bool validateProjectionData(const std::map<std::string, std::string>& psetMap);
 
 public:
 	/*
@@ -197,15 +214,33 @@ public:
 	explicit DataManager() {};
 	explicit DataManager(const std::vector<std::string>& path);
 
-	// returns true if helper is well populated
+	/// returns true if helper is well populated
 	bool isPopulated() { return isPopulated_; }
-
-	// returns true when length, area and volume multiplier of the internal geo ifc kernels are not 0
+	/// returns true when length, area and volume multiplier of the internal geo ifc kernels are not 0
 	bool hasSetUnits();
+	/// returns a pointer to the sourcefile
+	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
+	/// get the total amount of items in the datacollection
+	int getSourceFileCount() { return dataCollectionSize_; }
+	/// get the length multiplier of a sourcefile
+	double getScaler(int i) const { return datacollection_[i].get()->getLengthMultiplier(); }
+	/// get the lll point of the ifc bbox
+	const gp_Pnt& getLllPoint() { return lllPoint_; }
+	/// get the urr point of the ifc bbox
+	const gp_Pnt& getUrrPoint() { return urrPoint_; }
+	/// get the translation of the ifc model
+	const gp_Trsf& getObjectTranslation() { return objectTranslation_; }
+	/// get the pointer to the space dividing objects index
+	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
+	/// get the pointer to the space objects index
+	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &spaceIndex_; }
+	/// get the spatial/product data related to the space dividing objects index
+	std::shared_ptr<IfcProductSpatialData> getLookup(int i) { return productLookup_.at(i); }
+	/// get the spatial/product data  related to the space objects index
+	std::shared_ptr<IfcProductSpatialData> getSpaceLookup(int i) { return SpaceLookup_.at(i); }
 
 	// internalises the geometry while approximating a smallest bbox around the geometry
 	void internalizeGeo();
-
 	// makes a spatial index for the geometry
 	void indexGeo();
 
@@ -215,55 +250,19 @@ public:
 	std::map<std::string, std::string> getBuildingInformation();
 	/// gets the object list name or long name
 	template <typename T>
-	std::string getObjectName(const std::string& objectTypeName, bool isLong);
+	std::string getIfcObjectName(const std::string& objectTypeName, bool isLong);
 	/// gets the object name or long name
 	template <typename T>
-	std::string getObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
+	std::string getIfcObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
+	/// returns a map with all the single value properties linked by the pset
+	std::map<std::string, std::string> getPsetData(IfcSchema::IfcPropertySet* propertyset);
+	/// returns a map with all the single value properties related to the product
+	std::map<std::string, std::string> getProductPsetData(const std::string& productGui, int fileNum);
+	/// returns a string pair based on a proprtysinglevalue
+	std::pair<std::string, std::string> getSinglePsetValue(IfcSchema::IfcPropertySingleValue* propertyValue);
 
-	// returns a pointer to the sourcefile
-	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
-	int getSourceFileCount() { return dataCollectionSize_; }
-
-	// returns a pointer to the kernel
-	IfcGeom::Kernel* getKernel(int i) const { return datacollection_[i].get()->getKernelPtr(); }
-
-	double getScaler(int i) const { return datacollection_[i].get()->getLengthMultiplier(); }
-
-	bool getHasGeo() { return hasGeo_; }
-
-	const gp_Pnt& getLllPoint() { return lllPoint_; }
-
-	const gp_Pnt& getUrrPoint() { return urrPoint_; }
-
-	const gp_Trsf& getObjectTranslation() { return objectTranslation_; }
-
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
-
-	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &spaceIndex_; }
-
-	bool hasIndex() { return hasIndex_; }
-
-	std::shared_ptr<lookupValue> getLookup(int i) { return productLookup_.at(i); }
-
-	std::shared_ptr<lookupValue> getSpaceLookup(int i) { return SpaceLookup_.at(i); }
-
-	template<typename T>
-	std::vector<gp_Pnt> getObjectListPoints(const T& productList, bool simple = false);
-
-	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
-
-	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool adjusted);
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool adjusted = false);
-	void updateShapeLookup(IfcSchema::IfcProduct* product, TopoDS_Shape shape);
-	void applyVoids();
-
-	std::map<std::string, std::string> getProductPropertySet(const std::string& productGui, int fileNum);
-
-	template <typename T>
-	void timedVoidShapeAdjust(const std::string& typeName);
-
-	template <typename T>
-	void voidShapeAdjust(T productList);
+	/// get the shape of an ifcproduct
+	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

@@ -321,6 +321,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "Objects have different names in different files, name of first object is taken";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
+	case ErrorID::warningIfcMissingGeoreference: {
+		const std::string coms = "Data required to georeferencing is missing";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
 
 
 	case ErrorID::warningIssueencountered: {
@@ -338,6 +342,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 
 	case ErrorID::warningFailedObjectSimplefication: {
 		const std::string coms = "Simplefication of complex object has failed";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	case ErrorID::warningFailedObjectConversion: {
+		const std::string coms = "Unable to convet object shape";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 

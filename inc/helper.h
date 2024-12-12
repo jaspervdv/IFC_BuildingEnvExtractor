@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -105,6 +105,7 @@ struct helperFunctions{
 	static bg::model::box <BoostPoint3D> createBBox(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.05);
 	/// construct a OCCTbbox from the urr and lll points
 	static TopoDS_Shape createBBOXOCCT(const gp_Pnt& p1, const gp_Pnt& p2, double buffer = 0.0, double horizontalAngle = 0.0, double verticalAngle = 0.0);
+	/// construct a Boostbbox from the urr and lll points (can not be rotated)
 	/// simplefies shape by creating a smallest bbox around it that is fully orientated
 	static TopoDS_Shape boxSimplefyShape(const TopoDS_Shape& shape);
 	/// applies the buffer values to the lll and urr point

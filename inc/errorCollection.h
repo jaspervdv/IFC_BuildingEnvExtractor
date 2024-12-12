@@ -36,6 +36,7 @@ enum class ErrorID {
 	errorStoreyFailed,
 	errorLoD02StoreyFailed,
 	warningFailedObjectSimplefication,
+	warningFailedObjectConversion,
 	errorFailedInit,
 
 	warningIfcUnableToParse,
@@ -53,6 +54,7 @@ enum class ErrorID {
 	warningIfcNoObjectName,
 	warningIfcNoObjectNameLong,
 	warningIfcObjectDifferentName,
+	warningIfcMissingGeoreference,
 
 	warningIssueencountered,
 	warningNoSolid,

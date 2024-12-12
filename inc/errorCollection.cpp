@@ -74,7 +74,8 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::errorStoreyFailed, ErrorObject("P0003", errorWarningStringEnum::getString(ErrorID::errorStoreyFailed, false))},
 		{ErrorID::errorLoD02StoreyFailed, ErrorObject("P0004", errorWarningStringEnum::getString(ErrorID::errorLoD02StoreyFailed, false))},
 		{ErrorID::warningFailedObjectSimplefication, ErrorObject("P0005", errorWarningStringEnum::getString(ErrorID::warningFailedObjectSimplefication, false))},
-		{ErrorID::errorFailedInit, ErrorObject("P0006", errorWarningStringEnum::getString(ErrorID::errorFailedInit, false))},
+		{ErrorID::warningFailedObjectConversion, ErrorObject("P0006", errorWarningStringEnum::getString(ErrorID::warningFailedObjectConversion, false))},
+		{ErrorID::errorFailedInit, ErrorObject("P1000", errorWarningStringEnum::getString(ErrorID::errorFailedInit, false))},
 
 		{ErrorID::warningIfcUnableToParse, ErrorObject("I0001", errorWarningStringEnum::getString(ErrorID::warningIfcUnableToParse, false))},
 		{ErrorID::warningIfcNotValid, ErrorObject("I0002", errorWarningStringEnum::getString(ErrorID::warningIfcNotValid, false))},
@@ -91,6 +92,7 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::warningIfcNoObjectName, ErrorObject("I0013", errorWarningStringEnum::getString(ErrorID::warningIfcNoObjectName, false))},
 		{ErrorID::warningIfcNoObjectNameLong, ErrorObject("I0014", errorWarningStringEnum::getString(ErrorID::warningIfcNoObjectNameLong, false))},
 		{ErrorID::warningIfcObjectDifferentName, ErrorObject("I0015", errorWarningStringEnum::getString(ErrorID::warningIfcObjectDifferentName, false))},
+		{ErrorID::warningIfcMissingGeoreference, ErrorObject("I0016", errorWarningStringEnum::getString(ErrorID::warningIfcMissingGeoreference, false))},
 
 		{ErrorID::warningIssueencountered, ErrorObject("I0017", errorWarningStringEnum::getString(ErrorID::warningIssueencountered, false))},
 		{ErrorID::warningNoSolid, ErrorObject("I0018", errorWarningStringEnum::getString(ErrorID::warningNoSolid, false))},
