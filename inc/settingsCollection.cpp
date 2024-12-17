@@ -414,6 +414,12 @@ void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 
 void SettingsCollection::setMakeFootPrint(const nlohmann::json& json)
 {
+	if (!make02())
+	{
+		setMakeFootPrint(false);
+		return;
+	}
+
 	// check for footprint height
 	const std::string& footprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
 	if (json.contains(footprintOName))
@@ -422,6 +428,7 @@ void SettingsCollection::setMakeFootPrint(const nlohmann::json& json)
 		{
 			bool makeFootprint = getJsonBoolValue(json[footprintOName]);
 			setMakeFootPrint(makeFootprint);
+
 		}
 		catch (const ErrorID& exceptionId)
 		{

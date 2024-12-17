@@ -455,6 +455,25 @@ nlohmann::json IOManager::settingsToJSON()
 	return settingsJSON;
 }
 
+void IOManager::internalizeGeo()
+{
+	// Time Collection Starts
+	auto internalizingTime = std::chrono::high_resolution_clock::now();
+
+	// internalize the helper data
+	try
+	{
+		internalDataManager_->internalizeGeo();
+		internalDataManager_->indexGeo();
+	}
+	catch (const std::string& exceptionString)
+	{
+		throw exceptionString;
+	}
+	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
+	return;
+}
+
 
 bool IOManager::init(const std::vector<std::string>& inputPathList)
 {
@@ -488,31 +507,30 @@ bool IOManager::init(const std::vector<std::string>& inputPathList)
 
 bool IOManager::run()
 {
-	// Time Collection Starts
-	auto internalizingTime = std::chrono::high_resolution_clock::now();
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	
-	int succesfullExit = 1;
-
 	// internalize the helper data
 	try
 	{
-		internalDataManager_->internalizeGeo();
+		internalizeGeo();
 	}
 	catch (const std::string& exceptionString)
 	{
 		throw exceptionString;
 	}
-
-	internalDataManager_->indexGeo();
-	timeInternalizing_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - internalizingTime).count();
 	
+	//TODO: find a way to sort this more clearly
+	int succesfullExit = 1;
 	// create the cjt objects
 	std::shared_ptr<CJT::CityCollection> collection = std::make_shared<CJT::CityCollection>();
+	CJT::CityObject cityBuildingObject;
+	CJT::CityObject cityShellObject;
+	CJT::CityObject cityInnerShellObject;
+
 	gp_Trsf geoRefRotation;
 	CJT::ObjectTransformation transformation(0.001);
 	CJT::metaDataObject metaData;
 	metaData.setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	if (settingsCollection.geoReference())
 	{
 		internalDataManager_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
@@ -522,10 +540,6 @@ bool IOManager::run()
 	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
 
 	// Set up objects and their relationships
-	CJT::CityObject cityBuildingObject;
-	CJT::CityObject cityShellObject;
-	CJT::CityObject cityInnerShellObject;
-
 	std::string BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
 	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcSite>("IfcSite", false); }
 
@@ -551,17 +565,14 @@ bool IOManager::run()
 	CJGeoCreator geoCreator(internalDataManager_.get(), settingsCollection.voxelSize());
 	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
-	if (settingsCollection.makeOutlines())
+	try
 	{
-		try
-		{
-			geoCreator.initializeBasic(internalDataManager_.get());
-		}
-		catch (const std::exception&)
-		{
-			ErrorCollection::getInstance().addError(ErrorID::errorFailedInit);
-			return false;
-		}
+		geoCreator.initializeBasic(internalDataManager_.get());
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::errorFailedInit);
+		return false;
 	}
 
 	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || settingsCollection.footPrintBased())
@@ -579,7 +590,7 @@ bool IOManager::run()
 
 	if (settingsCollection.makeRoofPrint())
 	{
-		geoCreator.useroofprint0();
+		geoCreator.useRoofPrint();
 	}
 
 	geoCreator.setRefRotation(geoRefRotation);
@@ -808,7 +819,6 @@ bool IOManager::run()
 	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
 	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalDataManager_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
 
-	//TODO: get storey data
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = internalDataManager_.get()->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
 
 	double groundHeight = settingsCollection.footprintElevation();

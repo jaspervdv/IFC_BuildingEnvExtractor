@@ -8,16 +8,17 @@
 class VoxelGrid {
 private:
 	// world space data
-	gp_Pnt anchor_;
+	gp_Pnt anchor_ = gp_Pnt(0,0,0);
 	double planeRotation_ = 0;
 
 	// relative space data related to the voxel grid
-	int xRelRange_;
-	int yRelRange_;
-	int zRelRange_;
+	int xRelRange_ = 0;
+	int yRelRange_ = 0;
+	int zRelRange_ = 0;
 
-	int totalVoxels_;
-	std::mutex voxelGrowthMutex;
+	int totalVoxels_ = 0;;
+	std::mutex voxelGrowthMutex_;
+	int activeThreads_ = 0;
 
 	std::map<int, std::shared_ptr<voxel>> VoxelLookup_;
 	std::mutex voxelLookupMutex;
@@ -29,13 +30,21 @@ private:
 
 	bool hasSemanticSurfaces_ = false;
 
+	void init(DataManager* h);
+
 	/// create the voxelgrid and find intersections of voxels
-	void populatedVoxelGrid(DataManager* h);
+	void populateVoxelGrid(DataManager* h);
 
 	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	bool addVoxel(int indx, DataManager* h, bool checkIfInt = true); /// returns true if intersects
+	bool addVoxel(int indx, DataManager* h); /// returns true if intersects
 	void addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount = nullptr);
 	void countVoxels(const int* voxelGrowthCount);
+
+	std::vector<int> computeColumnScore(DataManager* h);
+
+	void addActiveThread();
+	void removeActiveThread();
+
 
 	// transform coordinates
 	template<typename T>
@@ -46,7 +55,7 @@ private:
 	BoostPoint3D worldToRelPoint(BoostPoint3D p);
 
 	/// grow the exterior voxelized shape
-	void growExterior(int startIndx, int roomnum, DataManager* h);
+	void growVoid(int startIndx, int roomnum, DataManager* h);
 
 	/// mark the voxels to which building they are part off
 	void markVoxelBuilding(int startIndx, int buildnum);
@@ -64,6 +73,11 @@ private:
 
 	/// inverts the dirInx for neighbourSearching
 	static int invertDir(int dirIndx);
+
+	void growExterior(DataManager* h);
+	void growInterior(DataManager* h);
+
+	void pairVoxels();
 
 public:
 	VoxelGrid(DataManager* h);

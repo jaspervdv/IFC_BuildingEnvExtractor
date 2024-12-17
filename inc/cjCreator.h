@@ -69,7 +69,7 @@ private:
 	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
 	// create a group of voxels representing a rough room
-	std::vector<int> growExterior(int startIndx, int roomnum, DataManager* h);
+	std::vector<int> growVoid(int startIndx, int roomnum, DataManager* h);
 
 	void markVoxelBuilding(int startIndx, int roomnum);
 
@@ -199,7 +199,7 @@ public:
 	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
 
 	/// store the roofoutline data to LoD 02
-	void useroofprint0() { useRoofprints_ = true; }
+	void useRoofPrint() { useRoofprints_ = true; }
 
 	/// generates the empty storey objects for the ifc storeys in a file
 	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(DataManager* h);

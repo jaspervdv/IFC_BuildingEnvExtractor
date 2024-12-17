@@ -80,6 +80,8 @@ private:
 	// returns a json object that is populated with the settings in the settingsobject
 	nlohmann::json settingsToJSON();
 
+	void internalizeGeo();
+
 public:
 
 	bool init(const std::vector<std::string>& inputPathList);

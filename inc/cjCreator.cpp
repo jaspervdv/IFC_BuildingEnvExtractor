@@ -925,7 +925,10 @@ void CJGeoCreator::mergeRoofSurfaces(const std::vector<ROSCollection>& Collectio
 }
 
 
-void CJGeoCreator::initializeBasic(DataManager* cluster) {
+void CJGeoCreator::initializeBasic(DataManager* cluster) 
+{
+	if (!SettingsCollection::getInstance().makeOutlines()) { return; }
+
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPreProcessing) << std::endl;
 	// generate data required for most exports
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoarseFiltering) << std::endl;
@@ -962,7 +965,6 @@ void CJGeoCreator::initializeBasic(DataManager* cluster) {
 
 	printTime(startTime, std::chrono::steady_clock::now());
 
-	hasGeoBase_ = true;
 	hasGeoBase_ = true;
 
 	// sort surface groups based on the footprints
