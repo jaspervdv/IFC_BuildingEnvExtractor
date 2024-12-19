@@ -68,11 +68,6 @@ private:
 	// list containing all the floor outlines;
 	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
-	// create a group of voxels representing a rough room
-	std::vector<int> growVoid(int startIndx, int roomnum, DataManager* h);
-
-	void markVoxelBuilding(int startIndx, int roomnum);
-
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(DataManager* h);
 
@@ -131,8 +126,6 @@ private:
 	// merges faces that are near eachother
 	void mergeRoofSurfaces(const std::vector<ROSCollection>& Collection);
 
-	// get a full xy section of voxels that is 1 voxel thick at the desired plate level
-	std::vector<int> getVoxelPlate(double platelvl);
 
 	// create list of edges by cutting objects at the floor lvl
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);

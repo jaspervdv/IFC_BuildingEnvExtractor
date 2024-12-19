@@ -721,6 +721,7 @@ double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal)
 {
 	std::vector<std::pair<gp_Vec, int>> vecCountMap;
+	double precision = SettingsCollection::getInstance().precision();
 	for (size_t i = 0; i < pointList.size(); i += 2)
 	{
 		gp_Pnt p1 = pointList[i];
@@ -732,7 +733,7 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 			p2.SetZ(0);
 		}
 
-		if (p1.Distance(p2) < 0.01) { continue; }
+		if (p1.Distance(p2) < precision) { continue; }
 		gp_Vec vec = gp_Vec(p1, p2);
 
 		if (!isHorizontal)
@@ -745,7 +746,7 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 		bool vFound = false;
 		for (auto& vecPair : vecCountMap)
 		{
-			if (vecPair.first.IsParallel(vec, 0.001))
+			if (vecPair.first.IsParallel(vec, precision))
 			{
 				vecPair.second += 1;
 				vFound = true;

@@ -132,7 +132,6 @@ def runCode(input_path,
     ifc2_exe_path = "Ifc_Envelope_Extractor_ifc2x3.exe"
     ifc4_exe_path = "Ifc_Envelope_Extractor_ifc4.exe"
     ifc4x3_exe_path = "Ifc_Envelope_Extractor_ifc4x3.exe"
-    json_path = Path(input_path).stem + "_config.json"
 
     # check voxel input
     try:
@@ -174,6 +173,8 @@ def runCode(input_path,
     if(not os.path.isdir(os.path.dirname(output_path)) or len(output_path) == 0):
         tkinter.messagebox.showerror("Settings Error", "Error: No Valid output folder supplied\n (GUI can not create new folders)")
         return
+
+    json_path = Path(input_path_list[0]).stem + "_config.json"
 
     # write data to json
     json_dictionary = {}
@@ -242,6 +243,8 @@ def runCode(input_path,
         tkinter.messagebox.showinfo("succes", "Info: Config file has been successfully created")
         return
 
+
+    scheme_found = False
     for path in input_path_list:
         counter = 0
         for line in open(path):
@@ -249,16 +252,22 @@ def runCode(input_path,
                 code_path = findValidPath(ifc2_exe_path, "Ifc2x3")
                 if not(code_path == None):
                     runExe(code_path, json_path)
+                    scheme_found = True
                 break
             if  "FILE_SCHEMA(('IFC4'))" in line or "FILE_SCHEMA (('IFC4'))" in line:
                 code_path = findValidPath(ifc4_exe_path, "Ifc4")
                 if not (code_path == None):
                     runExe(code_path, json_path)
+                    scheme_found = True
                 break
             if "FILE_SCHEMA(('IFC4X3'))" in line or "FILE_SCHEMA (('IFC4X3'))" in line:
                 code_path = findValidPath(ifc4x3_exe_path, "Ifc4x3")
                 if not (code_path == None):
                     runExe(code_path, json_path)
+                    scheme_found = True
+                break
+
+            if scheme_found:
                 break
 
             if counter == 100:

@@ -402,6 +402,7 @@ void DataManager::addObjectListToIndex(const T& objectList, bool addToRoomIndx)
 	std::vector<std::thread> threadList;
 
 	if (splitListSize == 0) { coreUse = 1; } //if less objects than threads are present just use 1 thread
+	coreUse = 1;
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
