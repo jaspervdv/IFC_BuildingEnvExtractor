@@ -248,7 +248,7 @@ std::vector<gp_Pnt> voxel::getPlanePoints()
 }
 
 
-bool voxel::checkIntersecting(IfcProductSpatialData& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, DataManager* h, int intersectionLogic)
+bool voxel::checkIntersecting(IfcProductSpatialData& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, int intersectionLogic)
 {
 	if (!voxelPoints.size()) { return false; }
 
@@ -427,12 +427,12 @@ void voxel::addRoofSemantic(int indx)
 	{
 		voxelFace currentFace = faceMap_[indx];
 		currentFace.setIsRoof();
-		faceMap_[indx] = currentFace; //TODO: pointers
+		faceMap_[indx] = currentFace;
 		return;
 	}
 	voxelFace newFace;
 	newFace.setIsRoof();
-	faceMap_[indx] = newFace; //TODO: pointers
+	faceMap_[indx] = newFace;
 	return;
 }
 
@@ -442,12 +442,12 @@ void voxel::addWindowSemantic(int indx)
 	{
 		voxelFace currentFace = faceMap_[indx];
 		currentFace.setIsWindow();
-		faceMap_[indx] = currentFace; //TODO: pointers
+		faceMap_[indx] = currentFace;
 		return;
 	}
 	voxelFace newFace;
 	newFace.setIsWindow();
-	faceMap_[indx] = newFace; //TODO: pointers
+	faceMap_[indx] = newFace;
 	return;
 }
 

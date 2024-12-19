@@ -23,50 +23,58 @@ private:
 	std::map<int, std::shared_ptr<voxel>> VoxelLookup_;
 	std::mutex voxelLookupMutex;
 
-	// exterior voxels;
-	std::vector<int> exteriorVoxelsIdx_;
-
 	int roomSize_ = 0;
 
 	bool hasSemanticSurfaces_ = false;
 
+	/// set the values required for voxelisation
 	void init(DataManager* h);
 
 	/// create the voxelgrid and find intersections of voxels
 	void populateVoxelGrid(DataManager* h);
-
-	/// @brief creates and adds a voxel object + checks with which products from the cluster it intersects
-	bool addVoxel(int indx, DataManager* h); /// returns true if intersects
-	void addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount = nullptr);
+	/// counts the progress of the voxel population process
 	void countVoxels(const int* voxelGrowthCount);
 
+	/// creates and adds a voxel object + checks with which products from the cluster it intersects
+	bool addVoxel(int indx, DataManager* h);
+	/// voxelises the building by running downward columns from the top plate of the voxel grid
+	void addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount = nullptr);
+
+	/// compute the "score" of each column by doing a querry of the ifc objects and storing the result count
 	std::vector<int> computeColumnScore(DataManager* h);
 
+	/// increment active thread count
 	void addActiveThread();
+	/// decrement active thread count
 	void removeActiveThread();
+	/// coompute the end index based on the clomn score
+	int computeEndColumnIdx(const std::vector<int>& columScoreList, const int threadScore, const int beginIdx);
 
-
-	// transform coordinates
+	/// transform coordinate from 1D to 3D voxelgrid space
 	template<typename T>
 	T linearToRelative(int i);
+	/// transform coordinate from 3D to 1D voxelgrid space
 	int relativeToLinear(const BoostPoint3D& i);
-
+	/// transform coordinate from 3D voxelgrid space to 3D processing space
 	BoostPoint3D relPointToWorld(const BoostPoint3D& p);
+	/// transform coordinate from 3D processing space to 3D voxelgrid space
 	BoostPoint3D worldToRelPoint(BoostPoint3D p);
 
-	/// grow the exterior voxelized shape
-	void growVoid(int startIndx, int roomnum, DataManager* h);
+	/// get a list of idx representing the dir of the neighbor in -/+ x, y, z dir 
+	std::array<int, 6> getDirNeighbours(int voxelIndx);
 
+	/// grow a void and mark it
+	void growVoid(int startIndx, int roomnum, DataManager* h);
+	/// grow the exterior voxelized shape
+	void growExterior(DataManager* h);
+	/// grow the interior voxelized shapes
+	void growInterior(DataManager* h);
+
+	/// group voxels into buildings
+	void pairVoxels();
 	/// mark the voxels to which building they are part off
 	void markVoxelBuilding(int startIndx, int buildnum);
 
-	/// get a list of idx representing the neighbours of the input voxel indx
-	std::vector<int> getNeighbours(int voxelIndx, bool connect6 = false);
-
-	/// get a list of idx representing the dir of the neighbor in -/+ x, y, z dir 
-	std::vector<int> getDirNeighbours(int voxelIndx);
-
-	std::vector<TopoDS_Edge> getTransitionalEdges(int dirIndx, int voxelIndx);
 
 	// returns true if beam casted from voxel intersects with a facade opening
 	bool voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir);
@@ -74,18 +82,11 @@ private:
 	/// inverts the dirInx for neighbourSearching
 	static int invertDir(int dirIndx);
 
-	void growExterior(DataManager* h);
-	void growInterior(DataManager* h);
-
-	void pairVoxels();
-
 public:
 	VoxelGrid(DataManager* h);
 
 	void computeSurfaceSemantics(DataManager* h);
 
-	/// get a list of idx representing the neighbours of the input voxel
-	std::vector<int> getNeighbours(std::shared_ptr<voxel> boxel, bool connect6 = false);
 	int getNeighbour(std::shared_ptr<voxel> boxel, int dir);
 
 	int getLowerNeighbour(int voxelIndx, bool connect6 = false);

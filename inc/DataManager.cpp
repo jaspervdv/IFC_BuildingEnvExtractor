@@ -2,6 +2,7 @@
 #include "helper.h"
 #include "stringManager.h"
 #include "errorCollection.h"
+#include "DebugUtils.h"
 
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
@@ -317,9 +318,9 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
 		return;
 	}
-
 	// compute the smallest orientated bbox
-	helperFunctions::bBoxOrientated(pointList, lllPoint, urrPoint, &rotation, 0);
+	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint); // compute initial values
+	helperFunctions::bBoxOrientated(pointList, lllPoint, urrPoint, &rotation, 0); // compute optimal values
 	settingsCollection.setGridRotation(rotation);
 	return;
 }

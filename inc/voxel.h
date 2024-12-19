@@ -25,7 +25,7 @@ public:
 
 class voxel {
 private:
-	/// the voxel center point in voxel space (not world space)
+	/// the voxel center point in processing space (not world space)
 	BoostPoint3D center_;
 
 	/// the size of the voxel in the xy plane
@@ -83,7 +83,7 @@ public:
 	std::vector<gp_Pnt> getPlanePoints();
 
 	/// check the intersection of a triangluted product and a voxel
-	bool checkIntersecting(IfcProductSpatialData& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, DataManager* h, int intersectionLogic = 4);
+	bool checkIntersecting(IfcProductSpatialData& lookup, const std::vector<gp_Pnt>& voxelPoints, const gp_Pnt& centerPoint, int intersectionLogic = 4);
 
 	/// returns integers representing the voxel mesh that comply with the getCornerPoints output
 	static const std::vector<std::vector<int>>& getVoxelTriangles();

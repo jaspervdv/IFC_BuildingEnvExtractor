@@ -5,34 +5,132 @@
 
 #include <algorithm>
 #include <execution>
-#include <thread>   
+#include <thread>  
+
+void VoxelGrid::init(DataManager* h)
+{
+	anchor_ = h->getLllPoint();
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	double voxelSize = settingsCollection.voxelSize();
+
+	gp_Pnt urrPoint = h->getUrrPoint();
+
+	// resize to allow full voxel encapsulation
+	anchor_.SetX(anchor_.X() - (voxelSize * 2));
+	anchor_.SetY(anchor_.Y() - (voxelSize * 2));
+	anchor_.SetZ(anchor_.Z() - (voxelSize * 2));
+
+	urrPoint.SetX(urrPoint.X() + (voxelSize * 2));
+	urrPoint.SetY(urrPoint.Y() + (voxelSize * 2));
+	urrPoint.SetZ(urrPoint.Z() + (voxelSize * 2));
+
+	// set range
+	double xRange = urrPoint.X() - anchor_.X();
+	double yRange = urrPoint.Y() - anchor_.Y();
+	double zRange = urrPoint.Z() - anchor_.Z();
+
+	xRelRange_ = static_cast<int>(ceil(xRange / voxelSize) + 1);
+	yRelRange_ = static_cast<int>(ceil(yRange / voxelSize) + 1);
+	zRelRange_ = static_cast<int>((int)ceil(zRange / voxelSize) + 1);
+
+	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
+	planeRotation_ = settingsCollection.gridRotation();
+	return;
+}
+
+
+void VoxelGrid::populateVoxelGrid(DataManager* h)
+{
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPopulateGrid) << std::endl;
+
+	// compute column scores
+	std::vector<int> columScoreList = computeColumnScore(h);
+	int columSumScore = std::accumulate(columScoreList.begin(), columScoreList.end(), 0);
+
+	// split the range over cores
+	int coreUse = SettingsCollection::getInstance().threadcount() - 1;
+	int threadScore = columSumScore / coreUse;
+	int voxelsGrown = 0;
+	int beginIdx = 0;
+
+	std::vector<std::thread> threadList;
+	for (int i = 0; i < coreUse; i++)
+	{
+		int endIdx = 0;
+		// compute the core processing list size
+		if (i == coreUse - 1)
+		{
+			endIdx = xRelRange_ * yRelRange_;
+		}
+		else
+		{
+			endIdx = computeEndColumnIdx(columScoreList, threadScore, beginIdx);
+		}
+
+		threadList.emplace_back([=, &voxelsGrown]()
+			{
+				addVoxelColumn(beginIdx, endIdx, h, &voxelsGrown);
+			});
+
+		// set begin of the next step to the end of the current step
+		beginIdx = endIdx;
+	}
+
+	// count the voxels that have been generated
+	std::thread countThread([&]() { countVoxels(&voxelsGrown); });
+	for (size_t i = 0; i < threadList.size(); i++) {
+		if (threadList[i].joinable()) { threadList[i].join(); }
+	}
+	if (countThread.joinable()) { countThread.join(); }
+
+	std::cout << std::endl;
+}
+
+void VoxelGrid::countVoxels(const int* voxelGrowthCount)
+{
+	while (true)
+	{
+		std::this_thread::sleep_for(std::chrono::seconds(1));
+		std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex_);
+		int count = *voxelGrowthCount;
+		voxelCountLock.unlock();
+
+		std::cout.flush();
+		std::cout << "\t" << count << " of " << totalVoxels_ << "\r";
+
+		if (count == totalVoxels_) { return; }
+		if (activeThreads_ == 0) { return; }
+	}
+}
+
 
 bool VoxelGrid::addVoxel(int indx, DataManager* h)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	auto midPoint = relPointToWorld(linearToRelative<BoostPoint3D>(indx));
-	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
-
 	std::shared_ptr<voxel> boxel = std::make_shared<voxel>(voxel(midPoint, settingsCollection.voxelSize(), settingsCollection.voxelSize()));
-
-	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
-	auto boxelGeo = boxel->getVoxelGeo();
-
+	
 	std::vector<gp_Pnt> pointList;
 	if (settingsCollection.intersectionLogic() == 2) { pointList = boxel->getPlanePoints(); }
 	else if (settingsCollection.intersectionLogic() == 3) { pointList = boxel->getCornerPoints(); }
 
+	// make a pointlist 0 - 3 lower ring, 4 - 7 upper ring
+	auto boxelGeo = boxel->getVoxelGeo();
+	gp_Pnt midPointOCCT = helperFunctions::Point3DBTO(midPoint);
+
 	std::vector<Value> qResult;
 	qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
 	h->getIndexPointer()->query(bgi::intersects(boxelGeo), std::back_inserter(qResult));
-	for (size_t k = 0; k < qResult.size(); k++)
+	for (const Value& resultItem : qResult)
 	{
-		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(qResult[k].second);
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(resultItem.second);
 		std::string productType = lookup->getProductPtr()->data().type()->name();
-		if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, h, settingsCollection.intersectionLogic()))
+		if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, settingsCollection.intersectionLogic()))
 		{
-			boxel->addInternalProduct(qResult[k]);
+			boxel->addInternalProduct(resultItem);
 		}
 	}
 
@@ -42,13 +140,13 @@ bool VoxelGrid::addVoxel(int indx, DataManager* h)
 	return boxel->getIsIntersecting();
 }
 
-
 void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* voxelGrowthCount)
 {
 	addActiveThread();
 	bool fullVoxelReq = SettingsCollection::getInstance().requireFullVoxels();
 	// get top plate begin to start growing voxels down from
 	int topPlateBeginIndx = (zRelRange_ -1) * xRelRange_  * yRelRange_ ;
+
 	for (int i = beginIindx; i < endIdx; i++)
 	{
 		int voxelIndx = topPlateBeginIndx + i;
@@ -67,6 +165,368 @@ void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* 
 	}
 	removeActiveThread();
 }
+
+
+std::vector<int> VoxelGrid::computeColumnScore(DataManager* h)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	int voxelSize = settingsCollection.voxelSize();
+	int loopRange = xRelRange_ * yRelRange_;
+	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
+
+	std::vector<int> columScoreList;
+	for (int i = 0; i < loopRange; i++)
+	{
+		int plate = plateIndx + i;
+
+		BoostPoint3D coneCenter = relPointToWorld(linearToRelative<BoostPoint3D>(plate));
+		BoostPoint3D lll = BoostPoint3D(
+			coneCenter.get<0>() - voxelSize / 2,
+			coneCenter.get<1>() - voxelSize / 2,
+			-100
+		);
+
+		BoostPoint3D urr = BoostPoint3D(
+			coneCenter.get<0>() + voxelSize / 2,
+			coneCenter.get<1>() + voxelSize / 2,
+			coneCenter.get<2>() + voxelSize / 2
+		);
+
+		std::vector<Value> qResult;
+		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
+		h->getIndexPointer()->query(
+			bgi::intersects(
+				bg::model::box<BoostPoint3D>(lll, urr)
+			), std::back_inserter(qResult)
+		);
+
+		int columnScore = static_cast<int>(qResult.size());
+		columScoreList.emplace_back(columnScore);
+	}
+	return columScoreList;
+}
+
+
+void VoxelGrid::addActiveThread()
+{
+	std::unique_lock<std::mutex> threadCountLock(voxelGrowthMutex_);
+	activeThreads_++;
+	threadCountLock.unlock();
+}
+
+void VoxelGrid::removeActiveThread()
+{
+	std::unique_lock<std::mutex> threadCountLock(voxelGrowthMutex_);
+	activeThreads_--;
+	threadCountLock.unlock();
+}
+
+int VoxelGrid::computeEndColumnIdx(const std::vector<int>& columScoreList, const int threadScore, const int beginIdx)
+{
+	int score = 0;
+	int endIdx = 0;
+	int loopRange = xRelRange_ * yRelRange_;
+
+	for (int j = beginIdx; j < loopRange; j++)
+	{
+		score += columScoreList[j];
+		if (score > threadScore)
+		{
+			return j;
+		}
+	}
+	return -1;
+}
+
+
+template<typename T>
+T VoxelGrid::linearToRelative(int i)
+{
+	int x = i % xRelRange_;
+	int y = static_cast<int>(floor((i / xRelRange_) % yRelRange_));
+	int z = static_cast<int>(floor(i / (xRelRange_ * yRelRange_)));
+
+	return T(x, y, z);
+}
+
+int VoxelGrid::relativeToLinear(const BoostPoint3D& p)
+{
+	int x = static_cast<int>(std::round(p.get<0>()));
+	int y = static_cast<int>(std::round(p.get<1>()));
+	int z = static_cast<int>(std::round(p.get<2>()));
+
+	int i = z * xRelRange_ * yRelRange_ + y * xRelRange_ + x;
+
+	return i;
+}
+
+BoostPoint3D VoxelGrid::relPointToWorld(const BoostPoint3D& p)
+{
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
+
+	double xCoord = anchor_.X() + (bg::get<0>(p) * voxelSize) + voxelSize / 2;
+	double yCoord = anchor_.Y() + (bg::get<1>(p) * voxelSize) + voxelSize / 2;
+	double zCoord = anchor_.Z() + (bg::get<2>(p) * voxelSize) + voxelSize / 2;
+
+	return BoostPoint3D(xCoord, yCoord, zCoord);
+}
+
+BoostPoint3D VoxelGrid::worldToRelPoint(BoostPoint3D p)
+{
+	double voxelSize = SettingsCollection::getInstance().voxelSize();
+
+	double xCoord = (bg::get<0>(p) - anchor_.X() - voxelSize / 2) / voxelSize;
+	double yCoord = (bg::get<1>(p) - anchor_.Y() - voxelSize / 2) / voxelSize;
+	double zCoord = (bg::get<2>(p) - anchor_.Z() - voxelSize / 2) / voxelSize;
+
+	return BoostPoint3D(xCoord, yCoord, zCoord);
+}
+
+std::array<int, 6> VoxelGrid::getDirNeighbours(int voxelIndx)
+{
+	std::array<int, 6> neightbours;
+	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
+
+	bool xSmall = loc3D.X() - 1 >= 0;
+	bool xBig = loc3D.X() + 1 < xRelRange_;
+
+	bool ySmall = loc3D.Y() - 1 >= 0;
+	bool yBig = loc3D.Y() + 1 < yRelRange_;
+
+	bool zSmall = loc3D.Z() - 1 >= 0;
+	bool zBig = loc3D.Z() + 1 < zRelRange_;
+
+	// connectivity
+	if (xSmall) { neightbours[0] = voxelIndx - 1; }
+	else { neightbours[0] = -1; }
+	if (xBig) { neightbours[1] = voxelIndx + 1; }
+	else { neightbours[1] = -1; }
+	if (ySmall) { neightbours[2] = voxelIndx - xRelRange_; }
+	else { neightbours[2] = -1; }
+	if (yBig) { neightbours[3] = voxelIndx + xRelRange_; }
+	else { neightbours[3] = -1; }
+	if (zSmall) { neightbours[4] = voxelIndx - xRelRange_ * yRelRange_; }
+	else { neightbours[4] = -1; }
+	if (zBig) { neightbours[5] = voxelIndx + xRelRange_ * yRelRange_; }
+	else { neightbours[5] = -1; }
+
+	return neightbours;
+}
+
+
+void VoxelGrid::growVoid(int startIndx, int roomnum, DataManager* h)
+{
+	// set up starting data
+	std::unordered_set<int> buffer = { startIndx };
+	int totalRoomSize = 1;
+	VoxelLookup_[startIndx]->setRoomNum(roomnum);
+
+	bool isOutSide = false;
+	if (roomnum == 0) { isOutSide = true; }
+
+	while (buffer.size() > 0)
+	{
+		std::unordered_set<int> tempBuffer;
+		for (const int currentIdx : buffer)
+		{
+			// only output process if outside is processed
+			if (roomnum == 0)
+			{
+				if (totalRoomSize % 10000 == 0)
+				{
+					std::cout.flush();
+					std::cout << "\tSize: " << totalRoomSize << "\r";
+				}
+			}
+
+			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
+			currentVoxel->setOutside(isOutSide);
+
+			// find neighbours
+			std::array<int, 6> neighbourIndxList = getDirNeighbours(currentIdx);
+
+			for (int i = 0; i < neighbourIndxList.size(); i++)
+			{
+				int neighbourIdx = neighbourIndxList[i];
+				if (neighbourIdx == -1) { continue; }
+
+				std::shared_ptr<voxel> neighbourVoxel = VoxelLookup_[neighbourIdx];
+				// bypass if neighbour already part of a room
+				if (neighbourVoxel->getRoomNum() != -1) { continue; }
+
+				// set trans faces if neighbour is intersecting
+				if (neighbourVoxel->getIsIntersecting())
+				{
+					if (roomnum == 0)
+					{
+						neighbourVoxel->setTransFace(i);
+						neighbourVoxel->setIsShell();
+					}
+
+					if (i % 2 == 1) { currentVoxel->setTransFace(i - 1); }
+					else { currentVoxel->setTransFace(i + 1); }
+					continue;
+				}
+
+				// exclude neighbour if already in buffer
+				if (tempBuffer.find(neighbourIdx) != tempBuffer.end()) {
+					continue;
+				}
+				tempBuffer.emplace(neighbourIdx);
+				VoxelLookup_[neighbourIdx]->setRoomNum(roomnum);
+				totalRoomSize++;
+			}
+		}
+		buffer.clear();
+		buffer = tempBuffer;
+	}
+	return;
+}
+
+void VoxelGrid::growExterior(DataManager* h)
+{
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExteriorSpaceGrowing) << std::endl;
+
+	if (VoxelLookup_[0]->getIsIntersecting())
+	{
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentNoExteriorSpace) << std::endl;
+		return;
+	}
+
+	growVoid(0, 0, h); //TODO: multithread
+	std::cout << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentExteriorSpaceGrown) << std::endl;
+	return;
+}
+
+void VoxelGrid::growInterior(DataManager* h)
+{
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInterioSpacesGrowing) << std::endl;
+	roomSize_ = 1;
+	for (int i = 0; i < totalVoxels_; i++)
+	{
+		if (!VoxelLookup_[i]->getIsIntersecting() && VoxelLookup_[i]->getRoomNum() == -1)
+		{
+			growVoid(i, roomSize_, h);
+			roomSize_++;
+		}
+	}
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
+}
+
+
+void VoxelGrid::pairVoxels()
+{
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPairVoxels) << std::endl;
+	int buildingNum = 0;
+	for (int i = 0; i < totalVoxels_; i++)
+	{
+		if (VoxelLookup_[i]->getIsIntersecting() && VoxelLookup_[i]->getBuildingNum() == -1)
+		{
+			markVoxelBuilding(i, buildingNum);
+			buildingNum++;
+		}
+	}
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentPairedVoxels) << std::endl;
+	std::cout << "\t" << buildingNum << " buildings(s) found" << std::endl << std::endl;
+}
+
+void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
+
+	VoxelLookup_[startIndx]->setBuildingNum(buildnum);
+	std::vector<int> buffer = { startIndx };
+	std::vector<int> potentialBuildingVoxels;
+
+	while (true)
+	{
+		for (const int currentIdx : buffer)
+		{
+			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
+
+			std::array<int, 6> neighbours = getDirNeighbours(currentIdx);
+
+			for (const int otherIdx : neighbours)
+			{
+				if (otherIdx == - 1) { continue; }
+
+				std::shared_ptr<voxel> otherVoxel = VoxelLookup_[otherIdx];
+
+				if (!otherVoxel->getIsIntersecting()) { continue; }
+				if (otherVoxel->getBuildingNum() != -1) { continue; }
+
+				otherVoxel->setBuildingNum(buildnum);
+				potentialBuildingVoxels.emplace_back(otherIdx);
+			}
+		}
+		if (potentialBuildingVoxels.size() == 0)
+		{
+			break;
+		}
+		buffer = potentialBuildingVoxels;
+		potentialBuildingVoxels.clear();
+	}
+	return;
+}
+
+
+
+
+
+bool VoxelGrid::voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	double windowSearchDepth = 0.3;
+	double windowArea = 0;
+
+	// get a beam
+	double voxelJump = settingsCollection.voxelSize();
+	std::vector<std::shared_ptr<voxel>> voxelBeam;
+
+	std::shared_ptr<voxel> loopingCurrentVoxel = currentVoxel;
+	voxelBeam.emplace_back(currentVoxel);
+
+	bool windowFound = false;
+
+	if (!loopingCurrentVoxel->hasFace(indxDir))
+	{
+		return false;
+	}
+	while (true)
+	{
+		int loopingCurrentIndx = getNeighbour(loopingCurrentVoxel, indxDir);
+		if (loopingCurrentIndx == -1) { break; }
+
+		loopingCurrentVoxel = getVoxelPtr(loopingCurrentIndx);
+		if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
+
+		voxelBeam.emplace_back(loopingCurrentVoxel);
+		voxelJump += settingsCollection.voxelSize();
+		if (windowSearchDepth < voxelJump) { break; }
+	}
+
+	for (size_t j = 0; j < voxelBeam.size(); j++)
+	{
+		std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
+		for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
+		{
+			std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
+
+			if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+int VoxelGrid::invertDir(int dirIndx) { //TODO: this seems voxel related code?
+	if (dirIndx % 2 == 1) { return dirIndx - 1; }
+	else { return dirIndx + 1; }
+}
+
 
 VoxelGrid::VoxelGrid(DataManager* h)
 {
@@ -134,151 +594,6 @@ void VoxelGrid::computeSurfaceSemantics(DataManager* h)
 		}	
 	}
 }
-
-void VoxelGrid::init(DataManager* h)
-{
-	anchor_ = h->getLllPoint();
-
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-
-	double voxelSize = settingsCollection.voxelSize();
-
-	gp_Pnt urrPoint = h->getUrrPoint();
-
-	// resize to allow full voxel encapsulation
-	anchor_.SetX(anchor_.X() - (voxelSize * 2));
-	anchor_.SetY(anchor_.Y() - (voxelSize * 2));
-	anchor_.SetZ(anchor_.Z() - (voxelSize * 2));
-
-	urrPoint.SetX(urrPoint.X() + (voxelSize * 2));
-	urrPoint.SetY(urrPoint.Y() + (voxelSize * 2));
-	urrPoint.SetZ(urrPoint.Z() + (voxelSize * 2));
-
-	// set range
-	double xRange = urrPoint.X() - anchor_.X();
-	double yRange = urrPoint.Y() - anchor_.Y();
-	double zRange = urrPoint.Z() - anchor_.Z();
-
-	xRelRange_ = static_cast<int>(ceil(xRange / voxelSize) + 1);
-	yRelRange_ = static_cast<int>(ceil(yRange / voxelSize) + 1);
-	zRelRange_ = static_cast<int>((int)ceil(zRange / voxelSize) + 1);
-
-	totalVoxels_ = xRelRange_ * yRelRange_ * zRelRange_;
-	planeRotation_ = settingsCollection.gridRotation();
-	return;
-}
-
-void VoxelGrid::populateVoxelGrid(DataManager* h)
-{
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPopulateGrid) << std::endl;
-
-	// compute column scores
-	std::vector<int> columScoreList = computeColumnScore(h);
-	int columSumScore = std::accumulate(columScoreList.begin(), columScoreList.end(), 0);
-
-	// split the range over cores
-	int coreUse = SettingsCollection::getInstance().threadcount() - 1;
-	int threadScore = columSumScore / coreUse;
-	int voxelsGrown = 0;
-	int beginIdx = 0;
-
-	std::vector<std::thread> threadList;
-	int loopRange = xRelRange_ * yRelRange_;
-	for (int i = 0; i < coreUse; i++)
-	{
-		int score = 0;
-		int endIdx = 0;
-		
-		// compute the core processing list size
-		if (i == coreUse - 1) { endIdx = loopRange; }
-		else
-		{
-			for (int j = beginIdx; j < loopRange; j++)
-			{
-				score += columScoreList[j];
-				if (score > threadScore)
-				{
-					endIdx = j;
-					break;
-				}
-			}
-		}
-
-		threadList.emplace_back([=, &voxelsGrown]() 
-			{
-			addVoxelColumn(beginIdx, endIdx, h, &voxelsGrown);
-			});
-
-		// set begin of the next step to the end of the current step
-		beginIdx = endIdx ;
-	}
-
-	// count the voxels that have been generated
-	std::thread countThread([&]() { countVoxels(&voxelsGrown); });
-	for (size_t i = 0; i < threadList.size(); i++) {
-		if (threadList[i].joinable()) { threadList[i].join(); }
-	}
-	if (countThread.joinable()) { countThread.join(); }
-
-	std::cout << std::endl;
-}
-
-void VoxelGrid::countVoxels(const int* voxelGrowthCount)
-{
-	while (true)
-	{
-		std::this_thread::sleep_for(std::chrono::seconds(1));
-		std::unique_lock<std::mutex> voxelCountLock(voxelGrowthMutex_);
-		int count = *voxelGrowthCount;
-		voxelCountLock.unlock();
-
-		std::cout.flush();
-		std::cout << "\t" << count << " of " << totalVoxels_ << "\r";
-
-		if (count == totalVoxels_) { return; }
-		if (activeThreads_ == 0) { return; }
-	}
-}
-
-std::vector<int> VoxelGrid::computeColumnScore(DataManager* h)
-{
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	int voxelSize = settingsCollection.voxelSize();
-	int loopRange = xRelRange_ * yRelRange_;
-	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
-	
-	std::vector<int> columScoreList;
-	for (int i = 0; i < loopRange; i++)
-	{
-		int plate = plateIndx + i;
-
-		BoostPoint3D coneCenter = relPointToWorld(linearToRelative<BoostPoint3D>(plate));
-		BoostPoint3D lll = BoostPoint3D(
-			coneCenter.get<0>() - voxelSize / 2,
-			coneCenter.get<1>() - voxelSize / 2,
-			-100
-		);
-
-		BoostPoint3D urr = BoostPoint3D(
-			coneCenter.get<0>() + voxelSize / 2,
-			coneCenter.get<1>() + voxelSize / 2,
-			coneCenter.get<2>() + voxelSize / 2
-		);
-
-		std::vector<Value> qResult;
-		qResult.clear(); // no clue why, but avoids a random indexing issue that can occur
-		h->getIndexPointer()->query(
-			bgi::intersects(
-				bg::model::box<BoostPoint3D>(lll, urr)
-			), std::back_inserter(qResult)
-		);
-
-		int columnScore = static_cast<int>(qResult.size());
-		columScoreList.emplace_back(columnScore);
-	}
-	return columScoreList;
-}
-
 
 std::vector<std::shared_ptr<voxel>> VoxelGrid::getIntersectingVoxels()
 {
@@ -400,7 +715,7 @@ std::vector<std::vector<TopoDS_Edge>> VoxelGrid::getDirectionalFaces(int dirIndx
 
 				bool isEdge = false;
 
-				std::vector<int> neighbourIndxList = getDirNeighbours(bufferIndx);
+				std::array<int, 6> neighbourIndxList = getDirNeighbours(bufferIndx);
 				for (size_t i = 0; i < 4; i++)
 				{
 					int neighbourIndx = neighbourIndxList[allowedNeighbourDir[i]];
@@ -568,8 +883,8 @@ gp_Pnt VoxelGrid::getPointInRoom(int roomNum)
 }
 
 
-std::vector<int> VoxelGrid::getTopBoxelIndx() {
-
+std::vector<int> VoxelGrid::getTopBoxelIndx() 
+{
 	std::vector<int> voxelIndx;
 
 	for (int i = xRelRange_ * yRelRange_ * zRelRange_ - xRelRange_ * yRelRange_;
@@ -582,7 +897,8 @@ std::vector<int> VoxelGrid::getTopBoxelIndx() {
 }
 
 
-std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxelPlate(double platelvl) {
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxelPlate(double platelvl) 
+{
 	double voxelCount = (double) VoxelLookup_.size();
 	double zlvls = voxelCount / (static_cast<double>(xRelRange_) * static_cast<double>(yRelRange_));
 	double smallestDistanceToLvl = 999999;
@@ -619,231 +935,12 @@ std::vector<std::shared_ptr<voxel>> VoxelGrid::getVoxelPlate(double platelvl) {
 	return plateVoxels;
 }
 
-
-template<typename T>
-T VoxelGrid::linearToRelative(int i) {
-	int x = i % xRelRange_;
-	int y = static_cast<int>(floor((i / xRelRange_) % yRelRange_));
-	int z = static_cast<int>(floor(i / (xRelRange_ * yRelRange_)));
-
-	return T(x, y, z);
-}
-
-
-int VoxelGrid::relativeToLinear(const BoostPoint3D& p) {
-	int x = static_cast<int>(std::round(p.get<0>()));
-	int y = static_cast<int>(std::round(p.get<1>()));
-	int z = static_cast<int>(std::round(p.get<2>()));
-
-	int i = z * xRelRange_ * yRelRange_ + y * xRelRange_ + x;
-
-	return i;
-}
-
-void VoxelGrid::addActiveThread()
-{
-	std::unique_lock<std::mutex> threadCountLock(voxelGrowthMutex_);
-	activeThreads_++;
-	threadCountLock.unlock();
-}
-
-void VoxelGrid::removeActiveThread()
-{
-	std::unique_lock<std::mutex> threadCountLock(voxelGrowthMutex_);
-	activeThreads_--;
-	threadCountLock.unlock();
-}
-
-
-std::vector<int> VoxelGrid::getNeighbours(int voxelIndx, bool connect6)
-{
-	std::vector<int> neightbours;
-	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
-
-	bool xSmall = loc3D.X() - 1 >= 0;
-	bool xBig = loc3D.X() + 1 < xRelRange_;
-
-	bool ySmall = loc3D.Y() - 1 >= 0;
-	bool yBig = loc3D.Y() + 1 < yRelRange_;
-
-	bool zSmall = loc3D.Z() - 1 >= 0;
-	bool zBig = loc3D.Z() + 1 < zRelRange_;
-
-	// connectivity
-	if (xSmall)
-	{
-		neightbours.emplace_back(voxelIndx - 1);
-
-		if (!connect6)
-		{
-			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ - 1); }
-			if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ - 1); }
-			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ - 1); }
-			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ - 1); }
-		}
-
-	}
-	if (xBig)
-	{
-		neightbours.emplace_back(voxelIndx + 1);
-
-		if (!connect6)
-		{
-			if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ + 1); }
-			if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ + 1); }
-			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ + 1); }
-			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ + 1); }
-		}
-	}
-	if (ySmall)
-	{
-		neightbours.emplace_back(voxelIndx - xRelRange_);
-		if (!connect6)
-		{
-			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ - xRelRange_); }
-			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ - xRelRange_); }
-		}
-	}
-	if (yBig)
-	{
-		neightbours.emplace_back(voxelIndx + xRelRange_);
-		if (!connect6)
-		{
-			if (zSmall) { neightbours.emplace_back(voxelIndx - xRelRange_ * yRelRange_ + xRelRange_); }
-			if (zBig) { neightbours.emplace_back(voxelIndx + xRelRange_ * yRelRange_ + xRelRange_); }
-		}
-	}
-
-	if (zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)); }
-	if (zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)); }
-
-	if (connect6)
-	{
-		return neightbours;
-	}
-
-	if (xSmall && ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ - 1); }
-	if (xBig && yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ + 1); }
-
-	if (xBig && ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_ + 1); }
-	if (xSmall && yBig) { neightbours.emplace_back(voxelIndx + xRelRange_ - 1); }
-
-	if (xSmall && ySmall && zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)-xRelRange_ - 1); }
-	if (xBig && ySmall && zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)-xRelRange_ + 1); }
-
-	if (xSmall && yBig && zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)+xRelRange_ - 1); }
-	if (xBig && yBig && zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)+xRelRange_ + 1); }
-
-	if (xSmall && yBig && zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)+xRelRange_ - 1); }
-	if (xBig && yBig && zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)+xRelRange_ + 1); }
-
-	if (xSmall && ySmall && zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)-xRelRange_ - 1); }
-	if (xBig && ySmall && zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)-xRelRange_ + 1); }
-
-	return neightbours;
-}
-
-std::vector<int> VoxelGrid::getDirNeighbours(int voxelIndx)
-{
-	std::vector<int> neightbours;
-	gp_Pnt loc3D = linearToRelative<gp_Pnt>(voxelIndx);
-
-	bool xSmall = loc3D.X() - 1 >= 0;
-	bool xBig = loc3D.X() + 1 < xRelRange_;
-
-	bool ySmall = loc3D.Y() - 1 >= 0;
-	bool yBig = loc3D.Y() + 1 < yRelRange_;
-
-	bool zSmall = loc3D.Z() - 1 >= 0;
-	bool zBig = loc3D.Z() + 1 < zRelRange_;
-
-	// connectivity
-	if (xSmall) { neightbours.emplace_back(voxelIndx - 1); }
-	else { neightbours.emplace_back(-1); }
-	if (xBig) { neightbours.emplace_back(voxelIndx + 1); }
-	else { neightbours.emplace_back(-1); }
-	if (ySmall) { neightbours.emplace_back(voxelIndx - xRelRange_); }
-	else { neightbours.emplace_back(-1); }
-	if (yBig) { neightbours.emplace_back(voxelIndx + xRelRange_); }
-	else { neightbours.emplace_back(-1); }
-	if (zSmall) { neightbours.emplace_back(voxelIndx - (xRelRange_) * (yRelRange_)); }
-	else { neightbours.emplace_back(-1); }
-	if (zBig) { neightbours.emplace_back(voxelIndx + (xRelRange_) * (yRelRange_)); }
-	else { neightbours.emplace_back(-1); }
-
-	return neightbours;
-
-}
-
-std::vector<TopoDS_Edge> VoxelGrid::getTransitionalEdges(int dirIndx, int voxelIndx)
-{
-
-	return std::vector<TopoDS_Edge>();
-}
-
-bool VoxelGrid::voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
-{
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-
-	double windowSearchDepth = 0.3;
-	double windowArea = 0;
-
-	// get a beam
-	double voxelJump = settingsCollection.voxelSize();
-	std::vector<std::shared_ptr<voxel>> voxelBeam;
-
-	std::shared_ptr<voxel> loopingCurrentVoxel = currentVoxel;
-	voxelBeam.emplace_back(currentVoxel);
-
-	bool windowFound = false;
-
-	if (!loopingCurrentVoxel->hasFace(indxDir))
-	{
-		return false;
-	}
-	while (true)
-	{
-		int loopingCurrentIndx = getNeighbour(loopingCurrentVoxel, indxDir);
-		if (loopingCurrentIndx == -1) { break; }
-
-		loopingCurrentVoxel = getVoxelPtr(loopingCurrentIndx);
-		if (!loopingCurrentVoxel->getIsIntersecting()) { break; }
-
-		voxelBeam.emplace_back(loopingCurrentVoxel);
-		voxelJump += settingsCollection.voxelSize();
-		if (windowSearchDepth < voxelJump) { break; }
-	}
-
-	for (size_t j = 0; j < voxelBeam.size(); j++)
-	{
-		std::vector<Value> intersectingValues = voxelBeam[j]->getInternalProductList();
-		for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
-		{
-			std::string productTypeName = h->getLookup(valueIt->second)->getProductPtr()->data().type()->name();
-
-			if (productTypeName == "IfcDoor" || productTypeName == "IfcWindow")
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-std::vector<int> VoxelGrid::getNeighbours(std::shared_ptr<voxel> boxel, bool connect6)
-{
-	BoostPoint3D middlePoint = boxel->getCenterPoint();
-	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
-	int voxelInt = relativeToLinear(relativePoint);
-	return getNeighbours(voxelInt, connect6);
-}
-
 int VoxelGrid::getNeighbour(std::shared_ptr<voxel> boxel, int dir)
 {
 	BoostPoint3D middlePoint = boxel->getCenterPoint();
 	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
 	int voxelInt = relativeToLinear(relativePoint);
-	std::vector<int> neighbours = getDirNeighbours(voxelInt);
+	std::array<int, 6> neighbours = getDirNeighbours(voxelInt);
 
 	if (neighbours.size() == 0)
 	{
@@ -862,221 +959,4 @@ int VoxelGrid::getLowerNeighbour(int voxelIndx, bool connect6)
 	if (!zSmall) { return -1; }
 
 	return voxelIndx - (xRelRange_) * (yRelRange_);
-
-}
-
-BoostPoint3D VoxelGrid::relPointToWorld(const BoostPoint3D& p)
-{
-	double voxelSize = SettingsCollection::getInstance().voxelSize();
-
-	double xCoord = anchor_.X() + (bg::get<0>(p) * voxelSize) + voxelSize / 2;
-	double yCoord = anchor_.Y() + (bg::get<1>(p) * voxelSize) + voxelSize / 2;
-	double zCoord = anchor_.Z() + (bg::get<2>(p) * voxelSize) + voxelSize / 2;
-
-	return BoostPoint3D(xCoord, yCoord, zCoord);
-}
-
-
-BoostPoint3D VoxelGrid::worldToRelPoint(BoostPoint3D p)
-{
-	double voxelSize = SettingsCollection::getInstance().voxelSize();
-
-	double xCoord = (bg::get<0>(p) - anchor_.X() - voxelSize / 2) / voxelSize;
-	double yCoord = (bg::get<1>(p) - anchor_.Y() - voxelSize / 2) / voxelSize;
-	double zCoord = (bg::get<2>(p) - anchor_.Z() - voxelSize / 2) / voxelSize;
-
-	return BoostPoint3D(xCoord, yCoord, zCoord);
-}
-
-
-void VoxelGrid::growVoid(int startIndx, int roomnum, DataManager* h)
-{
-	// set up starting data
-	std::vector<int> buffer = { startIndx };
-	std::vector<int> totalRoom = { startIndx };
-	VoxelLookup_[startIndx]->setRoomNum(roomnum);
-
-	// setting up extracting exterior data
-	std::vector<int> exterior;
-	bool isOutSide = false;
-
-	while (buffer.size() > 0)
-	{
-		std::vector<int> tempBuffer;
-		for (int currentIdx : buffer)
-		{
-			// only output process if outside is processed
-			if (roomnum == 0)
-			{
-				if (totalRoom.size() % 10000 == 0)
-				{
-					std::cout.flush();
-					std::cout << "\tSize: " << totalRoom.size() << "\r";
-				}
-			}
-
-			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
-			currentVoxel->setOutside(isOutSide);
-
-			// find neighbours
-			std::vector<int> neighbourIndxList = getDirNeighbours(currentIdx);
-
-			for (int i = 0; i < neighbourIndxList.size(); i++)
-			{
-				int neighbourIdx = neighbourIndxList[i];
-
-				bool isOutVoxel = false;
-				if (neighbourIdx == -1) { isOutVoxel = true; }
-				if (isOutVoxel && isOutSide) { continue; }
-				if (isOutVoxel) // update exterior flag backwards
-				{
-					isOutSide = true;
-					for (int roomVoxel : totalRoom)
-					{
-						VoxelLookup_[roomVoxel]->setOutside(isOutSide);
-						exteriorVoxelsIdx_.emplace_back(roomVoxel);
-					}
-					continue;
-				}
-
-				std::shared_ptr<voxel> neighbourVoxel = VoxelLookup_[neighbourIdx];
-				// bypass if neighbour already part of a room
-				if (neighbourVoxel->getRoomNum() != -1) { continue; }
-
-				// set trans faces if neighbour is intersecting
-				if (neighbourVoxel->getIsIntersecting())
-				{
-					if (roomnum == 0)
-					{
-						neighbourVoxel->setTransFace(i);
-						neighbourVoxel->setIsShell();
-					}
-
-					if (i % 2 == 1) { currentVoxel->setTransFace(i - 1); }
-					else { currentVoxel->setTransFace(i + 1); }
-					continue;
-				}
-
-				// exlude neighbour if already in buffer
-				bool dupli = false;
-				for (size_t l = 0; l < tempBuffer.size(); l++)
-				{
-					if (neighbourIdx == tempBuffer[l])
-					{
-						dupli = true;
-						break;
-					}
-				}
-				if (!dupli)
-				{
-					tempBuffer.emplace_back(neighbourIdx);
-					totalRoom.emplace_back(neighbourIdx);
-					VoxelLookup_[neighbourIdx]->setRoomNum(roomnum);
-				}
-			}
-		}
-		buffer.clear();
-		buffer = tempBuffer;
-	}
-	return;
-}
-
-void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
-
-	VoxelLookup_[startIndx]->setBuildingNum(buildnum);
-	std::vector<int> buffer = { startIndx };
-	std::vector<int> potentialBuildingVoxels;
-
-	while (true)
-	{
-		for (size_t i = 0; i < buffer.size(); i++)
-		{
-			int currentIdx = buffer[i];
-			std::shared_ptr<voxel> currentVoxel = VoxelLookup_[currentIdx];
-
-			std::vector<int> neighbours = getNeighbours(currentIdx);
-
-			for (size_t j = 0; j < neighbours.size(); j++)
-			{
-				int otherIdx = neighbours[j];
-				std::shared_ptr<voxel> otherVoxel = VoxelLookup_[otherIdx];
-
-				if (!otherVoxel->getIsIntersecting()) { continue; }
-				if (otherVoxel->getBuildingNum() != -1) { continue; }
-
-				otherVoxel->setBuildingNum(buildnum);
-				potentialBuildingVoxels.emplace_back(otherIdx);
-			}
-		}
-
-		if (potentialBuildingVoxels.size() == 0)
-		{
-			break;
-		}
-		buffer = potentialBuildingVoxels;
-		potentialBuildingVoxels.clear();
-	}
-	return;
-}
-
-int VoxelGrid::invertDir(int dirIndx) { //TODO: this seems voxel related code?
-	if (dirIndx % 2 == 1) { return dirIndx - 1; }
-	else { return dirIndx + 1; }
-}
-
-void VoxelGrid::growExterior(DataManager* h)
-{
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoExteriorSpaceGrowing) << std::endl;
-	for (int i = 0; i < totalVoxels_; i++)
-	{
-		if (!VoxelLookup_[i]->getIsIntersecting())
-		{
-			growVoid(i, 0, h);
-			break;
-		}
-	}
-
-	std::cout << std::endl;
-	if (exteriorVoxelsIdx_.size() == 0)
-	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentNoExteriorSpace) << std::endl;
-		//TODO: this is an error;
-	}
-	else
-	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentExteriorSpaceGrown) << std::endl;
-	}
-	return;
-}
-
-void VoxelGrid::pairVoxels()
-{
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPairVoxels) << std::endl;
-	int buildingNum = 0;
-	for (int i = 0; i < totalVoxels_; i++)
-	{
-		if (VoxelLookup_[i]->getIsIntersecting() && VoxelLookup_[i]->getBuildingNum() == -1)
-		{
-			markVoxelBuilding(i, buildingNum);
-			buildingNum++;
-		}
-	}
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentPairedVoxels) << std::endl;
-	std::cout << "\t" << buildingNum << " buildings(s) found" << std::endl << std::endl;
-}
-
-
-void VoxelGrid::growInterior(DataManager* h)
-{
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInterioSpacesGrowing) << std::endl;
-	roomSize_ = 1;
-	for (int i = 0; i < totalVoxels_; i++)
-	{
-		if (!VoxelLookup_[i]->getIsIntersecting() && VoxelLookup_[i]->getRoomNum() == -1)
-		{
-			growVoid(i, roomSize_, h);
-			roomSize_++;
-		}
-	}
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
 }
