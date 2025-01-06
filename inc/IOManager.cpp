@@ -11,104 +11,6 @@
 #include <sys/stat.h>
 #include <boost/filesystem.hpp>
 
-
-bool IOManager::getJsonBoolValue(const nlohmann::json& jsonBoolValue)
-{
-	if (jsonBoolValue.is_boolean())
-	{
-		return static_cast<bool>(jsonBoolValue);
-	}
-
-	if (!jsonBoolValue.is_number_integer() &&
-		!jsonBoolValue.is_number_unsigned())
-	{
-		throw ErrorID::errorJsonInvalBool;
-	}
-
-	int jsonBoolInt = static_cast<int>(jsonBoolValue);
-	if (jsonBoolInt == 0) { return false; }
-	if (jsonBoolInt == 1) { return true; }
-
-	throw ErrorID::errorJsonInvalBool; //if not 0 or 1 invalid
-}
-
-int IOManager::getJsonInt(const nlohmann::json& jsonIntValue, bool requiredPositive, bool requiredNonZero) 
-{
-	if (!jsonIntValue.is_number_integer() && 
-		!jsonIntValue.is_number_unsigned())
-	{
-		throw ErrorID::errorJsonInvalInt;
-	}
-
-	if (!requiredPositive) { return static_cast<int>(jsonIntValue); }
-
-	int intValue = static_cast<int>(jsonIntValue);
-	if (intValue < 0)
-	{
-		throw ErrorID::errorJsonInvalNegInt;
-	}
-
-	if (!requiredNonZero) { return intValue; }
-	if (intValue == 0) { throw ErrorID::errorJsonInvalZeroInt; }
-	return intValue;
-}
-
-double IOManager::getJsonDouble(const nlohmann::json& jsonDouleValue) 
-{
-	if (!jsonDouleValue.is_number_integer() &&
-		!jsonDouleValue.is_number_unsigned() &&
-		!jsonDouleValue.is_number_float())
-	{
-		throw ErrorID::errorJsonInvalNum;
-	}
-	return static_cast<double>(jsonDouleValue);
-}
-
-std::string IOManager::getJsonString(const nlohmann::json& jsonStringValue)
-{
-	if (!jsonStringValue.is_string())
-	{
-		throw ErrorID::errorJsonInvalString;
-	}
-	return static_cast<std::string>(jsonStringValue);
-}
-
-std::string IOManager::getJsonPath(const nlohmann::json& jsonStringValue, bool valFolder, const std::string& fileExtension)
-{
-	std::string jsonPathPtr = "";
-	try
-	{
-		jsonPathPtr = getJsonString(jsonStringValue);
-	}
-	catch (const std::string& exception)
-	{
-		throw exception;
-	}
-
-	if (!hasExtension(jsonPathPtr, fileExtension))
-	{
-		throw ErrorID::errorJsonInvalPath;
-	}
-
-	if (valFolder)
-	{
-		std::filesystem::path folderPath(jsonPathPtr);
-		if (!isValidPath(folderPath.parent_path().string()))
-		{
-			throw ErrorID::errorJsonNoRealPath;
-		}
-		return jsonPathPtr;
-	}
-
-	if (!isValidPath(jsonPathPtr))
-	{
-		throw ErrorID::errorJsonNoRealPath;
-	}
-
-	return jsonPathPtr;
-}
-
-
 std::string IOManager::boolToString(const bool boolValue)
 {
 	if (boolValue) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "yes"; }
@@ -289,7 +191,8 @@ void IOManager::printSummary()
 	{
 		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY" << std::endl;
 	}
-	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
+	std::vector<std::string> addDivObjects = settingsCollection.getCustomDivList();
+	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
 	std::cout << std::endl;
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings" << std::endl;
@@ -421,8 +324,7 @@ nlohmann::json IOManager::settingsToJSON()
 		}
 	}
 	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
-	for (auto it = addDivObjects_.begin(); it != addDivObjects_.end(); ++it) { DivList.emplace_back(boost::to_upper_copy(*it)); }
-	ifcJSON[ifcDivOName] = DivList;
+	ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();;
 	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeoGrade();
 	settingsJSON[ifcOName] = ifcJSON;
 

@@ -18,44 +18,18 @@ private:
 
 	// time summary for the output
 	long long timeInternalizing_ = 0;
-	double timeInternalizingIsS_ = false;
-
 	long long timeVoxel_ = 0;
-
 	long long timeLoD00_ = 0;
-	bool timeLoD00IsS_ = false;
 	long long timeLoD02_ = 0;
-	bool timeLoD02IsS_ = false;
 	long long timeLoD03_ = 0;
-	bool timeLoD03IsS_ = false;
 	long long timeLoD10_ = 0;
-	bool timeLoD10IsS_ = false;
 	long long timeLoD12_ = 0;
-	bool timeLoD12IsS_ = false;
 	long long timeLoD13_ = 0;
-	bool timeLoD13IsS_ = false;
 	long long timeLoD22_ = 0;
-	bool timeLoD22IsS_ = false;
 	long long timeLoD32_ = 0;
-	bool timeLoD32IsS_ = false;
 	long long timeV_ = 0;
-	bool timeVIsS_ = false;
-
-	long long timeProcess = 0;
-	long long timeTotal = 0;
 
 	// simple assist functions
-	// translate json to boolean if possible
-	bool getJsonBoolValue(const nlohmann::json& jsonBoolValue);
-	// translate json to int if possible
-	int getJsonInt(const nlohmann::json& jsonIntValue, bool requiredPositive, bool requiredNonZero);
-	// translate json to double if possible
-	double getJsonDouble(const nlohmann::json& jsonDouleValue);
-	// translate json to string if possible
-	std::string getJsonString(const nlohmann::json& jsonStringValue);
-	// translate json to string path if possible
-	std::string getJsonPath(const nlohmann::json& jsonStringValue, bool valFolder, const std::string& fileExtension);
-
 	// outputs yes or no based on a input bool
 	std::string boolToString(const bool boolValue);
 
@@ -104,7 +78,5 @@ public:
 		"IFCDOOR",
 		"IFCWINDOW"
 	};
-
-	std::unordered_set<std::string> addDivObjects_ = {
-	};
+	//TODO: move this data somewhere central
 };
