@@ -149,6 +149,33 @@ void addTimeToJSON(nlohmann::json* j, const std::string& valueName, T duration)
 	return;
 }
 
+void IOManager::setMetaData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	metaData->setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
+	if (settingsCollection.geoReference())
+	{
+		internalDataManager_.get()->getProjectionData(transformation, metaData);
+	}
+	transformation->setScale(transformation->getScale()[0]);
+
+	// compute the extends
+	gp_Pnt lll = internalDataManager_.get()->getLllPoint();
+	gp_Pnt urr = internalDataManager_.get()->getUrrPoint();
+
+	gp_Trsf gridRotation;
+	gridRotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(gridRotation);
+	bboxGeo.Move(internalDataManager_->getObjectNormalizedTranslation());
+	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
+
+	metaData->setExtend(
+		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
+		CJT::CJTPoint(extents.max_corner().get<0>(), extents.max_corner().get<1>(), extents.max_corner().get<2>())
+	);
+	return;
+}
+
 
 void IOManager::printSummary()
 {
@@ -419,48 +446,42 @@ bool IOManager::run()
 		throw exceptionString;
 	}
 	
-	//TODO: find a way to sort this more clearly
 	int succesfullExit = 1;
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	// create the cjt objects
 	std::shared_ptr<CJT::CityCollection> collection = std::make_shared<CJT::CityCollection>();
-	CJT::CityObject cityBuildingObject;
-	CJT::CityObject cityShellObject;
-	CJT::CityObject cityInnerShellObject;
-
-	gp_Trsf geoRefRotation;
-	CJT::ObjectTransformation transformation(0.001);
-	CJT::metaDataObject metaData;
-	metaData.setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
-
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	if (settingsCollection.geoReference())
-	{
-		internalDataManager_.get()->getProjectionData(&transformation, &metaData, &geoRefRotation);
-	}
-	transformation.setScale(transformation.getScale()[0]);
-	collection->setTransformation(transformation);
-	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
+	CJT::CityObject cityBuildingObject; //the overarching city object
+	CJT::CityObject cityOuterShellObject; //container of outer shell geo objects
+	CJT::CityObject cityInnerShellObject; //container of storey objects
 
 	// Set up objects and their relationships
 	std::string BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
 	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcSite>("IfcSite", false); }
+	std::map<std::string, std::string> buildingAttributes = internalDataManager_.get()->getBuildingInformation();
+	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
 
 	cityBuildingObject.setName(BuildingName);
 	cityBuildingObject.setType(CJT::Building_Type::Building);
 
-	cityShellObject.setName(CJObjectEnum::getString(CJObjectID::outerShell));
-	cityShellObject.setType(CJT::Building_Type::BuildingPart);
+	cityOuterShellObject.setName(CJObjectEnum::getString(CJObjectID::outerShell));
+	cityOuterShellObject.setType(CJT::Building_Type::BuildingPart);
 
 	cityInnerShellObject.setName(CJObjectEnum::getString(CJObjectID::innerShell));
 	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
 
-	cityBuildingObject.addChild(&cityShellObject);
+	cityBuildingObject.addChild(&cityOuterShellObject);
 	cityBuildingObject.addChild(&cityInnerShellObject);
 
 	CJT::Kernel kernel = CJT::Kernel(collection);
 
-	std::map<std::string, std::string> buildingAttributes = internalDataManager_.get()->getBuildingInformation();
-	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
+	// compute the metadata
+	CJT::ObjectTransformation transformation(0.001);
+	CJT::metaDataObject metaData;
+
+	setMetaData(&transformation, &metaData);
+	collection->setTransformation(transformation); // set transformation early to avoid geo compression
+	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
 
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
@@ -495,8 +516,6 @@ bool IOManager::run()
 		geoCreator.useRoofPrint();
 	}
 
-	geoCreator.setRefRotation(geoRefRotation);
-
 	// list collects the faces from the LoD03 creation to base LoD13 output on
 	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
 
@@ -506,7 +525,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			CJT::GeoObject geo00 = geoCreator.makeLoD00(internalDataManager_.get(), &kernel, 1);
-			cityShellObject.addGeoObject(geo00);
+			cityOuterShellObject.addGeoObject(geo00);
 			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) 
@@ -522,7 +541,7 @@ bool IOManager::run()
 		try
 		{
 			std::vector<CJT::GeoObject> geo02 = geoCreator.makeLoD02(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo02.size(); i++) { cityShellObject.addGeoObject(geo02[i]); }
+			for (size_t i = 0; i < geo02.size(); i++) { cityOuterShellObject.addGeoObject(geo02[i]); }
 			
 		}
 		catch (const std::exception&) 
@@ -531,7 +550,6 @@ bool IOManager::run()
 			succesfullExit = 0;
 		}
 		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-
 	}
 	if (settingsCollection.make03()) //TODO: make binding
 	{
@@ -539,7 +557,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			std::vector<CJT::GeoObject> geo03 = geoCreator.makeLoD03(internalDataManager_.get(), &LoD03Faces, &kernel, 1);
-			for (size_t i = 0; i < geo03.size(); i++) { cityShellObject.addGeoObject(geo03[i]); }
+			for (size_t i = 0; i < geo03.size(); i++) { cityOuterShellObject.addGeoObject(geo03[i]); }
 			timeLoD03_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&)
@@ -554,7 +572,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			CJT::GeoObject geo10 = geoCreator.makeLoD10(internalDataManager_.get(), &kernel, 1);
-			cityShellObject.addGeoObject(geo10);
+			cityOuterShellObject.addGeoObject(geo10);
 			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) 
@@ -569,7 +587,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			std::vector<CJT::GeoObject> geo12 = geoCreator.makeLoD12(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo12.size(); i++) { cityShellObject.addGeoObject(geo12[i]); }
+			for (size_t i = 0; i < geo12.size(); i++) { cityOuterShellObject.addGeoObject(geo12[i]); }
 			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&)
@@ -584,7 +602,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			std::vector<CJT::GeoObject> geo13 = geoCreator.makeLoD13(internalDataManager_.get(), LoD03Faces, &kernel, 1);
-			for (size_t i = 0; i < geo13.size(); i++) { cityShellObject.addGeoObject(geo13[i]); }
+			for (size_t i = 0; i < geo13.size(); i++) { cityOuterShellObject.addGeoObject(geo13[i]); }
 			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) 
@@ -599,7 +617,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			std::vector<CJT::GeoObject> geo22 = geoCreator.makeLoD22(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo22.size(); i++) { cityShellObject.addGeoObject(geo22[i]); }
+			for (size_t i = 0; i < geo22.size(); i++) { cityOuterShellObject.addGeoObject(geo22[i]); }
 			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) 
@@ -614,7 +632,7 @@ bool IOManager::run()
 		{
 			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 			std::vector<CJT::GeoObject> geo32 = geoCreator.makeLoD32(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo32.size(); i++) { cityShellObject.addGeoObject(geo32[i]); }
+			for (size_t i = 0; i < geo32.size(); i++) { cityOuterShellObject.addGeoObject(geo32[i]); }
 			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 		}
 		catch (const std::exception&) 
@@ -627,7 +645,7 @@ bool IOManager::run()
 	{
 		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
 		std::vector<CJT::GeoObject> geoV = geoCreator.makeV(internalDataManager_.get(), &kernel, 1);
-		for (size_t i = 0; i < geoV.size(); i++) { cityShellObject.addGeoObject(geoV[i]); }
+		for (size_t i = 0; i < geoV.size(); i++) { cityOuterShellObject.addGeoObject(geoV[i]); }
 		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();	
 	}
 
@@ -690,35 +708,11 @@ bool IOManager::run()
 		}
 	}
 
-	// compute the extends
-	gp_Pnt lll = internalDataManager_.get()->getLllPoint();
-	gp_Pnt urr = internalDataManager_.get()->getUrrPoint();
 
-	gp_Trsf originRotation;
-	originRotation.SetRotation(gp_Quaternion(gp_Vec(0, 0, 1), -settingsCollection.gridRotation()));
-
-	gp_Trsf originTranslation = internalDataManager_->getObjectTranslation().Inverted();
-
-	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(originRotation).Moved(originTranslation);
-
-	gp_Trsf trs;
-	trs.SetRotation(geoCreator.getRefRotation().GetRotation());
-	trs.SetTranslationPart(
-		gp_Vec(transformation.getTranslation()[0], transformation.getTranslation()[1], transformation.getTranslation()[2])
-		 - originTranslation.TranslationPart()
-	);
-
-	bboxGeo = bboxGeo.Moved(trs);
-	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
-
-	metaData.setExtend(
-		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
-		CJT::CJTPoint(extents.max_corner().get<0>(), extents.max_corner().get<1>(), extents.max_corner().get<2>())
-	);
 
 	collection->setMetaData(metaData);
 
-	cityShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
+	cityOuterShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
 	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalDataManager_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
 
 	IfcSchema::IfcBuildingStorey::list::ptr storeyList = internalDataManager_.get()->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
@@ -756,10 +750,10 @@ bool IOManager::run()
 	if (settingsCollection.summaryVoxels())
 	{
 		geoCreator.extractOuterVoxelSummary(
-			&cityShellObject,
+			&cityOuterShellObject,
 			internalDataManager_.get(),
 			settingsCollection.footprintElevation(),
-			geoRefRotation.GetRotation().GetRotationAngle()
+			-settingsCollection.gridRotation()
 		);
 
 		geoCreator.extractInnerVoxelSummary(
@@ -769,7 +763,7 @@ bool IOManager::run()
 	}
 
 	collection->addCityObject(cityBuildingObject);
-	collection->addCityObject(cityShellObject);
+	collection->addCityObject(cityOuterShellObject);
 	collection->addCityObject(cityInnerShellObject);
 	collection->cullDuplicatedVerices();
 	cityCollection_ = collection;

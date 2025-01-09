@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -166,14 +166,6 @@ struct helperFunctions{
 	/// Check if evaluation surface is completely overlapped by other face list
 	template<typename T>
 	static bool isOverlappingCompletely(const ROSCollection& evalFace, const std::vector<ROSCollection>& facePool, const T& shapeIdx); //TODO: roscollection unique code?
-
-	/// geo related code 
-
-	/// translates objects back to original positions, transforms to coply with georeferencing, and translates objects back to corrected position
-	template<typename T>
-	static void geoTransform(T* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
-	/// translates points back to original positions, transforms to coply with georeferencing, and translates objects back to corrected position
-	static void geoTransform(gp_Pnt* point, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
 
 	/// line surface intersection related code
 

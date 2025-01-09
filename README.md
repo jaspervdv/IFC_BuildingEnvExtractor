@@ -66,16 +66,16 @@ This program is part of the [CHEK project](https://chekdbp.eu/). Any suggestions
 
 ## How to execute
 
-The tool can be used directly with the executables located in the Pre_Build folder. The folder should contain four executables:
+The tool can be used directly with the executables located in the release tab. For both Windows and Linux those are:
 
-* Ifc_Envelope_Extractor_ifc2x3.exe
-* Ifc_Envelope_Extractor_ifc4.exe
-* Ifc_Envelope_Extractor_ifc4x3.exe
-* Ext_GUI.exe
+* Ifc_Envelope_Extractor_ifc2x3(.exe)
+* Ifc_Envelope_Extractor_ifc4(.exe)
+* Ifc_Envelope_Extractor_ifc4x3(.exe)
+* Ext_GUI.exe (windows only)
 
-The _Ifc_Envelope_Extractor_ifc2x3.exe_, _Ifc_Envelope_Extractor_ifc4.exe_ or _Ifc_Envelope_Extractor_ifc4x3.exe_ can be called with a path to a configuration JSON file. This file is used to give the tool the needed information related to the IFC model ([more info](#configuration-json)). This enables the .exe to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
+The _Ifc_Envelope_Extractor_ifc2x3_, _Ifc_Envelope_Extractor_ifc4_ or _Ifc_Envelope_Extractor_ifc4x3_ application can be called with a path to a configuration JSON file. This config file is used to supply the tool the needed information that is related to the IFC model ([more info](#configuration-json)). This enables the extractor to be easily called by other applications. It is important to make sure that the correct executable for the IFC version of the model is used. An IFC4 file will not be processed by the IFC2x3 version of the tool.
 
-If a more direct (human) user friendly approach is desired both the aforementioned .exe can be called with the help of the _Ext_GUI.exe_ ([more info](#gui)).
+If a more direct (human) user friendly approach is desired on windows, the extractors can be configured with the help of the _Ext_GUI.exe_ ([more info](#gui)).
 
 ## How to build
 
@@ -274,7 +274,7 @@ The configuration json has a very simple structure. An example can be found belo
         "Default div": true,
         "Ignore proxy": true,
         "Div objects" : [],
-        "Simplify geometry" : false
+        "Simplify geometry" : 0
     },
     "JSON" : {
         "Footprint elevation": 1,
@@ -340,8 +340,8 @@ Optional:
   * Adds more custom space bounding objects to the processing.
   * Default value = empty
 * :white_check_mark: "IFC" "Simplify geometry" :white_check_mark:
-  * Boolean
-  * Toggles the use of void objects on the IFC objects. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
+  * int
+  * Toggles the use of void objects on the IFC objects. If 2: voids are not applied, if 1: voids are only applied for void objects that are not filled with other objects, if 0: all void objects are applied. GUI allows the choice between 0 and 2. 1 is only available from the ConfigJSON. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
   * Default value = false
 * :white_check_mark: "JSON" "Footprint elevation" :white_check_mark:
   * Float/double

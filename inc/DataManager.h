@@ -125,6 +125,8 @@ private:
 
 	// translation needed for accuracy if object is very far away from origin 
 	gp_Trsf objectTranslation_;
+	// translation that is adding the object translation to the ifc georef translation
+	gp_Trsf objectIfcTranslation_;
 
 	std::vector<std::unique_ptr<fileKernelCollection>> datacollection_;
 	int dataCollectionSize_ = 0;
@@ -150,7 +152,7 @@ private:
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
 	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
-	void computeObjectTranslation(gp_Vec* vec);
+	gp_Vec computeObjectTranslation();
 
 	/// adds all instances of the template type to the index and reports to user
 	template <typename IfcType>
@@ -230,6 +232,8 @@ public:
 	const gp_Pnt& getUrrPoint() { return urrPoint_; }
 	/// get the translation of the ifc model
 	const gp_Trsf& getObjectTranslation() { return objectTranslation_; }
+	/// get the translation of the ifc + georeference model
+	const gp_Trsf& getObjectNormalizedTranslation() { return objectIfcTranslation_; }
 	/// get the pointer to the space dividing objects index
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getIndexPointer() { return &index_; }
 	/// get the pointer to the space objects index
@@ -245,7 +249,9 @@ public:
 	void indexGeo();
 
 	/// gets the projectiodata if present
-	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf);
+	gp_Trsf DataManager::getProjectionTransformation();
+	/// gets the projectiodata if present
+	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData);
 	/// gets the generic building information
 	std::map<std::string, std::string> getBuildingInformation();
 	/// gets the object list name or long name

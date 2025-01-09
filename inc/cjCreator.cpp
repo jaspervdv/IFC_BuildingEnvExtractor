@@ -2423,14 +2423,11 @@ CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int 
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 	double rotationAngle = settingsCollection.gridRotation();
-	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, rotationAngle);
+	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle);
 
 	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
 	trs.SetTranslationPart(gp_Vec(0, 0, settingsCollection.footprintElevation()));
-
-	helperFunctions::geoTransform(&floorProjection, h->getObjectTranslation(), trs);
-	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection, "0.0");
+	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection.Moved(trs), "0.0");
 
 	std::map<std::string, std::string> semanticData;
 	semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
@@ -2466,15 +2463,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 		{
 			TopoDS_Shape currentShape = roofOutlineList_[i];
 
-			gp_Trsf localRotationTrsf;
-			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)),  -settingCollection.gridRotation());
-			currentShape.Move(localRotationTrsf);
-
-			gp_Trsf trs;
-			trs.SetRotation(geoRefRotation_.GetRotation());
-			if (hasFootprints_) { trs.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
-			else { trs.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation())); }
-			helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
+			gp_Trsf trsf;
+			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)),  -settingCollection.gridRotation());
+			if (hasFootprints_) { trsf.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
+			else { trsf.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation())); }
+			currentShape.Move(trsf);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.2");
 			geoObject.appendSurfaceData(semanticRoofData);
@@ -2486,18 +2479,15 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 	if (hasFootprints_) 
 	{ 
 		// make the footprint
-		gp_Trsf trs;
-		trs.SetRotation(geoRefRotation_.GetRotation());
 
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
 			TopoDS_Shape currentFace = footprintList_[i];
 
-			gp_Trsf localRotationTrsf;
-			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingCollection.gridRotation());
-			currentFace.Move(localRotationTrsf);
-
-			helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
+			gp_Trsf trsf;
+			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingCollection.gridRotation());
+			trsf.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation()));
+			currentFace.Move(trsf);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
 			geoObject.appendSurfaceData(semanticFootData);
@@ -2511,10 +2501,8 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 
 
 void CJGeoCreator::makeLoD02Storeys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale) {
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	gp_Trsf localRotationTrsf;
-	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
 	if (hasStoreyPrints_)
 	{
@@ -2533,15 +2521,13 @@ void CJGeoCreator::makeLoD02Storeys(DataManager* h, CJT::Kernel* kernel, std::ve
 				for (size_t k = 0; k < currentStoreyGeo.size(); k++)
 				{
 					TopoDS_Face currentFace = currentStoreyGeo[k];
-					
 					if (currentFace.IsNull()) { continue; }
+					currentFace.Move(trsf);
 
-					currentFace.Move(localRotationTrsf);
-
-					helperFunctions::geoTransform(&currentFace, h->getObjectTranslation(), trs);
 					CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
 					geoObject.appendSurfaceTypeValue(0);
 					storeyCityObjects[j]->addGeoObject(geoObject);
+
 					for (std::pair<std::string, std::string> semanticPair : currentStoreySemantic)
 					{
 						storeyCityObjects[j]->addAttribute(semanticPair.first, semanticPair.second, false);
@@ -2556,10 +2542,8 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 	
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	gp_Trsf localRotationTrsf;
-	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 	
 	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
 
@@ -2656,8 +2640,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 		{
 			for (TopoDS_Face& face : simplefyProjection(flatFaceList))
 			{
-				face.Move(localRotationTrsf);
-				helperFunctions::geoTransform(&face, h->getObjectTranslation(), trs);
+				face.Move(trsf);
 				if (settingsCollection.make02())
 				{
 					CJT::GeoObject roomGeoObject02 = kernel->convertToJSON(face, "0.2");;
@@ -2686,8 +2669,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 			if (roomPrismList.size() == 1)
 			{
 				if (roomPrismList[0].IsNull()) { return; } //TODO: check why this is needed for the gaia model (also at LoD12 creation)
-				roomPrismList[0].Move(localRotationTrsf);
-				helperFunctions::geoTransform(&roomPrismList[0], h->getObjectTranslation(), trs);
+				roomPrismList[0].Move(trsf);
 				CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");;
 				createSemanticData(&roomGeoObject22, roomPrismList[0], false);
 				matchingCityRoomObject->addGeoObject(roomGeoObject22);
@@ -2754,11 +2736,6 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 
 	brepSewer.Perform();
 	brepBuilder.Add(bbox, brepSewer.SewedShape());
-
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	//trs.SetTranslationPart(gp_Vec(0, 0, settingsCollection.footprintElevation()));
-	helperFunctions::geoTransform(&bbox, h->getObjectTranslation(), trs);
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
 	createSemanticData(&geoObject, bbox);
@@ -2829,10 +2806,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
 
-			gp_Trsf trs;
-			trs.SetRotation(geoRefRotation_.GetRotation());
-			helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
-
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.3");
 			geoObject.appendSurfaceData(semanticRoofData);
 			geoObject.appendSurfaceTypeValue(0);
@@ -2864,20 +2837,15 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(DataManager* h, CJT::Kernel
 	}
 	
 	double height = h->getUrrPoint().Z() - h->getLllPoint().Z();
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	trs.SetTranslationPart(gp_Vec(0, 0, h->getLllPoint().Z()));
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+	trsf.SetTranslationPart(gp_Vec(0, 0, h->getLllPoint().Z()));
 
 	std::vector< CJT::GeoObject> geoObjectList;
 	for (size_t i = 0; i < geometryBase.size(); i++)
 	{
 		TopoDS_Face currentFootprint = geometryBase[i];
-
-		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-		currentFootprint.Move(localRotationTrsf);
-
-		helperFunctions::geoTransform(&currentFootprint, h->getObjectTranslation(), trs);
+		currentFootprint.Move(trsf);
 
 		BRepPrimAPI_MakePrism sweeper(currentFootprint, gp_Vec(0, 0, height), Standard_True);
 		sweeper.Build();
@@ -2926,7 +2894,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 			const std::vector<TopoDS_Face>& untrimmedFaceGroup = roofList03[i];
 			TopoDS_Solid extrudedShape = extrudeFace(footprintList_[i], false, 10000);
 
-
 			BOPAlgo_Splitter divider;
 			divider.SetFuzzyValue(settingsCollection.precision());
 			divider.SetRunParallel(Standard_False);
@@ -2968,16 +2935,12 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 		}
 	}
 
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		TopoDS_Shape currentShape = prismList[i];
 		currentShape.Move(localRotationTrsf);
-		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
 		
@@ -3033,19 +2996,13 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 		}
 	}
 
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
 	for (size_t i = 0; i < prismList.size(); i++)
 	{
 		TopoDS_Shape currentShape = prismList[i];
-
-		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
-		currentShape.Move(localRotationTrsf);
-
-		helperFunctions::geoTransform(&currentShape, h->getObjectTranslation(), trs);
-
+		currentShape.Move(trsf);
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "2.2");
 		
 		createSemanticData(&geoObject, currentShape);
@@ -3094,8 +3051,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	builder.MakeCompound(collectionShape);
 
 	// set up data for the conversion to json
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
 	std::vector<int> typeValueList;
 
 	gp_Trsf localRotationTrsf;
@@ -3213,8 +3168,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			TopoDS_Face currentFaceCopy = currentFace;
 
 			currentFaceCopy.Move(localRotationTrsf);
-
-			helperFunctions::geoTransform(&currentFaceCopy, h->getObjectTranslation(), trs);
 			builder.Add(collectionShape, currentFaceCopy);
 
 			// add the semantic data to the map
@@ -3400,8 +3353,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
 	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
 	
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
@@ -3428,7 +3379,6 @@ void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std:
 		// get height values
 		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
 		spaceShape.Move(localRotationTrsf);
-		helperFunctions::geoTransform(&spaceShape, h->getObjectTranslation(), trs);
 		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");;
 		matchingCityRoomObject->addGeoObject(roomGeoObject);
 	}
@@ -3446,10 +3396,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	sewedShape.Move(localRotationTrsf);
-
-	gp_Trsf trs;
-	trs.SetRotation(geoRefRotation_.GetRotation());
-	helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
@@ -3493,9 +3439,6 @@ void CJGeoCreator::makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<s
 	for (int i = 1; i < voxelGrid_->getRoomSize(); i++) //TODO: multithread (-6 for the surface creation)
 	{
 		TopoDS_Shape sewedShape = voxels2Shape(i);
-		gp_Trsf trs;
-		trs.SetRotation(geoRefRotation_.GetRotation());
-		helperFunctions::geoTransform(&sewedShape, h->getObjectTranslation(), trs);
 
 		gp_Trsf localRotationTrsf;
 		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());

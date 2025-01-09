@@ -321,11 +321,12 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	// compute the smallest orientated bbox
 	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint); // compute initial values
 	helperFunctions::bBoxOrientated(pointList, lllPoint, urrPoint, &rotation, 0); // compute optimal values
+	//TODO: let rotation start on the georef rotation
 	settingsCollection.setGridRotation(rotation);
 	return;
 }
 
-void DataManager::computeObjectTranslation(gp_Vec* vec)
+gp_Vec DataManager::computeObjectTranslation()
 {
 	// get a point to translate the model to
 	for (size_t i = 0; i < dataCollectionSize_; i++)
@@ -339,12 +340,12 @@ void DataManager::computeObjectTranslation(gp_Vec* vec)
 		gp_Pnt urrPoint;
 		TopoDS_Shape slabShape = getObjectShape(slab, true);
 		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
-		*vec = gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
-		return;
+		return gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
+
 	}
 	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
 	throw std::string(errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab));
-	return;
+	return gp_Vec();
 }
 
 
@@ -905,11 +906,15 @@ void DataManager::internalizeGeo()
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
 
-	gp_Vec accuracyObjectTranslation;
-	computeObjectTranslation(&accuracyObjectTranslation);
-	objectTranslation_.SetTranslationPart(accuracyObjectTranslation);
-	elementCountSummary();
+	//combine the georef transformation from the ifc file with the local origin offset
+	gp_Trsf geoTrsf = getProjectionTransformation();
+	objectTranslation_.SetRotation(geoTrsf.GetRotation()); //set the objectranslation to the rotation only
+	gp_Vec ifcTrsf = computeObjectTranslation();
+	objectTranslation_.SetTranslationPart(ifcTrsf);
+	objectIfcTranslation_.SetTranslationPart(-ifcTrsf + geoTrsf.TranslationPart());
 
+	//TODO: store the gereference data
+	elementCountSummary();
 	try
 	{
 		computeBoundingData(&lllPoint_, &urrPoint_);
@@ -975,7 +980,66 @@ void DataManager::indexGeo()
 }
 
 
-void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData, gp_Trsf* trsf)
+gp_Trsf DataManager::getProjectionTransformation()
+{
+	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+	IfcSchema::IfcMapConversion::list::ptr mapList = fileObject->instances_by_type<IfcSchema::IfcMapConversion>();
+	if (mapList->size() == 0) { return gp_Trsf(); }
+	if (mapList->size() > 1) {
+		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleProjections);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcMultipleProjections) << std::endl;
+	}
+
+	gp_Trsf trsf;
+	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
+
+	if (!mapConversion->XAxisAbscissa().has_value() || !mapConversion->XAxisOrdinate().has_value()) { return gp_Trsf(); }
+	double XAO = mapConversion->XAxisOrdinate().get();
+	double XAA = mapConversion->XAxisAbscissa().get();
+	trsf.SetValues(
+		XAA, -XAO, 0, 0,
+		XAO, XAA, 0, 0,
+		0, 0, 1, 0
+	);
+
+	trsf.SetTranslationPart(gp_Vec(mapConversion->Eastings(), mapConversion->Northings(), mapConversion->OrthogonalHeight()));
+#else
+	IfcSchema::IfcSite::list::ptr ifcSiteList = fileObject->instances_by_type<IfcSchema::IfcSite>();
+
+	if (ifcSiteList->size() == 0) { return gp_Trsf(); }
+	if (ifcSiteList->size() > 1) { std::cout << "[WARNING] multiple sites detected" << std::endl; }
+
+	IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
+	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
+
+	IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
+	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return gp_Trsf(); }
+	if (sitePropertySet == nullptr) { return gp_Trsf(); }
+
+	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
+	if (!validateProjectionData(psetMap)) { return gp_Trsf(); }
+
+	double Eastings = std::stod(psetMap["IFC Eastings"]);
+	double Northings = std::stod(psetMap["IFC Northings"]);
+	double OrthogonalHeight = std::stod(psetMap["IFC OrthogonalHeight"]);
+	double XAA = std::stod(psetMap["IFC XAxisAbscissa"]);
+	double XAO = std::stod(psetMap["IFC XAxisOrdinate"]);
+
+	gp_Trsf trsf;
+	trsf.SetValues(
+		XAA, -XAO, 0, 0,
+		XAO, XAA, 0, 0,
+		0, 0, 1, 0
+	);
+	trsf.SetTranslationPart(gp_Vec(Eastings, Northings, OrthogonalHeight));
+
+#endif // !USE_IFC4
+	return trsf;
+}
+
+
+void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData)
 {
 	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 #if defined(USE_IFC4) || defined(USE_IFC4x3)
@@ -1000,24 +1064,12 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 		}
 		transformation->setScale(scaleCity);
 	}
-
-	if (!mapConversion->XAxisAbscissa().has_value() || !mapConversion->XAxisOrdinate().has_value()) { return; }
-
-	double XAO = mapConversion->XAxisOrdinate().get();
-	double XAA = mapConversion->XAxisAbscissa().get();
-
-	trsf->SetValues(
-		XAA, -XAO, 0, 0,
-		XAO, XAA, 0, 0,
-		0, 0, 1, 0
-	);
-
-	gp_XYZ invertedObjectTrsf = objectTranslation_.Inverted().TranslationPart();
+	gp_XYZ invertedObjectTrsf = objectIfcTranslation_.TranslationPart();
 
 	transformation->setTranslation(
-		mapConversion->Eastings() + invertedObjectTrsf.X(),
-		mapConversion->Northings() + invertedObjectTrsf.Y(),
-		mapConversion->OrthogonalHeight()
+		invertedObjectTrsf.X(),
+		invertedObjectTrsf.Y(),
+		invertedObjectTrsf.Z()
 	);
 #else
 	IfcSchema::IfcSite::list::ptr ifcSiteList = fileObject->instances_by_type<IfcSchema::IfcSite>();
@@ -1035,25 +1087,20 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
 	if (!validateProjectionData(psetMap)) { return; }
 
-	metaData->setReferenceSystem(psetMap["IFC TargetCRS"]);
-	//transformation->setScale(transformation->getScale() * std::stod(psetMap["Scale"]));
-
-	double Eastings = std::stod(psetMap["IFC Eastings"]);
-	double Northings = std::stod(psetMap["IFC Northings"]);
-	double OrthogonalHeight = std::stod(psetMap["IFC OrthogonalHeight"]);
-	double XAA = std::stod(psetMap["IFC XAxisAbscissa"]);
-	double XAO = std::stod(psetMap["IFC XAxisOrdinate"]);
-
-	trsf->SetValues(
-		XAA, -XAO, 0, 0,
-		XAO, XAA, 0, 0,
-		0, 0, 1, 0
-	);
-
+	if (auto search = psetMap.find("IFC TargetCRS"); search != psetMap.end())
+	{
+		metaData->setReferenceSystem(psetMap["IFC TargetCRS"]);
+	}
+	if (auto search = psetMap.find("IFC Scale"); search != psetMap.end())
+	{
+		transformation->setScale(transformation->getScale()[0] * std::stod(psetMap["IFC Scale"]));
+	}
+	
+	gp_XYZ invertedObjectTrsf = objectIfcTranslation_.TranslationPart();
 	transformation->setTranslation(
-		Eastings,
-		Northings,
-		OrthogonalHeight
+		invertedObjectTrsf.X(),
+		invertedObjectTrsf.Y(),
+		invertedObjectTrsf.Z()
 	);
 #endif // !USE_IFC4
 	return;

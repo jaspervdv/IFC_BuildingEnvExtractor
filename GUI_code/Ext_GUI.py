@@ -235,6 +235,7 @@ def runCode(input_path,
         lod_list.append(5.0)
     json_dictionary["LoD output"] = lod_list
 
+
     with open(json_path, "w") as outfile:
         json.dump(json_dictionary, outfile)
 

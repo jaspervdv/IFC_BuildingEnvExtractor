@@ -45,6 +45,9 @@ private:
 	// attempts to get the settings from json file
 	bool getJSONValues(const std::string& inputPath);
 
+	// sets up metadata and transformation object for CJT
+	void setMetaData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData);
+
 	// console outputs the settings that are utilized
 	void printSummary();
 

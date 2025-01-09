@@ -73,11 +73,6 @@ template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const TopoDS_Shell& th
 template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const TopoDS_Solid& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const TopoDS_Shape& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 
-template void helperFunctions::geoTransform<TopoDS_Face>(TopoDS_Face* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
-template void helperFunctions::geoTransform<TopoDS_Shell>(TopoDS_Shell* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
-template void helperFunctions::geoTransform<TopoDS_Solid>(TopoDS_Solid* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
-template void helperFunctions::geoTransform<TopoDS_Shape>(TopoDS_Shape* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans);
-
 
 BoostPoint3D helperFunctions::Point3DOTB(const gp_Pnt& oP) {
 	return BoostPoint3D(oP.X(), oP.Y(), oP.Z());
@@ -878,24 +873,6 @@ bool helperFunctions::isOverlappingCompletely(const ROSCollection& evalFace, con
 }
 
 
-template<typename T>
-void helperFunctions::geoTransform(T* shape, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
-{
-	shape->Move(objectTrans.Inverted());
-	shape->Move(geoTrans);
-	shape->Move(objectTrans);
-}
-
-void helperFunctions::geoTransform(gp_Pnt* point, const gp_Trsf& objectTrans, const gp_Trsf& geoTrans)
-{
-	point->Translate(objectTrans.Inverted().TranslationPart());
-	gp_Pnt rotatedPoint = helperFunctions::rotatePointWorld(*point, geoTrans.GetRotation().GetRotationAngle());
-	*point = rotatedPoint;
-	point->Translate(geoTrans.TranslationPart());
-	point->Translate(objectTrans.TranslationPart());
-}
-
-
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
 	gp_Pnt vert0 = vertices[0];
 	gp_Pnt vert1 = vertices[1];
@@ -1328,10 +1305,10 @@ TopoDS_Face helperFunctions::createHorizontalFace(double x, double y, double z) 
 }
 
 TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle) {
-	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), -rotationAngle);
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), -rotationAngle);
-	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), -rotationAngle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), -rotationAngle);
+	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), rotationAngle);
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), rotationAngle);
+	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), rotationAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), rotationAngle);
 
 	return createPlanarFace(p0, p1, p2, p3);
 }
