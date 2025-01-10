@@ -11,11 +11,35 @@
 #include <sys/stat.h>
 #include <boost/filesystem.hpp>
 
-std::string IOManager::boolToString(const bool boolValue)
+
+void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
 {
-	if (boolValue) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "yes"; }
-	else { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "no" ; }
+	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
+	if (duration < 5) { (*j)[valueName + UnitStringEnum::getString(UnitStringID::milliseconds)] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
+	else { (*j)[valueName + UnitStringEnum::getString(UnitStringID::seconds)] = duration; }
 }
+
+template<typename T>
+void addTimeToJSON(nlohmann::json* j, const std::string& valueName, T duration)
+{
+	std::string timeUnitString = "Unit";
+	std::string timeDurationString = "Duration";
+	nlohmann::json timeSet;
+	if (duration == 0) { return; }
+	else if (duration < 5000)
+	{
+		timeSet[timeDurationString] = duration;
+		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::milliseconds);
+	}
+	else
+	{
+		timeSet[timeDurationString] = duration / 1000;
+		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::seconds);
+	}
+	(*j)[valueName] = timeSet;
+	return;
+}
+
 
 bool IOManager::hasExtension(const std::string& string, const std::string& ext)
 {
@@ -30,7 +54,6 @@ bool IOManager::isValidPath(const std::string& path)
 	if (stat(path.c_str(), &info) != 0) { return false; }
 	return true;
 }
-
 
 std::string IOManager::getTargetPath()
 {
@@ -71,7 +94,6 @@ std::string IOManager::getTargetPath()
 		return singlepath;
 	}
 }
-
 
 bool IOManager::getJSONValues(const std::string& inputPath)
 {
@@ -121,147 +143,92 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	return true;
 }
 
-void addTimeToJSON(nlohmann::json* j, const std::string& valueName, const std::chrono::steady_clock::time_point& startTime, const std::chrono::steady_clock::time_point& endTime)
-{
-	long long duration = std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count();
-	if (duration < 5) { (*j)[valueName + UnitStringEnum::getString(UnitStringID::milliseconds)] = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count(); }
-	else { (*j)[valueName + UnitStringEnum::getString(UnitStringID::seconds)] = duration; }
-}
-
-template<typename T>
-void addTimeToJSON(nlohmann::json* j, const std::string& valueName, T duration)
-{
-	std::string timeUnitString = "Unit";
-	std::string timeDurationString = "Duration";
-	nlohmann::json timeSet;
-	if (duration == 0)  { return; }
-	else if (duration < 5000) 
-	{
-		timeSet[timeDurationString] = duration;
-		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::milliseconds);
-	}
-	else 
-	{
-		timeSet[timeDurationString] = duration/1000;
-		timeSet[timeUnitString] = UnitStringEnum::getString(UnitStringID::seconds);
-	}
-	(*j)[valueName] = timeSet;
-	return;
-}
-
-void IOManager::setMetaData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData)
-{
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	metaData->setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
-	if (settingsCollection.geoReference())
-	{
-		internalDataManager_.get()->getProjectionData(transformation, metaData);
-	}
-	transformation->setScale(transformation->getScale()[0]);
-
-	// compute the extends
-	gp_Pnt lll = internalDataManager_.get()->getLllPoint();
-	gp_Pnt urr = internalDataManager_.get()->getUrrPoint();
-
-	gp_Trsf gridRotation;
-	gridRotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(gridRotation);
-	bboxGeo.Move(internalDataManager_->getObjectNormalizedTranslation());
-	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
-
-	metaData->setExtend(
-		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
-		CJT::CJTPoint(extents.max_corner().get<0>(), extents.max_corner().get<1>(), extents.max_corner().get<2>())
-	);
-	return;
-}
-
 
 void IOManager::printSummary()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
-	std::cout << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "Used settings : " << std::endl;
-	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << "\n\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "Used settings:\n\n";
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "I/O settings" << std::endl;
-	std::cout << "- Configuration file:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getInputJSONPath() << std::endl;
-	std::cout << "- Input File(s):" << std::endl;
-	for (const std::string& inputPath : settingsCollection.getIfcPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << std::endl; }
-	std::cout << "- Output File:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputIFCPath() << std::endl;
-	std::cout << "- Create Report:" << std::endl;
-	std::cout << boolToString(settingsCollection.writeReport()) << std::endl;
-	std::cout << "- Report File:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputReportPath() << std::endl;
-	std::cout << "- LoD export enabled:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << std::endl;
-	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "I/O settings\n";
+	std::cout << "- Configuration file:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getInputJSONPath() << "\n";
+	std::cout << "- Input File(s):\n";
+	for (const std::string& inputPath : settingsCollection.getIfcPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << "\n"; }
+	std::cout << "- Output File:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputIFCPath() << "\n";
+	std::cout << "- Create Report:\n";
+	std::cout << boolToString(settingsCollection.writeReport()) << "\n";
+	std::cout << "- Report File:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputReportPath() << "\n";
+	std::cout << "- LoD export enabled:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << "\n\n";
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "IFC settings" << std::endl;
-	std::cout << "- Model rotation:" << std::endl;
-	if (settingsCollection.autoRotateGrid()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "automatic" << std::endl; } //TODO: add true north?
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "IFC settings\n";
+	std::cout << "- Model rotation:\n";
+	if (settingsCollection.autoRotateGrid()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "automatic\n"; } //TODO: add true north?
 	else
-	{ std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << std::endl;
+	{
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << "\n";
 	}
-	std::cout << "- Simplify geometry grade:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.simplefyGeoGrade() << std::endl;
-	std::cout << "- Space dividing objects:" << std::endl;
+	std::cout << "- Simplify geometry grade:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.simplefyGeoGrade() << "\n";
+	std::cout << "- Space dividing objects:\n";
 	if (settingsCollection.useDefaultDiv())
 	{
-		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << std::endl; }
+		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << "\n";; }
 	}
 	if (settingsCollection.useProxy())
 	{
-		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY" << std::endl;
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY\n";
 	}
 	std::vector<std::string> addDivObjects = settingsCollection.getCustomDivList();
-	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << std::endl; }
-	std::cout << std::endl;
+	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << "\n"; }
+	std::cout << "\n";
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings" << std::endl;
-	std::cout << "- Voxel size:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.voxelSize() << std::endl;
-	std::cout << "- Voxel logic:" << std::endl;
-	if (settingsCollection.intersectionLogic() == 2) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "plane" << std::endl; }
-	if (settingsCollection.intersectionLogic() == 3) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "solid" << std::endl; }
-	std::cout << "- Store voxel summary/approximation:" << std::endl;
-	std::cout << boolToString(settingsCollection.summaryVoxels()) << std::endl;
-	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings\n";
+	std::cout << "- Voxel size:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.voxelSize() << "\n";
+	std::cout << "- Voxel logic:\n";
+	if (settingsCollection.intersectionLogic() == 2) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "plane\n"; }
+	if (settingsCollection.intersectionLogic() == 3) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "solid\n"; }
+	std::cout << "- Store voxel summary/approximation:\n";
+	std::cout << boolToString(settingsCollection.summaryVoxels()) << "\n\n";
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "json settings" << std::endl;
-	std::cout << "- Footprint Elevation:" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.footprintElevation() << std::endl;
-	std::cout << "- Footrint based extraction:" << std::endl;
-	std::cout << boolToString(settingsCollection.footPrintBased()) << std::endl;
-	std::cout << "- horizontal section offset" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.horizontalSectionOffset() << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "json settings\n";
+	std::cout << "- Footprint Elevation:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.footprintElevation() << "\n";;
+	std::cout << "- Footrint based extraction:\n";
+	std::cout << boolToString(settingsCollection.footPrintBased()) << "\n";
+	std::cout << "- horizontal section offset\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.horizontalSectionOffset() << "\n";;
 	if (settingsCollection.make02())
 	{
-		std::cout << "- Create footprint:" << std::endl;
-		std::cout << boolToString(settingsCollection.makeFootPrint()) << std::endl;
+		std::cout << "- Create footprint:\n";
+		std::cout << boolToString(settingsCollection.makeFootPrint()) << "\n";
 
-		std::cout << "- Store Lod0.2 roof outline:" << std::endl;
-		std::cout << boolToString(settingsCollection.makeRoofPrint()) << std::endl;
+		std::cout << "- Store Lod0.2 roof outline:\n";
+		std::cout << boolToString(settingsCollection.makeRoofPrint()) << "\n";
 	}
-	std::cout << "- Generate interior:" << std::endl;
-	std::cout << boolToString(settingsCollection.makeInterior()) << std::endl;
-	std::cout << "- Georeference:" << std::endl;
-	std::cout << boolToString(settingsCollection.geoReference()) << std::endl;
-	std::cout << "- Merge semantic objects" << std::endl;
-	std::cout << boolToString(settingsCollection.mergeSemantics()) << std::endl;
+	std::cout << "- Generate interior:\n";
+	std::cout << boolToString(settingsCollection.makeInterior()) << "\n";
+	std::cout << "- Georeference:\n";
+	std::cout << boolToString(settingsCollection.geoReference()) << "\n";
+	std::cout << "- Merge semantic objects:\n";
+	std::cout << boolToString(settingsCollection.mergeSemantics()) << "\n\n";
 
-	std::cout << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "other settings:" << std::endl;
-	std::cout << "- Max thread count" << std::endl;
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) <<  settingsCollection.threadcount() << std::endl;
-	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "other settings:\n";
+	std::cout << "- Max thread count\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.threadcount() << "\n\n";
 
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
-	std::cout << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << "\n\n";
+}
+
+std::string IOManager::boolToString(const bool boolValue)
+{
+	if (boolValue) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "yes"; }
+	else { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "no"; }
 }
 
 
@@ -403,6 +370,311 @@ void IOManager::internalizeGeo()
 	return;
 }
 
+void IOManager::setMetaData(std::shared_ptr<CJT::CityCollection> collection)
+{
+	CJT::ObjectTransformation transformation(0.001);
+	CJT::metaDataObject metaData;
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	metaData.setTitle(CJObjectEnum::getString(CJObjectID::metaDataTitle));
+	if (settingsCollection.geoReference())
+	{
+		internalDataManager_.get()->getProjectionData(&transformation, &metaData);
+	}
+	transformation.setScale(transformation.getScale()[0]);
+
+	// compute the extends
+	gp_Pnt lll = internalDataManager_.get()->getLllPoint();
+	gp_Pnt urr = internalDataManager_.get()->getUrrPoint();
+
+	gp_Trsf gridRotation;
+	gridRotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+	TopoDS_Shape bboxGeo = helperFunctions::createBBOXOCCT(lll, urr).Moved(gridRotation);
+	bboxGeo.Move(internalDataManager_->getObjectNormalizedTranslation());
+	bg::model::box <BoostPoint3D> extents = helperFunctions::createBBox(bboxGeo);
+
+	metaData.setExtend(
+		CJT::CJTPoint(extents.min_corner().get<0>(), extents.min_corner().get<1>(), extents.min_corner().get<2>()),
+		CJT::CJTPoint(extents.max_corner().get<0>(), extents.max_corner().get<1>(), extents.max_corner().get<2>())
+	);
+
+	collection->setTransformation(transformation); // set transformation early to avoid geo compression
+	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
+	collection->setMetaData(metaData);
+	return;
+}
+
+void IOManager::setDefaultSemantic(CJT::CityObject& cityBuildingObject, CJT::CityObject& cityOuterShellObject, CJT::CityObject& cityInnerShellObject)
+{
+	// Set up objects and their relationships
+	std::string BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
+	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcSite>("IfcSite", false); }
+	std::map<std::string, std::string> buildingAttributes = internalDataManager_.get()->getBuildingInformation();
+	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
+
+	cityBuildingObject.setName(BuildingName);
+	cityBuildingObject.setType(CJT::Building_Type::Building);
+
+	cityOuterShellObject.setName(CJObjectEnum::getString(CJObjectID::outerShell));
+	cityOuterShellObject.setType(CJT::Building_Type::BuildingPart);
+
+	cityInnerShellObject.setName(CJObjectEnum::getString(CJObjectID::innerShell));
+	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
+
+	cityBuildingObject.addChild(&cityOuterShellObject);
+	cityBuildingObject.addChild(&cityInnerShellObject);
+
+	return;
+}
+
+void IOManager::setComputedSemantic(CJGeoCreator* geoCreator, CJT::CityObject& cityBuildingObject, CJT::CityObject& cityOuterShellObject, CJT::CityObject& cityInnerShellObject)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	cityOuterShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalDataManager_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
+
+	int storeyFloors = 0;
+	int basementFloors = 0;
+	ComputeStoreysAboveGround(&storeyFloors, &basementFloors);
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysAboveGround", storeyFloors);
+	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysBelowGround", basementFloors);
+
+	if (settingsCollection.summaryVoxels())
+	{
+		geoCreator->extractOuterVoxelSummary(
+			&cityOuterShellObject,
+			internalDataManager_.get(),
+			settingsCollection.footprintElevation(),
+			-settingsCollection.gridRotation()
+		);
+
+		geoCreator->extractInnerVoxelSummary(
+			&cityInnerShellObject,
+			internalDataManager_.get()
+		);
+	}
+	return;
+}
+
+void IOManager::ComputeStoreysAboveGround(int* storeysAboveGround, int* storeysBelowGround)
+{
+	IfcSchema::IfcBuildingStorey::list::ptr storeyList = internalDataManager_.get()->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
+
+	double groundHeight = SettingsCollection::getInstance().footprintElevation();
+	double smallestDistance = 1000000;
+	double groundFloorHeight = 0;
+	std::vector<double> storeyHeights;
+	for (auto it = storeyList->begin(); it != storeyList->end(); ++it)
+	{
+		IfcSchema::IfcBuildingStorey* storeyObject = *it;
+		double floorHeight = storeyObject->Elevation().get() * internalDataManager_.get()->getScaler(0);
+		storeyHeights.emplace_back(floorHeight);
+
+		double distanceToGround = abs(floorHeight - groundHeight);
+
+		if (distanceToGround < smallestDistance)
+		{
+			smallestDistance = distanceToGround;
+			groundFloorHeight = floorHeight;
+		}
+	}
+
+	int storeyFloors = 0;
+	int basementFloors = 0;
+	for (double floorHeight : storeyHeights)
+	{
+		if (floorHeight >= groundFloorHeight) { storeyFloors++; }
+		else { basementFloors++; }
+	}
+	*storeysAboveGround = storeyFloors;
+	*storeysBelowGround = basementFloors;
+
+	return;
+}
+
+
+void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, CJT::Kernel* kernel)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	// list collects the faces from the LoD03 creation to base LoD13 output on
+	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
+
+	if (settingsCollection.make00())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD00(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD00_);
+	}
+	if (settingsCollection.make02())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD02(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD02_);
+	}
+	if (settingsCollection.make03())
+	{
+		processExternalLod03(geoCreator, cityOuterShellObject, &LoD03Faces, kernel);
+	}
+	if (settingsCollection.make10())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD10(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD10_);
+	}
+	if (settingsCollection.make12())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD12(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD12_);
+	}
+	if (settingsCollection.make13())
+	{
+		processExternalLod13(geoCreator, cityOuterShellObject, LoD03Faces, kernel);
+	}
+	if (settingsCollection.make22())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD22_);
+	}
+	if (settingsCollection.make32())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD32(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD32_);
+	}
+	if (settingsCollection.makeV())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeV(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD00, timeV_);
+	}
+	return;
+}
+
+void IOManager::processExternalLoD(
+	const std::function<std::vector<CJT::GeoObject>()>& lodCreationFunc,
+	CJT::CityObject& cityOuterShellObject,
+	ErrorID errorID,
+	long long& timeRecord
+)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geoObjects = lodCreationFunc();
+		for (size_t i = 0; i < geoObjects.size(); i++) { cityOuterShellObject.addGeoObject(geoObjects[i]); }
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD00);
+		succesfullExit_ = 0;
+	}
+	timeRecord = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
+void IOManager::processExternalLod03(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, std::vector<std::vector<TopoDS_Face>>* roofList03, CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geo03 = geoCreator->makeLoD03(internalDataManager_.get(), roofList03, kernel, 1);
+		for (size_t i = 0; i < geo03.size(); i++) { cityOuterShellObject.addGeoObject(geo03[i]); }
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD03);
+		succesfullExit_ = 0;
+	}
+	timeLoD03_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
+void IOManager::processExternalLod13(
+	CJGeoCreator* geoCreator,
+	CJT::CityObject& cityOuterShellObject,
+	const std::vector<std::vector<TopoDS_Face>>& roofList03, 
+	CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geo13 = geoCreator->makeLoD13(internalDataManager_.get(), roofList03, kernel, 1);
+		for (size_t i = 0; i < geo13.size(); i++) { cityOuterShellObject.addGeoObject(geo13[i]); }	
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD13);
+		succesfullExit_ = 0;
+	}
+	timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
+void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT::CityCollection> collection, CJT::CityObject* cityInnerShellObject, CJT::Kernel* kernel)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	// get storey semantic objects
+	std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator->makeStoreyObjects(internalDataManager_.get());
+	std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = geoCreator->makeRoomObjects(internalDataManager_.get(), storeyObjects);
+
+	// storeys
+	if (settingsCollection.make02())
+	{
+		try
+		{
+			geoCreator->makeFloorSectionCollection(internalDataManager_.get());
+		}
+		catch (const std::exception&)
+		{
+			succesfullExit_ = 0;
+		}
+		geoCreator->makeLoD02Storeys(internalDataManager_.get(), kernel, storeyObjects, 1);
+	}
+	if (settingsCollection.make02() || settingsCollection.make12() || settingsCollection.make22())
+	{
+		geoCreator->makeSimpleLodRooms(internalDataManager_.get(), kernel, roomObjects, 1);
+	}
+
+	if (settingsCollection.make32())
+	{
+		geoCreator->makeComplexLoDRooms(internalDataManager_.get(), kernel, roomObjects, 1);
+	}
+
+	// rooms
+	if (settingsCollection.makeV())
+	{
+		geoCreator->makeVRooms(internalDataManager_.get(), kernel, storeyObjects, roomObjects, 1);
+	}
+
+	for (size_t i = 0; i < storeyObjects.size(); i++)
+	{
+		storeyObjects[i]->addParent(cityInnerShellObject);
+		collection->addCityObject(*storeyObjects[i].get());
+	}
+
+	for (size_t i = 0; i < roomObjects.size(); i++)
+	{
+		collection->addCityObject(*roomObjects[i].get());
+	}
+	return;
+}
+
+void IOManager::processSitelod(CJGeoCreator* geoCreator, std::shared_ptr<CJT::CityCollection> collection, CJT::CityObject* cityBuildingObject, CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	std::vector<CJT::CityObject> siteObjects = geoCreator->makeSite(internalDataManager_.get(), kernel, 1);
+	for (size_t i = 0; i < siteObjects.size(); i++)
+	{
+		CJT::CityObject currentSiteObject = siteObjects[i];
+		currentSiteObject.addParent(cityBuildingObject);
+		collection->addCityObject(currentSiteObject);
+	}
+	return;
+}
+
 
 bool IOManager::init(const std::vector<std::string>& inputPathList)
 {
@@ -436,18 +708,11 @@ bool IOManager::init(const std::vector<std::string>& inputPathList)
 
 bool IOManager::run()
 {
-	// internalize the helper data
-	try
-	{
-		internalizeGeo();
-	}
-	catch (const std::string& exceptionString)
-	{
-		throw exceptionString;
-	}
-	
-	int succesfullExit = 1;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	// internalize the helper data
+	try { internalizeGeo(); }
+	catch (const std::string& exceptionString) { throw exceptionString; }
 
 	// create the cjt objects
 	std::shared_ptr<CJT::CityCollection> collection = std::make_shared<CJT::CityCollection>();
@@ -455,33 +720,8 @@ bool IOManager::run()
 	CJT::CityObject cityOuterShellObject; //container of outer shell geo objects
 	CJT::CityObject cityInnerShellObject; //container of storey objects
 
-	// Set up objects and their relationships
-	std::string BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
-	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcSite>("IfcSite", false); }
-	std::map<std::string, std::string> buildingAttributes = internalDataManager_.get()->getBuildingInformation();
-	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
-
-	cityBuildingObject.setName(BuildingName);
-	cityBuildingObject.setType(CJT::Building_Type::Building);
-
-	cityOuterShellObject.setName(CJObjectEnum::getString(CJObjectID::outerShell));
-	cityOuterShellObject.setType(CJT::Building_Type::BuildingPart);
-
-	cityInnerShellObject.setName(CJObjectEnum::getString(CJObjectID::innerShell));
-	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
-
-	cityBuildingObject.addChild(&cityOuterShellObject);
-	cityBuildingObject.addChild(&cityInnerShellObject);
-
-	CJT::Kernel kernel = CJT::Kernel(collection);
-
-	// compute the metadata
-	CJT::ObjectTransformation transformation(0.001);
-	CJT::metaDataObject metaData;
-
-	setMetaData(&transformation, &metaData);
-	collection->setTransformation(transformation); // set transformation early to avoid geo compression
-	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
+	setDefaultSemantic(cityBuildingObject, cityOuterShellObject, cityInnerShellObject);
+	setMetaData(collection);
 
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
@@ -507,7 +747,7 @@ bool IOManager::run()
 		catch (const std::exception&)
 		{
 			ErrorCollection::getInstance().addError(ErrorID::errorFootprintFailed);
-			succesfullExit = 0;
+			succesfullExit_ = 0;
 		}
 	}
 
@@ -516,258 +756,26 @@ bool IOManager::run()
 		geoCreator.useRoofPrint();
 	}
 
-	// list collects the faces from the LoD03 creation to base LoD13 output on
-	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
-
-	if (settingsCollection.make00())
+	// create the actual geometry
+	CJT::Kernel kernel = CJT::Kernel(collection);
+	processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
+	if (settingsCollection.makeInterior())
 	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject geo00 = geoCreator.makeLoD00(internalDataManager_.get(), &kernel, 1);
-			cityOuterShellObject.addGeoObject(geo00);
-			timeLoD00_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD00);
-			succesfullExit = 0;
-		}
-
+		processInteriorLod(&geoCreator, collection, &cityInnerShellObject, &kernel);
 	}
-	if (settingsCollection.make02())
+	if (false) //TODO: store the site
 	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		try
-		{
-			std::vector<CJT::GeoObject> geo02 = geoCreator.makeLoD02(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo02.size(); i++) { cityOuterShellObject.addGeoObject(geo02[i]); }
-			
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD02);
-			succesfullExit = 0;
-		}
-		timeLoD02_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	}
-	if (settingsCollection.make03()) //TODO: make binding
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo03 = geoCreator.makeLoD03(internalDataManager_.get(), &LoD03Faces, &kernel, 1);
-			for (size_t i = 0; i < geo03.size(); i++) { cityOuterShellObject.addGeoObject(geo03[i]); }
-			timeLoD03_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&)
-		{
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD03);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.make10())
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			CJT::GeoObject geo10 = geoCreator.makeLoD10(internalDataManager_.get(), &kernel, 1);
-			cityOuterShellObject.addGeoObject(geo10);
-			timeLoD10_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD10);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.make12())
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo12 = geoCreator.makeLoD12(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo12.size(); i++) { cityOuterShellObject.addGeoObject(geo12[i]); }
-			timeLoD12_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&)
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD12);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.make13())
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo13 = geoCreator.makeLoD13(internalDataManager_.get(), LoD03Faces, &kernel, 1);
-			for (size_t i = 0; i < geo13.size(); i++) { cityOuterShellObject.addGeoObject(geo13[i]); }
-			timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD13);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.make22())
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo22 = geoCreator.makeLoD22(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo22.size(); i++) { cityOuterShellObject.addGeoObject(geo22[i]); }
-			timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD22);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.make32())
-	{
-		try
-		{
-			auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-			std::vector<CJT::GeoObject> geo32 = geoCreator.makeLoD32(internalDataManager_.get(), &kernel, 1);
-			for (size_t i = 0; i < geo32.size(); i++) { cityOuterShellObject.addGeoObject(geo32[i]); }
-			timeLoD32_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-		}
-		catch (const std::exception&) 
-		{ 
-			ErrorCollection::getInstance().addError(ErrorID::failedLoD32);
-			succesfullExit = 0;
-		}
-	}
-	if (settingsCollection.makeV())
-	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::GeoObject> geoV = geoCreator.makeV(internalDataManager_.get(), &kernel, 1);
-		for (size_t i = 0; i < geoV.size(); i++) { cityOuterShellObject.addGeoObject(geoV[i]); }
-		timeV_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();	
+		processSitelod(&geoCreator, collection, &cityBuildingObject, &kernel);
 	}
 
-	if (settingsCollection.makeInterior()) //TODO: make this a function
-	{
-		// get storey semantic objects
-		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator.makeStoreyObjects(internalDataManager_.get());
-		std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = geoCreator.makeRoomObjects(internalDataManager_.get(), storeyObjects);
-
-		// storeys
-		if (settingsCollection.make02())
-		{
-			try
-			{
-				geoCreator.makeFloorSectionCollection(internalDataManager_.get());
-			}
-			catch (const std::exception&)
-			{
-				succesfullExit = 0;
-			}
-			geoCreator.makeLoD02Storeys(internalDataManager_.get(), &kernel, storeyObjects, 1);
-		}
-		if (settingsCollection.make02() || settingsCollection.make12() ||settingsCollection.make22())
-		{
-			geoCreator.makeSimpleLodRooms(internalDataManager_.get(), &kernel, roomObjects, 1);
-		}
-
-		if (settingsCollection.make32())
-		{
-			geoCreator.makeComplexLoDRooms(internalDataManager_.get(), &kernel, roomObjects, 1);
-		}
-
-		// rooms
-		if (settingsCollection.makeV())
-		{
-			geoCreator.makeVRooms(internalDataManager_.get(), &kernel, storeyObjects, roomObjects, 1);		
-		}
-
-		for (size_t i = 0; i < storeyObjects.size(); i++)
-		{
-			storeyObjects[i]->addParent(&cityInnerShellObject);
-			collection->addCityObject(*storeyObjects[i].get());
-		}
-
-		for (size_t i = 0; i < roomObjects.size(); i++)
-		{
-			collection->addCityObject(*roomObjects[i].get());
-		}
-	}
-
-	if (false) // store the site
-	{
-		auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-		std::vector<CJT::CityObject> siteObjects = geoCreator.makeSite(internalDataManager_.get(), &kernel, 1);
-		for (size_t i = 0; i < siteObjects.size(); i++)
-		{
-			CJT::CityObject currentSiteObject = siteObjects[i];
-			currentSiteObject.addParent(&cityBuildingObject);
-			collection->addCityObject(currentSiteObject);
-		}
-	}
-
-
-
-	collection->setMetaData(metaData);
-
-	cityOuterShellObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "footprint elevation", settingsCollection.footprintElevation());
-	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "buildingHeight", internalDataManager_.get()->getUrrPoint().Z() - settingsCollection.footprintElevation());
-
-	IfcSchema::IfcBuildingStorey::list::ptr storeyList = internalDataManager_.get()->getSourceFile(0)->instances_by_type<IfcSchema::IfcBuildingStorey>();
-
-	double groundHeight = settingsCollection.footprintElevation();
-	double smallestDistance = 1000000;
-	double groundFloorHeight = 0;
-	std::vector<double> storeyHeights;
-	for (auto it = storeyList->begin(); it != storeyList->end(); ++it)
-	{
-		IfcSchema::IfcBuildingStorey* storeyObject = *it;
-		double floorHeight = storeyObject->Elevation().get() * internalDataManager_.get()->getScaler(0);
-		storeyHeights.emplace_back(floorHeight);
-
-		double distanceToGround = abs(floorHeight - groundHeight);
-
-		if (distanceToGround < smallestDistance)
-		{
-			smallestDistance = distanceToGround;
-			groundFloorHeight = floorHeight;
-		}
-	}
-
-	int storeyFloors = 0;
-	int basementFloors = 0;
-	for (double floorHeight : storeyHeights)
-	{
-		if (floorHeight >= groundFloorHeight) { storeyFloors++; }
-		else { basementFloors++; }
-	}
-
-	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysAboveGround", storeyFloors);
-	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysBelowGround", basementFloors);
-
-	if (settingsCollection.summaryVoxels())
-	{
-		geoCreator.extractOuterVoxelSummary(
-			&cityOuterShellObject,
-			internalDataManager_.get(),
-			settingsCollection.footprintElevation(),
-			-settingsCollection.gridRotation()
-		);
-
-		geoCreator.extractInnerVoxelSummary(
-			&cityInnerShellObject,
-			internalDataManager_.get()
-		);
-	}
+	setComputedSemantic(&geoCreator, cityBuildingObject, cityOuterShellObject, cityInnerShellObject);
 
 	collection->addCityObject(cityBuildingObject);
 	collection->addCityObject(cityOuterShellObject);
 	collection->addCityObject(cityInnerShellObject);
 	collection->cullDuplicatedVerices();
 	cityCollection_ = collection;
-	return succesfullExit;
+	return succesfullExit_;
 }
 
 bool IOManager::write(bool reportOnly)
