@@ -311,11 +311,11 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	}
 
 	// if custom roration is required use that for bbox creation
-	double rotation = settingsCollection.desiredRotation();
+	double rotation = settingsCollection.desiredRotation() - objectTranslation_.GetRotation().GetRotationAngle();
 	if (!settingsCollection.autoRotateGrid()) 
 	{
 		helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation);
-		settingsCollection.setGridRotation(settingsCollection.desiredRotation());
+		settingsCollection.setGridRotation(rotation);
 		return;
 	}
 	// compute the smallest orientated bbox
