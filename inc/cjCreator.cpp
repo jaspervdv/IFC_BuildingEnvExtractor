@@ -1981,32 +1981,28 @@ TopoDS_Face makeFace(const std::vector<gp_Pnt>& voxelPointList, const std::vecto
 }
 
 
-std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
+std::vector<TopoDS_Shape> CJGeoCreator::beamProjection(DataManager* h)
 {
 	auto startTime = std::chrono::steady_clock::now();
+	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx();
+	std::vector<Value> topValueList;
+	std::vector<TopoDS_Shape> topObjectList;
 
-	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx(); //TODO: this can be written more pretty 
-	std::vector<Value> topValues;
-	std::vector<TopoDS_Shape> topObjects;
-
-	for (size_t i = 0; i < boxelIdx.size(); i++)
+	for (int currentVoxelIdx : boxelIdx)
 	{
-		int currentVoxelIdx = boxelIdx[i];
 		while (true)
 		{
 			voxel currentVoxel = voxelGrid_->getVoxel(currentVoxelIdx);
-			std::vector<Value> internalValueList= currentVoxel.getInternalProductList();
+			std::vector<Value> internalValueList = currentVoxel.getInternalProductList();
 
 			if (internalValueList.size())
 			{
-				for (size_t j = 0; j < internalValueList.size(); j++)
+				for (const Value& internalValue : internalValueList)
 				{
 					double dub = false;
-					Value internalValue = internalValueList[j];
-
-					for (size_t k = 0; k < topValues.size(); k++)
+					for (const Value& topValue : topValueList)
 					{
-						if (topValues[k].second == internalValue.second)
+						if (topValue.second == internalValue.second)
 						{
 							dub = true;
 							break;
@@ -2020,8 +2016,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 					if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
 					else { currentShape = lookup->getProductShape(); }
 
-					topValues.emplace_back(internalValue);
-					topObjects.emplace_back(currentShape);
+					topValueList.emplace_back(internalValue);
+					topObjectList.emplace_back(currentShape);
 				}
 				break;
 			}
@@ -2030,16 +2026,18 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 		}
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	return topObjectList;
+}
 
-	//TODO: make function
+std::vector<TopoDS_Shape> CJGeoCreator::getUniqueShapedObjects(const std::vector<TopoDS_Shape>& topObjectList)
+{
 	std::vector<TopoDS_Shape> uniqueTopObjects;
 	std::vector<gp_Pnt> uniqueCenterPoint;
 	std::vector<double> uniqueTopMass;
 	std::vector<double> uniqueTopArea;
 
-	for (size_t i = 0; i < topObjects.size(); i++)
+	for (const TopoDS_Shape& currentShape : topObjectList) //TODO: this should be using indexing
 	{
-		TopoDS_Shape currentShape = topObjects[i];
 		bool isDub = false;
 
 		GProp_GProps volGprops;
@@ -2054,14 +2052,13 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 
 		for (size_t j = 0; j < uniqueTopObjects.size(); j++)
 		{
-			TopoDS_Shape otherShape = topObjects[j];
 			gp_Pnt otherCenterPoint = uniqueCenterPoint[j];
-			double otherMass = uniqueTopMass[j];
-			double otherArea = uniqueTopArea[j];
-
 			if (!currentCenterPoint.IsEqual(otherCenterPoint, 1e-6)) { continue; }
-
+			
+			double otherMass = uniqueTopMass[j];
 			if (abs(currentMass - otherMass) > 1e-6) { continue; }
+			
+			double otherArea = uniqueTopArea[j];
 			if (abs(currentArea - otherArea) > 1e-6) { continue; }
 
 			isDub = true;
@@ -2075,8 +2072,14 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 		uniqueTopMass.emplace_back(currentMass);
 		uniqueTopArea.emplace_back(currentArea);
 	}
-
 	return uniqueTopObjects;
+}
+
+std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
+{
+	std::vector<TopoDS_Shape> topObjects = beamProjection(h);
+	std::vector<TopoDS_Shape> topCleanObjects = getUniqueShapedObjects(topObjects);
+	return topCleanObjects;
 }
 
 

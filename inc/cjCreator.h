@@ -68,6 +68,12 @@ private:
 	// list containing all the floor outlines;
 	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
+	/// get top objects by projecting the top voxel grid in beams downwards
+	std::vector<TopoDS_Shape> beamProjection(DataManager* h);
+
+	// culls dub shapes based on mass and area
+	std::vector<TopoDS_Shape> getUniqueShapedObjects (const std::vector<TopoDS_Shape>& topObjectList);
+
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(DataManager* h);
 
