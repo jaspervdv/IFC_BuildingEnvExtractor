@@ -353,9 +353,11 @@ bg::model::box <BoostPoint3D> helperFunctions::createBBox(const std::vector<Topo
 		BRepBndLib::Add(shape[i], boundingBox);
 	}
 
-	// Step 3: Get the bounds of the bounding box.
+	if (boundingBox.IsVoid()) { return {}; }
+
 	Standard_Real minX, minY, minZ, maxX, maxY, maxZ;
 	boundingBox.Get(minX, minY, minZ, maxX, maxY, maxZ);
+
 	return  bg::model::box < BoostPoint3D >(
 		BoostPoint3D(minX - buffer, minY - buffer, minZ - buffer),
 		BoostPoint3D(maxX + buffer, maxY + buffer, maxZ + buffer)
@@ -1916,4 +1918,17 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 {
 	auto hasTriangles = BRepTools::Triangulation(shape, 0.01);
 	if (!hasTriangles) { auto mesh = BRepMesh_IncrementalMesh(shape, 0.01); }
+}
+
+bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)
+{
+	auto t1 = bbox.min_corner();
+	auto t2 = bbox.max_corner();
+	if (abs(t1.get<0>() - t2.get<0>()) < 1e-6 &&
+		abs(t1.get<1>() - t2.get<1>()) < 1e-6 &&
+		abs(t1.get<2>() - t2.get<2>()) < 1e-6)
+	{
+		return false;
+	}
+	return true;
 }

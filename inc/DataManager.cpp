@@ -454,7 +454,12 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 		ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
 		return;
 	}
-
+	if (!helperFunctions::hasVolume(box))
+	{
+		ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
+		return;
+	}
+	
 	TopoDS_Shape simpleShape;
 	std::string productType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();

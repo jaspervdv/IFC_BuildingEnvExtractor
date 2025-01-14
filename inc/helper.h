@@ -227,6 +227,8 @@ struct helperFunctions{
 	static double computeArea(const TopoDS_Face& theFace);
 	/// get a nested list represeting the triangulation of an object
 	static void triangulateShape(const TopoDS_Shape& shape);
+	/// checks if a bbox has volume
+	static bool hasVolume(const bg::model::box <BoostPoint3D>& bbox);
 
 };
 #endif // HELPER_HELPER_H
