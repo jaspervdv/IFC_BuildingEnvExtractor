@@ -973,7 +973,6 @@ void DataManager::indexGeo()
 		timedAddObjectListToIndex<IfcSchema::IfcSpace>("IfcSpace", true);
 	}
 	std::cout << std::endl;
-
 	// find valid voids
 	if (settingsCollection.simplefyGeoGrade() == 1)
 	{
@@ -1084,8 +1083,8 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
 
 	IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
-	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return; }
 	if (sitePropertySet == nullptr) { return; }
+	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return; }
 
 	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
 	if (!validateProjectionData(psetMap)) { return; }
