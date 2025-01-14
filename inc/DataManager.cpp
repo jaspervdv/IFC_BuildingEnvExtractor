@@ -905,14 +905,12 @@ void DataManager::internalizeGeo()
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;
 	auto startTime = std::chrono::high_resolution_clock::now();
-
 	//combine the georef transformation from the ifc file with the local origin offset
 	gp_Trsf geoTrsf = getProjectionTransformation();
 	objectTranslation_.SetRotation(geoTrsf.GetRotation()); //set the objectranslation to the rotation only
 	gp_Vec ifcTrsf = computeObjectTranslation();
 	objectTranslation_.SetTranslationPart(ifcTrsf);
 	objectIfcTranslation_.SetTranslationPart(-ifcTrsf + geoTrsf.TranslationPart());
-
 	//TODO: store the gereference data
 	elementCountSummary();
 	try
@@ -1014,8 +1012,8 @@ gp_Trsf DataManager::getProjectionTransformation()
 	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
 
 	IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
-	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return gp_Trsf(); }
 	if (sitePropertySet == nullptr) { return gp_Trsf(); }
+	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return gp_Trsf(); }
 
 	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
 	if (!validateProjectionData(psetMap)) { return gp_Trsf(); }
