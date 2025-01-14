@@ -68,6 +68,9 @@ private:
 	// list containing all the floor outlines;
 	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
 
+	// returns true if the area and normal z dir are significant for the evaluation
+	bool useFace(const TopoDS_Face& face, gp_Pnt* centerPoint = nullptr);
+
 	/// get top objects by projecting the top voxel grid in beams downwards
 	std::vector<TopoDS_Shape> beamProjection(DataManager* h);
 
@@ -77,19 +80,36 @@ private:
 	/// @brief get the top geometry objects of the model
 	std::vector<TopoDS_Shape> getTopObjects(DataManager* h);
 
-	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
-	void reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<ROSCollection>* shapeList);
-	void reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<ROSCollection>* shapeList);
+	std::vector<TopoDS_Face> createRoofOutline();
 
-	/// @brief reduces the surfaces by merging neigbouring surfaces that have parallel normals 
-	void mergeSurfaces(const std::vector<ROSCollection>& shapeList);
+	/// creates face collection that represent the merged input shapes
+	std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace);
+
+	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
+	void reduceSurfaces(
+		const std::vector<TopoDS_Shape>& inputShapes, 
+		bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, 
+		std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList
+	);
+	void reduceSurface(
+		const std::vector<TopoDS_Shape>& inputShapes, 
+		bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, 
+		std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList
+	);
 
 	/// @brief reduce the surfaces in the facelist for roof extraction by z-ray casting on itself and others
-	void FinefilterSurfaces(const std::vector<ROSCollection>& shapeList, std::vector<ROSCollection>* fineFilteredShapeList);
-	void FinefilterSurface(const std::vector<ROSCollection>& shapeList, const std::vector<ROSCollection>& otherShapeList, std::vector<ROSCollection>* fineFilteredShapeList);
+	void FinefilterSurfaces(
+		const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList, 
+		std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
+	);
+	void FinefilterSurface(
+		const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList, 
+		const std::vector<std::shared_ptr<SurfaceGridPair>>& otherShapeList, 
+		std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
+	);
 
-	/// @brief get the surfaces that have an area when flattened
-	std::optional<ROSCollection> getROSCollections(const TopoDS_Shape& shape);
+	/// @brief get the surfaces that are not covered by other surfaces within the objects 
+	std::vector<std::shared_ptr<SurfaceGridPair>> getObjectTopSurfaces(const TopoDS_Shape& shape);
 
 	/// get the unique edges from in a shape or a collection of edges
 	std::vector<Edge> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
@@ -106,9 +126,6 @@ private:
 
 	/// @bried merges all the overlapping edges that have the same direction
 	std::vector<Edge> mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project=true);
-
-	/// removes the faces from the list that are completely lying on eachother
-	std::vector<TopoDS_Face> cullOverlappingFaces(const std::vector<TopoDS_Face> inputFaceList);
 
 	/// @brief merges flat faces together in a singular shape
 	std::vector<TopoDS_Face> simplefyProjection(const std::vector<TopoDS_Face> inputFaceList);
@@ -130,7 +147,7 @@ private:
 	void sortRoofStructures();
 
 	// merges faces that are near eachother
-	void mergeRoofSurfaces(const std::vector<ROSCollection>& Collection);
+	void mergeRoofSurfaces(std::vector<std::shared_ptr<SurfaceGridPair>>& Collection);
 
 
 	// create list of edges by cutting objects at the floor lvl
@@ -144,7 +161,6 @@ private:
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const TopoDS_Face& bufferSurface = {});
-	std::vector<TopoDS_Shape> computePrisms(const std::vector<ROSCollection>& inputGroupList, double lowestZ);
 
 	/// remove redundant edges from a solid shape
 	TopoDS_Shape simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap = false);

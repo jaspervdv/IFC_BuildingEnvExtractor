@@ -83,47 +83,6 @@ public:
 	bool testIsVisable(const std::vector<std::shared_ptr<SurfaceGridPair>>& otherSurfaces, bool preFilter = false);
 };
 
-// collection of the visible roof surfaces per IfcObject or IfcObject set
-class ROSCollection {
-private:
-	// the faces
-	std::vector<std::shared_ptr<SurfaceGridPair>> theFaceCollection_;
-
-	// the wire surrounding the faceCollection
-	std::vector<TopoDS_Wire> theWireCollection_;
-
-	// the flat face geometry of the complete face collection for LoD13
-	TopoDS_Face theFlatFace_;
-
-	// bounding box 3D data
-	gp_Pnt lllPoint_;
-	gp_Pnt urrPoint_;
-
-	// usability information
-	bool visibility_ = true;
-	bool isSmall_ = false;
-
-	bool overlap(ROSCollection other);
-
-	void mergeCoplanarFaces();
-
-public:
-	ROSCollection(std::vector<std::shared_ptr<SurfaceGridPair>> theGridPairList);
-
-	const std::vector<std::shared_ptr<SurfaceGridPair>> getFaceGridPairs() { return theFaceCollection_; }
-	const std::vector<TopoDS_Face> getFaces() const;
-
-	const gp_Pnt getLLLPoint() const { return lllPoint_; }
-	const gp_Pnt getURRPoint() const { return urrPoint_; }
-
-	bool isVisible() { return visibility_; }
-	bool testIsVisable(const std::vector<ROSCollection>& otherSurfaces, bool preFilter = false);
-
-	void setIsHidden() { visibility_ = false; }
-
-	/// removes all hidden surfaces from the collection
-	void update();
-};
 
 class RCollection {
 private:

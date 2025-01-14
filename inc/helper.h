@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -161,11 +161,6 @@ struct helperFunctions{
 	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
 	/// check if upperface overlaps the lower face by checking the edges
 	static bool faceFaceOverlapping(const TopoDS_Face& upperFace, const TopoDS_Face& lowerFace);
-	/// Check if evaluation surface is completely overlapped by other face
-	static bool isOverlappingCompletely(const ROSCollection& evalFace, const ROSCollection& otherFace); //TODO: roscollection unique code?
-	/// Check if evaluation surface is completely overlapped by other face list
-	template<typename T>
-	static bool isOverlappingCompletely(const ROSCollection& evalFace, const std::vector<ROSCollection>& facePool, const T& shapeIdx); //TODO: roscollection unique code?
 
 	/// line surface intersection related code
 
@@ -201,7 +196,7 @@ struct helperFunctions{
 	/// creates face with middlepont 0,0,0 ranging from -x to x and -y to y at z
 	static TopoDS_Face createHorizontalFace(double x, double y, double z);
 	/// creates a planar face between lll and urr with a rotation
-	static TopoDS_Face createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle);
+	static TopoDS_Face createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle, double z);
 	/// creates a planar face by connecting the 4 points, make sure the 4 points are on a single plane
 	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
 	/// creates a planar copy of input face at input height

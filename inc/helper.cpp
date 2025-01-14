@@ -841,38 +841,6 @@ bool helperFunctions::faceFaceOverlapping(const TopoDS_Face& upperFace, const To
 	return true;
 }
 
-bool helperFunctions::isOverlappingCompletely(const ROSCollection& evalFace, const ROSCollection& otherFace) //TODO: check use
-{
-	//std::vector<std::shared_ptr<EvaluationPoint>> evalGrid = evalFace.getPointGrid();
-	//std::vector<std::shared_ptr<EvaluationPoint>> otherGrid = otherFace.getPointGrid();
-	//if (evalGrid.size() != otherGrid.size()) { return false; }
-
-	//double precision = SettingsCollection::getInstance().precision();
-	//for (size_t i = 0; i < evalGrid.size(); i++)
-	//{
-	//	if (!evalGrid[i]->getPoint().IsEqual(otherGrid[i]->getPoint(), precision)) { return false; }
-	//}
-	//return true;
-
-	return false;
-}
-
-template<typename T>
-bool helperFunctions::isOverlappingCompletely(const ROSCollection& evalFace, const std::vector<ROSCollection>& facePool, const T& shapeIdx)
-{
-	std::vector<Value> qResult;
-	shapeIdx.query(bgi::intersects(
-		bg::model::box <BoostPoint3D>(
-			createBBox(evalFace.getFaces()[0])
-			)), std::back_inserter(qResult));
-	for (size_t i = 0; i < qResult.size(); i++)
-	{
-		if (isOverlappingCompletely(evalFace, facePool[qResult[i].second])) { return true; }
-	}
-	return false;
-}
-
-
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
 	gp_Pnt vert0 = vertices[0];
 	gp_Pnt vert1 = vertices[1];
@@ -1123,7 +1091,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 	std::vector<TopoDS_Face> cleanedFaceCollection;
 	bool hasMergedFaces = false;
 
-	for (size_t i = 0; i < faceNormalList.size(); i++)
+	for (size_t i = 0; i < faceNormalList.size(); i++) //TODO: indexing?
 	{
 		if (evalList[i] == 1) { continue; }
 		std::vector<TopoDS_Face> mergingPairList;
@@ -1304,11 +1272,11 @@ TopoDS_Face helperFunctions::createHorizontalFace(double x, double y, double z) 
 	return createPlanarFace(p0, p1, p2, p3);
 }
 
-TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle) {
-	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), 0), rotationAngle);
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), 0), rotationAngle);
-	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), 0), rotationAngle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), 0), rotationAngle);
+TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle, double z) {
+	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), z), rotationAngle);
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), z), rotationAngle);
+	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), z), rotationAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), z), rotationAngle);
 
 	return createPlanarFace(p0, p1, p2, p3);
 }
