@@ -364,7 +364,7 @@ Optional:
   * Boolean
   * Toggles IfcSpaces to be exported as interior spaces.
   * Default value = false
-  * :ballot_box_with_check: "JSON" "Generate exterior" :ballot_box_with_check:
+* :ballot_box_with_check: "JSON" "Generate exterior" :ballot_box_with_check:
   * Boolean
   * Generates building's exterior
   * Default value = true
