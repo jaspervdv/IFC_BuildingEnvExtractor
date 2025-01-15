@@ -39,9 +39,6 @@ private:
 	static const int treeDepth_ = 25;
 	std::shared_ptr<VoxelGrid> voxelGrid_ = nullptr;
 
-	// rotation of the voxelgrid (or inverse rotation of the objects)
-	gp_Trsf geoRefRotation_;
-
 	// container for surface group data
 	std::vector<std::vector<RCollection>> faceList_;
 	std::mutex faceListMutex_;
@@ -157,7 +154,21 @@ private:
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	TopoDS_Solid extrudeFace(const std::vector<TopoDS_Face>& faceList, const std::vector<TopoDS_Wire>& wireList, bool downwards,  double splittingFaceHeight = 0);
 
-	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputGroupList, double lowestZ, const TopoDS_Face& bufferSurface = {});
+	std::vector<TopoDS_Face> getSplitTopFaces(
+		const std::vector<TopoDS_Face>& inputFaceList,
+		double lowestZ, 
+		const TopoDS_Face& bufferSurface = {}
+	);
+	std::vector<TopoDS_Face> getSplitFaces(
+		std::vector<TopoDS_Face>& outputFaceList,
+		bgi::rtree<Value, bgi::rstar<treeDepth_>> outputFaceIdx,
+		const std::vector<TopoDS_Face>& inputFaceList,
+		const std::vector<TopoDS_Shape>& inputExtrList,
+		double lowestZ,
+		const TopoDS_Face& bufferSurface = {}
+	);
+
+
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const TopoDS_Face& bufferSurface = {});
@@ -201,6 +212,8 @@ private:
 
 	void createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Shape& geometryShape, bool isExterior = true);
 
+	void populateSurfaceData(CJT::GeoObject* geoObject, const std::vector<int>& SurfaceIndxDataList, bool isExterior = true);
+
 public:
 	explicit CJGeoCreator(DataManager* h, double vSize);
 
@@ -214,7 +227,7 @@ public:
 	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
 
 	/// store the roofoutline data to LoD 02
-	void useRoofPrint() { useRoofprints_ = true; }
+	void useRoofPrint(bool b) { useRoofprints_ = b; }
 
 	/// generates the empty storey objects for the ifc storeys in a file
 	std::vector<std::shared_ptr<CJT::CityObject>> makeStoreyObjects(DataManager* h);
@@ -247,10 +260,6 @@ public:
 	void makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of the site and its outline
 	std::vector<CJT::CityObject> makeSite(DataManager* h, CJT::Kernel* kernel, int unitScale);
-
-
-	void setRefRotation(const gp_Trsf& trsf) { geoRefRotation_ = trsf; }
-	gp_Trsf getRefRotation() { return geoRefRotation_; }
 
 	// creates roomshapes 
 	TopoDS_Shape voxels2Shape(int roomNum);

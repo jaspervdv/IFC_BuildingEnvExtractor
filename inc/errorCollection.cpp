@@ -105,6 +105,8 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::failedLoD12, ErrorObject("E0012", "LoD1.2 creation failed")},
 		{ErrorID::failedLoD13, ErrorObject("E0013", "LoD1.3 creation failed")},
 		{ErrorID::failedLoD22, ErrorObject("E0022", "LoD2.2 creation failed")},
+		{ErrorID::failedLoD32, ErrorObject("E0022", "LoD3.2 creation failed")},
+		{ErrorID::failedLoD50, ErrorObject("E0022", "Voxel shape creation failed")},
 
 		{ErrorID::propertyNotImplemented, ErrorObject("P0000", "Property not implemented")}
 	};

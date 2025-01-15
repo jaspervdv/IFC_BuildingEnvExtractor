@@ -68,6 +68,7 @@ enum class ErrorID {
 	failedLoD13, // LoD1.3 creation failed
 	failedLoD22, // LoD2.2 creation failed
 	failedLoD32, // LoD3.2 creation failed
+	failedLoD50, // voxel creation failed
 
 	propertyNotImplemented
 

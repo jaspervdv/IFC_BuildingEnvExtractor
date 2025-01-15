@@ -37,6 +37,7 @@ private:
 	bool makeFootPrint_ = false;
 	bool makeRoofPrint_ = true;
 	bool makeInterior_ = false;
+	bool makeExterior_ = true;
 
     bool footPrintBased_ = false;
 
@@ -197,6 +198,10 @@ public:
     bool makeInterior() const { return makeInterior_; }
     void setMakeInterior(bool value) { makeInterior_ = value; }
     void setMakeInterior(const nlohmann::json& json);
+
+    bool makeExterior() const { return makeExterior_; }
+    void setMakeExterior(bool value) { makeExterior_ = value; }
+    void setMakeExterior(const nlohmann::json& json);
 
     bool footPrintBased() const { return footPrintBased_; }
     void setFootPrintBased(bool value) { footPrintBased_ = value; }

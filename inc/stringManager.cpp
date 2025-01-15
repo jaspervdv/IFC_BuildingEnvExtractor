@@ -415,6 +415,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "JSON";
 	case JsonObjectInID::JSONGenInterior:
 		return "Generate interior";
+	case JsonObjectInID::JSONGenExterior:
+		return "Generate exterior";
 	case JsonObjectInID::JSONGenFootPrint:
 		return "Generate footprint";
 	case JsonObjectInID::JSONGenRoofOutline:

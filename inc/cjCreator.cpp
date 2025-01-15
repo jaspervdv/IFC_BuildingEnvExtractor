@@ -673,6 +673,9 @@ std::vector<TopoDS_Edge> CJGeoCreator::getOuterEdges(
 
 
 void CJGeoCreator::sortRoofStructures() {
+	// if only one footprint is present the surfaces are all considered part of the same building
+	if (roofOutlineList_.size() == 1) { return; }
+
 	std::vector<RCollection> tempSurfaceGroup = faceList_[0];
 	faceList_.clear();
 
@@ -681,10 +684,10 @@ void CJGeoCreator::sortRoofStructures() {
 	}
 
 	TopExp_Explorer expl;
-	for (size_t i = 0; i < tempSurfaceGroup.size(); i++)
+	for (const RCollection& currentSurface : tempSurfaceGroup)
 	{
 		bool found = false;
-		for (expl.Init(tempSurfaceGroup[i].getProjectedFace(), TopAbs_VERTEX); expl.More(); expl.Next())
+		for (expl.Init(currentSurface.getProjectedFace(), TopAbs_VERTEX); expl.More(); expl.Next())
 		{
 			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
 			gp_Pnt p = BRep_Tool::Pnt(vertex);
@@ -698,11 +701,10 @@ void CJGeoCreator::sortRoofStructures() {
 
 				if (distance < 0.001)
 				{
-					faceList_[j].emplace_back(tempSurfaceGroup[i]);
+					faceList_[j].emplace_back(currentSurface);
 					found = true;
 					break;
 				}
-
 			}
 			if (found)
 			{
@@ -808,7 +810,7 @@ void CJGeoCreator::initializeBasic(DataManager* cluster)
 	// sort surface groups based on the roof/footprints
 	startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoRoofStructureSorting) << std::endl;
-	if (roofOutlineList_.size() != 1) { sortRoofStructures(); }
+	sortRoofStructures();
 	printTime(startTime, std::chrono::steady_clock::now());
 
 	return;
@@ -1031,15 +1033,14 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const std::vector<TopoDS_Face>& faceList,
 
 void CJGeoCreator::makeFootprint(DataManager* h)
 {
-	// get footprint
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	double floorlvl = settingsCollection.footprintElevation();
-	
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
-	double storeyBuffer = settingsCollection.horizontalSectionOffset();
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double floorlvl = settingsCollection.footprintElevation();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 
+	// local user choses z offset
+	double storeyBuffer = settingsCollection.horizontalSectionOffset();
 	gp_Trsf translation;
 	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
 
@@ -1134,8 +1135,8 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(DataManager* h, double s
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 
-	gp_Pnt p0 = gp_Pnt(lll.X() - 1, lll.Y() - 1, 0);
-	gp_Pnt p1 = gp_Pnt(urr.X() + 1, urr.Y() + 1, 0);
+	gp_Pnt p0 = gp_Pnt(lll.X() - 10, lll.Y() - 10, 0);
+	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, 0);
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, sectionHeight);
 	
 	// get all edges that meet the cutting plane
@@ -1168,13 +1169,11 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	// make extrusions of untrimmed top surfaces
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 	std::vector<TopoDS_Solid> ExtrudedShapes;
-
-	for (const TopoDS_Face currentFace : inputFaceList)
+	for (const TopoDS_Face& currentFace : inputFaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
 		if (extrudedShape.IsNull()) { continue; }
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-
 		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
 		ExtrudedShapes.emplace_back(extrudedShape);
 	}
@@ -1185,10 +1184,8 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(bufferSurface, false, 10000);
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-
 		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
 		ExtrudedShapes.emplace_back(extrudedShape);
-
 		hasBufferFilter = true;
 	}
 
@@ -1871,8 +1868,8 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline()
 	// create plane on which the projection has to be made
 	helperFunctions::bBoxDiagonal(projectedFaceList, &lll, &urr);
 
-	gp_Pnt p0 = gp_Pnt(lll.X() - 1, lll.Y() - 1, 0);
-	gp_Pnt p1 = gp_Pnt(urr.X() + 1, urr.Y() + 1, 0);
+	gp_Pnt p0 = gp_Pnt(lll.X() - 10, lll.Y() - 10, 0);
+	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, 0);
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, 0);
 	std::vector<TopoDS_Face> mergedSurfaces = planarFaces2Outline(projectedFaceList, cuttingPlane);
 	return mergedSurfaces;
@@ -2276,21 +2273,20 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD02) << std::endl;
 
 	SettingsCollection& settingCollection = SettingsCollection::getInstance();
-
 	if (!hasTopFaces_ && useRoofprints_) { return std::vector< CJT::GeoObject>(); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-
 	std::map<std::string, std::string> semanticFootData;
 	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
 	gp_Pnt urr = h->getUrrPoint();
 
 	if (useRoofprints_)
-	{	 // make the roof
+	{	
+		// make the roof
 		for (size_t i = 0; i < roofOutlineList_.size(); i++)
 		{
 			TopoDS_Shape currentShape = roofOutlineList_[i];
@@ -2311,7 +2307,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 	if (hasFootprints_) 
 	{ 
 		// make the footprint
-
 		for (size_t i = 0; i < footprintList_.size(); i++)
 		{
 			TopoDS_Shape currentFace = footprintList_[i];
@@ -2522,52 +2517,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 	double rotationAngle = settingsCollection.gridRotation();
-
-	BRep_Builder brepBuilder;
-	BRepBuilderAPI_Sewing brepSewer;
-	TopoDS_Shell shell;
-	brepBuilder.MakeShell(shell);
-	TopoDS_Solid bbox;
-	brepBuilder.MakeSolid(bbox);
-
-	double footprintHeight = settingsCollection.footprintElevation();
-
-	gp_Pnt p0 = helperFunctions::rotatePointWorld(lll, -rotationAngle);
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), lll.Z()), -rotationAngle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), lll.Z()), -rotationAngle);
-
-	gp_Pnt p4(helperFunctions::rotatePointWorld(urr, -rotationAngle));
-	gp_Pnt p5 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), urr.Z()), -rotationAngle);
-	gp_Pnt p6 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), urr.Z()), -rotationAngle);
-	gp_Pnt p7 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), urr.Z()), -rotationAngle);
-
-	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
-	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
-	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
-	TopoDS_Edge edge3 = BRepBuilderAPI_MakeEdge(p3, p0);
-
-	TopoDS_Edge edge4 = BRepBuilderAPI_MakeEdge(p4, p5);
-	TopoDS_Edge edge5 = BRepBuilderAPI_MakeEdge(p5, p6);
-	TopoDS_Edge edge6 = BRepBuilderAPI_MakeEdge(p6, p7);
-	TopoDS_Edge edge7 = BRepBuilderAPI_MakeEdge(p7, p4);
-
-	TopoDS_Edge edge8 = BRepBuilderAPI_MakeEdge(p0, p6);
-	TopoDS_Edge edge9 = BRepBuilderAPI_MakeEdge(p3, p7);
-	TopoDS_Edge edge10 = BRepBuilderAPI_MakeEdge(p2, p4);
-	TopoDS_Edge edge11 = BRepBuilderAPI_MakeEdge(p1, p5);
-
-	std::vector<TopoDS_Face> faceList;
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge8, edge5, edge11)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge3, edge9, edge6, edge8)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge2, edge10, edge7, edge9)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge1, edge11, edge4, edge10)));
-	faceList.emplace_back(BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge4, edge5, edge6, edge7)));
-	for (size_t k = 0; k < faceList.size(); k++) { brepSewer.Add(faceList[k]); }
-
-	brepSewer.Perform();
-	brepBuilder.Add(bbox, brepSewer.SewedShape());
+	TopoDS_Shape bbox = helperFunctions::createBBOXOCCT(lll, urr, 0, rotationAngle);
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
 	createSemanticData(&geoObject, bbox);
@@ -2598,7 +2548,7 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(DataManager* 
 			faceCollection.emplace_back(surfaceGroup.getFlatFace());
 		}
 
-		if (footprintBased && footprintList_.size() != 0) //TODO: maybe remove?
+		if (footprintBased && footprintList_.size() != 0)
 		{
 			std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z(), footprintList_[i]);
 			nestedFaceList.emplace_back(faceList);
@@ -2617,7 +2567,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
-	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (lod03FaceList->size() == 0) {  *lod03FaceList = makeLoD03Faces(h, kernel, 1); }
 
@@ -2626,9 +2575,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-
-	std::map<std::string, std::string> semanticFootData;
-	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
 	for (std::vector<TopoDS_Face> faceCluster : *lod03FaceList)
 	{
@@ -3972,23 +3918,6 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::map<std::string, std::string> grMap;
-	std::map<std::string, std::string> wMap;
-	std::map<std::string, std::string> rMap;
-	if (isExterior)
-	{
-		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-	}
-	else
-	{
-		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloorSurface));
-		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeInteriorWallSurface));
-		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeCeilingSurface));
-	}
-
-
 	double lowestShapeZ = helperFunctions::getLowestZ(geometryShape);
 
 	std::vector<int> functionList; // detect what surface is what based on the normals and face height
@@ -4013,22 +3942,44 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 		}
 	}
 
+	populateSurfaceData(geoObject, functionList, isExterior);
+	return;
+}
+
+void CJGeoCreator::populateSurfaceData(CJT::GeoObject* geoObject, const std::vector<int>& SurfaceIndxDataList, bool isExterior)
+{
+	std::map<std::string, std::string> grMap;
+	std::map<std::string, std::string> wMap;
+	std::map<std::string, std::string> rMap;
+	if (isExterior)
+	{
+		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	}
+	else
+	{
+		grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloorSurface));
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeInteriorWallSurface));
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeCeilingSurface));
+	}
+
 	if (SettingsCollection::getInstance().mergeSemantics())
 	{
 		geoObject->appendSurfaceData(grMap);
 		geoObject->appendSurfaceData(wMap);
 		geoObject->appendSurfaceData(rMap);
 
-		for (int functionIdx : functionList)
+		for (int functionIdx : SurfaceIndxDataList)
 		{
 			geoObject->appendSurfaceTypeValue(functionIdx);
 		}
 	}
 	else
 	{
-		for (size_t j = 0; j < functionList.size(); j++)
+		for (size_t j = 0; j < SurfaceIndxDataList.size(); j++)
 		{
-			int functionIdx = functionList[j];
+			int functionIdx = SurfaceIndxDataList[j];
 
 			if (functionIdx == 0)
 			{

@@ -213,6 +213,8 @@ void IOManager::printSummary()
 	}
 	std::cout << "- Generate interior:\n";
 	std::cout << boolToString(settingsCollection.makeInterior()) << "\n";
+	std::cout << "- Generate exterior:\n";
+	std::cout << boolToString(settingsCollection.makeExterior()) << "\n";
 	std::cout << "- Georeference:\n";
 	std::cout << boolToString(settingsCollection.geoReference()) << "\n";
 	std::cout << "- Merge semantic objects:\n";
@@ -331,6 +333,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string jsonGenFootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenFootPrint);
 	std::string jsonGenRootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
 	std::string jsonGenInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
+	std::string jsonGenExteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenExterior);
 	std::string jsonGeoreferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
 	std::string jsonMergeSemanticsOName = JsonObjectInEnum::getString(JsonObjectInID::JSONMergeSemantics);
 
@@ -344,6 +347,7 @@ nlohmann::json IOManager::settingsToJSON()
 		jsonJSON[jsonGenRootprintOName] = settingsCollection.makeRoofPrint();
 	}
 	jsonJSON[jsonGenInteriorOName] = settingsCollection.makeInterior();
+	jsonJSON[jsonGenExteriorOName] = settingsCollection.makeExterior();
 	jsonJSON[jsonGeoreferenceOName] = settingsCollection.geoReference();
 	jsonJSON[jsonMergeSemanticsOName] = settingsCollection.mergeSemantics();
 	settingsJSON[jsonOName] = jsonJSON;
@@ -509,7 +513,7 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD02(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD02_);
+			}, cityOuterShellObject, ErrorID::failedLoD02, timeLoD02_);
 	}
 	if (settingsCollection.make03())
 	{
@@ -519,13 +523,13 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD10(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD10_);
+			}, cityOuterShellObject, ErrorID::failedLoD10, timeLoD10_);
 	}
 	if (settingsCollection.make12())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD12(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make13())
 	{
@@ -535,19 +539,19 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD22_);
+			}, cityOuterShellObject, ErrorID::failedLoD22, timeLoD22_);
 	}
 	if (settingsCollection.make32())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD32(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeLoD32_);
+			}, cityOuterShellObject, ErrorID::failedLoD32, timeLoD32_);
 	}
 	if (settingsCollection.makeV())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeV(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD00, timeV_);
+			}, cityOuterShellObject, ErrorID::failedLoD50, timeV_);
 	}
 	return;
 }
@@ -567,7 +571,7 @@ void IOManager::processExternalLoD(
 	}
 	catch (const std::exception&)
 	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD00);
+		ErrorCollection::getInstance().addError(errorID);
 		succesfullExit_ = 0;
 	}
 	timeRecord = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
@@ -726,6 +730,7 @@ bool IOManager::run()
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
 	CJGeoCreator geoCreator(internalDataManager_.get(), settingsCollection.voxelSize());
+	geoCreator.useRoofPrint(settingsCollection.makeRoofPrint());
 	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
 	try
@@ -751,14 +756,12 @@ bool IOManager::run()
 		}
 	}
 
-	if (settingsCollection.makeRoofPrint())
-	{
-		geoCreator.useRoofPrint();
-	}
-
 	// create the actual geometry
 	CJT::Kernel kernel = CJT::Kernel(collection);
-	processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
+	if (settingsCollection.makeExterior())
+	{
+		processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
+	}
 	if (settingsCollection.makeInterior())
 	{
 		processInteriorLod(&geoCreator, collection, &cityInnerShellObject, &kernel);

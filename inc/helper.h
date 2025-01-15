@@ -1,4 +1,4 @@
-#define USE_IFC2x3
+#define USE_IFC4
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -42,11 +42,11 @@
 #include <unordered_set>
 #include <memory>
 
-
 namespace bg = boost::geometry;
 namespace bgi = boost::geometry::index;
 
 typedef bg::model::point<double, 3, bg::cs::cartesian> BoostPoint3D;
+typedef bg::model::box<BoostPoint3D> BoostBox3D;
 typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
 
 #ifndef HELPER_HELPER_H

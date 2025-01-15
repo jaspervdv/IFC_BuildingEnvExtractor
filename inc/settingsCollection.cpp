@@ -130,13 +130,14 @@ void SettingsCollection::setJSONRelatedSettings(const nlohmann::json& json)
 
 	try
 	{
+		setMakeInterior(jsonDataJson);
+		setMakeExterior(jsonDataJson);
+		setFootprintElevation(jsonDataJson);
+		setHorizontalSectionOffset(jsonDataJson);
+
 		setMakeRoofPrint(jsonDataJson);
 		setMakeFootPrint(jsonDataJson);
 		setMakeOutlines(jsonDataJson);
-
-		setMakeInterior(jsonDataJson);
-		setFootprintElevation(jsonDataJson);
-		setHorizontalSectionOffset(jsonDataJson);
 
 		setGeoReference(jsonDataJson);
 		setmergeSemantics(jsonDataJson);
@@ -397,12 +398,13 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 
 void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 {
-	if (!make02() &&
+	if (!makeExterior() ||
+		!make02() &&
 		!make03() &&
 		!make12() &&
 		!make13() &&
 		!make22() 
-		) //TODO: check this list
+		)
 	{
 		return;
 	}
@@ -489,6 +491,25 @@ void SettingsCollection::setMakeInterior(const nlohmann::json& json)
 		{
 			ErrorCollection::getInstance().addError(exceptionId, generateInteriorOName);
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + generateInteriorOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setMakeExterior(const nlohmann::json& json)
+{
+	std::string generateExteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenExterior);
+	if (json.contains(generateExteriorOName))
+	{
+		try
+		{
+			bool exteriorbool = getJsonBoolValue(json[generateExteriorOName]);
+			setMakeExterior(exteriorbool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, generateExteriorOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + generateExteriorOName);
 		}
 	}
 	return;

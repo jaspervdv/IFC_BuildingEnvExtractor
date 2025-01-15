@@ -283,6 +283,7 @@ The configuration json has a very simple structure. An example can be found belo
         "Generate footprint": 1,
         "Generate roof outline": 1,
         "Generate interior": 1,
+        "Generate exterior": 1,
         "Georeference" : 1,
         "Merge semantic objects": 1,
     },
@@ -363,6 +364,10 @@ Optional:
   * Boolean
   * Toggles IfcSpaces to be exported as interior spaces.
   * Default value = false
+  * :ballot_box_with_check: "JSON" "Generate exterior" :ballot_box_with_check:
+  * Boolean
+  * Generates building's exterior
+  * Default value = true
 * :white_check_mark: "JSON" "Generate roof outline" :white_check_mark:
   * Boolean
   * Toggles the roof outline to be exported for LoD0.2
