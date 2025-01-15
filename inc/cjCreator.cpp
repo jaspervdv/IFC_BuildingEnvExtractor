@@ -2558,7 +2558,6 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03Faces(DataManager* 
 			std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z());
 			nestedFaceList.emplace_back(faceList);
 		}
-
 	}
 	return nestedFaceList;
 }
