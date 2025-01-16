@@ -600,6 +600,8 @@ TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, b
 				IfcSchema::IfcObjectDefinition* aggDef = *rt;
 				IfcSchema::IfcProduct* addprod = aggDef->as<IfcSchema::IfcProduct>();
 
+				if (getObjectShapeLocation(addprod) != -1) { continue; } // if already internalized ignore
+
 				TopoDS_Shape addshapeSimple = getObjectShape(addprod, isSimple);
 				builder.Add(collection, addshapeSimple);
 			}
@@ -1262,7 +1264,6 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	if (SettingsCollection::getInstance().simplefyGeoGrade() == 0) { isSimple = false; }
 	else if (SettingsCollection::getInstance().simplefyGeoGrade() == 2) { isSimple = true; }
 	else if (openingObjects.find(objectType) == openingObjects.end()) { isSimple = false; }
-
 
 	// get the object from memory if available
 	TopoDS_Shape potentialShape = getObjectShapeFromMem(product, isSimple);

@@ -35,6 +35,8 @@ public:
 
 class CJGeoCreator {
 private:
+	typedef std::pair<BoostBox3D, TopoDS_Face> BoxFacePair;
+
 	// default spatial index tree depth
 	static const int treeDepth_ = 25;
 	std::shared_ptr<VoxelGrid> voxelGrid_ = nullptr;
@@ -153,22 +155,19 @@ private:
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	TopoDS_Solid extrudeFace(const std::vector<TopoDS_Face>& faceList, const std::vector<TopoDS_Wire>& wireList, bool downwards,  double splittingFaceHeight = 0);
-
+	/// splits the surfaces with extruded solid copies and returns the ones visible from the top
 	std::vector<TopoDS_Face> getSplitTopFaces(
 		const std::vector<TopoDS_Face>& inputFaceList,
 		double lowestZ, 
 		const TopoDS_Face& bufferSurface = {}
 	);
-	std::vector<TopoDS_Face> getSplitFaces(
-		std::vector<TopoDS_Face>& outputFaceList,
-		bgi::rtree<Value, bgi::rstar<treeDepth_>> outputFaceIdx,
-		const std::vector<TopoDS_Face>& inputFaceList,
-		const std::vector<TopoDS_Shape>& inputExtrList,
-		double lowestZ,
-		const TopoDS_Face& bufferSurface = {}
+	/// splits the surfaces with extruded solid copies
+	std::vector<TopoDS_Face> getSplitFaces(const std::vector<TopoDS_Face>& inputFaceList,
+		const std::vector<TopoDS_Solid>& ExtrudedShapes,
+		const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex
 	);
-
-
+	/// returns visible surfaces from the top
+	std::vector<TopoDS_Face> getVisTopSurfaces(const std::vector<TopoDS_Face>& faceIdx, double lowestZ, const TopoDS_Face& bufferSurface = {});
 
 	/// create a solid extrusion from the projected roofoutline
 	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const TopoDS_Face& bufferSurface = {});

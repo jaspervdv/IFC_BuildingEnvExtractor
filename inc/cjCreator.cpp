@@ -1164,8 +1164,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	}
 
 	double precision = SettingsCollection::getInstance().precision();
-	std::vector<TopoDS_Face> outputFaceList;
-
 	// make extrusions of untrimmed top surfaces
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 	std::vector<TopoDS_Solid> ExtrudedShapes;
@@ -1189,94 +1187,107 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		hasBufferFilter = true;
 	}
 
+	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, ExtrudedShapes, spatialIndex);
+	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurface);
+	return visibleFaceList;
+}
+
+std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
+	const std::vector<TopoDS_Face>& inputFaceList,
+	const std::vector<TopoDS_Solid>& ExtrudedShapes,
+	const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex
+)
+{
+	double precision = SettingsCollection::getInstance().precision();
 	// split top surfaces with the extrustions
-	std::mutex faceListMutex;
-	std::vector<TopoDS_Face> faceList;
-	bgi::rtree<Value, bgi::rstar<25>> faceIdx;
+	std::vector<TopoDS_Face> splitFaceList;
 	for (size_t i = 0; i < inputFaceList.size(); i++)
 	{
-		TopoDS_Face currentFace = inputFaceList[i];
-
-		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentFace);
-
 		std::vector<Value> qResult;
+		TopoDS_Face currentFace = inputFaceList[i];
+		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentFace);
 		spatialIndex.query(bgi::intersects(searchBox), std::back_inserter(qResult));
 
 		if (qResult.size() <= 1)
 		{
-			std::lock_guard<std::mutex> faceLock(faceListMutex);
-			faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
-			faceList.emplace_back(currentFace);
+			splitFaceList.emplace_back(currentFace);
+			continue;
 		}
-		else {
-			BOPAlgo_Splitter divider;
-			divider.SetFuzzyValue(precision);
-			divider.SetRunParallel(Standard_False);
-			divider.AddArgument(currentFace);
 
-			for (size_t j = 0; j < qResult.size(); j++)
-			{
-				int extruIndx = qResult[j].second;
-				if (i == extruIndx) { continue; }
+		BOPAlgo_Splitter divider;
+		divider.SetFuzzyValue(precision);
+		divider.SetRunParallel(Standard_False);
+		divider.AddArgument(currentFace);
 
-				TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
-				divider.AddTool(currentSplitter);
-			}
-			divider.Perform();
+		for (size_t j = 0; j < qResult.size(); j++)
+		{
+			int extruIndx = qResult[j].second;
+			if (i == extruIndx) { continue; }
 
-			for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
-				TopoDS_Face subFace = TopoDS::Face(expl.Current());
-				std::lock_guard<std::mutex> faceLock(faceListMutex);
-				faceIdx.insert(std::make_pair(searchBox, static_cast<int>(faceList.size())));
-				faceList.emplace_back(subFace);
-			}
+			TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
+			divider.AddTool(currentSplitter);
 		}
+		divider.Perform();
+
+		for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+			TopoDS_Face subFace = TopoDS::Face(expl.Current());
+			splitFaceList.emplace_back(subFace);
+		}
+	}
+	return splitFaceList;
+}
+
+std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoDS_Face>& faceList, double lowestZ, const TopoDS_Face& bufferSurface)
+{
+	// index surfaces
+	bgi::rtree<BoxFacePair, bgi::rstar<25>> faceIdx;
+	for (const TopoDS_Face& currentFace : faceList)
+	{
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		faceIdx.insert(std::make_pair(bbox, currentFace));
 	}
 
 	// extrude the trimmed surfaces and join
-	for (size_t i = 0; i < faceList.size(); i++)
+	std::vector<TopoDS_Face> outputFaceList;
+	for (const TopoDS_Face& currentFace : faceList)
 	{
-		TopoDS_Face currentFace = faceList[i];
 		if (helperFunctions::getHighestZ(currentFace) <= lowestZ) { continue; }
-
-		bool isHidden = false;
 
 		std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
 		if (optionalBasePoint == std::nullopt) { continue; }
 
+		// test if falls within buffersurface
 		gp_Pnt basePoint = *optionalBasePoint;
 		gp_Pnt topPoint = gp_Pnt(basePoint.X(), basePoint.Y(), basePoint.Z() + 100000);
 		gp_Pnt bottomPoint = gp_Pnt(basePoint.X(), basePoint.Y(), basePoint.Z() - 100000);
-
-		// test if falls within buffersurface
-		TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
-		if (hasBufferFilter)
+		
+		if (!bufferSurface.IsNull())
 		{
+			TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
 			BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, bufferSurface);
 			if (distanceWireCalc.Value() > 1e-6) { continue; }
 		}
-
-		// test if is hidden
 		TopoDS_Edge upperEvalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
-		std::vector<Value> qResult;
+		
+		std::vector<BoxFacePair> qResult;
 		qResult.clear();
 		faceIdx.query(bgi::intersects(
 			helperFunctions::createBBox(basePoint, topPoint, 0.2)), std::back_inserter(qResult));
 
-		for (size_t j = 0; j < qResult.size(); j++)
+		// test if is hidden
+		bool isHidden = false;
+		for (const BoxFacePair& otherSurfaceValue : qResult)
 		{
-			int otherFaceIdx = qResult[j].second;
-			if (i == otherFaceIdx) { continue; }
+			TopoDS_Face otherFace = otherSurfaceValue.second;
+			if (currentFace.IsEqual(otherFace)) { continue; }
 
-			BRepExtrema_DistShapeShape distanceWireCalc(upperEvalLine, faceList[otherFaceIdx]);
-
+			BRepExtrema_DistShapeShape distanceWireCalc(upperEvalLine, otherFace);
 			if (distanceWireCalc.Value() < 1e-6)
 			{
 				isHidden = true;
 				break;
 			}
 		}
-
 		if (!isHidden)
 		{
 			outputFaceList.emplace_back(currentFace);
@@ -2013,7 +2024,6 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceG
 	{
 		while (coreUse > shapeList.size()) { coreUse /=2; }
 	}
-
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 
 	std::vector<std::thread> threadList;
