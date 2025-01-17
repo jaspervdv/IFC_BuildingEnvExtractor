@@ -138,6 +138,7 @@ void SettingsCollection::setJSONRelatedSettings(const nlohmann::json& json)
 		setMakeRoofPrint(jsonDataJson);
 		setMakeFootPrint(jsonDataJson);
 		setMakeOutlines(jsonDataJson);
+		setFootPrintBased(jsonDataJson);
 
 		setGeoReference(jsonDataJson);
 		setmergeSemantics(jsonDataJson);

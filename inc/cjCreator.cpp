@@ -2027,7 +2027,7 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceG
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 
 	std::vector<std::thread> threadList;
-	faceList_.emplace_back(std::vector<RCollection>()); //TODO: check this
+	faceList_.emplace_back(std::vector<RCollection>());
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
