@@ -213,6 +213,8 @@ private:
 
 	void populateSurfaceData(CJT::GeoObject* geoObject, const std::vector<int>& SurfaceIndxDataList, bool isExterior = true);
 
+	std::vector<TopoDS_Face> trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
+
 public:
 	explicit CJGeoCreator(DataManager* h, double vSize);
 

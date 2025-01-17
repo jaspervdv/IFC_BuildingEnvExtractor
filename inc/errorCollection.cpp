@@ -97,6 +97,7 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::warningIssueencountered, ErrorObject("I0017", errorWarningStringEnum::getString(ErrorID::warningIssueencountered, false))},
 		{ErrorID::warningNoSolid, ErrorObject("I0018", errorWarningStringEnum::getString(ErrorID::warningNoSolid, false))},
 		{ErrorID::warningUnableToMesh, ErrorObject("I0019", errorWarningStringEnum::getString(ErrorID::warningUnableToMesh, false))},
+		{ErrorID::warningUnableToSimplefy, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy, false))},
 
 		{ErrorID::failedLoD00, ErrorObject("E0001", "LoD0.0 creation failed")},
 		{ErrorID::failedLoD02, ErrorObject("E0002", "LoD0.2 creation failed")},
