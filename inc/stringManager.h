@@ -104,7 +104,7 @@ enum class CommunicationStringID {
 	indentStoreyAtZ,
 	indentExteriorSpaceGrown,
 	indentInteriorSpaceGrown,
-	indentPairedVoxels,
+	indentPairedVoxels
 };
 
 class CommunicationStringEnum {

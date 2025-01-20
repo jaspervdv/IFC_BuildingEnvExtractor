@@ -32,7 +32,7 @@ nlohmann::json ErrorObject::toJson()
 	jsonObject["ErrorCode"] = errorCode_;
 	jsonObject["Error Description"] = errorDescript_;
 
-	if (occuringObjectList_.size()) { jsonObject["Occuring Objects"] = occuringObjectList_; }
+	if (occuringObjectList_.size()) { jsonObject["Occurring Objects"] = occuringObjectList_; }
 	return jsonObject;
 }
 
@@ -98,6 +98,10 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::warningNoSolid, ErrorObject("I0018", errorWarningStringEnum::getString(ErrorID::warningNoSolid, false))},
 		{ErrorID::warningUnableToMesh, ErrorObject("I0019", errorWarningStringEnum::getString(ErrorID::warningUnableToMesh, false))},
 		{ErrorID::warningUnableToSimplefy, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy, false))},
+		{ErrorID::warningNoRoofOutline, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningNoRoofOutline, false))},
+		{ErrorID::warningNoFootprint, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningNoFootprint, false))},
+
+		{ErrorID::warningUnableToSimplefy, ErrorObject("I0100", errorWarningStringEnum::getString(ErrorID::warningInputIncFootprintElev, false))},
 
 		{ErrorID::failedLoD00, ErrorObject("E0001", "LoD0.0 creation failed")},
 		{ErrorID::failedLoD02, ErrorObject("E0002", "LoD0.2 creation failed")},

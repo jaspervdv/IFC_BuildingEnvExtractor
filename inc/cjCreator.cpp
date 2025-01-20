@@ -1036,8 +1036,19 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 	auto startTime = std::chrono::steady_clock::now();
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	// set up floorlvl
 	double floorlvl = settingsCollection.footprintElevation();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
+	// check if storey elev falls within bbox
+	if (h->getLllPoint().Z() > floorlvl || h->getUrrPoint().Z() < floorlvl)
+	{
+		floorlvl = h->getLllPoint().Z();
+		settingsCollection.setFootprintElevation(floorlvl);
+		ErrorCollection::getInstance().addError(ErrorID::warningInputIncFootprintElev);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningInputIncFootprintElev) << std::endl;
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
+	}
 
 	// local user choses z offset
 	double storeyBuffer = settingsCollection.horizontalSectionOffset();
@@ -2294,7 +2305,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 			gp_Trsf trsf;
 			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)),  -settingCollection.gridRotation());
 			if (hasFootprints_) { trsf.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
-			else { trsf.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation())); }
 			currentShape.Move(trsf);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.2");
@@ -2313,7 +2323,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 
 			gp_Trsf trsf;
 			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingCollection.gridRotation());
-			trsf.SetTranslationPart(gp_Vec(0, 0, settingCollection.footprintElevation()));
 			currentFace.Move(trsf);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentFace, "0.2");
@@ -2604,12 +2613,20 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(DataManager* h, CJT::Kernel
 	std::vector<TopoDS_Face> geometryBase;
 	if (!settingsCollection.footPrintBased())
 	{
-		if (roofOutlineList_.size() == 0) { return {}; }
+		if (roofOutlineList_.size() == 0) { 
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD1.2");
+			return {};
+		}
 		geometryBase = roofOutlineList_;
 	}
 	else
 	{
-		if (footprintList_.size() == 0) { return {}; }
+		if (footprintList_.size() == 0) { 
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD1.2");
+			return {}; 
+		}
 		geometryBase = footprintList_;
 	}
 	
@@ -2644,16 +2661,21 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::vector< CJT::GeoObject> geoObjectList;
+	if (!settingsCollection.footPrintBased())
+	{
+		if (roofOutlineList_.size() == 0) {
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD1.3");
+			return {};
+		}
+	}
+	if (footprintList_.size() == 0) {
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD1.3");
+		return {};
+	}
 
-	if (!hasTopFaces_)
-	{
-		initializeBasic(h);
-	}
-	if (roofOutlineList_.size() == 0)
-	{
-		return geoObjectList;
-	}
+	std::vector< CJT::GeoObject> geoObjectList;
 	// get the correct top surface
 	std::vector<std::vector<TopoDS_Face>> roofList;
 	if (roofList03.size() == 0) {
@@ -2702,13 +2724,18 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
 	std::vector< CJT::GeoObject> geoObjectList;
 
-	if (!hasTopFaces_)
+	if (!SettingsCollection::getInstance().footPrintBased())
 	{
-		initializeBasic(h);
+		if (roofOutlineList_.size() == 0) {
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD2.2");
+			return {};
+		}
 	}
-	if (roofOutlineList_.size() == 0)
-	{
-		return geoObjectList;
+	if (footprintList_.size() == 0) {
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD2.2");
+		return {};
 	}
 
 	std::vector<TopoDS_Shape> prismList;

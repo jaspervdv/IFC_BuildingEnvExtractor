@@ -60,6 +60,10 @@ enum class ErrorID {
 	warningNoSolid,
 	warningUnableToMesh,
 	warningUnableToSimplefy,
+	warningNoRoofOutline,
+	warningNoFootprint,
+
+	warningInputIncFootprintElev,
 
 	failedLoD00, // LoD0.0 creation failed
 	failedLoD02, // LoD0.2 creation failed

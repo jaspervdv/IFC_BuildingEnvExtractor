@@ -342,7 +342,20 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 	case ErrorID::warningUnableToSimplefy: {
 		const std::string coms = "Not all shapes could be simplefied, unsimplefied shape is stored";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }	
+	case ErrorID::warningNoRoofOutline: {
+		const std::string coms = "No roofoutline surface has been found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }	
+	case ErrorID::warningNoFootprint: {
+		const std::string coms = "No footprint surface has been found";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
+	case ErrorID::warningInputIncFootprintElev: {
+		const std::string coms = "Footprint elevation falls outside of the bounds of the model, lower bounds z value is used";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
+	
 
 	case ErrorID::warningFailedObjectSimplefication: {
 		const std::string coms = "Simplefication of complex object has failed";
