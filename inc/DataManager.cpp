@@ -314,12 +314,12 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	double rotation = settingsCollection.desiredRotation() - objectTranslation_.GetRotation().GetRotationAngle();
 	if (!settingsCollection.autoRotateGrid()) 
 	{
-		helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation);
+		helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0, rotation, 0);
 		settingsCollection.setGridRotation(rotation);
 		return;
 	}
 	// compute the smallest orientated bbox
-	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint); // compute initial values
+	helperFunctions::bBoxDiagonal(pointList, lllPoint, urrPoint, 0); // compute initial values
 	helperFunctions::bBoxOrientated(pointList, lllPoint, urrPoint, &rotation, 0); // compute optimal values
 	//TODO: let rotation start on the georef rotation
 	settingsCollection.setGridRotation(rotation);

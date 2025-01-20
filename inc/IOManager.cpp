@@ -62,7 +62,7 @@ std::string IOManager::getTargetPath()
 	// preload communcation strings
 	std::string stringJSONRequest = CommunicationStringEnum::getString(CommunicationStringID::infoJsonRequest);
 	std::string stringNoFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoFilePath);
-	std::string stringNoValFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoFilePath);
+	std::string stringNoValFilePath = CommunicationStringEnum::getString(CommunicationStringID::infoNoValFilePath);
 
 	std::cout << stringJSONRequest << std::endl;
 
@@ -78,13 +78,16 @@ std::string IOManager::getTargetPath()
 			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
+		if (singlepath.front() == '"' && singlepath.back() == '"')
+		{
+			singlepath = singlepath.substr(1, singlepath.size() - 2);
+		}
 		if (!hasExtension(singlepath, "json"))
 		{
 			std::cout << stringNoValFilePath << std::endl;
 			std::cout << stringJSONRequest << std::endl;
 			continue;
 		}
-
 		if (!isValidPath(singlepath))
 		{
 			std::cout << stringNoValFilePath << std::endl;
