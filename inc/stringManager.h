@@ -81,7 +81,8 @@ enum class CommunicationStringID {
 	infoInterioSpacesGrowing,
 	infoPairVoxels,
 
-	infoComputingStoreys,
+	infoComputingStoreys02,
+	infoComputingStoreys03,
 	infoComputingLoD00,
 	infoComputingLoD02,
 	infoComputingLoD03,

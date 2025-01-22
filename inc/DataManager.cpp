@@ -534,25 +534,6 @@ int DataManager::getObjectShapeLocation(IfcSchema::IfcProduct* product)
 	return objectSearch->second;
 }
 
-TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple)
-{
-	// filter with lookup
-	std::string objectType = product->data().type()->name();
-	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
-
-	if (openingObjects.find(objectType) == openingObjects.end()) { isSimple = false; }
-
-	int obbjectShapeLocation = getObjectShapeLocation(product);
-
-	if (obbjectShapeLocation == -1) { return {}; }
-	std::shared_lock<std::shared_mutex> lock(indexMutex_);
-	if (isSimple)
-	{
-		return productLookup_[obbjectShapeLocation]->getSimpleShape();
-	}
-	return productLookup_[obbjectShapeLocation]->getProductShape();
-}
-
 
 IfcSchema::IfcRepresentation* DataManager::getProductRepPtr(IfcSchema::IfcProduct* product)
 {
@@ -1252,6 +1233,27 @@ std::pair<std::string, std::string> DataManager::getSinglePsetValue(IfcSchema::I
 		return std::pair<std::string, std::string>(propertyValueName, stringValue);
 	}
 	return std::pair<std::string, std::string>();
+}
+
+TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple)
+{
+	// filter with lookup
+	std::string objectType = product->data().type()->name();
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
+
+	if (openingObjects.find(objectType) == openingObjects.end()) { isSimple = false; }
+
+	int obbjectShapeLocation = getObjectShapeLocation(product);
+
+	if (obbjectShapeLocation == -1) { return {}; }
+	std::shared_ptr<IfcProductSpatialData> currentProductData = productLookup_[obbjectShapeLocation];
+
+	std::shared_lock<std::shared_mutex> lock(indexMutex_);
+	if (isSimple && currentProductData->hasSimpleShape())
+	{
+		return currentProductData->getSimpleShape();
+	}
+	return currentProductData->getProductShape();
 }
 
 

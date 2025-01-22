@@ -151,6 +151,7 @@ private:
 
 	// create list of edges by cutting objects at the floor lvl
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
+	std::vector<TopoDS_Face> section2Faces(const std::vector<TopoDS_Shape>& shapes, DataManager* h, double cutlvl);
 
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
@@ -224,8 +225,8 @@ public:
 	/// computes and internalizes the data that is required to do footprint related city scale output
 	void makeFootprint(DataManager* h);
 
-	void makeFloorSectionCollection(DataManager* h);
 	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
+	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
 
 	/// store the roofoutline data to LoD 02
 	void useRoofPrint(bool b) { useRoofprints_ = b; }
@@ -240,10 +241,11 @@ public:
 	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject>  makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale);
-	void makeLoD02Storeys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale);
+	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03);
 	void makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
+	/// generates a list of LoD0.3 roof faces
+	std::vector<std::vector<TopoDS_Face>> makeLoD03RoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
 	/// generates a list of LoD0.3 objects
-	std::vector<std::vector<TopoDS_Face>> makeLoD03Faces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
 	std::vector< CJT::GeoObject> makeLoD03(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
 	CJT::GeoObject makeLoD10(DataManager* h, CJT::Kernel* kernel, int unitScale);

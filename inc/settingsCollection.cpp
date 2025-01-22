@@ -470,6 +470,7 @@ void SettingsCollection::setMakeRoofPrint(const nlohmann::json& json)
 void SettingsCollection::setMakeInterior(const nlohmann::json& json)
 {
 	if (!make02() && 
+		!make03() && 
 		!make12() && 
 		!make22() && 
 		!make32() && 

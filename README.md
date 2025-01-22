@@ -13,7 +13,7 @@ Current possible output shells:
 
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
-* LoD0.3 - exterior roof structure only
+* LoD0.3 - exterior roof structure and interior stories (WIP)
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
@@ -366,7 +366,7 @@ Optional:
   * Default value = false
 * :ballot_box_with_check: "JSON" "Generate exterior" :ballot_box_with_check:
   * Boolean
-  * Generates building's exterior
+  * Toggles building's exterior generation
   * Default value = true
 * :white_check_mark: "JSON" "Generate roof outline" :white_check_mark:
   * Boolean

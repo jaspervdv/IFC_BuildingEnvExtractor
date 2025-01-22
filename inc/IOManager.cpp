@@ -630,15 +630,11 @@ void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT
 	// storeys
 	if (settingsCollection.make02())
 	{
-		try
-		{
-			geoCreator->makeFloorSectionCollection(internalDataManager_.get());
-		}
-		catch (const std::exception&)
-		{
-			succesfullExit_ = 0;
-		}
-		geoCreator->makeLoD02Storeys(internalDataManager_.get(), kernel, storeyObjects, 1);
+		geoCreator->make2DStoreys(internalDataManager_.get(), kernel, storeyObjects, 1, false);
+	}
+	if (settingsCollection.make03())
+	{
+		geoCreator->make2DStoreys(internalDataManager_.get(), kernel, storeyObjects, 1, true);
 	}
 	if (settingsCollection.make02() || settingsCollection.make12() || settingsCollection.make22())
 	{

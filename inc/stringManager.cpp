@@ -101,8 +101,10 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoPairVoxels:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Pair voxels";
 
-	case CommunicationStringID::infoComputingStoreys:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Storey extraction";
+	case CommunicationStringID::infoComputingStoreys02:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.2 Storeys";
+	case CommunicationStringID::infoComputingStoreys03:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.3 Storeys";
 	case CommunicationStringID::infoComputingLoD00:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.0 Model";
 	case CommunicationStringID::infoComputingLoD02:

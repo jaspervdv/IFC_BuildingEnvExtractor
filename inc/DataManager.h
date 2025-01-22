@@ -171,8 +171,6 @@ private:
 	IfcGeom::Kernel* getKernelObject(const std::string& productGuid);
 	/// gets shapes from memory without checking for correct adjusted boolean
 	int getObjectShapeLocation(IfcSchema::IfcProduct* product);
-	/// search the object shape from memory only
-	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);
 
 	/// get the product representation from the object from the kernel
 	IfcSchema::IfcRepresentation* getProductRepPtr(IfcSchema::IfcProduct* product);
@@ -266,6 +264,8 @@ public:
 	std::map<std::string, std::string> getProductPsetData(const std::string& productGui, int fileNum);
 	/// returns a string pair based on a proprtysinglevalue
 	std::pair<std::string, std::string> getSinglePsetValue(IfcSchema::IfcPropertySingleValue* propertyValue);
+	/// search the object shape from memory only
+	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);
 
 	/// get the shape of an ifcproduct
 	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);

@@ -489,13 +489,24 @@ toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
                                                       toggleEnableEntry(toggle_makeroofprint, {lod_settings.lod02.get()}),
                                                       toggleEnableEntry(toggle_makeinterior, {
                                                           lod_settings.lod02.get(),
+                                                          lod_settings.lod03.get(),
                                                           lod_settings.lod12.get(),
                                                           lod_settings.lod22.get(),
                                                           lod_settings.lod32.get(),
                                                           lod_settings.lod50.get()
                                                       })]
                                    )
-toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=lod_settings.lod03)
+toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=lod_settings.lod03,
+                                   command=lambda: [
+                                       toggleEnableEntry(toggle_makeinterior, {
+                                           lod_settings.lod02.get(),
+                                           lod_settings.lod03.get(),
+                                           lod_settings.lod12.get(),
+                                           lod_settings.lod22.get(),
+                                           lod_settings.lod32.get(),
+                                           lod_settings.lod50.get()
+                                       })
+                                   ])
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=lod_settings.lod10)
 toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                    text="LoD1.2",
@@ -503,6 +514,7 @@ toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                    command=lambda: [
                                        toggleEnableEntry(toggle_makeinterior, {
                                            lod_settings.lod02.get(),
+                                           lod_settings.lod03.get(),
                                            lod_settings.lod12.get(),
                                            lod_settings.lod22.get(),
                                            lod_settings.lod32.get(),
@@ -527,6 +539,7 @@ toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=
                                    command=lambda: [
                                        toggleEnableEntry(toggle_makeinterior, {
                                            lod_settings.lod02.get(),
+                                           lod_settings.lod03.get(),
                                            lod_settings.lod12.get(),
                                            lod_settings.lod22.get(),
                                            lod_settings.lod32.get(),
@@ -545,6 +558,7 @@ toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    command=lambda: [
                                        toggleEnableEntry(toggle_makeinterior, {
                                            lod_settings.lod02.get(),
+                                           lod_settings.lod03.get(),
                                            lod_settings.lod12.get(),
                                            lod_settings.lod22.get(),
                                            lod_settings.lod32.get(),
@@ -558,6 +572,7 @@ toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
                                    command=lambda: [
                                        toggleEnableEntry(toggle_makeinterior, {
                                            lod_settings.lod02.get(),
+                                           lod_settings.lod03.get(),
                                            lod_settings.lod12.get(),
                                            lod_settings.lod22.get(),
                                            lod_settings.lod32.get(),
