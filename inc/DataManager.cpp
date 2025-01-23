@@ -28,7 +28,13 @@ IfcProductSpatialData::IfcProductSpatialData(IfcSchema::IfcProduct* productPtr, 
 
 	ErrorCollection& errorCollection = ErrorCollection::getInstance();
 
-	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
+	TopoDS_Shape meshShape = productShape_;
+	if (!simpleShape_.IsNull())
+	{
+		meshShape = simpleShape_;
+	}
+
+	for (TopExp_Explorer expl(meshShape, TopAbs_FACE); expl.More(); expl.Next())
 	{
 		TopoDS_Face productFace = TopoDS::Face(expl.Current());
 
@@ -293,7 +299,7 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	std::vector<gp_Pnt> pointList = getObjectListPoints <IfcSchema::IfcSlab> (true);
 	if (!pointList.size())
 	{
-		pointList = getObjectListPoints <IfcSchema::IfcRoof>(true);
+		pointList = getObjectListPoints<IfcSchema::IfcRoof>(true);
 	}
 	if (!pointList.size())
 	{
