@@ -178,7 +178,7 @@ private:
 	TopoDS_Shape getNestedObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);
 	/// get flat pointlist of the input product list
 	template<typename T>
-	std::vector<gp_Pnt> getObjectListPoints(const T& productList, bool simple = false);
+	std::vector<gp_Pnt> getObjectListPoints(bool simple = false);
 	/// get flat pointlist of the input product 
 	std::vector<gp_Pnt> getObjectPoints(IfcSchema::IfcProduct* product, bool simple = false);
 	/// replace the simple shape of a spatial data object in memory

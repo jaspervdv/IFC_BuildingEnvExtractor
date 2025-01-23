@@ -290,20 +290,11 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	// get the slab pointlist to base the inital bbox on
-	std::vector<gp_Pnt> pointList;
-	for (size_t i = 0; i < dataCollectionSize_; i++)
+	std::vector<gp_Pnt> pointList = getObjectListPoints <IfcSchema::IfcSlab> (true);
+	if (!pointList.size())
 	{
-		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
-		IfcSchema::IfcSlab::list::ptr slabList = fileObject->instances_by_type<IfcSchema::IfcSlab>();
-
-		std::vector<gp_Pnt> pointLisSlab;
-		if (slabList->size())
-		{
-			pointLisSlab = getObjectListPoints<IfcSchema::IfcSlab::list::ptr>(slabList);
-		}
-		pointList.insert(pointList.end(), pointLisSlab.begin(), pointLisSlab.end());
+		pointList = getObjectListPoints <IfcSchema::IfcRoof>(true);
 	}
-
 	if (!pointList.size())
 	{
 		ErrorCollection::getInstance().addError(ErrorID::errorNoPoints);
@@ -332,7 +323,7 @@ gp_Vec DataManager::computeObjectTranslation()
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		IfcSchema::IfcSlab::list::ptr slabList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
-
+		if (slabList.get() == nullptr) { continue; }
 		if (!slabList.get()->size()) { continue; }
 		IfcSchema::IfcSlab* slab = *slabList->begin();
 
@@ -341,10 +332,9 @@ gp_Vec DataManager::computeObjectTranslation()
 		TopoDS_Shape slabShape = getObjectShape(slab, true);
 		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
 		return gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
-
 	}
 	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
-	throw std::string(errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab));
+	std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab) << std::endl;
 	return gp_Vec();
 }
 
@@ -593,15 +583,19 @@ TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, b
 }
 
 template<typename T>
-std::vector<gp_Pnt> DataManager::getObjectListPoints(const T& productList, bool simple)
+std::vector<gp_Pnt> DataManager::getObjectListPoints(bool simple)
 {
 	std::vector<gp_Pnt> pointList;
-	for (auto it = productList->begin(); it != productList->end(); ++it) {
-		IfcSchema::IfcProduct* product = *it;
-		std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
+	for (const auto& fileObject : datacollection_)
+	{
+		T::list::ptr objectList = fileObject->getFilePtr()->instances_by_type<T>();
+		for (auto it = objectList->begin(); it != objectList->end(); ++it) {
+			IfcSchema::IfcProduct* product = *it;
+			std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
 
-		for (const auto& point : temp) {
-			pointList.emplace_back(point);
+			for (const auto& point : temp) {
+				pointList.emplace_back(point);
+			}
 		}
 	}
 	return std::vector<gp_Pnt>(pointList);

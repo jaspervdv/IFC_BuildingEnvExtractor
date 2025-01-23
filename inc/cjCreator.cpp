@@ -1744,12 +1744,9 @@ bool CJGeoCreator::checkShapeIntersection(const TopoDS_Edge& ray, const TopoDS_S
 bool CJGeoCreator::checksurfaceIntersection(const TopoDS_Edge& ray, const TopoDS_Face& face)
 {
 	double precision = SettingsCollection::getInstance().precision();
-	std::cout << "in" << std::endl;
-
 	BRepExtrema_DistShapeShape intersection(ray, face, precision);
 
 	intersection.Perform();
-	std::cout << "out" << std::endl;
 	// Check if there is an intersection
 	if (!intersection.IsDone()) { return false; }
 	if (intersection.NbSolution() < 1) { return false; }
