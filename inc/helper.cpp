@@ -604,7 +604,8 @@ std::vector<gp_Pnt> helperFunctions::getPointListOnFace(const TopoDS_Face& theFa
 
 	TopLoc_Location loc;
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
-
+	if (mesh.IsNull()) { return {}; }
+	
 	std::vector<gp_Pnt> pointList;
 	for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
 	{

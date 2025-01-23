@@ -858,10 +858,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Sh
 			TopoDS_Face face = TopoDS::Face(expl.Current());
 
 			// ignore extremely small surfaces
-			GProp_GProps gprops;
-			BRepGProp::SurfaceProperties(face, gprops);
-			double area = gprops.Mass();
-			if (area < 0.001) { continue; }
+			if (helperFunctions::computeArea(face) < 0.001) { continue; }
 
 			// check if the face is flush to the cuttting plane if flat 
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
@@ -898,7 +895,6 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Sh
 		std::vector<TopoDS_Wire> splitWireList = helperFunctions::growWires(edgeList);
 
 		if (!splitWireList.size()) { continue; }
-
 		for (const TopoDS_Wire& splitWire : splitWireList)
 		{
 			if (!splitWire.Closed()) { continue; }
@@ -906,6 +902,48 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Sh
 		}
 	}
 	return spltFaceCollection;
+}
+
+void CJGeoCreator::SplitInAndOuterHFaces(const std::vector<TopoDS_Face>& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces)
+{
+	for (const TopoDS_Face currentFace : inputFaces)
+	{
+		// get point on face
+		std::vector<gp_Pnt> facePointList = helperFunctions::getPointListOnFace(currentFace);
+		if (!facePointList.size()) { continue; }
+
+		bool isFound = false;
+		for (gp_Pnt facePoint : facePointList)
+		{
+			// get closest upper voxel
+			facePoint.SetZ(facePoint.Z() + SettingsCollection::getInstance().voxelSize() / 0.66);
+			int voxelIndx = voxelGrid_->getCloseByVoxel(facePoint);
+			voxel boxel = voxelGrid_->getVoxel(voxelIndx);
+			if (!boxel.getIsIntersecting() && !boxel.getIsInside())
+			{
+				outerFaces.emplace_back(currentFace);
+				isFound = true;
+				break;
+			}
+		}
+		if (!isFound)
+		{
+			innerFaces.emplace_back(currentFace);
+		}
+		
+	}
+	return;
+}
+
+void CJGeoCreator::SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces)
+{
+	std::vector<TopoDS_Face> splitFaceList;
+	for (TopExp_Explorer faceExpl(inputFaces, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		splitFaceList.emplace_back(TopoDS::Face(faceExpl.Current()));
+	}
+	SplitInAndOuterHFaces(splitFaceList, innerFaces, outerFaces);
+	return;
 }
 
 
@@ -1110,7 +1148,9 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(DataManager* h, double s
 	return footprintList;
 }
 
-std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(
+void CJGeoCreator::makeFloorSectionComplex(
+	std::vector<TopoDS_Face>& intFacesOut, 
+	std::vector<TopoDS_Face>& extFacesOut,
 	DataManager* h, 
 	double sectionHeight, 
 	const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList
@@ -1124,6 +1164,7 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(
 	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, 0);
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, sectionHeight);
 
+	// get object shapes that are related to the input storeys 
 	std::vector<TopoDS_Shape> storeyRelatedShapeList;
 	for (const IfcSchema::IfcBuildingStorey* IfcBuildingStorey : buildingStoreyObjectList)
 	{
@@ -1142,14 +1183,14 @@ std::vector<TopoDS_Face> CJGeoCreator::makeFloorSection(
 		}
 	}
 
-	std::vector<TopoDS_Face> splitFaceList = section2Faces(storeyRelatedShapeList, h, sectionHeight); //TODO: make function, do some cleaning
+	// generate shapes
+	std::vector<TopoDS_Face> splitFaceList = section2Faces(storeyRelatedShapeList, h, sectionHeight);
 	if (!splitFaceList.size())
 	{
 		throw std::invalid_argument("");
 	}
-
-	std::vector<TopoDS_Face> footprintList = planarFaces2Outline(splitFaceList, cuttingPlane);
-	return footprintList;
+	planarFaces2OutlineComplex(intFacesOut, extFacesOut, splitFaceList, cuttingPlane, true);
+	return;
 }
 
 
@@ -1874,10 +1915,74 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline()
 	return mergedSurfaces;
 }
 
-std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
+std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
 {
-	gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
+	TopoDS_Shape faceComplex = planarFaces2Cluster(planarFaces);
 
+	// split section face with the merged splitting faces
+	BRepAlgoAPI_Splitter splitter;
+	splitter.SetFuzzyValue(1e-4);
+	TopTools_ListOfShape toolList;
+	TopTools_ListOfShape argumentList;
+
+	argumentList.Append(boundingFace);
+	splitter.SetArguments(argumentList);
+	toolList.Append(faceComplex);
+
+	splitter.SetTools(toolList);
+	splitter.Build();
+
+	TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
+	std::vector<TopoDS_Face> innerWireFaces = invertFace(outerFace);
+	return innerWireFaces;
+}
+
+void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
+{
+	TopoDS_Shape faceComplex = planarFaces2Cluster(planarFaces);
+
+	// split section face with the merged splitting faces
+	BRepAlgoAPI_Splitter innerSplitter;
+	BRepAlgoAPI_Splitter outerSplitter;
+	innerSplitter.SetFuzzyValue(1e-4);
+	outerSplitter.SetFuzzyValue(1e-4);
+	TopTools_ListOfShape innerToolList;
+	TopTools_ListOfShape outerToolList;
+	TopTools_ListOfShape argumentList;
+
+	argumentList.Append(boundingFace);
+	innerSplitter.SetArguments(argumentList);
+	outerSplitter.SetArguments(argumentList);
+	if (filterExternal)
+	{
+		std::vector<TopoDS_Face> innerFaces;
+		std::vector<TopoDS_Face> outerFaces;
+		SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
+		for (const TopoDS_Face& filteredFace : innerFaces)
+		{
+			innerToolList.Append(filteredFace);
+		}
+		for (const TopoDS_Face& filteredFace : outerFaces)
+		{
+			outerToolList.Append(filteredFace);
+		}
+	}
+
+	innerSplitter.SetTools(innerToolList);
+	innerSplitter.Build();
+	intFacesOut = invertFace(getOuterFace(innerSplitter.Shape(), boundingFace));
+
+	if (outerToolList.Size())
+	{
+		outerSplitter.SetTools(outerToolList);
+		outerSplitter.Build();
+		extFacesOut = invertFace(getOuterFace(outerSplitter.Shape(), boundingFace));
+	}
+	return;
+}
+
+TopoDS_Shape CJGeoCreator::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
+{
 	// merge the splitting faces
 	BRepAlgoAPI_Fuse fuser;
 	TopTools_ListOfShape mergeList;
@@ -1890,23 +1995,15 @@ std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<Top
 	fuser.SetArguments(mergeList);
 	fuser.SetTools(mergeList);
 	fuser.Build();
+	return fuser.Shape();
+}
 
-	// split section face with the merged splitting faces
-	BRepAlgoAPI_Splitter splitter;
-	splitter.SetFuzzyValue(1e-4);
-	TopTools_ListOfShape toolList;
-	TopTools_ListOfShape argumentList;
-
-	argumentList.Append(boundingFace);
-	splitter.SetArguments(argumentList);
-
-	toolList.Append(fuser.Shape());
-	splitter.SetTools(toolList);
-	splitter.Build();
-
+TopoDS_Face CJGeoCreator::getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace)
+{
 	// find the outer face
 	TopoDS_Face outerFace;
-	for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(originalFace);
+	for (TopExp_Explorer faceExpl(splitShape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 	{
 		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
 		bool isFound = false;
@@ -1924,10 +2021,14 @@ std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<Top
 		}
 		if (isFound) { break; }
 	}
+	return outerFace;
+}
 
-	// find the inner wires of the outer found face and make of those wires surfaces
+std::vector<TopoDS_Face> CJGeoCreator::invertFace(const TopoDS_Face& inputFace)
+{
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(inputFace);
 	std::vector<TopoDS_Face> mergedFaceList;
-	for (TopExp_Explorer WireExpl(outerFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
+	for (TopExp_Explorer WireExpl(inputFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
 		bool isInner = true;
@@ -2141,12 +2242,14 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(Da
 			IfcSchema::IfcBuildingStorey* storeyObject = *it;
 			double storeyElevation = storeyObject->Elevation().get() * h->getScaler(0);
 
+			// check if the storey object is already made
 			bool isDub = false;
 			for (size_t i = 0; i < elevList.size(); i++)
 			{
 				double otherStoreyElevation = elevList[i];
 				if (abs(storeyElevation - otherStoreyElevation) > 1e-6) { continue; }
 
+				// if already made merge the data
 				std::vector<std::string> guidList = cityStoreyObjects[i]->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)].get<std::vector<std::string>>(); ;
 				guidList.emplace_back(storeyObject->GlobalId());
 				cityStoreyObjects[i]->removeAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid));
@@ -2155,6 +2258,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(Da
 				break;
 			}
 			if (isDub) { continue; }
+			// if new add a new object
 
 			CJT::CityObject cityStoreyObject;
 			cityStoreyObject.setType(CJT::Building_Type::BuildingStorey);
@@ -2363,27 +2467,11 @@ void CJGeoCreator::make2DStoreys(
 	gp_Trsf trsf;
 	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
-	std::map<std::string, std::string> semanticStoreyData;
-	semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeStorey));
-
 	double storeyUserBuffer = SettingsCollection::getInstance().horizontalSectionOffset();
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
 		std::vector<std::string> storeyGuidList = storeyCityObject->getAttributes()["IFC Guid"];
-		std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList;
-
-		for (const std::string& storeyGuid : storeyGuidList)
-		{	
-			for (size_t i = 0; i < h->getSourceFileCount(); i++)
-			{
-				IfcUtil::IfcBaseClass* ifcBaseStorey = nullptr;
-				try { ifcBaseStorey = h->getSourceFile(i)->instance_by_guid(storeyGuid); }
-				catch (const std::exception&) { continue; }
-				if (ifcBaseStorey == nullptr) { continue; }
-				IfcSchema::IfcBuildingStorey* ifcSubStorey = ifcBaseStorey->as<IfcSchema::IfcBuildingStorey>();
-				ifcStoreyList.emplace_back(ifcSubStorey);
-			}
-		}
+		std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList = fetchStoreyObjects(h, storeyGuidList);
 
 		IfcSchema::IfcBuildingStorey* ifcStorey = ifcStoreyList[0];
 		IfcSchema::IfcObjectPlacement* storeyObjectPlacement = ifcStorey->ObjectPlacement();
@@ -2391,27 +2479,24 @@ void CJGeoCreator::make2DStoreys(
 		double userStoreyElevation = ifcStorey->Elevation().get() * h->getScaler(0);
 
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentStoreyAtZ) << userStoreyElevation << " (" << storeyElevation << ")" << std::endl;
+
+		std::vector<TopoDS_Face> storeySurfaceList;
+		std::map<std::string, std::string> semanticStoreyData;
+		std::vector<TopoDS_Face> storeyExternalSurfaceList;
+		std::map<std::string, std::string> semanticExternalStoreyData;
+
 		try
 		{
-			std::vector<TopoDS_Face> storeySurfaceList;
 			if (is03)
 			{
-				storeySurfaceList = makeFloorSection(h, storeyElevation + storeyUserBuffer, ifcStoreyList);
-				//TODO: clear the overlapping with roof surfaces
+				makeFloorSectionComplex(storeySurfaceList, storeyExternalSurfaceList, h, storeyElevation + storeyUserBuffer, ifcStoreyList);
+				semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloor));
+				semanticExternalStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeOuterFloor));
 			}
 			else
 			{
 				storeySurfaceList = makeFloorSection(h, storeyElevation + storeyUserBuffer);
-			}
-			
-
-			trsf.SetTranslationPart(gp_Vec(0, 0, -storeyUserBuffer));
-			for (const TopoDS_Face& currentStoreyFace : storeySurfaceList)
-			{
-				CJT::GeoObject geoObject = kernel->convertToJSON(currentStoreyFace.Moved(trsf), LoDString);
-				geoObject.appendSurfaceData(semanticStoreyData);
-				geoObject.appendSurfaceTypeValue(0);
-				storeyCityObject->addGeoObject(geoObject);
+				semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeStorey));
 			}
 		}
 		catch (const std::exception&)
@@ -2420,6 +2505,28 @@ void CJGeoCreator::make2DStoreys(
 			ErrorCollection::getInstance().addError(ErrorID::errorStoreyFailed, storeyGuidList[0]);
 			continue;
 		}
+
+		double totalArea = 0;
+		trsf.SetTranslationPart(gp_Vec(0, 0, -storeyUserBuffer));
+		for (const TopoDS_Face& currentStoreyFace : storeySurfaceList)
+		{
+			CJT::GeoObject geoObject = kernel->convertToJSON(currentStoreyFace.Moved(trsf), LoDString);
+			geoObject.appendSurfaceData(semanticStoreyData);
+			geoObject.appendSurfaceTypeValue(0);
+			storeyCityObject->addGeoObject(geoObject);
+
+			totalArea += helperFunctions::computeArea(currentStoreyFace);
+		}
+
+		for (const TopoDS_Face& currentStoreyFace : storeyExternalSurfaceList)
+		{
+			CJT::GeoObject geoObject = kernel->convertToJSON(currentStoreyFace.Moved(trsf), LoDString);
+			geoObject.appendSurfaceData(semanticExternalStoreyData);
+			geoObject.appendSurfaceTypeValue(0);
+			storeyCityObject->addGeoObject(geoObject);
+		}
+
+		storeyCityObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvLoDfloorArea) + LoDString, totalArea);
 	}
 	return;
 }
@@ -4077,6 +4184,24 @@ std::vector<TopoDS_Face> CJGeoCreator::trimFacesToFootprint(const std::vector<To
 		splittedFaceList.emplace_back(subFace);
 	}
 	return splittedFaceList;
+}
+
+std::vector<IfcSchema::IfcBuildingStorey*> CJGeoCreator::fetchStoreyObjects(DataManager* h, const std::vector<std::string>& storeyGuidList)
+{
+	std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList;
+	for (const std::string& storeyGuid : storeyGuidList)
+	{
+		for (size_t i = 0; i < h->getSourceFileCount(); i++)
+		{
+			IfcUtil::IfcBaseClass* ifcBaseStorey = nullptr;
+			try { ifcBaseStorey = h->getSourceFile(i)->instance_by_guid(storeyGuid); }
+			catch (const std::exception&) { continue; }
+			if (ifcBaseStorey == nullptr) { continue; }
+			IfcSchema::IfcBuildingStorey* ifcSubStorey = ifcBaseStorey->as<IfcSchema::IfcBuildingStorey>();
+			ifcStoreyList.emplace_back(ifcSubStorey);
+		}
+	}
+	return ifcStoreyList;
 }
 
 CJGeoCreator::CJGeoCreator(DataManager* h, double vSize)

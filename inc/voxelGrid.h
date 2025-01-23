@@ -91,6 +91,8 @@ public:
 
 	int getLowerNeighbour(int voxelIndx, bool connect6 = false);
 
+	int getCloseByVoxel(const gp_Pnt& targetPoint);
+
 	/// @brief get the top layer of voxels
 	std::vector<int> getTopBoxelIndx();
 

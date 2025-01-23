@@ -960,3 +960,9 @@ int VoxelGrid::getLowerNeighbour(int voxelIndx, bool connect6)
 
 	return voxelIndx - (xRelRange_) * (yRelRange_);
 }
+
+int VoxelGrid::getCloseByVoxel(const gp_Pnt& targetPoint)
+{
+	BoostPoint3D relPoint = worldToRelPoint(helperFunctions::Point3DOTB(targetPoint));
+	return relativeToLinear(relPoint);
+}

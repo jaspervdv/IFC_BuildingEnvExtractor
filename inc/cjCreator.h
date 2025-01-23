@@ -82,7 +82,17 @@ private:
 	std::vector<TopoDS_Face> createRoofOutline();
 
 	/// creates face collection that represent the merged input shapes
-	std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace);
+	std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal = false);
+	void planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal = false);
+
+	/// fuses all the planar faces into a complex planar face structure
+	TopoDS_Shape planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces);
+
+	/// returns the outerface (bounding face) of a cluster of faces based on the original input face
+	TopoDS_Face getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace);
+
+	/// creates faces from the inner wires of a face
+	std::vector<TopoDS_Face> invertFace(const TopoDS_Face& inputFace);
 
 	/// @brief reduce the surfaces of an object for roof extraction by z-ray casting on itself
 	void reduceSurfaces(
@@ -153,6 +163,9 @@ private:
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
 	std::vector<TopoDS_Face> section2Faces(const std::vector<TopoDS_Shape>& shapes, DataManager* h, double cutlvl);
 
+	void SplitInAndOuterHFaces(const std::vector<TopoDS_Face>& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces);
+	void SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces);
+
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	TopoDS_Solid extrudeFace(const std::vector<TopoDS_Face>& faceList, const std::vector<TopoDS_Wire>& wireList, bool downwards,  double splittingFaceHeight = 0);
@@ -216,6 +229,8 @@ private:
 
 	std::vector<TopoDS_Face> trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
 
+	std::vector<IfcSchema::IfcBuildingStorey*> fetchStoreyObjects(DataManager* h, const std::vector<std::string>& storeyGuidList);
+
 public:
 	explicit CJGeoCreator(DataManager* h, double vSize);
 
@@ -226,7 +241,7 @@ public:
 	void makeFootprint(DataManager* h);
 
 	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
-	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
+	void makeFloorSectionComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
 
 	/// store the roofoutline data to LoD 02
 	void useRoofPrint(bool b) { useRoofprints_ = b; }

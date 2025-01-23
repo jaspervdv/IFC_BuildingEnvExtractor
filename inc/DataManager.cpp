@@ -1241,7 +1241,9 @@ TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, 
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
-	if (openingObjects.find(objectType) == openingObjects.end()) { isSimple = false; }
+	if (openingObjects.find(objectType) == openingObjects.end() &&
+		objectType != "IfcDoor" && objectType != "IfcWindow"
+		) { isSimple = false; }
 
 	int obbjectShapeLocation = getObjectShapeLocation(product);
 

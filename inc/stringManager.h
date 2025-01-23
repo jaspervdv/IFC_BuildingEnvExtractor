@@ -169,6 +169,8 @@ enum class CJObjectID {
 	
 	CJType,
 	CJTypeStorey,
+	CJTypeFloor,
+	CJTypeOuterFloor,
 	CJTypeRoofSurface,
 	CJTypeGroundSurface,
 	CJTypeFloorSurface,
@@ -198,6 +200,7 @@ enum class CJObjectID {
 	EnvVoxelSize,
 	EnvVoxelAnchor,
 	EnvVoxelRotation,
+	EnvLoDfloorArea,
 
 	v11,
 	v20,

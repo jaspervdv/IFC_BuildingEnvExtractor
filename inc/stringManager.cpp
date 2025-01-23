@@ -477,6 +477,10 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "type";
 	case CJObjectID::CJTypeStorey:
 		return "BuildingStorey";
+	case CJObjectID::CJTypeFloor:
+		return "FloorSurface";
+	case CJObjectID::CJTypeOuterFloor:
+		return "OuterFloorSurface";
 	case CJObjectID::CJTypeRoofSurface:
 		return "RoofSurface";
 	case CJObjectID::CJTypeFloorSurface:
@@ -530,6 +534,9 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "voxelGrid anchor";
 	case CJObjectID::EnvVoxelRotation:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "voxelGrid rotation";
+
+	case CJObjectID::EnvLoDfloorArea:
+		return sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "floor area LoD";
 
 	case CJObjectID::v11:
 		return "1.1";
