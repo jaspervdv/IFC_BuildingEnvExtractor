@@ -1969,7 +1969,7 @@ void CJGeoCreator::monitorStoreys(std::mutex& storeyMutex, std::map<std::string,
 
 		if (running)
 		{
-			Sleep(1000);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 			std::cout << "\033[" << returnSize << "A";
 		}
 	}
