@@ -243,6 +243,17 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 	return wirePointList;
 }
 
+bool helperFunctions::pointIsSame(const BoostPoint3D& lp, const BoostPoint3D& rp)
+{
+	double precision = SettingsCollection::getInstance().precision();
+
+	if (abs(lp.get<0>() - rp.get<0>()) > precision ) { return false; }
+	if (abs(lp.get<1>() - rp.get<1>()) > precision ) { return false; }
+	if (abs(lp.get<2>() - rp.get<2>()) > precision ) { return false; }
+	return true;
+
+}
+
 
 template<typename T>
 void helperFunctions::bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle)
@@ -1932,4 +1943,123 @@ bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)
 		return false;
 	}
 	return true;
+}
+
+bool helperFunctions::isSame(const bg::model::box<BoostPoint3D>& bboxL, const bg::model::box<BoostPoint3D>& bboxR)
+{
+	BoostPoint3D minPointL = bboxL.min_corner();
+	BoostPoint3D maxPointL = bboxL.max_corner();
+	BoostPoint3D minPointR = bboxR.min_corner();
+	BoostPoint3D maxPointR = bboxR.max_corner();
+
+	if (!pointIsSame(minPointL, minPointR)) { return false; }
+	if (!pointIsSame(maxPointL, maxPointR)) { return false; }
+	return true;
+}
+
+bool helperFunctions::isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR)
+{
+	double precision = SettingsCollection::getInstance().precision();
+	if (abs(computeArea(faceL) - computeArea(faceR)) > precision)
+	{
+		return false;
+	}
+	std::vector<gp_Pnt> uniqueLPoints = getUniquePoints(faceL);
+	std::vector<gp_Pnt> uniqueRPoints = getUniquePoints(faceL);
+
+	for (const gp_Pnt& uniqueLPoint : uniqueLPoints)
+	{
+		bool pointFound = false;
+		for (const gp_Pnt& uniqueRPoint : uniqueRPoints)
+		{
+			if (uniqueLPoint.IsEqual(uniqueRPoint, precision))
+			{
+				pointFound = true;
+				break;
+			}
+		}
+		if (!pointFound)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList)
+{
+	std::vector<TopoDS_Face> cleanedFaceList;
+	std::vector<double> areaList;
+
+	double precision = SettingsCollection::getInstance().precisionCoarse();
+
+	bgi::rtree<Value, bgi::rstar<25>> spatialIndex;
+	for (const TopoDS_Face& currentFace : inputFaceList)
+	{
+		std::vector<Value> qResult;
+		qResult.clear();
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		spatialIndex.query(bgi::intersects(
+			bbox), std::back_inserter(qResult));
+
+		bool isDub = false;
+		for ( const auto&  [otherBox, faceIndx] : qResult)
+		{
+			TopoDS_Face otherFace = cleanedFaceList[faceIndx];
+			if (!isSame(currentFace, otherFace)) { continue; }
+
+			isDub = true;
+			break;
+
+		}
+		if (isDub) { continue; }
+
+		spatialIndex.insert(std::make_pair(bbox, cleanedFaceList.size()));
+		cleanedFaceList.emplace_back(currentFace);
+		areaList.emplace_back(computeArea(currentFace));
+	}
+
+	//std::vector<TopoDS_Face> filteredFaceList;
+	//for (size_t i = 0; i < cleanedFaceList.size(); i++)
+	//{
+	//	const TopoDS_Face& currentFace = cleanedFaceList[i];
+	//	double currentArea = areaList[i];
+
+	//	std::vector<Value> qResult;
+	//	qResult.clear();
+	//	bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+	//	spatialIndex.query(bgi::intersects(
+	//		bbox), std::back_inserter(qResult));
+
+	//	bool isBiggest = true;
+	//	for (const auto& [otherBox, faceIndx] : qResult)
+	//	{
+	//		bool bound = true;
+	//		double otherArea = areaList[faceIndx];
+	//		TopoDS_Face otherFace = cleanedFaceList[faceIndx];
+	//		
+	//		if (currentFace.IsEqual(otherFace)) { continue; }
+	//		if (currentArea > otherArea) { continue; }
+
+	//		isBiggest = false;
+	//		for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
+	//		{
+	//			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+	//			BRepClass_FaceClassifier faceClassifier(otherFace, BRep_Tool::Pnt(vertex), precision);
+	//			if (faceClassifier.State() == TopAbs_OUT)
+	//			{ 
+	//				bound = false;
+	//				break;
+	//			}	
+	//		}
+	//		if (bound) { break; }
+	//		filteredFaceList.emplace_back(currentFace);
+	//	}
+	//	if (isBiggest)
+	//	{
+	//		filteredFaceList.emplace_back(currentFace);
+	//	}
+	//	
+	//}
+	return cleanedFaceList;
 }

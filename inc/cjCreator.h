@@ -120,44 +120,14 @@ private:
 	/// @brief get the surfaces that are not covered by other surfaces within the objects 
 	std::vector<std::shared_ptr<SurfaceGridPair>> getObjectTopSurfaces(const TopoDS_Shape& shape);
 
-	/// get the unique edges from in a shape or a collection of edges
-	std::vector<Edge> getUniqueEdges(const TopoDS_Shape& flattenedEdges);
-	std::vector<Edge> getUniqueEdges(const std::vector<TopoDS_Edge>& flattenedEdges);
-
-	/// get faces that are uniquely in a list dublicates are ingnored
-	std::vector<TopoDS_Face> getUniqueFaces(const std::vector<TopoDS_Face>& faceList);
-
-	/// get all the faces that have all vertices shared with one or more other faces from the list
-	std::vector<TopoDS_Face> getEncompassedFaces(const std::vector<TopoDS_Face>& faceList);
-
-	/// check if edge is in list of edge objects
-	bool isInList(const TopoDS_Edge& currentEdge, const std::vector<Edge>& edgeList);
-
-	/// @bried merges all the overlapping edges that have the same direction
-	std::vector<Edge> mergeOverlappingEdges(const std::vector<Edge>& uniqueEdges, bool project=true);
-
 	/// @brief merges flat faces together in a singular shape
 	std::vector<TopoDS_Face> simplefyProjection(const std::vector<TopoDS_Face> inputFaceList);
-
-	/// @brief check if edge is part of outer envelope
-	bool isOuterEdge(Edge currentEdge, const std::vector<TopoDS_Face>& flatFaceList, const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex);
-
-	/// @brief get all the edges that enclose the projected faces
-	std::vector<TopoDS_Edge> getOuterEdges(const std::vector<Edge>& edgeList, const std::vector<RCollection>& faceList);
-
-	/// @brief get all the outer edges based on a voxelplate
-	std::vector<TopoDS_Edge> getOuterEdges(
-		const std::vector<Edge>& edgeList,
-		const bgi::rtree<Value, bgi::rstar<25>>& voxelIndex,
-		const std::vector<std::shared_ptr<voxel>>& originVoxels,
-		double floorlvl);
 
 	// divides the projected footprints over the seperate buildings
 	void sortRoofStructures();
 
 	// merges faces that are near eachother
 	void mergeRoofSurfaces(std::vector<std::shared_ptr<SurfaceGridPair>>& Collection);
-
 
 	// create list of edges by cutting objects at the floor lvl
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
@@ -240,7 +210,7 @@ public:
 	/// computes and internalizes the data that is required to do footprint related city scale output
 	void makeFootprint(DataManager* h);
 
-	std::vector<TopoDS_Face> makeFloorSection(DataManager* h, double sectionHeight);
+	void makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataManager* h, double sectionHeight);
 	void makeFloorSectionComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
 
 	/// store the roofoutline data to LoD 02
@@ -256,7 +226,13 @@ public:
 	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject>  makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// adds storey objects to the city object 
 	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03);
+	/// adds a storey object to the city object
+	void make2DStorey(std::mutex& storeyMutex, DataManager* h, CJT::Kernel* kernel, const std::shared_ptr<CJT::CityObject>& storeyCityObject, std::map<std::string, int>& progressMap, int unitScale, bool is03);
+
+	void monitorStoreys(std::mutex& storeyMutex, std::map<std::string, int>& progressMap, int totalProcesses);
+
 	void makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	/// generates a list of LoD0.3 roof faces
 	std::vector<std::vector<TopoDS_Face>> makeLoD03RoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);

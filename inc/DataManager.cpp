@@ -22,14 +22,14 @@ template std::string DataManager::getIfcObjectName<IfcSchema::IfcSite>(const std
 
 IfcProductSpatialData::IfcProductSpatialData(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape, const TopoDS_Shape& simpleShape)
 {
+	ErrorCollection& errorCollection = ErrorCollection::getInstance();
+
 	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
 	productShape_ = productShape;
 	simpleShape_ = simpleShape;
-
-	ErrorCollection& errorCollection = ErrorCollection::getInstance();
-
 	TopoDS_Shape meshShape = productShape_;
-	if (!simpleShape_.IsNull())
+	std::string objectType = productPtr->data().type()->name();
+	if ( objectType == "IfcDoor" || objectType == "IfcWindow" )
 	{
 		meshShape = simpleShape_;
 	}

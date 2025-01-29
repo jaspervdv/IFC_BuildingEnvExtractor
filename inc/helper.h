@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC2x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -79,6 +79,8 @@ struct helperFunctions{
 	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
 	// get a grid of points that are placed alongside the wire on a face
 	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
+	/// check if points are equal
+	static bool pointIsSame(const BoostPoint3D& lp, const BoostPoint3D& rp);
 
 	/// bounding box creating code
 
@@ -229,6 +231,12 @@ struct helperFunctions{
 	static void triangulateShape(const TopoDS_Shape& shape);
 	/// checks if a bbox has volume
 	static bool hasVolume(const bg::model::box <BoostPoint3D>& bbox);
+	/// checks if two bbox are equal
+	static bool isSame(const bg::model::box <BoostPoint3D>& bboxL, const bg::model::box <BoostPoint3D>& bboxR);
+	/// checks if two face have the same geo
+	static bool isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR);
+	/// returns list where dubs have been removed
+	static std::vector<TopoDS_Face> removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList);
 
 };
 #endif // HELPER_HELPER_H
