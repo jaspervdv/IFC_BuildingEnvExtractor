@@ -1400,88 +1400,168 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline()
 
 std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
 {
-	TopoDS_Shape faceComplex = planarFaces2Cluster(planarFaces);
+	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
+	std::vector<TopoDS_Face> innerWireFaces;
 
-	// split section face with the merged splitting faces
-	BRepAlgoAPI_Splitter splitter;
-	splitter.SetFuzzyValue(1e-4);
-	TopTools_ListOfShape toolList;
-	TopTools_ListOfShape argumentList;
+	for (const TopoDS_Shape& faceComplex : faceCluster)
+	{
+		// split section face with the merged splitting faces
+		BRepAlgoAPI_Splitter splitter;
+		splitter.SetFuzzyValue(1e-4);
+		TopTools_ListOfShape toolList;
+		TopTools_ListOfShape argumentList;
 
-	argumentList.Append(boundingFace);
-	splitter.SetArguments(argumentList);
-	toolList.Append(faceComplex);
+		argumentList.Append(boundingFace);
+		splitter.SetArguments(argumentList);
+		toolList.Append(faceComplex);
 
-	splitter.SetTools(toolList);
-	splitter.Build();
+		splitter.SetTools(toolList);
+		splitter.Build();
+		TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
+		if (outerFace.IsNull()) { continue; }
 
-	TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
-	std::vector<TopoDS_Face> innerWireFaces = invertFace(outerFace);
+		for (const TopoDS_Face& innerWireFace : invertFace(outerFace))
+		{
+			innerWireFaces.emplace_back(innerWireFace);
+		}
+	}
 	return innerWireFaces;
 }
 
 void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
 {
-	TopoDS_Shape faceComplex = planarFaces2Cluster(planarFaces);
+	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
 
-	// split section face with the merged splitting faces
-	BRepAlgoAPI_Splitter innerSplitter;
-	BRepAlgoAPI_Splitter outerSplitter;
-	innerSplitter.SetFuzzyValue(1e-4);
-	outerSplitter.SetFuzzyValue(1e-4);
-	TopTools_ListOfShape innerToolList;
-	TopTools_ListOfShape outerToolList;
-	TopTools_ListOfShape argumentList;
+	intFacesOut = {};
+	extFacesOut = {};
 
-	argumentList.Append(boundingFace);
-	innerSplitter.SetArguments(argumentList);
-	outerSplitter.SetArguments(argumentList);
-	if (filterExternal)
+	for (const TopoDS_Shape& faceComplex : faceCluster)
 	{
-		std::vector<TopoDS_Face> innerFaces;
-		std::vector<TopoDS_Face> outerFaces;
-		SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
-		for (const TopoDS_Face& filteredFace : innerFaces)
+		// split section face with the merged splitting faces
+		BRepAlgoAPI_Splitter innerSplitter;
+		BRepAlgoAPI_Splitter outerSplitter;
+		innerSplitter.SetFuzzyValue(1e-4);
+		outerSplitter.SetFuzzyValue(1e-4);
+		TopTools_ListOfShape innerToolList;
+		TopTools_ListOfShape outerToolList;
+		TopTools_ListOfShape argumentList;
+
+		argumentList.Append(boundingFace);
+		innerSplitter.SetArguments(argumentList);
+		outerSplitter.SetArguments(argumentList);
+		if (filterExternal)
 		{
-			innerToolList.Append(filteredFace);
+			std::vector<TopoDS_Face> innerFaces;
+			std::vector<TopoDS_Face> outerFaces;
+			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
+			for (const TopoDS_Face& filteredFace : innerFaces)
+			{
+				innerToolList.Append(filteredFace);
+			}
+			for (const TopoDS_Face& filteredFace : outerFaces)
+			{
+				outerToolList.Append(filteredFace);
+			}
 		}
-		for (const TopoDS_Face& filteredFace : outerFaces)
+
+		if (innerToolList.Size())
 		{
-			outerToolList.Append(filteredFace);
+			innerSplitter.SetTools(innerToolList);
+			innerSplitter.Build();
+
+			std::vector<TopoDS_Face> invertedFaces = invertFace(getOuterFace(innerSplitter.Shape(), boundingFace));
+			for (const TopoDS_Face& invertedFace : invertedFaces)
+			{
+				intFacesOut.emplace_back(invertedFace);
+			}
 		}
-	}
 
-	if (innerToolList.Size())
-	{
-		innerSplitter.SetTools(innerToolList);
-		innerSplitter.Build();
-		intFacesOut = invertFace(getOuterFace(innerSplitter.Shape(), boundingFace));
-	}
+		if (outerToolList.Size())
+		{
+			outerSplitter.SetTools(outerToolList);
+			outerSplitter.Build();
 
-	if (outerToolList.Size())
-	{
-		outerSplitter.SetTools(outerToolList);
-		outerSplitter.Build();
-		extFacesOut = invertFace(getOuterFace(outerSplitter.Shape(), boundingFace));
+			std::vector<TopoDS_Face> invertedFaces = invertFace(getOuterFace(outerSplitter.Shape(), boundingFace));
+			for (const TopoDS_Face& invertedFace : invertedFaces)
+			{
+				extFacesOut.emplace_back(invertedFace);
+			}
+		}
 	}
 	return;
 }
 
-TopoDS_Shape CJGeoCreator::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
+std::vector<TopoDS_Shape> CJGeoCreator::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
 {
-	// merge the splitting faces
-	BRepAlgoAPI_Fuse fuser;
-	TopTools_ListOfShape mergeList;
-	fuser.SetFuzzyValue(1e-4);
+	std::vector<TopoDS_Shape> clusteredShapeList;
 
-	for (const TopoDS_Face splitFace : planarFaces)
+	// index the surfaces
+	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
+	std::vector<int>evalList(planarFaces.size());
+	for (int i = 0; i < planarFaces.size(); i++)
 	{
-		mergeList.Append(splitFace);
+		TopoDS_Face currentFace = planarFaces[i];
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		shapeIdx.insert(std::make_pair(bbox, i));
 	}
-	fuser.SetArguments(mergeList);
-	fuser.SetTools(mergeList);
-	fuser.Build();
-	return fuser.Shape();
+
+	for (int i = 0; i < planarFaces.size(); i++)
+	{
+		// group surfaces
+		if (evalList[i]) { continue; }
+		evalList[i] = 1;
+		std::vector<TopoDS_Face> evalFaceList = { planarFaces[i] };
+		std::vector<TopoDS_Face> totalFaceCluster = { planarFaces[i] };
+
+		while (evalFaceList.size())
+		{
+			std::vector<TopoDS_Face> bufferFaceList;
+			for (TopoDS_Face& currentFace : evalFaceList)
+			{
+				std::vector<Value> qResult;
+				qResult.clear();
+				shapeIdx.query(bgi::intersects(
+					helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
+
+				for (auto& [bbox, otherIndx] : qResult)
+				{
+					if (evalList[otherIndx]) { continue; }
+
+					TopoDS_Face otherFace = planarFaces[otherIndx];
+					BRepExtrema_DistShapeShape distanceFaceCalc(currentFace, otherFace);
+					distanceFaceCalc.Perform();
+					if (distanceFaceCalc.Value() > SettingsCollection::getInstance().precisionCoarse())
+					{
+						continue;
+					}
+					evalList[otherIndx] = 1;
+					bufferFaceList.emplace_back(otherFace);
+					totalFaceCluster.emplace_back(otherFace);
+				}
+			}
+			evalFaceList = bufferFaceList;
+		}
+
+		// merge the faces
+		BRepAlgoAPI_Fuse fuser;
+		TopTools_ListOfShape mergeList;
+		fuser.SetFuzzyValue(1e-4);
+		for (const TopoDS_Face splitFace : totalFaceCluster)
+		{
+			mergeList.Append(splitFace);
+		}
+		fuser.SetArguments(mergeList);
+		fuser.SetTools(mergeList);
+		fuser.Build();
+		TopoDS_Shape fusedShape = fuser.Shape();
+
+		if (!fusedShape.IsNull())
+		{
+			clusteredShapeList.emplace_back(fusedShape);
+			continue;
+		}
+	}	
+	return clusteredShapeList;
 }
 
 TopoDS_Face CJGeoCreator::getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace)
@@ -1991,6 +2071,7 @@ void CJGeoCreator::make2DStoreys(
 
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
+		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, storyProgressList, unitScale, is03);
 		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
 	}
 
@@ -2053,10 +2134,8 @@ void CJGeoCreator::make2DStorey(
 	{
 		makeFloorSection(storeySurfaceList, h, storeyElevation + storeyUserBuffer);
 	}
-
 	if (!storeySurfaceList.size())
 	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
 		ErrorCollection::getInstance().addError(ErrorID::errorStoreyFailed, storeyGuidList[0]);
 		progressMap[storeyKey] = 2;
 		return;

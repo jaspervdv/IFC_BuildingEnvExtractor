@@ -86,7 +86,7 @@ private:
 	void planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal = false);
 
 	/// fuses all the planar faces into a complex planar face structure
-	TopoDS_Shape planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces);
+	std::vector<TopoDS_Shape> planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces);
 
 	/// returns the outerface (bounding face) of a cluster of faces based on the original input face
 	TopoDS_Face getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace);
