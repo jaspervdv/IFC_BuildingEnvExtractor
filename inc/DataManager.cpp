@@ -594,7 +594,7 @@ std::vector<gp_Pnt> DataManager::getObjectListPoints(bool simple)
 	std::vector<gp_Pnt> pointList;
 	for (const auto& fileObject : datacollection_)
 	{
-		T::list::ptr objectList = fileObject->getFilePtr()->instances_by_type<T>();
+		typename T::list::ptr objectList = fileObject->getFilePtr()->instances_by_type<T>();
 		for (auto it = objectList->begin(); it != objectList->end(); ++it) {
 			IfcSchema::IfcProduct* product = *it;
 			std::vector<gp_Pnt> temp = getObjectPoints(product, simple);
