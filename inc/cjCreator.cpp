@@ -1937,42 +1937,30 @@ void CJGeoCreator::monitorStoreys(std::mutex& storeyMutex, std::map<std::string,
 	{
 		std::unique_lock<std::mutex> faceLock(storeyMutex);
 		running = false;
-		std::string ouputString = "";
+		int ongoingProcessNum = 0;
+		int finishedProcessesNum = 0;
+		int failedProcessesNum = 0;
 
-		int returnSize = 1;
-		std::cout << ".\n"; // required to fix the incorrect jumping of the lines
 		for (const auto& [stringKey, status] : progressMap)
 		{
-			ouputString += CommunicationStringEnum::getString(CommunicationStringID::indentStoreyAtZ) + stringKey;
-			returnSize++;
-
-			if (!status)
-			{
-				ouputString+= "\tProcessing\n";
-				running = true;
-				continue;
-			}
-
-			if (status == 1)
-			{
-				ouputString += "\tSuccessfull\n";
-				continue;
-			}
-			if (status == 2)
-			{
-				ouputString += "\tUnsuccessfull\n";
-				continue;
-			}
+			if (!status) { ongoingProcessNum++; running = true; }
+			else if (status == 1) { finishedProcessesNum++; }
+			else if (status == 2) { failedProcessesNum++; }
 		}
-		std::cout << ouputString;
+
+		std::cout 
+			<< "\tTotal Storeys: " << totalProcesses 
+			<< "; Active Proceses: " << ongoingProcessNum 
+			<< "; Finished Processes: " << finishedProcessesNum + failedProcessesNum << "      \r";
+
 		faceLock.unlock();
 
 		if (running)
 		{
 			std::this_thread::sleep_for(std::chrono::seconds(1));
-			std::cout << "\033[" << returnSize << "A";
 		}
 	}
+	std::cout << "\n";
 	return;
 }
 
@@ -2001,13 +1989,12 @@ void CJGeoCreator::make2DStoreys(
 	std::map<std::string, int> storyProgressList;
 
 
-
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
 		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
 	}
 
-	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, threadList.size()); });
+	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
 
 	for (auto& thread : threadList) {
 		if (thread.joinable()) {
