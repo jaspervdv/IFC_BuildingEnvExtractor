@@ -19,20 +19,6 @@
 #ifndef CJGEOCREATOR_CJGEOCREATOR_H
 #define CJGEOCREATOR_CJGEOCREATOR_H
 
-class FloorOutlineObject {
-private:
-	std::vector<TopoDS_Face> outlineList_;
-	std::map<std::string, std::string> semanticInformation_;
-	std::string ifc_guid;
-public:
-	FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid);
-	FloorOutlineObject(const TopoDS_Face& outlineList, const std::map<std::string, std::string>& semanticInformationconst, const std::string& guid );
-
-	std::vector<TopoDS_Face> getOutlines() { return outlineList_; }
-	std::map<std::string, std::string> getSemanticInfo() { return semanticInformation_; }
-};
-
-
 class CJGeoCreator {
 private:
 	typedef std::pair<BoostBox3D, TopoDS_Face> BoxFacePair;
@@ -42,18 +28,17 @@ private:
 	std::shared_ptr<VoxelGrid> voxelGrid_ = nullptr;
 
 	// container for surface group data
-	std::vector<std::vector<RCollection>> faceList_;
-	std::mutex faceListMutex_;
+	std::vector<std::vector<RCollection>> roofFacesRCollection_;
 
 	// flags representing the eval state of the creator
 	bool hasTopFaces_ = false;
 	bool hasFootprints_ = false;
-	bool hasStoreyPrints_ = false;
 	bool useRoofprints_ = false;
 	bool hasGeoBase_ = false;
 
-	// if true the roofoutlines are used to create the geometry
-	bool useRoofOutline_ = true;
+	struct FaceComplex {
+		std::vector<TopoDS_Face> faceList_;
+	};
 
 	/// mutex that keeps the injection of objects into the rtree in check
 	std::mutex indexInjectMutex_;
@@ -64,11 +49,11 @@ private:
 	// list containing all the footprints
 	std::vector<TopoDS_Face> footprintList_;
 
-	// list containing all the floor outlines;
-	std::vector<FloorOutlineObject> storeyPrintList_; //TODO: remove
-
 	// returns true if the area and normal z dir are significant for the evaluation
 	bool useFace(const TopoDS_Face& face, gp_Pnt* centerPoint = nullptr);
+
+	// group surfaces that are placed next or on top of eachother
+	std::vector<FaceComplex> groupFaces(const std::vector<TopoDS_Face>& inputFaceList);
 
 	/// get top objects by projecting the top voxel grid in beams downwards
 	std::vector<TopoDS_Shape> beamProjection(DataManager* h);
@@ -102,6 +87,7 @@ private:
 	);
 	void reduceSurface(
 		const std::vector<TopoDS_Shape>& inputShapes, 
+		std::mutex& processMutex,
 		bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, 
 		std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList
 	);
@@ -114,6 +100,7 @@ private:
 	void FinefilterSurface(
 		const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList, 
 		const std::vector<std::shared_ptr<SurfaceGridPair>>& otherShapeList, 
+		std::mutex& processMutex,
 		std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
 	);
 

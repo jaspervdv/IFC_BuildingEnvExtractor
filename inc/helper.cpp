@@ -1965,7 +1965,12 @@ bool helperFunctions::isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR)
 		return false;
 	}
 	std::vector<gp_Pnt> uniqueLPoints = getUniquePoints(faceL);
-	std::vector<gp_Pnt> uniqueRPoints = getUniquePoints(faceL);
+	std::vector<gp_Pnt> uniqueRPoints = getUniquePoints(faceR);
+
+	if (uniqueLPoints.size() != uniqueRPoints.size())
+	{
+		return false;
+	}
 
 	for (const gp_Pnt& uniqueLPoint : uniqueLPoints)
 	{
@@ -1986,7 +1991,7 @@ bool helperFunctions::isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR)
 	return true;
 }
 
-std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList)
+std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList, bool fullProcessing)
 {
 	std::vector<TopoDS_Face> cleanedFaceList;
 	std::vector<double> areaList;
@@ -2003,11 +2008,10 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 			bbox), std::back_inserter(qResult));
 
 		bool isDub = false;
-		for ( const auto&  [otherBox, faceIndx] : qResult)
+		for (const auto&  [otherBox, faceIndx] : qResult)
 		{
-			TopoDS_Face otherFace = cleanedFaceList[faceIndx];
-			if (!isSame(currentFace, otherFace)) { continue; }
-
+			const TopoDS_Face& otherFace = cleanedFaceList[faceIndx];
+			if (!isSame(currentFace, otherFace)) {continue; }
 			isDub = true;
 			break;
 
@@ -2018,48 +2022,45 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 		cleanedFaceList.emplace_back(currentFace);
 		areaList.emplace_back(computeArea(currentFace));
 	}
+	if (!fullProcessing) { return cleanedFaceList; }
 
-	//std::vector<TopoDS_Face> filteredFaceList;
-	//for (size_t i = 0; i < cleanedFaceList.size(); i++)
-	//{
-	//	const TopoDS_Face& currentFace = cleanedFaceList[i];
-	//	double currentArea = areaList[i];
+	std::vector<TopoDS_Face> filteredFaceList;
+	for (size_t i = 0; i < cleanedFaceList.size(); i++)
+	{
+		const TopoDS_Face& currentFace = cleanedFaceList[i];
+		double currentArea = areaList[i];
 
-	//	std::vector<Value> qResult;
-	//	qResult.clear();
-	//	bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
-	//	spatialIndex.query(bgi::intersects(
-	//		bbox), std::back_inserter(qResult));
+		std::vector<Value> qResult;
+		qResult.clear();
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		spatialIndex.query(bgi::intersects(
+			bbox), std::back_inserter(qResult));
 
-	//	bool isBiggest = true;
-	//	for (const auto& [otherBox, faceIndx] : qResult)
-	//	{
-	//		bool bound = true;
-	//		double otherArea = areaList[faceIndx];
-	//		TopoDS_Face otherFace = cleanedFaceList[faceIndx];
-	//		
-	//		if (currentFace.IsEqual(otherFace)) { continue; }
-	//		if (currentArea > otherArea) { continue; }
+		bool isSurrounded = false;
+		for (const auto& [otherBox, faceIndx] : qResult)
+		{
+			if (i == faceIndx) { continue; }
+			double otherArea = areaList[faceIndx];
+			TopoDS_Face otherFace = cleanedFaceList[faceIndx];
 
-	//		isBiggest = false;
-	//		for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
-	//		{
-	//			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-	//			BRepClass_FaceClassifier faceClassifier(otherFace, BRep_Tool::Pnt(vertex), precision);
-	//			if (faceClassifier.State() == TopAbs_OUT)
-	//			{ 
-	//				bound = false;
-	//				break;
-	//			}	
-	//		}
-	//		if (bound) { break; }
-	//		filteredFaceList.emplace_back(currentFace);
-	//	}
-	//	if (isBiggest)
-	//	{
-	//		filteredFaceList.emplace_back(currentFace);
-	//	}
-	//	
-	//}
-	return cleanedFaceList;
+			if (currentArea > otherArea) { continue; }
+			isSurrounded = true;
+			for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
+			{
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				BRepExtrema_DistShapeShape distanceCalc(otherFace, vertex); //TODO: speed up with linear intersection function?
+				distanceCalc.Perform();
+
+				if (distanceCalc.Value() > precision) {
+					isSurrounded = false;
+				}
+			}
+			if (isSurrounded) { 
+				break; 
+			}
+		}
+		if (isSurrounded) { continue; }
+		filteredFaceList.emplace_back(currentFace);
+	}
+	return filteredFaceList;
 }

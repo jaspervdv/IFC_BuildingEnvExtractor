@@ -152,11 +152,11 @@ void CJGeoCreator::sortRoofStructures() {
 	// if only one footprint is present the surfaces are all considered part of the same building
 	if (roofOutlineList_.size() == 1) { return; }
 
-	std::vector<RCollection> tempSurfaceGroup = faceList_[0];
-	faceList_.clear();
+	std::vector<RCollection> tempSurfaceGroup = roofFacesRCollection_[0];
+	roofFacesRCollection_.clear();
 
 	for (size_t i = 0; i < roofOutlineList_.size(); i++) {
-		faceList_.emplace_back(std::vector<RCollection>());
+		roofFacesRCollection_.emplace_back(std::vector<RCollection>());
 	}
 
 	TopExp_Explorer expl;
@@ -177,7 +177,7 @@ void CJGeoCreator::sortRoofStructures() {
 
 				if (distance < 0.001)
 				{
-					faceList_[j].emplace_back(currentSurface);
+					roofFacesRCollection_[j].emplace_back(currentSurface);
 					found = true;
 					break;
 				}
@@ -247,7 +247,7 @@ void CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared_ptr<SurfaceGridPair
 		if (!toBeGroupdSurfaces.size()) { continue; }
 
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
-		faceList_[0].emplace_back(RCollection(mergedSurfaces));
+		roofFacesRCollection_[0].emplace_back(RCollection(mergedSurfaces));
 	}
 	return;
 }
@@ -316,7 +316,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& p
 
 std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Shape>& shapes, DataManager* h, double cutlvl)
 {
-	double buffer = 0.05; //TODO: make this an argument
+	double buffer = 0.15;
 
 	std::vector<TopoDS_Face> spltFaceCollection;
 	double precision = SettingsCollection::getInstance().precision();
@@ -336,7 +336,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Sh
 			TopoDS_Face face = TopoDS::Face(expl.Current());
 
 			// ignore extremely small surfaces
-			if (helperFunctions::computeArea(face) < 0.01) { continue; }
+			if (helperFunctions::computeArea(face) < 0.005) { continue; }
 
 			// check if the face is flush to the cuttting plane if flat 
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
@@ -348,7 +348,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<TopoDS_Sh
 
 				for (const gp_Pnt& currentFacePoint : facePoints)
 				{
-					if (abs(currentFacePoint.Z() - cutlvl) > buffer) { continue; }
+					if (currentFacePoint.Z() - cutlvl > -buffer) { continue; }
 					spltFaceCollection.emplace_back(helperFunctions::projectFaceFlat(face, cutlvl));
 					break;
 				}
@@ -624,12 +624,21 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	h->getIndexPointer()->query(bgi::intersects(searchBox), std::back_inserter(productLookupValues));
 
 	std::vector<TopoDS_Face> splitFaceList = section2Faces(productLookupValues, h, sectionHeight);
+
 	if (!splitFaceList.size())
 	{
 		//TODO: add error
 		return;
 	}
-	facesOut = planarFaces2Outline(splitFaceList, cuttingPlane);
+	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::removeDubFaces(splitFaceList, true);
+	//DebugUtils::WriteToSTEP(cleanedFaceList, "C:/Users/Jasper/Desktop/desk/Boompjes" + std::to_string(sectionHeight) + ".STEP");
+
+	if (!cleanedFaceList.size())
+	{
+		//TODO: add error
+		return;
+	}
+	facesOut = planarFaces2Outline(cleanedFaceList, cuttingPlane);
 }
 
 void CJGeoCreator::makeFloorSectionComplex(
@@ -1273,6 +1282,63 @@ bool CJGeoCreator::useFace(const TopoDS_Face& face, gp_Pnt* centerPoint)
 	return true;
 }
 
+std::vector<CJGeoCreator::FaceComplex> CJGeoCreator::groupFaces(const std::vector<TopoDS_Face>& inputFaceList)
+{
+	std::vector<FaceComplex> complexList;
+
+	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
+	std::vector<int>evalList(inputFaceList.size());
+	for (int i = 0; i < inputFaceList.size(); i++)
+	{
+		TopoDS_Face currentFace = inputFaceList[i];
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		shapeIdx.insert(std::make_pair(bbox, i));
+	}
+	for (int i = 0; i < inputFaceList.size(); i++)
+	{
+		// group surfaces
+		if (evalList[i]) { continue; }
+		evalList[i] = 1;
+		std::vector<TopoDS_Face> evalFaceList = { inputFaceList[i] };
+		std::vector<TopoDS_Face> totalFaceCluster = { inputFaceList[i] };
+
+		while (evalFaceList.size())
+		{
+			std::vector<TopoDS_Face> bufferFaceList;
+			for (const TopoDS_Face& currentFace : evalFaceList)
+			{
+				std::vector<Value> qResult;
+				qResult.clear();
+				shapeIdx.query(bgi::intersects(
+					helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
+
+				for (const auto& [bbox, otherIndx] : qResult)
+				{
+					if (evalList[otherIndx]) { continue; }
+
+					TopoDS_Face otherFace = inputFaceList[otherIndx];
+					BRepExtrema_DistShapeShape distanceFaceCalc(currentFace, otherFace);
+					distanceFaceCalc.Perform();
+
+					if (distanceFaceCalc.Value() > 0.001)
+					{
+						continue;
+					}
+					evalList[otherIndx] = 1;
+					bufferFaceList.emplace_back(otherFace);
+					totalFaceCluster.emplace_back(otherFace);
+				}
+			}
+			evalFaceList = bufferFaceList;
+		}
+		FaceComplex faceComplex;
+		faceComplex.faceList_ = totalFaceCluster;
+		complexList.emplace_back(faceComplex);
+		//DebugUtils::WriteToSTEP(totalFaceCluster, "C:/Users/Jasper/Desktop/desk/Boompjes" + std::to_string(helperFunctions::getHighestZ(totalFaceCluster[0])) + "_" + std::to_string(i) + ".STEP");
+	}
+	return complexList;
+}
+
 std::vector<TopoDS_Shape> CJGeoCreator::beamProjection(DataManager* h)
 {
 	auto startTime = std::chrono::steady_clock::now();
@@ -1377,9 +1443,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::getTopObjects(DataManager* h)
 std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline()
 {
 	std::vector<TopoDS_Face> projectedFaceList;
-	for (size_t i = 0; i < faceList_.size(); i++)
+	for (size_t i = 0; i < roofFacesRCollection_.size(); i++)
 	{
-		for (RCollection currentGroup : faceList_[i])
+		for (RCollection currentGroup : roofFacesRCollection_[i])
 		{
 			projectedFaceList.emplace_back(currentGroup.getProjectedFace());
 		}
@@ -1451,9 +1517,11 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 		outerSplitter.SetArguments(argumentList);
 		if (filterExternal)
 		{
+
 			std::vector<TopoDS_Face> innerFaces;
 			std::vector<TopoDS_Face> outerFaces;
 			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
+
 			for (const TopoDS_Face& filteredFace : innerFaces)
 			{
 				innerToolList.Append(filteredFace);
@@ -1494,59 +1562,18 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 std::vector<TopoDS_Shape> CJGeoCreator::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
 {
 	std::vector<TopoDS_Shape> clusteredShapeList;
+	//std::vector<FaceComplex> faceComplexList = groupFaces(planarFaces);
+	FaceComplex faceComplex;
+	faceComplex.faceList_ = planarFaces;
+	std::vector<FaceComplex> faceComplexList = { faceComplex };
 
-	// index the surfaces
-	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
-	std::vector<int>evalList(planarFaces.size());
-	for (int i = 0; i < planarFaces.size(); i++)
+	for (const FaceComplex& faceComplex : faceComplexList)
 	{
-		TopoDS_Face currentFace = planarFaces[i];
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
-		shapeIdx.insert(std::make_pair(bbox, i));
-	}
-
-	for (int i = 0; i < planarFaces.size(); i++)
-	{
-		// group surfaces
-		if (evalList[i]) { continue; }
-		evalList[i] = 1;
-		std::vector<TopoDS_Face> evalFaceList = { planarFaces[i] };
-		std::vector<TopoDS_Face> totalFaceCluster = { planarFaces[i] };
-
-		while (evalFaceList.size())
-		{
-			std::vector<TopoDS_Face> bufferFaceList;
-			for (TopoDS_Face& currentFace : evalFaceList)
-			{
-				std::vector<Value> qResult;
-				qResult.clear();
-				shapeIdx.query(bgi::intersects(
-					helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
-
-				for (auto& [bbox, otherIndx] : qResult)
-				{
-					if (evalList[otherIndx]) { continue; }
-
-					TopoDS_Face otherFace = planarFaces[otherIndx];
-					BRepExtrema_DistShapeShape distanceFaceCalc(currentFace, otherFace);
-					distanceFaceCalc.Perform();
-					if (distanceFaceCalc.Value() > SettingsCollection::getInstance().precisionCoarse())
-					{
-						continue;
-					}
-					evalList[otherIndx] = 1;
-					bufferFaceList.emplace_back(otherFace);
-					totalFaceCluster.emplace_back(otherFace);
-				}
-			}
-			evalFaceList = bufferFaceList;
-		}
-
 		// merge the faces
 		BRepAlgoAPI_Fuse fuser;
 		TopTools_ListOfShape mergeList;
 		fuser.SetFuzzyValue(1e-4);
-		for (const TopoDS_Face splitFace : totalFaceCluster)
+		for (const TopoDS_Face splitFace : faceComplex.faceList_)
 		{
 			mergeList.Append(splitFace);
 		}
@@ -1622,7 +1649,6 @@ std::vector<TopoDS_Face> CJGeoCreator::invertFace(const TopoDS_Face& inputFace)
 void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList)
 {
 	auto startTime = std::chrono::steady_clock::now();
-
 	// split the range over cores
 	int coreUse = SettingsCollection::getInstance().threadcount();
 	if (coreUse > inputShapes.size())
@@ -1632,6 +1658,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 
 	std::vector<std::thread> threadList;
+	std::mutex processMutex;
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
@@ -1640,7 +1667,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 
 		std::vector<TopoDS_Shape> sublist(startIdx, endIdx);
 
-		threadList.emplace_back([=]() {reduceSurface(sublist, shapeIdx, shapeList); });
+		threadList.emplace_back([this, sublist, &processMutex, &shapeIdx, &shapeList]() {reduceSurface(sublist, processMutex, shapeIdx, shapeList); });
 	}
 
 	for (auto& thread : threadList) {
@@ -1653,15 +1680,15 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 }
 
 
-void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList)
+void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, std::mutex& processMutex, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList)
 {
 	for (size_t i = 0; i < inputShapes.size(); i++)
 	{
 		std::vector<std::shared_ptr<SurfaceGridPair>> coarseFilteredTopSurfacePairList = getObjectTopSurfaces(inputShapes[i]);
 		for (const auto& coarseFilteredTopSurfacePair : coarseFilteredTopSurfacePairList)
 		{
+			std::unique_lock<std::mutex> rtreeLock(processMutex);
 			auto rtreePair = std::make_pair(helperFunctions::createBBox(coarseFilteredTopSurfacePair->getFace()), static_cast<int>(shapeList->size()));
-			std::unique_lock<std::mutex> rtreeLock(indexInjectMutex_);
 			shapeIdx->insert(rtreePair);
 			shapeList->emplace_back(coarseFilteredTopSurfacePair);
 			rtreeLock.unlock();
@@ -1682,7 +1709,9 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceG
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 
 	std::vector<std::thread> threadList;
-	faceList_.emplace_back(std::vector<RCollection>());
+	std::mutex processMutex;
+
+	roofFacesRCollection_.emplace_back(std::vector<RCollection>());
 
 	for (size_t i = 0; i < coreUse; i++)
 	{
@@ -1690,7 +1719,9 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceG
 		auto endIdx = (i == coreUse - 1) ? shapeList.end() : startIdx + splitListSize;
 
 		std::vector<std::shared_ptr<SurfaceGridPair>> sublist(startIdx, endIdx);
-		threadList.emplace_back([=]() {FinefilterSurface(sublist, shapeList, fineFilteredShapeList); });
+		threadList.emplace_back([this, sublist, &shapeList, &processMutex, &fineFilteredShapeList]() {
+			FinefilterSurface(sublist, shapeList, processMutex, fineFilteredShapeList); 
+			});
 	}
 
 	for (auto& thread : threadList) {
@@ -1704,13 +1735,14 @@ void CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceG
 void CJGeoCreator::FinefilterSurface(
 	const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList,
 	const std::vector<std::shared_ptr<SurfaceGridPair>>& otherShapeList,
+	std::mutex& processMutex,
 	std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
 )
 {
 	for (const std::shared_ptr<SurfaceGridPair>& currentSurfacePair : shapeList)
 	{
 		if (!currentSurfacePair->testIsVisable(otherShapeList)) { continue; }
-		std::lock_guard<std::mutex> faceLock(faceListMutex_);
+		std::lock_guard<std::mutex> faceLock(processMutex);
 		fineFilteredShapeList->emplace_back(currentSurfacePair);
 	}
 	return;
@@ -2071,7 +2103,6 @@ void CJGeoCreator::make2DStoreys(
 
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, storyProgressList, unitScale, is03);
 		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
 	}
 
@@ -2339,9 +2370,9 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03RoofFaces(DataManag
 	}
 
 	std::vector<std::vector<TopoDS_Face>> nestedFaceList;
-	for (size_t i = 0; i < faceList_.size(); i++)
+	for (size_t i = 0; i < roofFacesRCollection_.size(); i++)
 	{
-		std::vector<RCollection> faceCluster = faceList_[i];
+		std::vector<RCollection> faceCluster = roofFacesRCollection_[i];
 
 		std::vector<TopoDS_Face> faceCollection;
 		for (RCollection surfaceGroup : faceCluster)
@@ -2461,10 +2492,13 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 			return {};
 		}
 	}
-	if (footprintList_.size() == 0) {
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD1.3");
-		return {};
+	else
+	{
+		if (footprintList_.size() == 0) {
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD1.3");
+			return {};
+		}
 	}
 
 	std::vector< CJT::GeoObject> geoObjectList;
@@ -2524,16 +2558,20 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 			return {};
 		}
 	}
-	if (footprintList_.size() == 0) {
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD2.2");
-		return {};
+	else
+	{
+		if (footprintList_.size() == 0) {
+			std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+			ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD2.2");
+			return {};
+		}
 	}
 
+
 	std::vector<TopoDS_Shape> prismList;
-	for (size_t i = 0; i < faceList_.size(); i++)
+	for (size_t i = 0; i < roofFacesRCollection_.size(); i++)
 	{
-		std::vector<RCollection> faceCluster = faceList_[i];
+		std::vector<RCollection> faceCluster = roofFacesRCollection_[i];
 		std::vector<TopoDS_Face> faceCollection;
 		for (const RCollection& surfaceGroup : faceCluster)
 		{
@@ -3844,16 +3882,4 @@ CJGeoCreator::CJGeoCreator(DataManager* h, double vSize)
 {
 	// compute generic voxelfield data
 	voxelGrid_ = std::make_shared<VoxelGrid>(h);
-}
-
-FloorOutlineObject::FloorOutlineObject(const std::vector<TopoDS_Face>& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)
-{
-	outlineList_ = outlineList;
-	semanticInformation_ = semanticInformation;
-}
-
-FloorOutlineObject::FloorOutlineObject(const TopoDS_Face& outlineList, const std::map<std::string, std::string>& semanticInformation, const std::string& guid)
-{
-	outlineList_ = std::vector<TopoDS_Face>{ outlineList };
-	semanticInformation_ = semanticInformation;
 }

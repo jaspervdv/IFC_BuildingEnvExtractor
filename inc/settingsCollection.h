@@ -99,6 +99,8 @@ private:
     // set of the LoD abstractions that could include the iteriors (read only!)
     std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
 
+
+
     // \/ stats \/
     // how many proxy objects are present in the input
     int proxyCount_ = 0;
