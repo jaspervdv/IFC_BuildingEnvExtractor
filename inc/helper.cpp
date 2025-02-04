@@ -264,6 +264,14 @@ void helperFunctions::bBoxDiagonal(const std::vector<T>& theShapeList, gp_Pnt* l
 template<typename T>
 void helperFunctions::bBoxDiagonal(const T& theShape, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle)
 {
+	if (lllPoint->Distance(*urrPoint) < SettingsCollection::getInstance().precision() && 
+		lllPoint->Distance(gp_Pnt(0,0,0)) < SettingsCollection::getInstance().precision() &&
+		urrPoint->Distance(gp_Pnt(0, 0, 0)) < SettingsCollection::getInstance().precision())
+	{
+		lllPoint->SetCoord(9999999, 9999999, 9999999);
+		urrPoint->SetCoord(-9999999, -9999999, -9999999);
+	}
+
 	//TODO: implement rotation
 	for (TopExp_Explorer expl(theShape, TopAbs_VERTEX); expl.More(); expl.Next())
 	{

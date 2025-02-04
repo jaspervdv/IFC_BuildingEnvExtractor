@@ -729,7 +729,6 @@ bool IOManager::run()
 	// make the geometrycreator and voxelgrid
 	auto voxelTime = std::chrono::high_resolution_clock::now();
 	CJGeoCreator geoCreator(internalDataManager_.get(), settingsCollection.voxelSize());
-	geoCreator.useRoofPrint(settingsCollection.makeRoofPrint());
 	timeVoxel_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - voxelTime).count();
 
 	try
