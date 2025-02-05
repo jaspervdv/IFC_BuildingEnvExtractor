@@ -481,14 +481,14 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 
 		for (BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
 		{
-			for (const TopoDS_Face currentFootprint :  footprintList)
+			for (const TopoDS_Face& currentFootprint :  footprintList)
 			{
 				BRepExtrema_DistShapeShape distanceFootRoof(buildingSurfaceData.getRoofOutline(), currentFootprint);
-				if (distanceFootRoof.Value() > settingsCollection.precision())
+				double verticalDistatance = abs(distanceFootRoof.PointOnShape1(1).Z() - distanceFootRoof.PointOnShape2(1).Z());
+				if (abs(verticalDistatance - distanceFootRoof.Value()) > settingsCollection.precision() )
 				{
 					continue;
 				}
-
 				buildingSurfaceData.setFootPrint(currentFootprint);
 				break;
 			}			
@@ -1893,7 +1893,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 
 	gp_Pnt urr = h->getUrrPoint();
 
-	if (settingCollection.footPrintBased())
+	if (settingCollection.makeRoofPrint())
 	{	
 		// make the roof
 		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
@@ -1918,6 +1918,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
 		{
 			TopoDS_Shape footprint = buildingSurfaceData.getFootPrint();
+			if (footprint.IsNull()) { continue; }
 
 			gp_Trsf trsf;
 			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingCollection.gridRotation());
