@@ -52,6 +52,10 @@ typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
 #ifndef HELPER_HELPER_H
 #define HELPER_HELPER_H
 
+struct FaceComplex { //TODO: find better locations
+	std::vector<TopoDS_Face> faceList_;
+};
+
 // helper functions that can be utilised everywhere
 struct helperFunctions{
 	
@@ -204,9 +208,6 @@ struct helperFunctions{
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 
-	/// @brief get the footprint shapes from the collection of outer edges
-	static std::vector<TopoDS_Face> outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList);
-
 	/// @brief grows wires from unordered exterior edges
 	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
 
@@ -214,6 +215,19 @@ struct helperFunctions{
 	static std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
 	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 	static std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+
+	// planar simplification code
+
+	/// creates face collection that represent the merged input shapes
+	static std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace);
+	/// creates face collection that represent the merged input shapes
+	static std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces);
+	/// fuses all the planar faces into a complex planar face structure
+	static std::vector<TopoDS_Shape> planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces);
+	/// returns the outerface (bounding face) of a cluster of faces based on the original input face
+	static TopoDS_Face getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace);
+	/// creates faces from the inner wires of a face
+	static std::vector<TopoDS_Face> invertFace(const TopoDS_Face& inputFace);
 
 	/// IFC related code
 

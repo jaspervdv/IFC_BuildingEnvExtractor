@@ -787,12 +787,18 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 
 bool helperFunctions::shareEdge(const TopoDS_Face& theFace, const TopoDS_Face& theotherFace)
 {
+	double precision = SettingsCollection::getInstance().precision();
 	for (TopExp_Explorer currentExpl(theFace, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
 		for (TopExp_Explorer otherExpl(theotherFace, TopAbs_EDGE); otherExpl.More(); otherExpl.Next())
 		{
 			TopoDS_Edge otherEdge = TopoDS::Edge(otherExpl.Current());
+
+			gp_Pnt cP0 = getFirstPointShape(currentEdge);
+			gp_Pnt cP1 = getLastPointShape(currentEdge);
+			gp_Pnt oP0 = getFirstPointShape(otherEdge);
+			gp_Pnt oP1 = getLastPointShape(otherEdge);
 
 			if (edgeEdgeOVerlapping(currentEdge, otherEdge)) { return true; }
 		}
@@ -1329,13 +1335,6 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 	return TopoDS::Face(flatFace);
 }
 
-std::vector<TopoDS_Face> helperFunctions::outerEdges2Shapes(const std::vector<TopoDS_Edge>& edgeList)
-{
-	std::vector<TopoDS_Wire> wireList = growWires(edgeList);
-	std::vector<TopoDS_Wire> cleanWireList = cleanWires(wireList);
-	std::vector<TopoDS_Face> cleanedFaceList = wireCluster2Faces(cleanWireList);
-	return cleanedFaceList;
-}
 
 std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edge>& edgeList) {
 	std::vector<TopoDS_Wire> wireCollection;
@@ -1786,6 +1785,143 @@ std::vector<TopoDS_Face> helperFunctions::wireCluster2Faces(const std::vector<To
 		cleanedFaceList.emplace_back(clippedFace);
 	}
 	return cleanedFaceList;
+}
+
+std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
+{
+	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
+	std::vector<TopoDS_Face> innerWireFaces;
+
+	for (const TopoDS_Shape& faceComplex : faceCluster)
+	{
+		// split section face with the merged splitting faces
+		BRepAlgoAPI_Splitter splitter;
+		splitter.SetFuzzyValue(1e-4);
+		TopTools_ListOfShape toolList;
+		TopTools_ListOfShape argumentList;
+
+		argumentList.Append(boundingFace);
+		splitter.SetArguments(argumentList);
+		toolList.Append(faceComplex);
+
+		splitter.SetTools(toolList);
+		splitter.Build();
+		TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
+		if (outerFace.IsNull()) { continue; }
+
+		for (const TopoDS_Face& innerWireFace : invertFace(outerFace))
+		{
+			innerWireFaces.emplace_back(innerWireFace);
+		}
+	}
+	return innerWireFaces;
+}
+
+std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces)
+{
+	if (planarFaces.size() == 1) { return planarFaces; }
+
+	// use the storey approach? 
+	gp_Pnt lll;
+	gp_Pnt urr;
+	// create plane on which the projection has to be made
+	helperFunctions::bBoxDiagonal(planarFaces, &lll, &urr);
+
+	if (abs(lll.Z() - urr.Z()) > SettingsCollection::getInstance().precision())
+	{
+		return {};
+	}
+
+	gp_Pnt p0 = gp_Pnt(lll.X() - 10, lll.Y() - 10, urr.Z());
+	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, urr.Z());
+	TopoDS_Face boundingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, urr.Z());
+
+	return planarFaces2Outline(planarFaces, boundingPlane);
+}
+
+std::vector<TopoDS_Shape> helperFunctions::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
+{
+	std::vector<TopoDS_Shape> clusteredShapeList;
+	FaceComplex faceComplex;
+	faceComplex.faceList_ = planarFaces;
+	std::vector<FaceComplex> faceComplexList = { faceComplex };
+
+	for (const FaceComplex& faceComplex : faceComplexList)
+	{
+		// merge the faces
+		BRepAlgoAPI_Fuse fuser;
+		TopTools_ListOfShape mergeList;
+		fuser.SetFuzzyValue(1e-4);
+		for (const TopoDS_Face splitFace : faceComplex.faceList_)
+		{
+			mergeList.Append(splitFace);
+		}
+		fuser.SetArguments(mergeList);
+		fuser.SetTools(mergeList);
+		fuser.Build();
+		TopoDS_Shape fusedShape = fuser.Shape();
+
+		if (!fusedShape.IsNull())
+		{
+			clusteredShapeList.emplace_back(fusedShape);
+			continue;
+		}
+	}
+	return clusteredShapeList;
+}
+
+TopoDS_Face helperFunctions::getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace)
+{
+	// find the outer face
+	TopoDS_Face outerFace;
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(originalFace);
+	for (TopExp_Explorer faceExpl(splitShape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		bool isFound = false;
+
+		for (TopExp_Explorer vertExpl(currentFace, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
+			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
+			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
+			{
+				outerFace = currentFace;
+				isFound = true;
+				break;
+			}
+		}
+		if (isFound) { break; }
+	}
+	return outerFace;
+}
+
+std::vector<TopoDS_Face> helperFunctions::invertFace(const TopoDS_Face& inputFace)
+{
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(inputFace);
+	std::vector<TopoDS_Face> mergedFaceList;
+	for (TopExp_Explorer WireExpl(inputFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
+	{
+		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
+		bool isInner = true;
+
+		for (TopExp_Explorer vertExpl(currentWire, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
+			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
+			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+
+			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
+			{
+				isInner = false;
+				break;
+			}
+		}
+		if (!isInner) { continue; }
+		TopoDS_Face innerFace = BRepBuilderAPI_MakeFace(currentWire);
+
+		if (innerFace.IsNull()) { continue; }
+		mergedFaceList.emplace_back(innerFace);
+	}
+	return mergedFaceList;
 }
 
 

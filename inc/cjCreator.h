@@ -55,10 +55,6 @@ private:
 	bool hasFootprints_ = false;
 	bool hasGeoBase_ = false;
 
-	struct FaceComplex {
-		std::vector<TopoDS_Face> faceList_;
-	};
-
 	// grouping original geo code
 
 	/// fetches all the footprint surfaces from the buildingSurfaceDataList
@@ -142,18 +138,8 @@ private:
 	
 	// planar simplification code
 
-	/// creates face collection that represent the merged input shapes
-	std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace);
-	/// creates face collection that represent the merged input shapes
-	std::vector<TopoDS_Face> planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces);
 	/// creates face collection for the interior and exterior that represent the merged input shapes
 	void planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal = false);
-	/// fuses all the planar faces into a complex planar face structure
-	std::vector<TopoDS_Shape> planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces);
-	/// returns the outerface (bounding face) of a cluster of faces based on the original input face
-	TopoDS_Face getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace);
-	/// creates faces from the inner wires of a face
-	std::vector<TopoDS_Face> invertFace(const TopoDS_Face& inputFace);
 
 	// face extruding code
 	

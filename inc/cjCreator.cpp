@@ -178,6 +178,9 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		evalList[i] = 1;
 
 		const TopoDS_Face& currentFace = faceList[i];
+
+		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+
 		std::vector<TopoDS_Face> toBeGroupdSurfaces = {};
 		std::vector<TopoDS_Face> outerSurfaceRingList = { currentFace };
 
@@ -200,6 +203,9 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 					if (evalList[potentialNeigbhbourIdx] == 1) { continue; }
 
 					const TopoDS_Face& potentialNeighbourFace = faceList[potentialNeigbhbourIdx];
+
+					gp_Vec otherNormal = helperFunctions::computeFaceNormal(potentialNeighbourFace);
+
 					if (helperFunctions::shareEdge(evalFace, potentialNeighbourFace))
 					{
 						bufferList.emplace_back(potentialNeighbourFace);
@@ -395,6 +401,70 @@ void CJGeoCreator::SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::ve
 	return;
 }
 
+void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
+{
+	std::vector<TopoDS_Shape> faceCluster = helperFunctions::planarFaces2Cluster(planarFaces);
+
+	intFacesOut = {};
+	extFacesOut = {};
+
+	for (const TopoDS_Shape& faceComplex : faceCluster)
+	{
+		// split section face with the merged splitting faces
+		BRepAlgoAPI_Splitter innerSplitter;
+		BRepAlgoAPI_Splitter outerSplitter;
+		innerSplitter.SetFuzzyValue(1e-4);
+		outerSplitter.SetFuzzyValue(1e-4);
+		TopTools_ListOfShape innerToolList;
+		TopTools_ListOfShape outerToolList;
+		TopTools_ListOfShape argumentList;
+
+		argumentList.Append(boundingFace);
+		innerSplitter.SetArguments(argumentList);
+		outerSplitter.SetArguments(argumentList);
+		if (filterExternal)
+		{
+
+			std::vector<TopoDS_Face> innerFaces;
+			std::vector<TopoDS_Face> outerFaces;
+			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
+
+			for (const TopoDS_Face& filteredFace : innerFaces)
+			{
+				innerToolList.Append(filteredFace);
+			}
+			for (const TopoDS_Face& filteredFace : outerFaces)
+			{
+				outerToolList.Append(filteredFace);
+			}
+		}
+
+		if (innerToolList.Size())
+		{
+			innerSplitter.SetTools(innerToolList);
+			innerSplitter.Build();
+
+			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(innerSplitter.Shape(), boundingFace));
+			for (const TopoDS_Face& invertedFace : invertedFaces)
+			{
+				intFacesOut.emplace_back(invertedFace);
+			}
+		}
+
+		if (outerToolList.Size())
+		{
+			outerSplitter.SetTools(outerToolList);
+			outerSplitter.Build();
+
+			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(outerSplitter.Shape(), boundingFace));
+			for (const TopoDS_Face& invertedFace : invertedFaces)
+			{
+				extFacesOut.emplace_back(invertedFace);
+			}
+		}
+	}
+	return;
+}
 
 TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
@@ -538,7 +608,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		//TODO: add error
 		return;
 	}
-	facesOut = planarFaces2Outline(cleanedFaceList, cuttingPlane);
+	facesOut = helperFunctions::planarFaces2Outline(cleanedFaceList, cuttingPlane);
 }
 
 void CJGeoCreator::makeFloorSectionComplex(
@@ -678,6 +748,9 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 	bgi::rtree<BoxFacePair, bgi::rstar<25>> faceIdx;
 	for (const TopoDS_Face& currentFace : faceList)
 	{
+		std::optional<gp_Pnt> optionalBasePoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalBasePoint == std::nullopt) { continue; } //filters out non-man
+
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
 		faceIdx.insert(std::make_pair(bbox, currentFace));
 	}
@@ -741,7 +814,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	{
 		return { extrudeFace(splitTopSurfaceList[0], true, lowestZ) };
 	}
-
 	// extrude the trimmed surfaces and join
 	BOPAlgo_Builder aBuilder;
 	aBuilder.SetFuzzyValue(SettingsCollection::getInstance().precision());
@@ -755,11 +827,14 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		}
 	}
 	aBuilder.Perform();
+	
+	TopoDS_Shape splitShape = aBuilder.Shape();
+	if (splitShape.IsNull()) { return {}; }
 
 	// clean the overlapping faces
 	TopTools_DataMapOfShapeShape internalSurfaceList = aBuilder.ShapesSD();
 	BRepBuilderAPI_Sewing brepSewer;
-	for (TopExp_Explorer expl(aBuilder.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
+	for (TopExp_Explorer expl(splitShape, TopAbs_FACE); expl.More(); expl.Next()) {
 		const TopoDS_Face& currentFace = TopoDS::Face(expl.Current());
 		if (std::none_of(internalSurfaceList.begin(), internalSurfaceList.end(),
 			[&currentFace](const TopoDS_Shape& internalFace) { return currentFace.IsSame(internalFace); })) {
@@ -769,6 +844,11 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	brepSewer.Perform();
 
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+	if (sewedShape.IsNull())
+	{
+		return {};
+	}
+
 	if (sewedShape.Closed() != 1)
 	{
 		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "prism computation");
@@ -778,7 +858,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	std::vector<TopoDS_Shape> prismList;
 	try
 	{
-		TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+		TopoDS_Shape simplefiedShape = simplefySolid(sewedShape);
 		if (simplefiedShape.IsNull()) 
 		{ 
 			return prismList; 
@@ -835,12 +915,10 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 
 	brepSewer.Perform();
 
-	if (brepSewer.SewedShape().ShapeType() == TopAbs_COMPOUND)
-	{
-		return brepSewer.SewedShape();
-	}
-
-	brepBuilder.Add(simpleBuilding, brepSewer.SewedShape());
+	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+	if (sewedShape.IsNull()) { return{}; }
+	if (sewedShape.ShapeType() == TopAbs_COMPOUND) { return sewedShape; }
+	brepBuilder.Add(simpleBuilding, sewedShape);
 	return simpleBuilding;
 }
 
@@ -1149,7 +1227,7 @@ bool CJGeoCreator::useFace(const TopoDS_Face& face, gp_Pnt* centerPoint)
 	return true;
 }
 
-std::vector<CJGeoCreator::FaceComplex> CJGeoCreator::groupFaces(const std::vector<TopoDS_Face>& inputFaceList)
+std::vector<FaceComplex> CJGeoCreator::groupFaces(const std::vector<TopoDS_Face>& inputFaceList)
 {
 	std::vector<FaceComplex> complexList;
 
@@ -1324,212 +1402,12 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, 0);
 
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, 0);
-	std::vector<TopoDS_Face> mergedSurfaces = planarFaces2Outline(projectedFaceList, cuttingPlane);
+	std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::planarFaces2Outline(projectedFaceList, cuttingPlane);
 	printTime(startTime, std::chrono::steady_clock::now());
 	return mergedSurfaces;
 }
 
-std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
-{
-	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
-	std::vector<TopoDS_Face> innerWireFaces;
 
-	for (const TopoDS_Shape& faceComplex : faceCluster)
-	{
-		// split section face with the merged splitting faces
-		BRepAlgoAPI_Splitter splitter;
-		splitter.SetFuzzyValue(1e-4);
-		TopTools_ListOfShape toolList;
-		TopTools_ListOfShape argumentList;
-
-		argumentList.Append(boundingFace);
-		splitter.SetArguments(argumentList);
-		toolList.Append(faceComplex);
-
-		splitter.SetTools(toolList);
-		splitter.Build();
-		TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
-		if (outerFace.IsNull()) { continue; }
-
-		for (const TopoDS_Face& innerWireFace : invertFace(outerFace))
-		{
-			innerWireFaces.emplace_back(innerWireFace);
-		}
-	}
-	return innerWireFaces;
-}
-
-std::vector<TopoDS_Face> CJGeoCreator::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces)
-{
-	if (planarFaces.size() == 1) { return planarFaces; }
-
-	// use the storey approach? 
-	gp_Pnt lll;
-	gp_Pnt urr;
-	// create plane on which the projection has to be made
-	helperFunctions::bBoxDiagonal(planarFaces, &lll, &urr);
-
-	if (abs(lll.Z() - urr.Z()) > SettingsCollection::getInstance().precision())
-	{
-		return {};
-	}
-
-	gp_Pnt p0 = gp_Pnt(lll.X() - 10, lll.Y() - 10, urr.Z());
-	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, urr.Z());
-	TopoDS_Face boundingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, urr.Z());
-
-	return planarFaces2Outline(planarFaces, boundingPlane);
-}
-
-void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
-{
-	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
-
-	intFacesOut = {};
-	extFacesOut = {};
-
-	for (const TopoDS_Shape& faceComplex : faceCluster)
-	{
-		// split section face with the merged splitting faces
-		BRepAlgoAPI_Splitter innerSplitter;
-		BRepAlgoAPI_Splitter outerSplitter;
-		innerSplitter.SetFuzzyValue(1e-4);
-		outerSplitter.SetFuzzyValue(1e-4);
-		TopTools_ListOfShape innerToolList;
-		TopTools_ListOfShape outerToolList;
-		TopTools_ListOfShape argumentList;
-
-		argumentList.Append(boundingFace);
-		innerSplitter.SetArguments(argumentList);
-		outerSplitter.SetArguments(argumentList);
-		if (filterExternal)
-		{
-
-			std::vector<TopoDS_Face> innerFaces;
-			std::vector<TopoDS_Face> outerFaces;
-			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
-
-			for (const TopoDS_Face& filteredFace : innerFaces)
-			{
-				innerToolList.Append(filteredFace);
-			}
-			for (const TopoDS_Face& filteredFace : outerFaces)
-			{
-				outerToolList.Append(filteredFace);
-			}
-		}
-
-		if (innerToolList.Size())
-		{
-			innerSplitter.SetTools(innerToolList);
-			innerSplitter.Build();
-
-			std::vector<TopoDS_Face> invertedFaces = invertFace(getOuterFace(innerSplitter.Shape(), boundingFace));
-			for (const TopoDS_Face& invertedFace : invertedFaces)
-			{
-				intFacesOut.emplace_back(invertedFace);
-			}
-		}
-
-		if (outerToolList.Size())
-		{
-			outerSplitter.SetTools(outerToolList);
-			outerSplitter.Build();
-
-			std::vector<TopoDS_Face> invertedFaces = invertFace(getOuterFace(outerSplitter.Shape(), boundingFace));
-			for (const TopoDS_Face& invertedFace : invertedFaces)
-			{
-				extFacesOut.emplace_back(invertedFace);
-			}
-		}
-	}
-	return;
-}
-
-std::vector<TopoDS_Shape> CJGeoCreator::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
-{
-	std::vector<TopoDS_Shape> clusteredShapeList;
-	FaceComplex faceComplex;
-	faceComplex.faceList_ = planarFaces;
-	std::vector<FaceComplex> faceComplexList = { faceComplex };
-
-	for (const FaceComplex& faceComplex : faceComplexList)
-	{
-		// merge the faces
-		BRepAlgoAPI_Fuse fuser;
-		TopTools_ListOfShape mergeList;
-		fuser.SetFuzzyValue(1e-4);
-		for (const TopoDS_Face splitFace : faceComplex.faceList_)
-		{
-			mergeList.Append(splitFace);
-		}
-		fuser.SetArguments(mergeList);
-		fuser.SetTools(mergeList);
-		fuser.Build();
-		TopoDS_Shape fusedShape = fuser.Shape();
-
-		if (!fusedShape.IsNull())
-		{
-			clusteredShapeList.emplace_back(fusedShape);
-			continue;
-		}
-	}	
-	return clusteredShapeList;
-}
-
-TopoDS_Face CJGeoCreator::getOuterFace(const TopoDS_Shape& splitShape, const TopoDS_Face& originalFace)
-{
-	// find the outer face
-	TopoDS_Face outerFace;
-	gp_Pnt p0 = helperFunctions::getFirstPointShape(originalFace);
-	for (TopExp_Explorer faceExpl(splitShape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
-	{
-		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-		bool isFound = false;
-
-		for (TopExp_Explorer vertExpl(currentFace, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
-			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
-			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-
-			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
-			{
-				outerFace = currentFace;
-				isFound = true;
-				break;
-			}
-		}
-		if (isFound) { break; }
-	}
-	return outerFace;
-}
-
-std::vector<TopoDS_Face> CJGeoCreator::invertFace(const TopoDS_Face& inputFace)
-{
-	gp_Pnt p0 = helperFunctions::getFirstPointShape(inputFace);
-	std::vector<TopoDS_Face> mergedFaceList;
-	for (TopExp_Explorer WireExpl(inputFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
-	{
-		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
-		bool isInner = true;
-
-		for (TopExp_Explorer vertExpl(currentWire, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
-			TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
-			gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-
-			if (currentPoint.IsEqual(p0, SettingsCollection::getInstance().precision()))
-			{
-				isInner = false;
-				break;
-			}
-		}
-		if (!isInner) { continue; }
-		TopoDS_Face innerFace = BRepBuilderAPI_MakeFace(currentWire);
-
-		if (innerFace.IsNull()) { continue; }
-		mergedFaceList.emplace_back(innerFace);
-	}
-	return mergedFaceList;
-}
 
 
 void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList)
@@ -2189,7 +2067,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 		// simplefy and store the LoD0.2 faces
 		if (settingsCollection.make02() || settingsCollection.make12())
 		{
-			for (TopoDS_Face& face : planarFaces2Outline(flatFaceList))
+			for (TopoDS_Face& face : helperFunctions::planarFaces2Outline(flatFaceList))
 			{
 				face.Move(trsf);
 				if (settingsCollection.make02())
@@ -2426,7 +2304,6 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 	{
 		TopoDS_Shape currentShape = prismList[i];
 		currentShape.Move(localRotationTrsf);
-
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "1.3");
 		createSemanticData(&geoObject, currentShape);
 		geoObjectList.emplace_back(geoObject);

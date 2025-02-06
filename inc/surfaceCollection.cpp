@@ -1,6 +1,7 @@
 #include "surfaceCollection.h"
 #include "helper.h"
 #include "settingsCollection.h"
+#include "DebugUtils.h"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <GCPnts_UniformAbscissa.hxx>
@@ -386,84 +387,31 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 
 	if (theFaceColletion.size() == 1)
 	{
-		TopoDS_Face flatFace = helperFunctions::projectFaceFlat(theFaceColletion[0], 0);
-
 		theFlatFace_ = helperFunctions::projectFaceFlat(
-			flatFace,
+			theFaceColletion[0],
 			urrPoint_.Z()
 		);
-
-		for (TopExp_Explorer WireExpl(theFaceColletion[0], TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
-		{
-			TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
-			theWireCollection_.emplace_back(currentWire);
-		}
 		return;
 	}
 
-	std::vector<TopoDS_Edge> edgeList;
-	for (TopoDS_Face currentFace : theFaceColletion)
+	std::vector<TopoDS_Face> projectedFaces;
+
+	for (const TopoDS_Face& currentFace : theFaceColletion)
 	{
-		for (TopExp_Explorer expl(currentFace, TopAbs_EDGE); expl.More(); expl.Next())
-		{
-			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-			edgeList.emplace_back(currentEdge);
-		}
+		projectedFaces.emplace_back(helperFunctions::projectFaceFlat(
+			currentFace,
+			urrPoint_.Z()
+		));
 	}
 
-	std::vector<TopoDS_Edge> outerEdgeList;
-	std::vector<TopoDS_Edge> outerEdgeListFlat;
-	for (size_t i = 0; i < edgeList.size(); i++)
+	std::vector<TopoDS_Face> flatFaceList = helperFunctions::planarFaces2Outline(projectedFaces);
+
+	if (flatFaceList.size() < 1)
 	{
-		TopoDS_Edge currentEdge = edgeList[i];
-		bool isUnique = true;
-
-		gp_Pnt currentP1 = helperFunctions::getFirstPointShape(currentEdge);
-		gp_Pnt currentP2 = helperFunctions::getLastPointShape(currentEdge);
-
-		for (size_t j = 0; j < edgeList.size(); j++)
-		{
-			if (i == j) { continue; }
-
-			TopoDS_Edge otherEdge = edgeList[j];
-
-			gp_Pnt otherP1 = helperFunctions::getFirstPointShape(otherEdge);
-			gp_Pnt otherP2 = helperFunctions::getLastPointShape(otherEdge);
-
-			if (currentP1.IsEqual(otherP2, 1e-6) && currentP2.IsEqual(otherP1, 1e-6) ||
-				currentP1.IsEqual(otherP1, 1e-6) && currentP2.IsEqual(otherP2, 1e-6))
-			{
-				isUnique = false;
-				break;
-			}
-		}
-
-		if (!isUnique)
-		{
-			continue;
-		}
-
-		gp_Pnt currentP1Flat(currentP1.X(), currentP1.Y(), 0);
-		gp_Pnt currentP2Flat(currentP2.X(), currentP2.Y(), 0);
-		outerEdgeList.emplace_back(currentEdge);
-		outerEdgeListFlat.emplace_back(BRepBuilderAPI_MakeEdge(currentP1Flat, currentP2Flat));
+		return;
 	}
-
-	//grow wires
-	std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(outerEdgeList);
-	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
-	if (!cleanWireList.size()) { cleanWireList = wireList; }
-	theWireCollection_ = cleanWireList;
-
-	std::vector<TopoDS_Wire> wireListFlat = helperFunctions::growWires(outerEdgeListFlat);
-	std::vector<TopoDS_Wire> cleanWireListFlat = helperFunctions::cleanWires(wireListFlat);
-	if (!cleanWireListFlat.size()) { cleanWireListFlat = wireListFlat; }
-	std::vector<TopoDS_Face> cleanFaceList = helperFunctions::wireCluster2Faces(cleanWireListFlat);
-
-	theFlatFace_ = helperFunctions::projectFaceFlat(
-		cleanFaceList[0],
-		urrPoint_.Z()
-	);
+	theFlatFace_ = helperFunctions::planarFaces2Outline(flatFaceList)[0];
+	return;
 }
 
 

@@ -89,9 +89,6 @@ private:
 	// the faces
 	std::vector<TopoDS_Face> theFaceCollection_;
 
-	// the wire surrounding the faceCollection
-	std::vector<TopoDS_Wire> theWireCollection_;
-
 	// the flat face geometry of the complete face collection for LoD13
 	TopoDS_Face theFlatFace_;
 
@@ -100,8 +97,6 @@ private:
 	gp_Pnt urrPoint_ = gp_Pnt(-999999, -999999, -999999);
 public:
 	RCollection(const std::vector<TopoDS_Face>& theFaceColletion);
-
-	const std::vector<TopoDS_Wire> getWires() { return theWireCollection_; }
 
 	const std::vector<TopoDS_Face> getFaces() const { return theFaceCollection_; }
 	const TopoDS_Face& getFlatFace() const { return theFlatFace_; }
