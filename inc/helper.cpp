@@ -74,6 +74,10 @@ template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const TopoDS_Solid& th
 template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const TopoDS_Shape& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 
 
+template gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace);
+template gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Wire& theFace);
+
+
 BoostPoint3D helperFunctions::Point3DOTB(const gp_Pnt& oP) {
 	return BoostPoint3D(oP.X(), oP.Y(), oP.Z());
 }
@@ -668,7 +672,8 @@ gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge)
 	return gp_Vec(startpoint, endpoint).Normalized();
 }
 
-gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace) //TODO: check if triangle based would be usefull 
+template<typename T>
+gp_Vec helperFunctions::computeFaceNormal(const T& theFace) //TODO: check if triangle based would be usefull 
 {
 	double precision = SettingsCollection::getInstance().precision();
 
@@ -1167,7 +1172,11 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 		}
 
 		std::vector<TopoDS_Face> mergedFaceList = mergeCoFaces(mergingPairList);
-		for (const TopoDS_Face& mergedFace : mergedFaceList) { cleanedFaceCollection.emplace_back(mergedFace); }
+		std::vector<TopoDS_Face> cleanedFaces = cleanFaces(mergedFaceList);
+		for (const TopoDS_Face& currentCleanedFace : cleanedFaces)
+		{
+			cleanedFaceCollection.emplace_back(currentCleanedFace);
+		}
 	}
 	return cleanedFaceCollection;
 }
@@ -1532,23 +1541,62 @@ std::vector<TopoDS_Wire> helperFunctions::cleanWires(const std::vector<TopoDS_Wi
 }
 
 TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
-
-	BRepBuilderAPI_MakeWire wireMaker;
-	std::vector<TopoDS_Edge> orderedEdgeList;
+	std::vector<TopoDS_Edge> edgeList;
 	for (TopExp_Explorer edgeExp(wire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
-		orderedEdgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
+		edgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
 	}
-
-	std::vector<int> merged(orderedEdgeList.size());
-
 	double precision = SettingsCollection::getInstance().precision();
 
-	bool ttt = false;
+	// order and rotate the edges
+	std::vector<TopoDS_Edge> orderedEdgeList = { edgeList[0] };
+	std::vector<int> evalList(edgeList.size(), 0);
+	evalList[0] = 1;
+	TopoDS_Edge growingEdge = edgeList[0];
+	while (true)
+	{
+		gp_Pnt cp1 = getFirstPointShape(growingEdge);
+		gp_Pnt cp2 = getLastPointShape(growingEdge);
+
+		bool hasFound = false;
+		for (size_t i = 0; i < edgeList.size(); i++)
+		{
+			if (evalList[i] == 1) { continue; }
+
+			TopoDS_Edge otherEdge = edgeList[i];
+			gp_Pnt op1 = getFirstPointShape(otherEdge);
+			gp_Pnt op2 = getLastPointShape(otherEdge);
+
+			if (op1.IsEqual(op2, precision)) { continue; }
+			if (growingEdge.IsEqual(otherEdge)) { continue; }
+			if (cp2.IsEqual(op1, precision))
+			{
+				orderedEdgeList.emplace_back(otherEdge);
+			}
+			else if (cp2.IsEqual(op2, precision))
+			{
+				otherEdge = BRepBuilderAPI_MakeEdge(op2, op1);
+				orderedEdgeList.emplace_back(otherEdge);
+			}
+			else
+			{
+				continue;
+			}
+
+			growingEdge = otherEdge;
+			evalList[i] = 1;
+			hasFound = true;
+		}
+		if (!hasFound)
+		{
+			break;
+		}
+	}
+
+	//get a startpoint at the corner of a wire
 	gp_Pnt connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
 	gp_Vec startingVec = helperFunctions::computeEdgeDir(orderedEdgeList[0]);
-	if (startingVec.IsParallel(helperFunctions::computeEdgeDir(orderedEdgeList.back()), precision)) //get another startpoint
+	if (startingVec.IsParallel(helperFunctions::computeEdgeDir(orderedEdgeList.back()), precision)) 
 	{
-		ttt = true;
 		for (size_t i = 1; i < orderedEdgeList.size(); i++)
 		{
 			if (!startingVec.IsParallel(helperFunctions::computeEdgeDir(orderedEdgeList[i]), precision))
@@ -1558,8 +1606,11 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 			}
 		}
 	}
-	connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
 
+	connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
+	
+	BRepBuilderAPI_MakeWire wireMaker;
+	std::vector<int> merged(orderedEdgeList.size());
 	for (size_t i = 0; i < orderedEdgeList.size(); i++) // merge parralel 
 	{
 		if (merged[i] == 1) { continue; }
@@ -1623,87 +1674,39 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 	}
 
 	gp_Pnt finalPoint = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
-
-
 	wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, finalPoint));
 	TopoDS_Wire finalWire = wireMaker.Wire();
 	return finalWire;
 }
 
-std::vector<TopoDS_Face> helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList) {
+TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList) {
 	BRepBuilderAPI_MakeFace faceBuilder;
 	std::vector<TopoDS_Face> faceList;
-	gp_Vec normal;
-	gp_Pnt originPoint;
-	gp_Vec castingVector;
+	gp_Vec normal = computeFaceNormal(wireList[0]);
+	std::vector<gp_Pnt> pointList = getUniquePoints(wireList[0]);
+	gp_Pnt originPoint = pointList[0];
+	gp_Vec castingVector = gp_Vec(originPoint, pointList[1]);
 
-	for (size_t i = 0; i < wireList.size(); i++)
+	for (const TopoDS_Wire& currentWire : wireList)
 	{
-		if (i == 0) // use the first face to compute normal dir 
-		{
-			while (i < wireList.size())
-			{
-				gp_Vec vec1;
-				gp_Vec vec2;
-				for (TopExp_Explorer edgeExp(wireList[i], TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
-					TopoDS_Edge edge = TopoDS::Edge(edgeExp.Current());
-
-					originPoint = helperFunctions::getFirstPointShape(edge);
-					gp_Pnt endpoint = helperFunctions::getLastPointShape(edge);
-					vec1 = gp_Vec(originPoint, endpoint);
-					vec2 = gp_Vec(originPoint, endpoint);
-
-					while (vec1.IsParallel(vec2, 0.0001))
-					{
-						edgeExp.Next();
-						if (!edgeExp.More()) {
-							break;
-						}
-						edge = TopoDS::Edge(edgeExp.Current());
-						gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(edge);
-						gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(edge);
-						vec2 = gp_Vec(otherStartpoint, otherEndpoint);
-					}
-					break;
-				}
-
-				if (vec1.IsParallel(vec2, 0.0001))
-				{
-					i++;
-					continue;
-				}
-
-				normal = vec1.Crossed(vec2);
-				normal.Normalize();
-				castingVector = vec1;
-				break;
-			}
-		}
-
 		faceBuilder = BRepBuilderAPI_MakeFace(
 			gp_Pln(originPoint, normal),
-			wireList[i]
+			currentWire
 		);
 
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
-	if (faceList.size() == 1) { return faceList; }
+	if (faceList.size() == 1) { return faceList[0]; }
 
 	// test which surfaces are inner loops
 	std::vector<double> areaList;
 	std::vector<TopoDS_Face> correctedFaceList;
-	for (size_t i = 0; i < faceList.size(); i++)
+	for (const TopoDS_Face& currentFace : faceList)
 	{
-		TopoDS_Face currentFootprint = faceList[i];
-
-		GProp_GProps gprops;
-		BRepGProp::SurfaceProperties(currentFootprint, gprops); // Stores results in gprops
-		double area = gprops.Mass();
-
+		double area = computeArea(currentFace);
 		if (area < 0.001) { continue; }
-
 		areaList.emplace_back(area);
-		correctedFaceList.emplace_back(faceList[i]);
+		correctedFaceList.emplace_back(currentFace);
 	}
 
 	std::vector<TopoDS_Face> orderedFootprintList;
@@ -1733,58 +1736,48 @@ std::vector<TopoDS_Face> helperFunctions::wireCluster2Faces(const std::vector<To
 	std::vector<TopoDS_Face> cleanedFaceList;
 	double precision = SettingsCollection::getInstance().precision();
 
-	for (size_t i = 0; i < orderedFootprintList.size(); i++)
+	TopoDS_Face clippedFace = orderedFootprintList[0];
+	for (size_t i = 1; i < orderedFootprintList.size(); i++)
 	{
-		if (clipped[i] == 1) { continue; }
-		clipped[i] = 1;
-
-		TopoDS_Face clippedFace = orderedFootprintList[i];
-
-		for (size_t j = i + 1; j < orderedFootprintList.size(); j++)
+		for (TopExp_Explorer expl(orderedFootprintList[i], TopAbs_WIRE); expl.More(); expl.Next())
 		{
-			if (clipped[j] == 1) { continue; }
-
-			TopExp_Explorer expl;
-			for (expl.Init(orderedFootprintList[j], TopAbs_VERTEX); expl.More(); expl.Next())
-			{
-				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				gp_Pnt p = BRep_Tool::Pnt(vertex);
-
-				TopoDS_Edge evalEdge = BRepBuilderAPI_MakeEdge(
-					p, gp_Pnt(
-						p.X() + abs(castingVector.X()) * 10000,
-						p.Y() + abs(castingVector.Y()) * 10000,
-						p.Z() + abs(castingVector.Z()) * 10000
-					));
-
-				int intersectionCount = 0;
-				TopExp_Explorer edgeExplorer(orderedFootprintList[i], TopAbs_EDGE);
-				for (; edgeExplorer.More(); edgeExplorer.Next()) {
-					const TopoDS_Edge& currentEdge = TopoDS::Edge(edgeExplorer.Current());
-
-					BRepExtrema_DistShapeShape distanceCalc1(evalEdge, currentEdge); //TODO: speed up with linear intersection function?
-					distanceCalc1.Perform();
-
-					if (distanceCalc1.Value() < precision) { intersectionCount++; }
-				}
-				if (intersectionCount % 2 == 1)
-				{
-					for (expl.Init(orderedFootprintList[j], TopAbs_WIRE); expl.More(); expl.Next())
-					{
-						TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
-						if (orderedAreaList[j] > 0) { voidWire = TopoDS::Wire(expl.Current().Reversed()); }
-						BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, voidWire);
-						clippedFace = merger.Face();
-						break;
-					}
-					clipped[j] = 1;
-				}
-				break;
-			}
+			TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+			voidWire = TopoDS::Wire(expl.Current().Reversed()); 
+			BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, voidWire);
+			clippedFace = merger.Face();
+			break;
 		}
-		cleanedFaceList.emplace_back(clippedFace);
 	}
-	return cleanedFaceList;
+	return clippedFace;
+}
+
+std::vector<TopoDS_Face> helperFunctions::cleanFaces(const std::vector<TopoDS_Face>& inputFaceList)
+{
+	std::vector<TopoDS_Face> outputList;
+	for (const TopoDS_Face& mergedFace : inputFaceList)
+	{
+		std::vector<TopoDS_Wire> wireList;
+		for (TopExp_Explorer explorer(mergedFace, TopAbs_WIRE); explorer.More(); explorer.Next())
+		{
+			wireList.emplace_back(TopoDS::Wire(explorer.Current()));
+		}
+
+		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
+		if (cleanWireList.size() < 1)
+		{
+			outputList.emplace_back(mergedFace);
+			continue;
+		}
+
+		TopoDS_Face cleanedFace = helperFunctions::wireCluster2Faces(cleanWireList);
+		if (cleanedFace.IsNull())
+		{
+			outputList.emplace_back(mergedFace);
+			continue;
+		}
+		outputList.emplace_back(cleanedFace);
+	}
+	return outputList;
 }
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)

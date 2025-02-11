@@ -148,16 +148,13 @@ private:
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	/// splits the surfaces with extruded solid copies and returns the ones visible from the top
-	std::vector<TopoDS_Face> getSplitTopFaces(
-		const std::vector<TopoDS_Face>& inputFaceList,
-		double lowestZ, 
-		const TopoDS_Face& bufferSurface = {}
-	);
+	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const TopoDS_Face& bufferSurface = {});
 	/// splits the surfaces with extruded solid copies
-	std::vector<TopoDS_Face> getSplitFaces(const std::vector<TopoDS_Face>& inputFaceList,
-		const std::vector<TopoDS_Solid>& ExtrudedShapes,
-		const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex
+	std::vector<TopoDS_Face> getSplitFaces(
+		const std::vector<TopoDS_Face>& inputFaceList,
+		bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
 	);
+
 
 	// generic shape simplification code
 
@@ -167,6 +164,8 @@ private:
 	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap = false);
 	/// remove redundant edges and faces from a group of faces assisted with the normal direction of the faces
 	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap = false);
+	/// creates an index populated with unique faces
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> indexUniqueFaces(const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>>& faceIndx);
 	
 	/// attempts to merge faces into one big face
 	TopoDS_Face mergeFaces(const std::vector<TopoDS_Face>& mergeFaces);

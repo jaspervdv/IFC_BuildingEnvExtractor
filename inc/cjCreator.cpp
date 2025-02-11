@@ -658,78 +658,35 @@ void CJGeoCreator::makeFloorSectionComplex(
 	return;
 }
 
-
-std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const TopoDS_Face& bufferSurface)
-{
-	// if only one face is present there can be no overlap that should be eliminated
-	if (inputFaceList.size() == 1)
-	{
-		TopoDS_Face outputFace = inputFaceList[0];
-		return { outputFace };
-	}
-
-	double precision = SettingsCollection::getInstance().precision();
-	// make extrusions of untrimmed top surfaces
-	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
-	std::vector<TopoDS_Solid> ExtrudedShapes;
-	for (const TopoDS_Face& currentFace : inputFaceList)
-	{
-		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
-		if (extrudedShape.IsNull()) { continue; }
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
-		ExtrudedShapes.emplace_back(extrudedShape);
-	}
-
-	// add the buffer surface in process if present
-	bool hasBufferFilter = false;
-	if (!bufferSurface.IsNull())
-	{
-		TopoDS_Solid extrudedShape = extrudeFace(bufferSurface, false, 10000);
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(extrudedShape);
-		spatialIndex.insert(std::make_pair(bbox, (int)ExtrudedShapes.size()));
-		ExtrudedShapes.emplace_back(extrudedShape);
-		hasBufferFilter = true;
-	}
-
-	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, ExtrudedShapes, spatialIndex);
-	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurface);
-	return visibleFaceList;
-}
-
 std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 	const std::vector<TopoDS_Face>& inputFaceList,
-	const std::vector<TopoDS_Solid>& ExtrudedShapes,
-	const bgi::rtree<Value, bgi::rstar<treeDepth_>>& spatialIndex
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
 )
 {
 	double precision = SettingsCollection::getInstance().precision();
-	// split top surfaces with the extrustions
+
+	// split the topfaces with the cutting faces
 	std::vector<TopoDS_Face> splitFaceList;
-	for (size_t i = 0; i < inputFaceList.size(); i++)
+	for (const TopoDS_Face& currentRoofSurface : inputFaceList)
 	{
-		std::vector<Value> qResult;
-		TopoDS_Face currentFace = inputFaceList[i];
-		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentFace);
-		spatialIndex.query(bgi::intersects(searchBox), std::back_inserter(qResult));
+		std::vector<std::pair<BoostBox3D, TopoDS_Face>> qResult;
+		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentRoofSurface);
+		cuttingFaceIdx.query(bgi::intersects(searchBox), std::back_inserter(qResult));
 
 		if (qResult.size() <= 1)
 		{
-			splitFaceList.emplace_back(currentFace);
+			splitFaceList.emplace_back(currentRoofSurface);
 			continue;
 		}
 
 		BOPAlgo_Splitter divider;
 		divider.SetFuzzyValue(precision);
 		divider.SetRunParallel(Standard_False);
-		divider.AddArgument(currentFace);
+		divider.AddArgument(currentRoofSurface);
 
-		for (size_t j = 0; j < qResult.size(); j++)
+		for (const auto& [cuttingBox, cuttingFace] : qResult)
 		{
-			int extruIndx = qResult[j].second;
-			if (i == extruIndx) { continue; }
-
-			TopoDS_Solid currentSplitter = ExtrudedShapes[extruIndx];
+			TopoDS_Face currentSplitter = cuttingFace;
 			divider.AddTool(currentSplitter);
 		}
 		divider.Perform();
@@ -806,6 +763,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter, const TopoDS_Face& bufferSurface)
 {
+	double precision = SettingsCollection::getInstance().precision();
 	std::vector<TopoDS_Face> splitTopSurfaceList;
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
 	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ, bufferSurface); }
@@ -827,7 +785,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		}
 	}
 	aBuilder.Perform();
-	
+
 	TopoDS_Shape splitShape = aBuilder.Shape();
 	if (splitShape.IsNull()) { return {}; }
 
@@ -859,9 +817,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	try
 	{
 		TopoDS_Shape simplefiedShape = simplefySolid(sewedShape);
-		if (simplefiedShape.IsNull()) 
-		{ 
-			return prismList; 
+		if (simplefiedShape.IsNull())
+		{
+			return prismList;
 		}
 		prismList.emplace_back(simplefiedShape);
 	}
@@ -872,6 +830,39 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy) << std::endl;
 	}
 	return prismList;
+}
+
+std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const TopoDS_Face& bufferSurface)
+{
+	double precision = SettingsCollection::getInstance().precision();
+
+	// extrude the surfaces and collect their faces
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIdx; // pair bbox | extruded shape faces
+	for (const TopoDS_Face& currentTopFace : inputFaceList)
+	{
+		TopoDS_Solid extrudedShape = extrudeFace(currentTopFace, true, lowestZ);
+		BoostBox3D extrudedBox = helperFunctions::createBBox(extrudedShape);
+		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
+			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
+
+			// ignore if not vertical face
+			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
+			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+
+			// find if already found in model 
+			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
+			faceIdx.insert(std::make_pair(faceBox, extrusionFace));
+		}
+	}
+
+	// remove the faces that will presumably not split a single face
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
+	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
+	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurface);
+	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::cleanFaces(visibleFaceList);
+
+	//clean the surfaces
+	return  cleanedFaceList;
 }
 
 
@@ -1100,6 +1091,39 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 	return cleanedFaceList;
 }
 
+bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> CJGeoCreator::indexUniqueFaces(const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>>& faceIndx)
+{
+	double precision = SettingsCollection::getInstance().precision();
+
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx; // pair bbox | extruded shape faces
+	for (const auto& [currentBox, currentFace] : faceIndx)
+	{
+		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+		std::vector<std::pair<BoostBox3D, TopoDS_Face>> qResult;
+		qResult.clear();
+		faceIndx.query(bgi::intersects(currentBox), std::back_inserter(qResult));
+
+		bool isDub = false;
+		for (const auto& [otherBox, otherFace] : qResult)
+		{
+			if (currentFace.IsEqual(otherFace)) { continue; }
+
+			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) { continue; }
+			if (!helperFunctions::isSame(currentBox, otherBox)) { continue; }
+			//TODO: add actual comparison
+
+			isDub = true;
+			break;
+		}
+		if (isDub)
+		{
+			continue;
+		}
+		cuttingFaceIdx.insert(std::make_pair(currentBox, currentFace));
+	}
+	return cuttingFaceIdx;
+}
+
 
 TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces) {
 	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
@@ -1149,10 +1173,8 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	if (wireList.size() == 0) { return TopoDS_Face(); }
 	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
-	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::wireCluster2Faces(cleanWireList);
-	if (cleanedFaceList.size() == 0) { return TopoDS_Face(); }
-
-	return cleanedFaceList[0];
+	TopoDS_Face cleanedFace = helperFunctions::wireCluster2Faces(cleanWireList);
+	return cleanedFace;
 }
 
 
@@ -3150,11 +3172,8 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vect
 	for (size_t i = 0; i < faceList.size(); i++) {
 		std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(faceList[i]);
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
-		std::vector<TopoDS_Face> cleanFaceList = helperFunctions::wireCluster2Faces(cleanWireList);
-
-		for (size_t j = 0; j < cleanFaceList.size(); j++) {
-			collectionList.emplace_back(cleanFaceList[j]);
-		}
+		TopoDS_Face cleanFace = helperFunctions::wireCluster2Faces(cleanWireList);
+		collectionList.emplace_back(cleanFace);
 	}
 	return;
 }

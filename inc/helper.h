@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -52,7 +52,7 @@ typedef std::pair<bg::model::box<BoostPoint3D>, int> Value;
 #ifndef HELPER_HELPER_H
 #define HELPER_HELPER_H
 
-struct FaceComplex { //TODO: find better locations
+struct FaceComplex { //TODO: find better location for this
 	std::vector<TopoDS_Face> faceList_;
 };
 
@@ -150,8 +150,9 @@ struct helperFunctions{
 
 	/// compute the edge dir 
 	static gp_Vec computeEdgeDir(const TopoDS_Edge& theEdge);
-	/// compute the face normal 
-	static gp_Vec computeFaceNormal(const TopoDS_Face& theFace);
+	/// compute the face normal
+	template<typename T>
+	static gp_Vec computeFaceNormal(const T& theFace);
 	/// make a reversed copy of the input wire
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
 	/// compute the largest angle of the edges, returns 0 if not found
@@ -214,7 +215,10 @@ struct helperFunctions{
 	/// @brief cleans the wires (removes redundant vertex)
 	static std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
 	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
-	static std::vector<TopoDS_Face> wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+	static TopoDS_Face wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
+
+	static std::vector<TopoDS_Face> cleanFaces(const std::vector<TopoDS_Face>& inputFaceList);
+
 
 	// planar simplification code
 
