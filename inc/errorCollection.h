@@ -68,6 +68,7 @@ enum class ErrorID {
 	failedLoD00, // LoD0.0 creation failed
 	failedLoD02, // LoD0.2 creation failed
 	failedLoD03, // LoD0.3 creation failed
+	failedLoD04, // LoD0.4 creation failed
 	failedLoD10, // LoD1.0 creation failed
 	failedLoD12, // LoD1.2 creation failed
 	failedLoD13, // LoD1.3 creation failed

@@ -200,6 +200,7 @@ void SettingsCollection::generateGeneralSettings()
 	{
 		if (!make02() &&
 			!make03() &&
+			!make04() &&
 			!make12() &&
 			!make13() &&
 			!make22() &&
@@ -355,6 +356,11 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 			setMake03(true);
 			continue;
 		}
+		if (currentLoD == 0.4)
+		{
+			setMake04(true);
+			continue;
+		}
 		if (currentLoD == 1.0)
 		{
 			setMake10(true);
@@ -402,6 +408,7 @@ void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 	if (!makeExterior() ||
 		!make02() &&
 		!make03() &&
+		!make04() &&
 		!make12() &&
 		!make13() &&
 		!make22() 

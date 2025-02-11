@@ -111,6 +111,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.2 Model";
 	case CommunicationStringID::infoComputingLoD03:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.3 Model";
+	case CommunicationStringID::infoComputingLoD04:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 0.4 Model";
 	case CommunicationStringID::infoComputingLoD10:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 1.0 Model";
 	case CommunicationStringID::infoComputingLoD12:

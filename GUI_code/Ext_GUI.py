@@ -11,9 +11,10 @@ from pathlib import Path
 
 class LoDSettings:
     def __init__(self):
-        self.lod00 = tkinter.IntVar(value=0)
+        self.lod00 = tkinter.IntVar(value=1)
         self.lod02 = tkinter.IntVar(value=1)
         self.lod03 = tkinter.IntVar(value=1)
+        self.lod04 = tkinter.IntVar(value=1)
         self.lod10 = tkinter.IntVar(value=1)
         self.lod12 = tkinter.IntVar(value=1)
         self.lod13 = tkinter.IntVar(value=1)
@@ -218,6 +219,8 @@ def runCode(input_path,
         json_dictionary["JSON"]["Generate roof outline"] = footprint_settings.make_roofprint.get()
     if(lod_settings.lod03.get()):
         lod_list.append(0.3)
+    if (lod_settings.lod04.get()):
+        lod_list.append(0.4)
     if (lod_settings.lod10.get()):
         lod_list.append(1.0)
     if (lod_settings.lod12.get()):
@@ -507,6 +510,8 @@ toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=
                                            lod_settings.lod50.get()
                                        })
                                    ])
+toggle_makelod04 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.4", variable=lod_settings.lod04,
+                                   command=lambda: [])
 toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=lod_settings.lod10)
 toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
                                    text="LoD1.2",
@@ -583,6 +588,7 @@ toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
 toggle_makelod00.pack(side=tkinter.LEFT)
 toggle_makelod02.pack(side=tkinter.LEFT)
 toggle_makelod03.pack(side=tkinter.LEFT)
+toggle_makelod04.pack(side=tkinter.LEFT)
 toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)

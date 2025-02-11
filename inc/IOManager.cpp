@@ -246,6 +246,7 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.make00()) { summaryString += ", 0.0"; }
 	if (settingsCollection.make02()) { summaryString += ", 0.2"; }
 	if (settingsCollection.make03()) { summaryString += ", 0.3"; }
+	if (settingsCollection.make04()) { summaryString += ", 0.4"; }
 	if (settingsCollection.make10()) { summaryString += ", 1.0"; }
 	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
@@ -505,6 +506,8 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	// list collects the faces from the LoD03 creation to base LoD13 output on
 	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
+	// list collects the faces from the LoD04 creation to base LoD22 output on
+	std::vector<std::vector<TopoDS_Face>> LoD04Faces;
 
 	if (settingsCollection.make00())
 	{
@@ -521,6 +524,10 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	if (settingsCollection.make03())
 	{
 		processExternalLod03(geoCreator, cityOuterShellObject, &LoD03Faces, kernel);
+	}
+	if (settingsCollection.make04())
+	{
+		processExternalLod04(geoCreator, cityOuterShellObject, &LoD04Faces, kernel);
 	}
 	if (settingsCollection.make10())
 	{
@@ -540,9 +547,7 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	}
 	if (settingsCollection.make22())
 	{
-		processExternalLoD([&]() {
-			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD22, timeLoD22_);
+		processExternalLod22(geoCreator, cityOuterShellObject, LoD04Faces, kernel);
 	}
 	if (settingsCollection.make32())
 	{
@@ -598,6 +603,23 @@ void IOManager::processExternalLod03(CJGeoCreator* geoCreator, CJT::CityObject& 
 	return;
 }
 
+void IOManager::processExternalLod04(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, std::vector<std::vector<TopoDS_Face>>* roofList04, CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geo04 = geoCreator->makeLoD04(internalDataManager_.get(), roofList04, kernel, 1);
+		for (size_t i = 0; i < geo04.size(); i++) { cityOuterShellObject.addGeoObject(geo04[i]); }
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD04);
+		succesfullExit_ = 0;
+	}
+	timeLoD04_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
 void IOManager::processExternalLod13(
 	CJGeoCreator* geoCreator,
 	CJT::CityObject& cityOuterShellObject,
@@ -616,6 +638,27 @@ void IOManager::processExternalLod13(
 		succesfullExit_ = 0;
 	}
 	timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
+void IOManager::processExternalLod22(
+	CJGeoCreator* geoCreator,
+	CJT::CityObject& cityOuterShellObject,
+	const std::vector<std::vector<TopoDS_Face>>& roofList04,
+	CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geo22 = geoCreator->makeLoD22(internalDataManager_.get(), roofList04, kernel, 1);
+		for (size_t i = 0; i < geo22.size(); i++) { cityOuterShellObject.addGeoObject(geo22[i]); }
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD22);
+		succesfullExit_ = 0;
+	}
+	timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	return;
 }
 
@@ -801,7 +844,8 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "Voxel creation", timeVoxel_);
 	addTimeToJSON(&timeReport, "LoD0.0 generation", timeLoD00_);
 	addTimeToJSON(&timeReport, "LoD0.2 generation", timeLoD02_);
-	addTimeToJSON(&timeReport, "LoD0.2 generation", timeLoD03_);
+	addTimeToJSON(&timeReport, "LoD0.3 generation", timeLoD03_);
+	addTimeToJSON(&timeReport, "LoD0.4 generation", timeLoD04_);
 	addTimeToJSON(&timeReport, "LoD1.0 generation", timeLoD10_);
 	addTimeToJSON(&timeReport, "LoD1.2 generation", timeLoD12_);
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);

@@ -238,9 +238,11 @@ public:
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject>  makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.3 roof faces
-	std::vector<std::vector<TopoDS_Face>> makeLoD03RoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased = false);
+	std::vector<std::vector<TopoDS_Face>> makeRoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool useFlatFaces, bool footprintBased = false);
 	/// generates a list of LoD0.3 objects
 	std::vector< CJT::GeoObject> makeLoD03(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoD0.4 objects
+	std::vector< CJT::GeoObject> makeLoD04(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod04FaceList, CJT::Kernel* kernel, int unitScale);
 	/// generates an LoD1.0 object
 	CJT::GeoObject makeLoD10(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD1.2 objects
@@ -248,7 +250,7 @@ public:
 	/// generates a list of LoD1.3 objects
 	std::vector< CJT::GeoObject> makeLoD13(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
-	std::vector< CJT::GeoObject> makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD22(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);

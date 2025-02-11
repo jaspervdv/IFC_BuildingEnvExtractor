@@ -855,6 +855,23 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		}
 	}
 
+	if (!bufferSurface.IsNull())
+	{
+		TopoDS_Solid extrudedShape = extrudeFace(bufferSurface, false, 1000000);
+		BoostBox3D extrudedBox = helperFunctions::createBBox(extrudedShape);
+		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
+			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
+
+			// ignore if not vertical face
+			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
+			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+
+			// find if already found in model 
+			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
+			faceIdx.insert(std::make_pair(faceBox, extrusionFace));
+		}
+	}
+
 	// remove the faces that will presumably not split a single face
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
@@ -2149,7 +2166,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 	return geoObject;
 }
 
-std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03RoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool footprintBased)
+std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool useFlatFaces, bool footprintBased)
 {
 	if (!hasTopFaces_)
 	{
@@ -2169,7 +2186,17 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeLoD03RoofFaces(DataManag
 		std::vector<TopoDS_Face> faceCollection;
 		for (RCollection surfaceGroup : faceCluster)
 		{
-			faceCollection.emplace_back(surfaceGroup.getFlatFace());
+			if (useFlatFaces)
+			{
+				faceCollection.emplace_back(surfaceGroup.getFlatFace());
+			}
+			else
+			{
+				for (const TopoDS_Face currentFace : surfaceGroup.getFaces())
+				{
+					faceCollection.emplace_back(currentFace);
+				}
+			}
 		}
 
 		if (footprintBased && !footprintFace.IsNull())
@@ -2191,7 +2218,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
 
-	if (lod03FaceList->size() == 0) {  *lod03FaceList = makeLoD03RoofFaces(h, kernel, 1); }
+	if (lod03FaceList->size() == 0) {  *lod03FaceList = makeRoofFaces(h, kernel, 1, true); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -2208,6 +2235,37 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 			currentShape.Move(localRotationTrsf);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.3");
+			geoObject.appendSurfaceData(semanticRoofData);
+			geoObject.appendSurfaceTypeValue(0);
+			geoObjectCollection.emplace_back(geoObject);
+		}
+	}
+	printTime(startTime, std::chrono::steady_clock::now());
+	return geoObjectCollection;
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod04FaceList, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD04) << std::endl;
+
+	if (lod04FaceList->size() == 0) { *lod04FaceList = makeRoofFaces(h, kernel, 1, false); }
+
+	std::vector< CJT::GeoObject> geoObjectCollection;
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	std::map<std::string, std::string> semanticRoofData;
+	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+
+	for (std::vector<TopoDS_Face> faceCluster : *lod04FaceList)
+	{
+		for (TopoDS_Face currentShape : faceCluster)
+		{
+			gp_Trsf localRotationTrsf;
+			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+			currentShape.Move(localRotationTrsf);
+
+			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.4");
 			geoObject.appendSurfaceData(semanticRoofData);
 			geoObject.appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
@@ -2297,7 +2355,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 	// get the correct top surface
 	std::vector<std::vector<TopoDS_Face>> roofList;
 	if (roofList03.size() == 0) {
-		roofList = makeLoD03RoofFaces(h, kernel, 1, settingsCollection.footPrintBased());
+		roofList = makeRoofFaces(h, kernel, 1, true, settingsCollection.footPrintBased());
 	}
 	else if (!settingsCollection.footPrintBased())
 	{
@@ -2335,10 +2393,11 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale) 
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!SettingsCollection::getInstance().footPrintBased())
@@ -2358,33 +2417,28 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 		}
 	}
 
+	std::vector<std::vector<TopoDS_Face>> roofList;
+	if (roofList04.size() == 0) {
+		roofList = makeRoofFaces(h, kernel, 1, false, settingsCollection.footPrintBased());
+	}
+	else if (!settingsCollection.footPrintBased())
+	{
+		roofList = roofList04;
+	}
+	else {
+		for (size_t i = 0; i < roofList04.size(); i++)
+		{
+			std::vector<TopoDS_Face> splittedFaceList = trimFacesToFootprint(roofList04[i], buildingSurfaceDataList_[i].getFootPrint());
+			roofList.emplace_back(splittedFaceList);
+		}
+	}
 
 	std::vector<TopoDS_Shape> prismList;
-	for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
+	for (std::vector<TopoDS_Face> faceCluster : roofList)
 	{
-		std::vector<RCollection> faceCluster = buildingSurfaceData.getRoof();
-		std::vector<TopoDS_Face> faceCollection;
-		for (const RCollection& surfaceGroup : faceCluster)
+		for (TopoDS_Shape prism : computePrisms(faceCluster, h->getLllPoint().Z(), false))
 		{
-			for (TopoDS_Face surfaceFace : surfaceGroup.getFaces())
-			{
-				faceCollection.emplace_back(surfaceFace);
-			}
-		}
-
-		if (SettingsCollection::getInstance().footPrintBased())
-		{
-			for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z(), true, buildingSurfaceData.getFootPrint()))
-			{
-				prismList.emplace_back(prism);
-			}
-		}
-		else
-		{
-			for (TopoDS_Shape prism : computePrisms(faceCollection, h->getLllPoint().Z(), true))
-			{
-				prismList.emplace_back(prism);
-			}
+			prismList.emplace_back(prism);
 		}
 	}
 

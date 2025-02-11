@@ -106,6 +106,7 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::failedLoD00, ErrorObject("E0001", "LoD0.0 creation failed")},
 		{ErrorID::failedLoD02, ErrorObject("E0002", "LoD0.2 creation failed")},
 		{ErrorID::failedLoD03, ErrorObject("E0003", "LoD0.3 creation failed")},
+		{ErrorID::failedLoD04, ErrorObject("E0004", "LoD0.4 creation failed")},
 		{ErrorID::failedLoD10, ErrorObject("E0010", "LoD1.0 creation failed")},
 		{ErrorID::failedLoD12, ErrorObject("E0012", "LoD1.2 creation failed")},
 		{ErrorID::failedLoD13, ErrorObject("E0013", "LoD1.3 creation failed")},

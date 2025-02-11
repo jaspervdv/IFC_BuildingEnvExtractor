@@ -26,6 +26,7 @@ private:
 	bool make00_ = false;
 	bool make02_ = false;
 	bool make03_ = false;
+	bool make04_ = false;
 	bool make10_ = false;
 	bool make12_ = false;
 	bool make13_ = false;
@@ -166,6 +167,9 @@ public:
 
     bool make03() const { return make03_; }
     void setMake03(bool value) { make03_ = value; }
+
+    bool make04() const { return make04_; }
+    void setMake04(bool value) { make04_ = value; }
 
     bool make10() const { return make10_; }
     void setMake10(bool value) { make10_ = value; }
