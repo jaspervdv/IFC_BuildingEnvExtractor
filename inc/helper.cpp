@@ -612,11 +612,29 @@ std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace
 	TopLoc_Location loc;
 	opencascade::handle<Poly_Triangulation> mesh = BRep_Tool::Triangulation(theFace, loc);
 
+	double precision = SettingsCollection::getInstance().precisionCoarse();
+
 	if (mesh.IsNull()) { return std::nullopt; }
 	for (int i = 1; i <= mesh.get()->NbTriangles(); i++) 
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
-		return getTriangleCenter(mesh, theTriangle, loc);
+		gp_Pnt point = getTriangleCenter(mesh, theTriangle, loc);
+
+		bool isEdge = false;
+		for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
+		{
+			TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
+			BRepExtrema_DistShapeShape distanceCalc(BRepBuilderAPI_MakeVertex(point), currentWire);
+			distanceCalc.Perform();
+
+			if (distanceCalc.Value() <= precision) {
+				isEdge = true;
+				break;
+			}
+		}
+
+		if (isEdge) { continue; }
+		return point;
 	}
 	return std::nullopt;
 }
