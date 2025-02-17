@@ -469,9 +469,6 @@ void VoxelGrid::markVoxelBuilding(int startIndx, int buildnum) {
 }
 
 
-
-
-
 bool VoxelGrid::voxelBeamWindowIntersection(DataManager* h, std::shared_ptr<voxel> currentVoxel, int indxDir)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();

@@ -168,6 +168,8 @@ struct helperFunctions{
 	static bool edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const TopoDS_Edge& otherEdge);
 	/// check if upperface overlaps the lower face by checking the edges
 	static bool faceFaceOverlapping(const TopoDS_Face& upperFace, const TopoDS_Face& lowerFace);
+	/// check if the left face shares at least 1 identical edge with the right face
+	static bool faceFaceNeighbour(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace);
 
 	/// line surface intersection related code
 

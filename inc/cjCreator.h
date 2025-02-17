@@ -130,7 +130,8 @@ private:
 	// create list of faces by cutting objects at the floor lvl
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
 	// create list of faces by cutting objects at the floor lvl
-	std::vector<TopoDS_Face> section2Faces(const std::vector<TopoDS_Shape>& shapes, DataManager* h, double cutlvl);
+	template <typename T>
+	std::vector<TopoDS_Face> section2Faces(const std::vector<T>& shapes, double cutlvl);
 	// split the input faces list over interior and exterior horizontal faces based on the voxels
 	void SplitInAndOuterHFaces(const std::vector<TopoDS_Face>& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces);
 	// split the input shape over interior and exterior horizontal faces based on the voxels

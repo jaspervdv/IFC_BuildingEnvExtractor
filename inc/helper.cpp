@@ -479,47 +479,57 @@ TopoDS_Shape helperFunctions::createBBOXOCCT(const gp_Pnt& lll, const gp_Pnt& ur
 
 TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
 {
+	double precision = SettingsCollection::getInstance().precisionCoarse();
 	// get the vectors of the shape
 	std::vector<gp_Pnt> pointList = getPoints(shape);
 	gp_Vec hVector = getShapedir(pointList, true);
 	gp_Vec vVector = getShapedir(pointList, false);
 
-	// compute horizontal rotation
+	// compute rotation around z axis
 	gp_Pnt p1 = gp_Pnt(0, 0, 0);
 	gp_Pnt p2 = p1.Translated(hVector);
 
 	double angleFlat = 0;
-	if (abs(p1.Y() - p2.Y()) > 0.00001)
+	// apply rotation around z axis if required
+	if (abs(p1.Y() - p2.Y()) > precision)
 	{
 		double os = abs(p1.Y() - p2.Y()) / p1.Distance(p2);
 		angleFlat = asin(os);
 
 		gp_Pnt tempP = helperFunctions::rotatePointPoint(p2, p1, angleFlat);
 
-		if (Abs(p1.X() - tempP.X()) > 0.01 && 
-			Abs(p1.Y() - tempP.Y()) > 0.01)
+		// mirror the rotation if incorrect
+		if (Abs(p1.X() - tempP.X()) > precision &&
+			Abs(p1.Y() - tempP.Y()) > precision)
 		{
 			angleFlat = -angleFlat;
 		}
 	}
 
-	// compute vertical rotation
+	// rotate the box around the x axis to correctly place the roation axis for the x rotation
 	gp_Pnt p3 = gp_Pnt(0, 0, 0);
 	gp_Pnt p4 = helperFunctions::rotatePointPoint(p3.Translated(vVector), p3, angleFlat);
-
-	if (abs(p3.X() - p4.X()) < 0.01)
+	if (abs(p3.X() - p4.X()) < precision)
 	{
 		p3 = helperFunctions::rotatePointWorld(p3, M_PI / 2.0);
 		p4 = helperFunctions::rotatePointWorld(p4, M_PI / 2.0);
 		angleFlat += M_PI / 2.0;
 	}
+
+	// compute vertical rotation
 	double angleVert = acos(abs(p4.Z() - p3.Z()) / p3.Distance(p4));
+	p4.Rotate(gp_Ax1(p3, gp_Vec(0,1,0)), angleVert);
+	// mirror the rotation if incorrect
+	if (abs(p3.X() - p4.X()) < precision)
+	{
+		angleVert = -angleVert;
+		p4.Rotate(gp_Ax1(p3, gp_Vec(0, 1, 0)), 2 * angleVert);
+	}
 
 	gp_Pnt lllPoint;
 	gp_Pnt urrPoint;
 	helperFunctions::bBoxDiagonal(pointList, &lllPoint, &urrPoint, 0, angleFlat, angleVert);
 	if (lllPoint.IsEqual(urrPoint, SettingsCollection::getInstance().precision())) { return TopoDS_Shape(); }
-
 	TopoDS_Shape boxShape = helperFunctions::createBBOXOCCT(lllPoint, urrPoint, 0.0, angleFlat, angleVert);
 	helperFunctions::triangulateShape(boxShape);
 	return boxShape;
@@ -804,7 +814,7 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 			RotationVecPair = vecPair;
 		}
 	}
-	return RotationVecPair.first;
+	return RotationVecPair.first.Normalized();
 }
 
 
@@ -817,12 +827,6 @@ bool helperFunctions::shareEdge(const TopoDS_Face& theFace, const TopoDS_Face& t
 		for (TopExp_Explorer otherExpl(theotherFace, TopAbs_EDGE); otherExpl.More(); otherExpl.Next())
 		{
 			TopoDS_Edge otherEdge = TopoDS::Edge(otherExpl.Current());
-
-			gp_Pnt cP0 = getFirstPointShape(currentEdge);
-			gp_Pnt cP1 = getLastPointShape(currentEdge);
-			gp_Pnt oP0 = getFirstPointShape(otherEdge);
-			gp_Pnt oP1 = getLastPointShape(otherEdge);
-
 			if (edgeEdgeOVerlapping(currentEdge, otherEdge)) { return true; }
 		}
 	}
@@ -843,16 +847,23 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 	gp_Vec otherVec = gp_Vec(oP0, oP1);
 	if (!currentVec.IsParallel(otherVec, precision)) { return false; }
 
+	// check if edges are identical
+	if (cP0.IsEqual(oP0, precision) && cP1.IsEqual(oP1, precision) ||
+		cP1.IsEqual(oP0, precision) && cP0.IsEqual(oP1, precision))
+	{
+		return true;
+	}
+
 	// if the distance between 3 points of the edges is the same as the full length of one edge. the edges are overlapping
 	double currentFullDistance = cP0.Distance(cP1);
-	if (abs(currentFullDistance - (cP0.Distance(oP0) + oP0.Distance(cP1))) < precision ||
-		abs(currentFullDistance - (cP0.Distance(oP1) + oP1.Distance(cP1))) < precision)
+	if (abs(currentFullDistance - (cP0.Distance(oP0) + oP0.Distance(cP1))) < precision && cP0.Distance(oP0) > precision && oP0.Distance(cP1) > precision ||
+		abs(currentFullDistance - (cP0.Distance(oP1) + oP1.Distance(cP1))) < precision && cP0.Distance(oP1) > precision && oP1.Distance(cP1) > precision)
 	{
 		return true;
 	}
 	double otherFullDistance = oP0.Distance(oP1);
-	if (abs(otherFullDistance - (oP0.Distance(cP0) + cP0.Distance(oP1))) < precision ||
-		abs(otherFullDistance - (oP0.Distance(cP1) + cP1.Distance(oP1))) < precision)
+	if (abs(otherFullDistance - (oP0.Distance(cP0) + cP0.Distance(oP1))) < precision && oP0.Distance(cP0) > precision && cP0.Distance(oP1) > precision  ||
+		abs(otherFullDistance - (oP0.Distance(cP1) + cP1.Distance(oP1))) < precision && oP0.Distance(cP1) > precision && cP1.Distance(oP1) > precision)
 	{
 		return true;
 	}
@@ -1704,9 +1715,9 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 	std::vector<gp_Pnt> pointList = getUniquePoints(wireList[0]);
 	gp_Pnt originPoint = pointList[0];
 	gp_Vec castingVector = gp_Vec(originPoint, pointList[1]);
-
 	for (const TopoDS_Wire& currentWire : wireList)
 	{
+		if (helperFunctions::getUniquePoints(currentWire).size() < 3) { continue; }
 		faceBuilder = BRepBuilderAPI_MakeFace(
 			gp_Pln(originPoint, normal),
 			currentWire
@@ -1714,6 +1725,7 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
+	if (!faceList.size()) { return TopoDS_Face(); }
 	if (faceList.size() == 1) { return faceList[0]; }
 
 	// test which surfaces are inner loops
@@ -1761,8 +1773,15 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 		{
 			TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
 			voidWire = TopoDS::Wire(expl.Current().Reversed()); 
-			BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, voidWire);
-			clippedFace = merger.Face();
+			try
+			{
+				BRepBuilderAPI_MakeFace merger = BRepBuilderAPI_MakeFace(clippedFace, voidWire);
+				clippedFace = merger.Face();
+			}
+			catch (const std::exception&)
+			{
+				continue;
+			}	
 			break;
 		}
 	}
@@ -1774,6 +1793,7 @@ std::vector<TopoDS_Face> helperFunctions::cleanFaces(const std::vector<TopoDS_Fa
 	std::vector<TopoDS_Face> outputList;
 	for (const TopoDS_Face& mergedFace : inputFaceList)
 	{
+		
 		std::vector<TopoDS_Wire> wireList;
 		for (TopExp_Explorer explorer(mergedFace, TopAbs_WIRE); explorer.More(); explorer.Next())
 		{
@@ -1781,13 +1801,15 @@ std::vector<TopoDS_Face> helperFunctions::cleanFaces(const std::vector<TopoDS_Fa
 		}
 
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
+		
 		if (cleanWireList.size() < 1)
 		{
 			outputList.emplace_back(mergedFace);
 			continue;
 		}
-
+		
 		TopoDS_Face cleanedFace = helperFunctions::wireCluster2Faces(cleanWireList);
+		
 		if (cleanedFace.IsNull())
 		{
 			outputList.emplace_back(mergedFace);
@@ -2084,13 +2106,13 @@ double helperFunctions::computeArea(const TopoDS_Face& theFace)
 void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 {
 	auto hasTriangles = BRepTools::Triangulation(shape, 0.01);
-	if (!hasTriangles) { auto mesh = BRepMesh_IncrementalMesh(shape, 0.01); }
+	if (!hasTriangles) { auto mesh = BRepMesh_IncrementalMesh(shape, 0.01, Standard_False, 0.5); }
 }
 
 bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)
 {
-	auto t1 = bbox.min_corner();
-	auto t2 = bbox.max_corner();
+	const auto& t1 = bbox.min_corner();
+	const auto& t2 = bbox.max_corner();
 	if (abs(t1.get<0>() - t2.get<0>()) < 1e-6 &&
 		abs(t1.get<1>() - t2.get<1>()) < 1e-6 &&
 		abs(t1.get<2>() - t2.get<2>()) < 1e-6)
