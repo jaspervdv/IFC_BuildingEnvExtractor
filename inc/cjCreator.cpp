@@ -689,6 +689,11 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 		for (const auto& [cuttingBox, cuttingFace] : qResult)
 		{
 			TopoDS_Face currentSplitter = cuttingFace;
+			if (currentSplitter.IsEqual(currentRoofSurface))
+			{
+				continue;
+			}
+
 			divider.AddTool(currentSplitter);
 		}
 		divider.Perform();
@@ -765,6 +770,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter, const TopoDS_Face& bufferSurface)
 {
 	double precision = SettingsCollection::getInstance().precisionCoarse();
+
 	std::vector<TopoDS_Face> splitTopSurfaceList;
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
 	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ, bufferSurface); }
@@ -774,37 +780,74 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		return { extrudeFace(splitTopSurfaceList[0], true, lowestZ) };
 	}
 
-	// extrude the trimmed surfaces and join
-	BOPAlgo_Builder aBuilder;
-	aBuilder.SetFuzzyValue(precision);
-	aBuilder.SetRunParallel(Standard_True);
+	// extrude the trimmed top surfaces
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> toBeSplitfaceIdx; // pair bbox | extruded shape faces
+	std::vector<TopoDS_Face> toBesSplitFaceList;
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
-		if (!extrudedShape.IsNull())
-		{
-			aBuilder.AddArgument(extrudedShape);
+		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
+			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
+
+			// ignore if not vertical face
+			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
+			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+
+			// find if already found in model 
+			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
+			toBeSplitfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
+			toBesSplitFaceList.emplace_back(extrusionFace);
 		}
+		BoostBox3D topFaceBox = helperFunctions::createBBox(currentFace);
+		toBeSplitfaceIdx.insert(std::make_pair(topFaceBox, currentFace));
+		toBesSplitFaceList.emplace_back(currentFace);
 	}
-	aBuilder.Perform();
 
-	TopoDS_Shape splitShape = aBuilder.Shape();
-	if (splitShape.IsNull()) { return {}; }
-
-	// clean the overlapping faces
-	TopTools_DataMapOfShapeShape internalSurfaceList = aBuilder.ShapesSD();
+	// remove dub faces and split them
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(toBeSplitfaceIdx);
+	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
+	for (const TopoDS_Face& currentFace : splitFaceList)
+	{
+		gp_Vec currentVec = helperFunctions::computeFaceNormal(currentFace);
+		if (currentVec.Magnitude() < 1e-6) { continue; }
+		BoostBox3D faceBox = helperFunctions::createBBox(currentFace);
+		SplitfaceIdx.insert(std::make_pair(faceBox, currentFace));
+	}
 
 	BRepBuilderAPI_Sewing brepSewer(precision);
-	for (TopExp_Explorer expl(splitShape, TopAbs_FACE); expl.More(); expl.Next()) {
-		const TopoDS_Face& currentFace = TopoDS::Face(expl.Current());
-		if (std::none_of(internalSurfaceList.begin(), internalSurfaceList.end(),
-			[&currentFace](const TopoDS_Shape& internalFace) { return currentFace.IsSame(internalFace); })) {
+	for (const auto& [currentBox, currentFace] : SplitfaceIdx)
+	{
+		std::vector<BoxFacePair> qResult;
+		qResult.clear();
+		SplitfaceIdx.query(bgi::intersects(currentBox), std::back_inserter(qResult));
+
+		bool isDub = false;
+		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+		for (const auto& [otherBox, otherFace] : qResult)
+		{
+			if (currentFace.IsEqual(otherFace)) { continue; }
+			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) { continue; }
+			if (!helperFunctions::isSame(currentBox, otherBox)) { continue; }
+
+			isDub = true;
+		}
+		if (!isDub)
+		{
 			brepSewer.Add(currentFace);
+
+			if (abs(currentNormal.Z()) < 1e-4) { continue; }
+			TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(currentFace, lowestZ);
+
+			if (helperFunctions::computeFaceNormal(flattenedFace).Magnitude() < 1e-4) { continue; }
+			brepSewer.Add(helperFunctions::projectFaceFlat(currentFace, lowestZ));
 		}
 	}
 
+	
 	brepSewer.Perform();
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+
 
 
 	if (sewedShape.IsNull())
@@ -841,7 +884,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	for (const TopoDS_Face& currentTopFace : inputFaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentTopFace, true, lowestZ);
-		BoostBox3D extrudedBox = helperFunctions::createBBox(extrudedShape);
 		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
 
@@ -853,12 +895,13 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
 			faceIdx.insert(std::make_pair(faceBox, extrusionFace));
 		}
+		BoostBox3D topFaceBox = helperFunctions::createBBox(currentTopFace);
+		faceIdx.insert(std::make_pair(topFaceBox, currentTopFace));
 	}
 
 	if (!bufferSurface.IsNull())
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(bufferSurface, false, 1000000);
-		BoostBox3D extrudedBox = helperFunctions::createBBox(extrudedShape);
 		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
 
@@ -890,7 +933,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 		gp_Vec faceNomal = helperFunctions::computeFaceNormal(face);
 
-		if (faceNomal.Magnitude() == 0)
+		if (faceNomal.Magnitude() < 1e-6)
 		{
 			continue;
 		}
@@ -908,6 +951,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 	brepBuilder.MakeSolid(simpleBuilding);
 
 	std::vector<TopoDS_Face> mergedFaceList = simplefySolid(facelist, normalList, evalOverlap);
+
 
 	if (mergedFaceList.size() == facelist.size())
 	{
@@ -934,7 +978,7 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 	{
 		gp_Vec faceNomal = helperFunctions::computeFaceNormal(surfaceList[i]);
 
-		if (faceNomal.Magnitude() == 0)
+		if (faceNomal.Magnitude() < 1e-6)
 		{
 			continue;
 		}
@@ -1124,15 +1168,19 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 
 	gp_Trsf transform;
 	std::vector<TopoDS_Face> mergingFaces;
+	if (clusterNormal.Magnitude() < 1e-6)
+	{
+		return TopoDS_Face();
+	}
+
 	if (!clusterNormal.IsParallel(horizontalNormal, 1e-6))
 	{
 		std::optional<gp_Pnt> optionalbasePoint = helperFunctions::getPointOnFace(mergeFaces[0]);
-		if (optionalbasePoint == std::nullopt)
-		{
-			return {};
-		}
 
-		gp_Ax1 rotationAxis(*optionalbasePoint, clusterNormal ^ horizontalNormal);
+		if (optionalbasePoint == std::nullopt) { return TopoDS_Face(); }
+
+		gp_Vec normalCrossProduct = clusterNormal ^ horizontalNormal;
+		gp_Ax1 rotationAxis(*optionalbasePoint, normalCrossProduct);
 		Standard_Real rotationAngle = clusterNormal.AngleWithRef(horizontalNormal, rotationAxis.Direction());
 
 		transform.SetRotation(rotationAxis, rotationAngle);

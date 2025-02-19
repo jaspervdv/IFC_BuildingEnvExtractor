@@ -845,6 +845,9 @@ bool helperFunctions::edgeEdgeOVerlapping(const TopoDS_Edge& currentEdge, const 
 	// check if edges are parallel
 	gp_Vec currentVec = gp_Vec(cP0, cP1);
 	gp_Vec otherVec = gp_Vec(oP0, oP1);
+
+	if (currentVec.Magnitude() < precision || otherVec.Magnitude() < precision) { return false; }
+
 	if (!currentVec.IsParallel(otherVec, precision)) { return false; }
 
 	// check if edges are identical
@@ -1571,10 +1574,19 @@ std::vector<TopoDS_Wire> helperFunctions::cleanWires(const std::vector<TopoDS_Wi
 
 TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 	std::vector<TopoDS_Edge> edgeList;
-	for (TopExp_Explorer edgeExp(wire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
-		edgeList.emplace_back(TopoDS::Edge(edgeExp.Current()));
-	}
 	double precision = SettingsCollection::getInstance().precision();
+
+	if (!wire.Closed()) { return wire; }
+	for (TopExp_Explorer edgeExp(wire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) 
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(edgeExp.Current());
+		if (currentEdge.IsNull()) { continue; }
+		gp_Pnt cp1 = helperFunctions::getFirstPointShape(currentEdge);
+		gp_Pnt cp2 = helperFunctions::getLastPointShape(currentEdge);
+		if (cp1.Distance(cp2) < precision) { continue; }
+		edgeList.emplace_back(currentEdge);
+	}
+	if (edgeList.size() < 3) { return wire; }
 
 	// order and rotate the edges
 	std::vector<TopoDS_Edge> orderedEdgeList = { edgeList[0] };
