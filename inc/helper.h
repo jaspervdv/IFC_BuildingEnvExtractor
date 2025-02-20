@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC2x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3

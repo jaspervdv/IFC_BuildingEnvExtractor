@@ -126,7 +126,7 @@ public:
 	/// internalize an object, used to internalize the objects the voxel intersects with
 	void addInternalProduct(const Value& prodValue) { internalProducts_.emplace_back(prodValue); }
 	/// returns the list with internalized products
-	std::vector<Value> getInternalProductList() { return internalProducts_; }
+	std::vector<Value> getInternalProductList() const { return internalProducts_; }
 
 	/// returns boolean if the face in that direction is present, if no number input returns if any face is present
 	/// 0 = -X

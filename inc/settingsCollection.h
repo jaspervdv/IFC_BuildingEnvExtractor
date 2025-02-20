@@ -31,6 +31,7 @@ private:
 	bool make12_ = false;
 	bool make13_ = false;
 	bool make22_ = false;
+	bool make30_ = false;
 	bool make32_ = false;
 	bool makeV_ = false;
 
@@ -182,6 +183,9 @@ public:
 
     bool make22() const { return make22_; }
     void setMake22(bool value) { make22_ = value; }
+
+    bool make30() const { return make30_; }
+    void setMake30(bool value) { make30_ = value; }
 
     bool make32() const { return make32_; }
     void setMake32(bool value) { make32_ = value; }

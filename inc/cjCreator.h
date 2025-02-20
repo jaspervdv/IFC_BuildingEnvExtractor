@@ -112,6 +112,8 @@ private:
 	std::vector<TopoDS_Face> getVisTopSurfaces(const std::vector<TopoDS_Face>& faceIdx, double lowestZ, const TopoDS_Face& bufferSurface = {});
 	// trims the roof surfaces to the underlying footprint
 	std::vector<TopoDS_Face> trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
+	// splits the roof surfaces to the underlying footprint
+	void splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces, std::vector<TopoDS_Face>& outOverhangFaces, const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
 
 	// storey generation code
 
@@ -252,6 +254,8 @@ public:
 	std::vector< CJT::GeoObject> makeLoD13(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
 	std::vector< CJT::GeoObject> makeLoD22(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoD3.0 objects
+	std::vector< CJT::GeoObject> makeLoD30(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);

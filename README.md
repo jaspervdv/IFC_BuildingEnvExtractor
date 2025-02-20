@@ -3,7 +3,11 @@
 <!-- markdownlint-disable MD033 -->
 <!-- markdownlint-disable MD034 -->
 
-The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. This is one of the steps required to close the gap between architecture/BIM and city scale models.
+The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. The converter can create CityJSON models with overhang (LoD3.2 and voxelized shapes) and interior spaces and/or storeys (LoD0.2, 0.3, 1.2, 2.2, 3.2 and voxelized shapes).
+
+The development of this conversion process is one of the steps required to close the gap between architecture/BIM and  GIS/city scale models.
+
+**Development of this tool is funded up until the end of September 2025. After this date new funding has to be found if further development is desired**
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample.gif "An example of the created LoD envelopes based on an input file")
 
@@ -19,6 +23,7 @@ Current possible output shells:
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
 * LoD2.2 - exterior and rooms
+* LoD3.0 - exterior (WIP) (hybrid between TUD 2.3 and 3.0)
 * LoD3.2 - exterior and rooms (WIP)
 * LoD5.0 - exterior and interior rooms
 
@@ -39,8 +44,6 @@ Below you can see a speed comparison between the software and manual processing 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample2.gif "Speed comparison of the software making LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 vs making LoD 2.2 by hand.")
 
 This program is part of the [CHEK project](https://chekdbp.eu/). Any suggestions, additions or changes that are made by other users could also be utilized by this project.  
-
-**Development of this tool will continue until the end of September 2025, after this current funding will end.**
 
 ## Table of Content
 
@@ -305,7 +308,7 @@ Mandatory:
   * The output CityJSON filepath. Folder structure is required to be existing. The file name should end with .json or .city.json/
 * :white_check_mark: "LoD output" :white_check_mark:
   * Array filled with floats/double, size 1 to ∞
-  * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.2 and 5.0 (for a voxel shape).
+  * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.0, 3.2 and 5.0 (for a voxel shape).
 
 Optional:
 

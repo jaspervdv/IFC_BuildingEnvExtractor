@@ -251,6 +251,7 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
 	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
+	if (settingsCollection.make30()) { summaryString += ", 3.0"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
 
@@ -290,6 +291,7 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.make12()) { LoDList.emplace_back("1.2"); }
 	if (settingsCollection.make13()) { LoDList.emplace_back("1.3"); }
 	if (settingsCollection.make22()) { LoDList.emplace_back("2.2"); }
+	if (settingsCollection.make30()) { LoDList.emplace_back("3.0"); }
 	if (settingsCollection.make32()) { LoDList.emplace_back("3.2"); }
 	if (settingsCollection.makeV()) { LoDList.emplace_back("5.0"); }
 
@@ -549,6 +551,10 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLod22(geoCreator, cityOuterShellObject, LoD04Faces, kernel);
 	}
+	if (settingsCollection.make30())
+	{
+		processExternalLod30(geoCreator, cityOuterShellObject, LoD04Faces, kernel);
+	}
 	if (settingsCollection.make32())
 	{
 		processExternalLoD([&]() {
@@ -659,6 +665,23 @@ void IOManager::processExternalLod22(
 		succesfullExit_ = 0;
 	}
 	timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
+	return;
+}
+
+void IOManager::processExternalLod30(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel)
+{
+	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
+	try
+	{
+		std::vector<CJT::GeoObject> geo30 = geoCreator->makeLoD30(internalDataManager_.get(), roofList04, kernel, 1);
+		for (size_t i = 0; i < geo30.size(); i++) { cityOuterShellObject.addGeoObject(geo30[i]); }
+	}
+	catch (const std::exception&)
+	{
+		ErrorCollection::getInstance().addError(ErrorID::failedLoD30);
+		succesfullExit_ = 0;
+	}
+	timeLoD30_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
 	return;
 }
 
@@ -784,7 +807,7 @@ bool IOManager::run()
 		return false;
 	}
 
-	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || settingsCollection.footPrintBased())
+	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || settingsCollection.footPrintBased() || settingsCollection.make30())
 	{
 		try
 		{

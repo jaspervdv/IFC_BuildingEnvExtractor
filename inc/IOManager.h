@@ -27,6 +27,7 @@ private:
 	long long timeLoD12_ = 0;
 	long long timeLoD13_ = 0;
 	long long timeLoD22_ = 0;
+	long long timeLoD30_ = 0;
 	long long timeLoD32_ = 0;
 	long long timeV_ = 0;
 
@@ -93,8 +94,14 @@ private:
 		CJT::CityObject& cityOuterShellObject,
 		const std::vector<std::vector<TopoDS_Face>>& roofList03,
 		CJT::Kernel* kernel);
-	/// process, collect errors and clock the lod 13 geocreating functions
+	/// process, collect errors and clock the lod 22 geocreating functions
 	void processExternalLod22(CJGeoCreator*
+		geoCreator,
+		CJT::CityObject& cityOuterShellObject,
+		const std::vector<std::vector<TopoDS_Face>>& roofList04,
+		CJT::Kernel* kernel);
+	/// process, collect errors and clock the lod 30 geocreating functions
+	void processExternalLod30(CJGeoCreator*
 		geoCreator,
 		CJT::CityObject& cityOuterShellObject,
 		const std::vector<std::vector<TopoDS_Face>>& roofList04,

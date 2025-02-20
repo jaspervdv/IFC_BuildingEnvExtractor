@@ -19,6 +19,7 @@ class LoDSettings:
         self.lod12 = tkinter.IntVar(value=1)
         self.lod13 = tkinter.IntVar(value=1)
         self.lod22 = tkinter.IntVar(value=1)
+        self.lod30 = tkinter.IntVar(value=0)
         self.lod32 = tkinter.IntVar(value=0)
         self.lod50 = tkinter.IntVar(value=0)
 
@@ -232,6 +233,8 @@ def runCode(input_path,
     if (lod_settings.lod22).get():
         lod_list.append(2.2)
         json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
+    if (lod_settings.lod30.get()):
+        lod_list.append(3.0)
     if (lod_settings.lod32.get()):
         lod_list.append(3.2)
     if (lod_settings.lod50.get()):
@@ -540,7 +543,7 @@ toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=
                                        })
                                    ])
 
-toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=lod_settings.lod22,
+toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=lod_settings.lod22,
                                    command=lambda: [
                                        toggleEnableEntry(toggle_makeinterior, {
                                            lod_settings.lod02.get(),
@@ -556,6 +559,10 @@ toggle_makelod22 = ttk.Checkbutton(frame_lod_settings3, text="LoD2.2", variable=
                                             lod_settings.lod22.get()
                                        })
                                    ])
+toggle_makelod30 = ttk.Checkbutton(frame_lod_settings3,
+                                   text="LoD3.0",
+                                   variable=lod_settings.lod30
+                                   )
 
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
@@ -593,6 +600,7 @@ toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
+toggle_makelod30.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 

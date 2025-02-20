@@ -204,6 +204,7 @@ void SettingsCollection::generateGeneralSettings()
 			!make12() &&
 			!make13() &&
 			!make22() &&
+			!make30() &&
 			!make32() &&
 			!summaryVoxels())
 		{
@@ -379,6 +380,11 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 		if (currentLoD == 2.2)
 		{
 			setMake22(true);
+			continue;
+		}
+		if (currentLoD == 3.0)
+		{
+			setMake30(true);
 			continue;
 		}
 		if (currentLoD == 3.2)

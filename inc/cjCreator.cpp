@@ -844,11 +844,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		}
 	}
 
-	
 	brepSewer.Perform();
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
-
-
 
 	if (sewedShape.IsNull())
 	{
@@ -1354,39 +1351,21 @@ std::vector<TopoDS_Shape> CJGeoCreator::beamProjection(DataManager* h)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::vector<int> boxelIdx = voxelGrid_->getTopBoxelIndx();
-	std::vector<Value> topValueList;
+	std::unordered_set<int> topValueIdxset;
 	std::vector<TopoDS_Shape> topObjectList;
 
 	for (int currentVoxelIdx : boxelIdx)
 	{
 		while (true)
 		{
-			voxel currentVoxel = voxelGrid_->getVoxel(currentVoxelIdx);
-			std::vector<Value> internalValueList = currentVoxel.getInternalProductList();
+			const voxel& currentVoxel = voxelGrid_->getVoxel(currentVoxelIdx);
+			const std::vector<Value>& internalValueList = currentVoxel.getInternalProductList();
 
-			if (internalValueList.size())
+			if (!internalValueList.empty())
 			{
-				for (const Value& internalValue : internalValueList)
+				for (const Value& currentValue : internalValueList)
 				{
-					double dub = false;
-					for (const Value& topValue : topValueList)
-					{
-						if (topValue.second == internalValue.second)
-						{
-							dub = true;
-							break;
-						}
-					}
-					if (dub) { continue; }
-
-					std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(internalValue.second);
-					TopoDS_Shape currentShape;
-
-					if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
-					else { currentShape = lookup->getProductShape(); }
-
-					topValueList.emplace_back(internalValue);
-					topObjectList.emplace_back(currentShape);
+					topValueIdxset.insert(currentValue.second);
 				}
 				break;
 			}
@@ -1394,6 +1373,16 @@ std::vector<TopoDS_Shape> CJGeoCreator::beamProjection(DataManager* h)
 			if (currentVoxelIdx == -1) { break; }
 		}
 	}
+
+	for (int currentValue : topValueIdxset)
+	{
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue);
+		TopoDS_Shape currentShape;
+		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
+		else { currentShape = lookup->getProductShape(); }
+		topObjectList.emplace_back(currentShape);
+	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return topObjectList;
 }
@@ -2482,6 +2471,93 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, const std::
 
 		geoObjectList.emplace_back(geoObject);
 	}
+	printTime(startTime, std::chrono::steady_clock::now());
+	return geoObjectList;
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD30) << std::endl;
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	std::vector< CJT::GeoObject> geoObjectList;
+
+	if (!hasRoofOutlines()) {
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD3.0");
+		return {};
+	}
+	if (!hasFootprints()) {
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
+		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD3.0");
+		return {};
+	}
+
+	std::vector<std::vector<TopoDS_Face>> roofList;
+	std::vector<std::vector<TopoDS_Face>> innerRoofList;
+	std::vector<std::vector<TopoDS_Face>> overhangList;
+	if (roofList04.size() == 0) {
+		roofList = makeRoofFaces(h, kernel, 1, false);
+	}
+	else
+	{
+		roofList = roofList04;
+	}
+
+	for (size_t i = 0; i < roofList.size(); i++)
+	{
+		std::vector<TopoDS_Face> tempInnerRoofList;
+		std::vector<TopoDS_Face> tempOverhangList;
+		splitFacesToFootprint(tempInnerRoofList, tempOverhangList, roofList[i], buildingSurfaceDataList_[i].getFootPrint());
+		innerRoofList.emplace_back(tempInnerRoofList);
+		overhangList.emplace_back(tempOverhangList);
+	}
+
+	std::vector<TopoDS_Shape> prismList;
+	for (std::vector<TopoDS_Face> faceCluster : innerRoofList)
+	{
+		for (TopoDS_Shape prism : computePrisms(faceCluster, h->getLllPoint().Z(), false))
+		{
+			prismList.emplace_back(prism);
+			break; //TODO: check this
+		}
+	}
+
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+
+	std::map<std::string, std::string> semanticRoofData;
+	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	for (size_t i = 0; i < prismList.size(); i++)
+	{
+		TopoDS_Shape currentShape = prismList[i];
+		currentShape.Move(trsf);
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "3.0");
+
+		createSemanticData(&geoObject, currentShape);
+		geoObjectList.emplace_back(geoObject);
+
+		// create the roof overhang
+		std::vector<TopoDS_Face> overhangRoof = overhangList[i];
+
+		BRep_Builder builder;
+		TopoDS_Compound compound;
+		builder.MakeCompound(compound);
+		for (auto face : overhangRoof)
+		{
+			face.Move(trsf);
+			builder.Add(compound, face);
+		}
+
+		CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "3.0");
+		geoOverhangObject.appendSurfaceData(semanticRoofData);
+		for (size_t i = 0; i < overhangRoof.size(); i++)
+		{
+			geoOverhangObject.appendSurfaceTypeValue(0);
+		}
+		geoObjectList.emplace_back(geoOverhangObject);
+	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
@@ -3598,7 +3674,15 @@ void CJGeoCreator::populateSurfaceData(CJT::GeoObject* geoObject, const std::vec
 
 std::vector<TopoDS_Face> CJGeoCreator::trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace)
 {
-	std::vector<TopoDS_Face> splittedFaceList;
+	std::vector<TopoDS_Face> outRoofFaces;
+	std::vector<TopoDS_Face> outOverhangFaces;
+	splitFacesToFootprint(outRoofFaces, outOverhangFaces, roofFaces, footprintFace);
+	return outRoofFaces;
+}
+
+void CJGeoCreator::splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces, std::vector<TopoDS_Face>& outOverhangFaces, const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace)
+{
+
 	TopoDS_Solid extrudedFootprint = extrudeFace(footprintFace, false, 10000);
 
 	BOPAlgo_Splitter divider;
@@ -3625,11 +3709,14 @@ std::vector<TopoDS_Face> CJGeoCreator::trimFacesToFootprint(const std::vector<To
 		TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
 
 		BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, footprintFace);
-		if (distanceWireCalc.Value() > 1e-6) { continue; }
-
-		splittedFaceList.emplace_back(subFace);
+		if (distanceWireCalc.Value() > 1e-6) 
+		{
+			outOverhangFaces.emplace_back(subFace);
+			continue; 
+		}
+		outRoofFaces.emplace_back(subFace);
 	}
-	return splittedFaceList;
+	return;
 }
 
 std::vector<IfcSchema::IfcBuildingStorey*> CJGeoCreator::fetchStoreyObjects(DataManager* h, const std::vector<std::string>& storeyGuidList)
