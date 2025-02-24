@@ -505,11 +505,8 @@ void IOManager::ComputeStoreysAboveGround(int* storeysAboveGround, int* storeysB
 
 void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, CJT::Kernel* kernel)
 {
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingExterior) << std::endl;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	// list collects the faces from the LoD03 creation to base LoD13 output on
-	std::vector<std::vector<TopoDS_Face>> LoD03Faces;
-	// list collects the faces from the LoD04 creation to base LoD22 output on
-	std::vector<std::vector<TopoDS_Face>> LoD04Faces;
 
 	if (settingsCollection.make00())
 	{
@@ -525,11 +522,15 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	}
 	if (settingsCollection.make03())
 	{
-		processExternalLod03(geoCreator, cityOuterShellObject, &LoD03Faces, kernel);
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD03(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make04())
 	{
-		processExternalLod04(geoCreator, cityOuterShellObject, &LoD04Faces, kernel);
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD04(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make10())
 	{
@@ -545,15 +546,27 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	}
 	if (settingsCollection.make13())
 	{
-		processExternalLod13(geoCreator, cityOuterShellObject, LoD03Faces, kernel);
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD13(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make22())
 	{
-		processExternalLod22(geoCreator, cityOuterShellObject, LoD04Faces, kernel);
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make30())
 	{
-		processExternalLod30(geoCreator, cityOuterShellObject, LoD04Faces, kernel);
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD30(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+	}
+	if (settingsCollection.make31())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoD31(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
 	}
 	if (settingsCollection.make32())
 	{
@@ -592,101 +605,11 @@ void IOManager::processExternalLoD(
 	return;
 }
 
-void IOManager::processExternalLod03(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, std::vector<std::vector<TopoDS_Face>>* roofList03, CJT::Kernel* kernel)
-{
-	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	try
-	{
-		std::vector<CJT::GeoObject> geo03 = geoCreator->makeLoD03(internalDataManager_.get(), roofList03, kernel, 1);
-		for (size_t i = 0; i < geo03.size(); i++) { cityOuterShellObject.addGeoObject(geo03[i]); }
-	}
-	catch (const std::exception&)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD03);
-		succesfullExit_ = 0;
-	}
-	timeLoD03_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	return;
-}
-
-void IOManager::processExternalLod04(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, std::vector<std::vector<TopoDS_Face>>* roofList04, CJT::Kernel* kernel)
-{
-	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	try
-	{
-		std::vector<CJT::GeoObject> geo04 = geoCreator->makeLoD04(internalDataManager_.get(), roofList04, kernel, 1);
-		for (size_t i = 0; i < geo04.size(); i++) { cityOuterShellObject.addGeoObject(geo04[i]); }
-	}
-	catch (const std::exception&)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD04);
-		succesfullExit_ = 0;
-	}
-	timeLoD04_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	return;
-}
-
-void IOManager::processExternalLod13(
-	CJGeoCreator* geoCreator,
-	CJT::CityObject& cityOuterShellObject,
-	const std::vector<std::vector<TopoDS_Face>>& roofList03, 
-	CJT::Kernel* kernel)
-{
-	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	try
-	{
-		std::vector<CJT::GeoObject> geo13 = geoCreator->makeLoD13(internalDataManager_.get(), roofList03, kernel, 1);
-		for (size_t i = 0; i < geo13.size(); i++) { cityOuterShellObject.addGeoObject(geo13[i]); }	
-	}
-	catch (const std::exception&)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD13);
-		succesfullExit_ = 0;
-	}
-	timeLoD13_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	return;
-}
-
-void IOManager::processExternalLod22(
-	CJGeoCreator* geoCreator,
-	CJT::CityObject& cityOuterShellObject,
-	const std::vector<std::vector<TopoDS_Face>>& roofList04,
-	CJT::Kernel* kernel)
-{
-	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	try
-	{
-		std::vector<CJT::GeoObject> geo22 = geoCreator->makeLoD22(internalDataManager_.get(), roofList04, kernel, 1);
-		for (size_t i = 0; i < geo22.size(); i++) { cityOuterShellObject.addGeoObject(geo22[i]); }
-	}
-	catch (const std::exception&)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD22);
-		succesfullExit_ = 0;
-	}
-	timeLoD22_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	return;
-}
-
-void IOManager::processExternalLod30(CJGeoCreator* geoCreator, CJT::CityObject& cityOuterShellObject, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel)
-{
-	auto startTimeGeoCreation = std::chrono::high_resolution_clock::now();
-	try
-	{
-		std::vector<CJT::GeoObject> geo30 = geoCreator->makeLoD30(internalDataManager_.get(), roofList04, kernel, 1);
-		for (size_t i = 0; i < geo30.size(); i++) { cityOuterShellObject.addGeoObject(geo30[i]); }
-	}
-	catch (const std::exception&)
-	{
-		ErrorCollection::getInstance().addError(ErrorID::failedLoD30);
-		succesfullExit_ = 0;
-	}
-	timeLoD30_ = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - startTimeGeoCreation).count();
-	return;
-}
 
 void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT::CityCollection> collection, CJT::CityObject* cityInnerShellObject, CJT::Kernel* kernel)
 {
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingInterior) << std::endl;
+
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	// get storey semantic objects
@@ -728,6 +651,7 @@ void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT
 	{
 		collection->addCityObject(*roomObjects[i].get());
 	}
+	std::cout << "\n";
 	return;
 }
 
@@ -822,13 +746,13 @@ bool IOManager::run()
 
 	// create the actual geometry
 	CJT::Kernel kernel = CJT::Kernel(collection);
-	if (settingsCollection.makeExterior())
-	{
-		processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
-	}
 	if (settingsCollection.makeInterior())
 	{
 		processInteriorLod(&geoCreator, collection, &cityInnerShellObject, &kernel);
+	}
+	if (settingsCollection.makeExterior())
+	{
+		processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
 	}
 	if (false) //TODO: store the site
 	{
@@ -873,6 +797,7 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoD1.2 generation", timeLoD12_);
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);
 	addTimeToJSON(&timeReport, "LoD2.2 generation", timeLoD22_);
+	addTimeToJSON(&timeReport, "LoD3.0 generation", timeLoD30_);
 	addTimeToJSON(&timeReport, "LoD3.2 generation", timeLoD32_);
 	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
 	addTimeToJSON(&timeReport, "Total Processing",
@@ -880,10 +805,13 @@ bool IOManager::write(bool reportOnly)
 		timeVoxel_ +
 		timeLoD00_ +
 		timeLoD02_ +
+		timeLoD03_ +
+		timeLoD04_ +
 		timeLoD10_ +
 		timeLoD12_ +
 		timeLoD13_ +
 		timeLoD22_ +
+		timeLoD30_ +
 		timeLoD32_ +
 		timeV_
 	);

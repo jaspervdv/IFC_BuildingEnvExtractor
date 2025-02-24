@@ -127,6 +127,13 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 3.2 Model";
 	case CommunicationStringID::infoComputingLoD50:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 5.0 Model";
+
+
+	case CommunicationStringID::infoComputingInterior:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing Interior";
+	case CommunicationStringID::infoComputingExterior:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing Exterior";
+
 	case CommunicationStringID::infoComputingLoD50Rooms:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 5.0 Rooms";
 	case CommunicationStringID::infoExtractingSite:

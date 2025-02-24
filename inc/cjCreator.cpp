@@ -58,6 +58,25 @@
 #include <algorithm>
 #include <thread>  
 
+void CJGeoCreator::garbageCollection()
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	//TODO: check if all uses have been exhausted
+	if (!settingsCollection.make13() && !LoD03RoofFaces_.empty())
+	{
+		std::vector< std::vector<TopoDS_Face>>().swap(LoD03RoofFaces_);
+	}
+
+	if (!settingsCollection.make22() && 
+		!settingsCollection.make30() && 
+		!settingsCollection.make31() &&
+		!LoD04RoofFaces_.empty())
+	{
+		std::vector< std::vector<TopoDS_Face>>().swap(LoD04RoofFaces_);
+	}
+}
+
 std::vector<TopoDS_Face> CJGeoCreator::getFootPrintList()
 {
 	std::vector<TopoDS_Face> faceList;
@@ -2230,12 +2249,12 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 	return nestedFaceList;
 }
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod03FaceList, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD03) << std::endl;
 
-	if (lod03FaceList->size() == 0) {  *lod03FaceList = makeRoofFaces(h, kernel, 1, true); }
+	if (LoD03RoofFaces_.size() == 0) {  LoD03RoofFaces_ = makeRoofFaces(h, kernel, 1, true); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -2243,7 +2262,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
-	for (std::vector<TopoDS_Face> faceCluster : *lod03FaceList)
+	for (const std::vector<TopoDS_Face>& faceCluster : LoD03RoofFaces_)
 	{
 		for (TopoDS_Face currentShape : faceCluster)
 		{
@@ -2258,15 +2277,16 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, std::vector
 		}
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectCollection;
 }
 
-std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, std::vector<std::vector<TopoDS_Face>>* lod04FaceList, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD04) << std::endl;
 
-	if (lod04FaceList->size() == 0) { *lod04FaceList = makeRoofFaces(h, kernel, 1, false); }
+	if (LoD04RoofFaces_.size() == 0) { LoD04RoofFaces_ = makeRoofFaces(h, kernel, 1, false); }
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -2274,7 +2294,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, std::vector<
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
-	for (std::vector<TopoDS_Face> faceCluster : *lod04FaceList)
+	for (std::vector<TopoDS_Face> faceCluster : LoD04RoofFaces_)
 	{
 		for (TopoDS_Face currentShape : faceCluster)
 		{
@@ -2289,6 +2309,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, std::vector<
 		}
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectCollection;
 }
 
@@ -2345,7 +2366,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(DataManager* h, CJT::Kernel
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList03, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
@@ -2371,17 +2392,17 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 	std::vector< CJT::GeoObject> geoObjectList;
 	// get the correct top surface
 	std::vector<std::vector<TopoDS_Face>> roofList;
-	if (roofList03.size() == 0) {
+	if (LoD03RoofFaces_.size() == 0) {
 		roofList = makeRoofFaces(h, kernel, 1, true, settingsCollection.footPrintBased());
 	}
 	else if (!settingsCollection.footPrintBased())
 	{
-		roofList = roofList03;
+		roofList = LoD03RoofFaces_;
 	}
 	else {
-		for (size_t i = 0; i < roofList03.size(); i++)
+		for (size_t i = 0; i < LoD03RoofFaces_.size(); i++)
 		{
-			std::vector<TopoDS_Face> splittedFaceList = trimFacesToFootprint(roofList03[i], buildingSurfaceDataList_[i].getFootPrint());
+			std::vector<TopoDS_Face> splittedFaceList = trimFacesToFootprint(LoD03RoofFaces_[i], buildingSurfaceDataList_[i].getFootPrint());
 			roofList.emplace_back(splittedFaceList);
 		}
 	}
@@ -2409,7 +2430,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, const std::
 }
 
 
-std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
@@ -2434,17 +2455,17 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, const std::
 	}
 
 	std::vector<std::vector<TopoDS_Face>> roofList;
-	if (roofList04.size() == 0) {
+	if (LoD04RoofFaces_.size() == 0) {
 		roofList = makeRoofFaces(h, kernel, 1, false, settingsCollection.footPrintBased());
 	}
 	else if (!settingsCollection.footPrintBased())
 	{
-		roofList = roofList04;
+		roofList = LoD04RoofFaces_;
 	}
 	else {
-		for (size_t i = 0; i < roofList04.size(); i++)
+		for (size_t i = 0; i < LoD04RoofFaces_.size(); i++)
 		{
-			std::vector<TopoDS_Face> splittedFaceList = trimFacesToFootprint(roofList04[i], buildingSurfaceDataList_[i].getFootPrint());
+			std::vector<TopoDS_Face> splittedFaceList = trimFacesToFootprint(LoD04RoofFaces_[i], buildingSurfaceDataList_[i].getFootPrint());
 			roofList.emplace_back(splittedFaceList);
 		}
 	}
@@ -2475,7 +2496,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, const std::
 	return geoObjectList;
 }
 
-std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, const std::vector<std::vector<TopoDS_Face>>& roofList04, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD30) << std::endl;
@@ -2496,12 +2517,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, const std::v
 	std::vector<std::vector<TopoDS_Face>> roofList;
 	std::vector<std::vector<TopoDS_Face>> innerRoofList;
 	std::vector<std::vector<TopoDS_Face>> overhangList;
-	if (roofList04.size() == 0) {
+	if (LoD04RoofFaces_.size() == 0) {
 		roofList = makeRoofFaces(h, kernel, 1, false);
 	}
 	else
 	{
-		roofList = roofList04;
+		roofList = LoD04RoofFaces_;
 	}
 
 	for (size_t i = 0; i < roofList.size(); i++)
@@ -2560,6 +2581,11 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, const std::v
 
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	return std::vector<CJT::GeoObject>();
 }
 
 

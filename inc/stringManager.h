@@ -94,6 +94,10 @@ enum class CommunicationStringID {
 	infoComputingLoD30,
 	infoComputingLoD32,
 	infoComputingLoD50,
+
+	infoComputingInterior,
+	infoComputingExterior,
+
 	infoComputingLoD50Rooms,
 	infoExtractingSite,
 	infoPopulateGrid,
