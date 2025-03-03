@@ -387,6 +387,11 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 			setMake30(true);
 			continue;
 		}
+		if (currentLoD == 3.1)
+		{
+			setMake31(true);
+			continue;
+		}
 		if (currentLoD == 3.2)
 		{
 			setMake32(true);

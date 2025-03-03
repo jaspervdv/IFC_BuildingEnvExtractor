@@ -167,8 +167,9 @@ gp_Pnt helperFunctions::rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP,
 
 std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface)
 {
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance(); 
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precision = settingsCollection.precision();
+	int minSurfacePoints = 3; //TODO: move to settingcollection
 
 	Handle(Geom_Surface) surface = BRep_Tool::Surface(theface);
 
@@ -186,15 +187,17 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / settingsCollection.voxelSize()));
 
 	// set num of points if min/max rule is not met
-	if (numUPoints < 2) { numUPoints = 2; }
-	else if (numUPoints > 10) { numUPoints = 10; } // TODO: check if this max setting is smart
-	if (numVPoints < 2) { numVPoints = 2; }
+	if (numUPoints <= minSurfacePoints) { numUPoints = minSurfacePoints; }
+	else if (numUPoints > 10) { numUPoints = 10; }
+	if (numVPoints <= minSurfacePoints) { numVPoints = minSurfacePoints; }
 	else if (numVPoints > 10) { numVPoints = 10; }
 
 	double uStep = (uMax - uMin) / (numUPoints - 1);
 	double vStep = (vMax - vMin) / (numVPoints - 1);
 
 	// create grid
+	int currentStep = 0;
+
 	std::vector<gp_Pnt> gridPointList;
 	for (int i = 0; i < numUPoints; ++i)
 	{
@@ -2105,6 +2108,14 @@ double helperFunctions::getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPl
 		return offset;
 	}
 	return offset + getObjectZOffset(localObjectPlacement, deepOnly);
+}
+
+
+double helperFunctions::computeArea(const TopoDS_Shape& theShape)
+{
+	GProp_GProps gprops;
+	BRepGProp::SurfaceProperties(theShape, gprops);
+	return gprops.Mass();
 }
 
 

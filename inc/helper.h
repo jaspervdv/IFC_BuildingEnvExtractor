@@ -245,6 +245,8 @@ struct helperFunctions{
 
 	/// other code
  
+	/// compute the area of a shape
+	static double computeArea(const TopoDS_Shape& theShape);
 	/// compute the area of a face
 	static double computeArea(const TopoDS_Face& theFace);
 	/// get a nested list represeting the triangulation of an object

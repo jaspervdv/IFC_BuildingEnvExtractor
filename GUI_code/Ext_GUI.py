@@ -20,6 +20,7 @@ class LoDSettings:
         self.lod13 = tkinter.IntVar(value=1)
         self.lod22 = tkinter.IntVar(value=1)
         self.lod30 = tkinter.IntVar(value=0)
+        self.lod31 = tkinter.IntVar(value=0)
         self.lod32 = tkinter.IntVar(value=0)
         self.lod50 = tkinter.IntVar(value=0)
 
@@ -235,6 +236,8 @@ def runCode(input_path,
         json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
     if (lod_settings.lod30.get()):
         lod_list.append(3.0)
+    if (lod_settings.lod31.get()):
+        lod_list.append(3.1)
     if (lod_settings.lod32.get()):
         lod_list.append(3.2)
     if (lod_settings.lod50.get()):
@@ -564,6 +567,11 @@ toggle_makelod30 = ttk.Checkbutton(frame_lod_settings3,
                                    variable=lod_settings.lod30
                                    )
 
+toggle_makelod31 = ttk.Checkbutton(frame_lod_settings3,
+                                   text="LoD3.1",
+                                   variable=lod_settings.lod31
+                                   )
+
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
                                    variable=lod_settings.lod32,
@@ -601,6 +609,7 @@ toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
 toggle_makelod30.pack(side=tkinter.LEFT)
+toggle_makelod31.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 

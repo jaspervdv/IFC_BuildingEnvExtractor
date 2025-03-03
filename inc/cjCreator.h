@@ -61,6 +61,8 @@ private:
 	std::vector<std::vector<TopoDS_Face>> LoD03RoofFaces_;
 	// list collects the faces from the LoD04 creation to base LoD22 output on
 	std::vector<std::vector<TopoDS_Face>> LoD04RoofFaces_;
+	// list collects the lod02 plates per lvl TODO: make grouped
+	std::map<double, std::vector<TopoDS_Face>> LoD02Plates_;
 	// check if the surfaces that are stored can be discarded.
 	void garbageCollection();
 
@@ -190,8 +192,7 @@ private:
 
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
-		bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
-		std::vector<std::shared_ptr<voxel>>* originVoxels,
+		bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>* voxelIndex,
 		const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 	);
 
@@ -201,6 +202,17 @@ private:
 	TopoDS_Shape voxels2Shape(int roomNum);
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);
+
+	// LoD32 ray casting related code
+
+	// get the outer surface by raycasting against exterior voxels
+	void getOuterRaySurfaces(
+		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList, 
+		const std::vector<Value>& valueObjectList,
+		std::mutex& listmutex,
+		DataManager* h,
+		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
+		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex);
 
 	// query result cleaning code
 

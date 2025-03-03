@@ -28,6 +28,7 @@ private:
 	long long timeLoD13_ = 0;
 	long long timeLoD22_ = 0;
 	long long timeLoD30_ = 0;
+	long long timeLoD31_ = 0;
 	long long timeLoD32_ = 0;
 	long long timeV_ = 0;
 

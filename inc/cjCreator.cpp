@@ -75,6 +75,12 @@ void CJGeoCreator::garbageCollection()
 	{
 		std::vector< std::vector<TopoDS_Face>>().swap(LoD04RoofFaces_);
 	}
+
+	if (!settingsCollection.make31() && !LoD02Plates_.empty())
+	{
+		std::map<double, std::vector<TopoDS_Face>>().swap(LoD02Plates_);
+	}
+	return;
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::getFootPrintList()
@@ -1975,7 +1981,6 @@ void CJGeoCreator::make2DStorey(
 	std::string LoDString = "0.2";
 	if (is03) { LoDString = "0.3"; }
 
-
 	double storeyUserBuffer = SettingsCollection::getInstance().horizontalSectionOffset();
 
 	gp_Trsf trsf;
@@ -1996,12 +2001,6 @@ void CJGeoCreator::make2DStorey(
 
 	std::vector<TopoDS_Face> storeySurfaceList;
 	std::vector<TopoDS_Face> storeyExternalSurfaceList;
-
-	std::map<std::string, std::string> semanticExternalStoreyData;
-	std::map<std::string, std::string> semanticStoreyData;
-	semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloor));
-	semanticExternalStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeOuterFloor));
-
 	if (is03)
 	{
 		makeFloorSectionComplex(storeySurfaceList, storeyExternalSurfaceList, h, storeyElevation + storeyUserBuffer, ifcStoreyList);
@@ -2009,6 +2008,9 @@ void CJGeoCreator::make2DStorey(
 	else
 	{
 		makeFloorSection(storeySurfaceList, h, storeyElevation + storeyUserBuffer);
+		std::unique_lock<std::mutex> faceLock(storeyMutex);
+		LoD02Plates_.emplace(storeyElevation, storeySurfaceList);
+		faceLock.unlock();
 	}
 	if (!storeySurfaceList.size())
 	{
@@ -2016,6 +2018,11 @@ void CJGeoCreator::make2DStorey(
 		progressMap[storeyKey] = 2;
 		return;
 	}
+
+	std::map<std::string, std::string> semanticExternalStoreyData;
+	std::map<std::string, std::string> semanticStoreyData;
+	semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloor));
+	semanticExternalStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeOuterFloor));
 
 	double totalArea = 0;
 	trsf.SetTranslationPart(gp_Vec(0, 0, -storeyUserBuffer));
@@ -2585,7 +2592,186 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel*
 
 std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
-	return std::vector<CJT::GeoObject>();
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD31) << std::endl;
+
+	std::vector< CJT::GeoObject> geoObjectList;
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double precision = settingsCollection.precision();
+
+	if (LoD02Plates_.empty())
+	{
+		//TODO: fetch this data from somewhere
+		return{};
+	}
+
+	// get all the height data
+	std::vector<double> heightList;
+	heightList.reserve(LoD02Plates_.size());
+	for (const auto& [height, storeys] : LoD02Plates_)
+	{
+		heightList.emplace_back(height);
+	}
+
+	std::vector<TopoDS_Face> outerShapeFaces;
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> horizontalFaceIndex;
+	double topHeight = h->getUrrPoint().Z();
+	for (size_t i = 0; i < heightList.size(); i++)
+	{
+		double nextHeight = topHeight;
+		double currentHeight = heightList[i];
+		if (i + 1 != heightList.size())
+		{
+			nextHeight = heightList[i + 1];
+		}
+		if (nextHeight < currentHeight)
+		{
+			continue;
+		}
+
+		std::vector<TopoDS_Face> currentStoreyFaceList = LoD02Plates_[currentHeight];
+		std::vector<TopoDS_Face> nextStoreyFaceList = LoD02Plates_[nextHeight];
+
+		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
+		{
+			// get the surface that is compliant with the current storey face and the face of the storey above it
+			if (helperFunctions::computeArea(currentStoryFace) < 1e-4) { continue; }
+
+			TopTools_ListOfShape toolList;
+			for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
+			{
+				toolList.Append(helperFunctions::projectFaceFlat(otherStoryFace, currentHeight));
+			}
+
+			TopTools_ListOfShape argumentList;
+			argumentList.Append(currentStoryFace);
+
+			BRepAlgoAPI_Splitter splitter;
+			splitter.SetFuzzyValue(1e-4);
+			splitter.SetArguments(argumentList);
+			splitter.SetTools(toolList);
+			splitter.Build();
+
+			std::vector<TopoDS_Face> toBeExtrudedFaces;
+			for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
+			{
+				const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+				std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+				if (optionalPoint == std::nullopt) { continue; }
+
+				TopoDS_Vertex currentVertex = BRepBuilderAPI_MakeVertex(*optionalPoint);
+
+				for (const TopoDS_Shape& otherStoryFace : toolList)
+				{
+					BRepExtrema_DistShapeShape distanceTop(otherStoryFace, currentVertex);
+					distanceTop.Perform();
+
+					if (distanceTop.Value() > precision) { continue; }
+					toBeExtrudedFaces.emplace_back(currentFace);
+					break;
+				}
+
+			}
+
+			if (toBeExtrudedFaces.empty())
+			{
+				toBeExtrudedFaces = { currentStoryFace };
+			}
+
+			// extrude the surface and split to filter further
+			for (const TopoDS_Face currentFace : toBeExtrudedFaces)
+			{
+				TopoDS_Solid currentSolid = extrudeFace(currentFace, false, nextHeight);
+				if (currentSolid.IsNull())
+				{
+					//TODO: add error
+					continue;
+				}
+
+				for (TopExp_Explorer explorer(currentSolid, TopAbs_FACE); explorer.More(); explorer.Next())
+				{
+					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+					if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) < settingsCollection.precisionCoarse())
+					{
+						outerShapeFaces.emplace_back(currentFace);
+						continue;
+					}
+					horizontalFaceIndex.insert(std::make_pair(helperFunctions::createBBox(currentFace), currentFace));
+				}
+			}
+		}
+	}
+
+	for (const auto& [boundingBox, horizontalFace] : horizontalFaceIndex)
+	{
+		TopTools_ListOfShape fuseFaces;
+		fuseFaces.Append(horizontalFace);
+
+		std::vector<std::pair<BoostBox3D, TopoDS_Face>> qResult;
+		qResult.clear();
+		horizontalFaceIndex.query(bgi::intersects(
+			boundingBox), std::back_inserter(qResult));
+
+		for (const auto& [otherBoundingBox, otherHorizontalFace] : qResult)
+		{
+			if (horizontalFace.IsEqual(otherHorizontalFace)) { continue; }
+			fuseFaces.Append(otherHorizontalFace);
+		}
+
+		BRepAlgoAPI_Fuse fuser;
+		fuser.SetArguments(fuseFaces);
+		fuser.SetTools(fuseFaces);
+		fuser.SetFuzzyValue(1e-4);
+		fuser.Build();
+
+		for (TopExp_Explorer explorer(fuser.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
+		{
+			const TopoDS_Face& currentSplitFace = TopoDS::Face(explorer.Current());
+			std::optional<gp_Pnt> currentCenterPoint = helperFunctions::getPointOnFace(currentSplitFace);
+
+			if (currentCenterPoint == std::nullopt) { continue; }
+
+			TopoDS_Vertex currentVertex = BRepBuilderAPI_MakeVertex(*currentCenterPoint);
+
+			bool found = false;
+			for (const auto& [otherBoundingBox, otherHorizontalFace] : qResult)
+			{
+				if (horizontalFace.IsEqual(otherHorizontalFace)) { continue; }
+				BRepExtrema_DistShapeShape distanceTop(otherHorizontalFace, currentVertex);
+				distanceTop.Perform();
+
+				if (distanceTop.Value() <= precision)
+				{
+					found = true;
+					break;
+				}
+			}
+
+			if (!found)
+			{
+				outerShapeFaces.emplace_back(currentSplitFace);
+			}
+		}
+	}
+
+	gp_Trsf trsf;
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+	BRepBuilderAPI_Sewing brepSewer;
+	for (const TopoDS_Face face : outerShapeFaces) {
+		brepSewer.Add(face.Moved(trsf));
+	}
+	brepSewer.Perform();
+	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+
+
+	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "3.1");
+	createSemanticData(&geoObject, simplefiedShape);
+	geoObjectList.emplace_back(geoObject);
+
+	printTime(startTime, std::chrono::steady_clock::now());
+	return geoObjectList;
 }
 
 
@@ -2595,44 +2781,28 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	auto startTime = std::chrono::steady_clock::now();
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	double buffer = 1 * settingsCollection.voxelSize(); // set the distance from the bb of the evaluated object
 	int maxCastAttempts = 100; // set the maximal amout of cast attempts before the surface is considered interior
-	std::vector<std::shared_ptr<voxel>> targetVoxels; // voxels from which ray cast processing can be executed, 100% sure exterior voxels
-	bgi::rtree<Value, bgi::rstar<25>> voxelIndex;
+	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>> voxelIndex;
 
 	// collect and index the voxels to which rays are cast
 	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
-	populateVoxelIndex(&voxelIndex, &targetVoxels, intersectingVoxels);
+	populateVoxelIndex(&voxelIndex, intersectingVoxels);
 
 	// collect and index the products which are presumed to be part of the exterior
 	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
-	bgi::rtree<Value, bgi::rstar<25>> exteriorProductIndex;
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIndx;
 	if (productLookupValues.size() <= 0)
 	{
 		throw ErrorID::failedLoD32;
 		return{};
 	}
 
+	std::vector<int> scoreList;
+	int totalScore = 0;
+	std::vector<Value> cleanedProductLookupValues;
 	for (size_t i = 0; i < productLookupValues.size(); i++)
-	{
-		exteriorProductIndex.insert(productLookupValues[i]);
-	}
-
-	// make the collection compund shape
-	BRep_Builder builder;
-	TopoDS_Compound collectionShape;
-	builder.MakeCompound(collectionShape);
-
-	// set up data for the conversion to json
-	std::vector<int> typeValueList;
-
-	gp_Trsf localRotationTrsf;
-	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-	// evaluate which surfaces are visible
-	std::vector<TopoDS_Face> outerSurfaceList;
-	for (size_t i = 0; i < productLookupValues.size(); i++) //TODO: multithread?
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
@@ -2642,169 +2812,145 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
 			else { continue; }
 		}
-		else { currentShape = h->getObjectShape(lookup->getProductPtr(), true); }
+		else { currentShape = lookup->getProductShape(); }
+
+		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, 1 * settingsCollection.voxelSize()); //TODO: add buffer
+		int score = std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend());
+		if (score == 0) { continue; }
+		
+		totalScore += score;
+		scoreList.emplace_back(score);
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
-
-			bool faceIsExterior = false;
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-			//Create a grid over the surface and the offsetted wire
-			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
-			std::vector<gp_Pnt> wireGridList; // = helperFunctions::getPointGridOnWire(currentFace);
-			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
-			// cast a line from the grid to surrounding voxels
-			for (const gp_Pnt& gridPoint : surfaceGridList)
+			BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
+			faceIndx.insert(std::make_pair(currentBox, currentFace));
+		}
+		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
+	}
+	std::vector<Value>().swap(productLookupValues);
+	// evaluate which surfaces are visible
+	std::vector<std::pair<TopoDS_Face, std::string>> outerSurfacePairList;
+
+	// split the range over cores
+	int coreUse = SettingsCollection::getInstance().threadcount();
+	if (coreUse > cleanedProductLookupValues.size())
+	{
+		while (coreUse > cleanedProductLookupValues.size()) { coreUse /= 2; }
+	}
+	double targetScore = totalScore / coreUse;
+
+	std::vector<std::thread> threadList;
+	std::mutex listMutex;
+
+	int beginIndx = 0;
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		if (beginIndx >= scoreList.size())
+		{
+			break;
+		}
+
+		int endList = scoreList.size() - 1;
+		double currentScore = 0;
+		if (i != coreUse - 1)
+		{
+			for (size_t j = beginIndx; j < scoreList.size(); j++)
 			{
-				bg::model::box<BoostPoint3D> pointQuerybox(
-					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer },
-					{ gridPoint.X() + buffer, gridPoint.Y() + buffer, gridPoint.Z() + buffer }
-				);
-				std::vector<Value> pointQResult;
-				voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
-
-				//check if ray castline cleared
-				for (const Value& voxelValue : pointQResult)
+				currentScore += scoreList[j];
+				if (targetScore <= currentScore)
 				{
-					bool clearLine = true;
-
-					std::shared_ptr<voxel> targetVoxel = targetVoxels[voxelValue.second];
-
-					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()));
-					std::vector<Value> productQResult;
-					exteriorProductIndex.query(bgi::intersects(productQuerybox), std::back_inserter(productQResult));
-
-					for (const Value& productValue : productQResult)
-					{
-
-						// get the potential faces
-						TopoDS_Shape otherShape;
-
-						std::shared_ptr<IfcProductSpatialData> otherLookup = h->getLookup(productValue.second);
-						std::string otherLookupType = otherLookup->getProductPtr()->data().type()->name();
-
-						if (otherLookupType == "IfcDoor" || otherLookupType == "IfcWindow")
-						{
-							if (otherLookup->hasSimpleShape()) { otherShape = otherLookup->getSimpleShape(); }
-							else { continue; }
-						}
-						else { otherShape = h->getObjectShape(otherLookup->getProductPtr(), true); }
-
-						for (TopExp_Explorer otherExplorer(otherShape, TopAbs_FACE); otherExplorer.More(); otherExplorer.Next())
-						{
-
-							//test for linear intersections (get function from helper class)
-							const TopoDS_Face& otherFace = TopoDS::Face(otherExplorer.Current());
-							TopLoc_Location loc;
-							auto mesh = BRep_Tool::Triangulation(otherFace, loc);
-
-							if (currentFace.IsEqual(otherFace)) { continue; }
-
-							if (mesh.IsNull()) { 
-								//TODO: add error
-								continue; }
-
-							for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: find out if there is use to keep the opencascade structure
-							{
-								const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
-								std::vector<gp_Pnt> trianglePoints{
-									mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
-									mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
-									mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
-								};
-
-								if (helperFunctions::triangleIntersecting({ gridPoint, targetVoxel->getOCCTCenterPoint() }, trianglePoints))
-								{
-									clearLine = false;
-									break;
-								}
-							}
-							if (!clearLine) { break; }
-						}
-						if (!clearLine) { break; }
-					}
-					if (clearLine)
-					{
-						faceIsExterior = true;
-						break;
-					}
-				}
-				if (faceIsExterior)
-				{
+					endList = j;
 					break;
 				}
 			}
-			if (!faceIsExterior) { continue; }
+		}
 
-			//store the plane representing the surface
-			outerSurfaceList.emplace_back(currentFace);
+		auto startIdx = cleanedProductLookupValues.begin() + beginIndx;
+		auto endIdx = cleanedProductLookupValues.begin() + endList + 1;
+		beginIndx = endList + 1;
 
-			// add the face to the compound
-			TopoDS_Face currentFaceCopy = currentFace;
+		std::vector<Value> sublist(startIdx, endIdx);
+		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &listMutex, &h, &faceIndx, &voxelIndex]() {
+			getOuterRaySurfaces(outerSurfacePairList, sublist, listMutex, h, faceIndx, voxelIndex);
+			});
+	}
 
-			currentFaceCopy.Move(localRotationTrsf);
-			builder.Add(collectionShape, currentFaceCopy);
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
+	}
+	std::vector<int>().swap(scoreList);
 
-			// add the semantic data to the map
-			if (lookupType == "IfcRoof")
+	// make the collection compund shape
+	BRep_Builder builder;
+	TopoDS_Compound collectionShape;
+	builder.MakeCompound(collectionShape);
+	std::vector<int> typeValueList;
+	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : outerSurfacePairList)
+	{
+		const std::string& lookupType = currentFacePair.second;
+		const TopoDS_Face& currentFace = currentFacePair.first;
+		if (lookupType == "IfcRoof")
+		{
+			typeValueList.emplace_back(2);
+		}
+		if (lookupType == "IfcSlab")
+		{
+			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
+			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);
+
+			if (pointOnface == std::nullopt)
 			{
+				typeValueList.emplace_back(1);
+				continue;
+			}
+
+			if (pointOnface->Z() < settingsCollection.footprintElevation() && abs(vecOfFace.Z()) > 0.1)
+			{
+				//TODO: do a raycast straight downwards
+
+				typeValueList.emplace_back(0);
+			}
+			else if (pointOnface->Z() < settingsCollection.footprintElevation())
+			{
+				typeValueList.emplace_back(1);
+			}
+			else if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) > 0.1)
+			{
+				//TODO: do a raycast straight upwards
+
 				typeValueList.emplace_back(2);
-			}
-			if (lookupType == "IfcSlab")
-			{
-				std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFaceCopy);
-				gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFaceCopy);
-
-				if (pointOnface == std::nullopt)
-				{
-					typeValueList.emplace_back(1);
-					std::cout << "out" << std::endl;
-					continue;
-				}
-
-				if (pointOnface->Z() < settingsCollection.footprintElevation() && abs(vecOfFace.Z()) > 0.1)
-				{
-					//TODO: do a raycast straight downwards
-
-					typeValueList.emplace_back(0);
-				}
-				else if (pointOnface->Z() < settingsCollection.footprintElevation())
-				{
-					typeValueList.emplace_back(1);
-				}
-				else if (abs(helperFunctions::computeFaceNormal(currentFaceCopy).Z()) > 0.1)
-				{
-					//TODO: do a raycast straight upwards
-
-					typeValueList.emplace_back(2);
-				}
-				else
-				{
-					typeValueList.emplace_back(1);
-				}
-			}
-			else if (lookupType == "IfcWindow")
-			{
-				typeValueList.emplace_back(3);
-			}
-			else if (lookupType == "IfcDoor")
-			{
-				typeValueList.emplace_back(4);
 			}
 			else
 			{
 				typeValueList.emplace_back(1);
 			}
 		}
+		else if (lookupType == "IfcWindow")
+		{
+			typeValueList.emplace_back(3);
+		}
+		else if (lookupType == "IfcDoor")
+		{
+			typeValueList.emplace_back(4);
+		}
+		else
+		{
+			typeValueList.emplace_back(1);
+		}
+
+		builder.Add(collectionShape, currentFace);
 	}
+
 
 	if (false)
 	{
 		std::vector<Handle(Geom_Plane)> uniqueOuterPlanes;
-		for (size_t i = 0; i < outerSurfaceList.size(); i++)
+		for (const auto& [currentFace, ifcType] : outerSurfacePairList)
 		{
 			bool dub = false;
-			TopoDS_Face currentFace = outerSurfaceList[i];
 			Handle(Geom_Surface) geomSurface = BRep_Tool::Surface(currentFace);
 			if (geomSurface.IsNull()) { continue; }
 			Handle(Geom_Plane) currentGeoPlane = Handle(Geom_Plane)::DownCast(geomSurface);
@@ -2895,8 +3041,10 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			}
 		}
 	}
-	
 
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+	collectionShape.Move(localRotationTrsf);
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
@@ -3361,6 +3509,115 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vect
 	return;
 }
 
+void CJGeoCreator::getOuterRaySurfaces(
+	std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList,
+	const std::vector<Value>& valueObjectList,
+	std::mutex& listmutex,
+	DataManager* h,
+	const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
+	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>&voxelIndex
+)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double buffer = 1 * settingsCollection.voxelSize(); // set the distance from the bb of the evaluated object
+	for (const Value& currentValue : valueObjectList)
+	{
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue.second);
+		std::string lookupType = lookup->getProductPtr()->data().type()->name();
+		TopoDS_Shape currentShape;
+		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
+		{
+			if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
+			else { continue; }
+		}
+		else { currentShape = lookup->getProductShape(); }
+		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
+		{
+			bool faceIsExterior = false;
+			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+			if (helperFunctions::getPointCount(currentFace) < 3) { continue; }
+
+			//Create a grid over the surface and the offsetted wire
+			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
+			std::vector<gp_Pnt> wireGridList;// = helperFunctions::getPointGridOnWire(currentFace);
+			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
+
+			// cast a line from the grid to surrounding voxels
+			for (const gp_Pnt& gridPoint : surfaceGridList)
+			{
+				
+				bg::model::box<BoostPoint3D> pointQuerybox(
+					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer },
+					{ gridPoint.X() + buffer, gridPoint.Y() + buffer, gridPoint.Z() + buffer }
+				);
+
+				std::vector<std::pair<BoostBox3D, std::shared_ptr<voxel>>> pointQResult;
+				voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
+				//check if ray castline cleared
+				for (const auto& [voxelBBox, targetVoxel] : pointQResult)
+				{
+					bool clearLine = true;
+					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()));
+					std::vector<std::pair<BoostBox3D, TopoDS_Face>>faceQResult;
+					faceIdx.query(bgi::intersects(productQuerybox), std::back_inserter(faceQResult));
+
+					for (const std::pair<BoostBox3D, TopoDS_Face>& facePair : faceQResult)
+					{
+						// get the potential faces
+						TopoDS_Shape otherShape;
+
+						const TopoDS_Face& otherFace = facePair.second;
+						if (currentFace.IsEqual(otherFace)) { continue; }
+
+						//test for linear intersections
+						TopLoc_Location loc;
+						auto mesh = BRep_Tool::Triangulation(otherFace, loc);
+
+						if (mesh.IsNull()) {
+							//TODO: add error
+							continue;
+						}
+
+						for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
+						{
+							const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+							std::vector<gp_Pnt> trianglePoints{
+								mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+								mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+								mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+							};
+
+							if (helperFunctions::triangleIntersecting({ gridPoint, targetVoxel->getOCCTCenterPoint() }, trianglePoints))
+							{
+								clearLine = false;
+								break;
+							}
+						}
+						if (!clearLine) { break; }
+					}
+					if (clearLine)
+					{
+						faceIsExterior = true;
+						break;
+					}
+				}
+				if (faceIsExterior)
+				{
+					break;
+				}
+			}
+			if (!faceIsExterior) { continue; }
+
+			//store the plane representing the surface
+			std::unique_lock<std::mutex> listLock(listmutex);
+			outerSurfacePairList.emplace_back(std::make_pair(currentFace, lookupType));
+			listLock.unlock();
+		}
+	}
+	return;
+}
+
 void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, DataManager* h, double footprintHeight, double geoRot)
 {
 	voxelGrid_->computeSurfaceSemantics(h);
@@ -3514,8 +3771,7 @@ std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(D
 
 
 void CJGeoCreator::populateVoxelIndex(
-	bgi::rtree<Value, bgi::rstar<25>>* voxelIndex, 
-	std::vector<std::shared_ptr<voxel>>* originVoxels,
+	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>* voxelIndex,
 	const std::vector<std::shared_ptr<voxel>> exteriorVoxels
 )
 {
@@ -3536,10 +3792,10 @@ void CJGeoCreator::populateVoxelIndex(
 
 			bg::model::box <BoostPoint3D> box = bg::model::box < BoostPoint3D >(boostlllPoint, boosturrPoint);
 
-			voxelIndex->insert(std::make_pair(box, (int)originVoxels->size()));
-			originVoxels->emplace_back(currentBoxel);
+			voxelIndex->insert(std::make_pair(box, currentBoxel));
 		}
 	}
+	return;
 }
 
 

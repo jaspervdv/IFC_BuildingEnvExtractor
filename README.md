@@ -24,6 +24,7 @@ Current possible output shells:
 * LoD1.3 - exterior only
 * LoD2.2 - exterior and rooms
 * LoD3.0 - exterior (WIP) (hybrid between TUD 2.3 and 3.0)
+* LoD3.1 - exterior (WIP) (extruded LoD0.2 surfaces)
 * LoD3.2 - exterior and rooms (WIP)
 * LoD5.0 - exterior and interior rooms
 

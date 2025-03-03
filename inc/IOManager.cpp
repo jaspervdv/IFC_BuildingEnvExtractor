@@ -252,6 +252,7 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
 	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
 	if (settingsCollection.make30()) { summaryString += ", 3.0"; }
+	if (settingsCollection.make31()) { summaryString += ", 3.1"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
 
@@ -524,13 +525,13 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD03(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD03_);
 	}
 	if (settingsCollection.make04())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD04(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD04_);
 	}
 	if (settingsCollection.make10())
 	{
@@ -548,25 +549,25 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD13(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD13_);
 	}
 	if (settingsCollection.make22())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD22_);
 	}
 	if (settingsCollection.make30())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD30(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD30_);
 	}
 	if (settingsCollection.make31())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD31(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD12_);
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD31_);
 	}
 	if (settingsCollection.make32())
 	{
@@ -798,6 +799,7 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);
 	addTimeToJSON(&timeReport, "LoD2.2 generation", timeLoD22_);
 	addTimeToJSON(&timeReport, "LoD3.0 generation", timeLoD30_);
+	addTimeToJSON(&timeReport, "LoD3.1 generation", timeLoD31_);
 	addTimeToJSON(&timeReport, "LoD3.2 generation", timeLoD32_);
 	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
 	addTimeToJSON(&timeReport, "Total Processing",
@@ -812,6 +814,7 @@ bool IOManager::write(bool reportOnly)
 		timeLoD13_ +
 		timeLoD22_ +
 		timeLoD30_ +
+		timeLoD31_ +
 		timeLoD32_ +
 		timeV_
 	);
