@@ -856,9 +856,9 @@ void SettingsCollection::setThreadcount(const nlohmann::json& json)
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + threadMaxOName);
 		}
 	}
-	else // if entry not found set to max availble - 2
+	else // if entry not found set to value
 	{
-		int availableThreads = std::thread::hardware_concurrency();
+		int availableThreads = std::thread::hardware_concurrency() * 3;
 		if (availableThreads - 2 > 0) { setThreadcount(availableThreads - 2); }
 		else { setThreadcount(availableThreads); }
 	}

@@ -2799,6 +2799,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		return{};
 	}
 
+	double searchBuffer = settingsCollection.searchBufferLod32();
+
 	std::vector<int> scoreList;
 	int totalScore = 0;
 	std::vector<Value> cleanedProductLookupValues;
@@ -2814,7 +2816,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 		else { currentShape = lookup->getProductShape(); }
 
-		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, 1 * settingsCollection.voxelSize()); //TODO: add buffer
+		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer); //TODO: add buffer
 		int score = std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend());
 		if (score == 0) { continue; }
 		
@@ -2838,12 +2840,14 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	{
 		while (coreUse > cleanedProductLookupValues.size()) { coreUse /= 2; }
 	}
+	coreUse -= 1;
 	double targetScore = totalScore / coreUse;
 
 	std::vector<std::thread> threadList;
 	std::mutex listMutex;
 
 	int beginIndx = 0;
+	int processedObjects = 0;
 	for (size_t i = 0; i < coreUse; i++)
 	{
 		if (beginIndx >= scoreList.size())
@@ -2871,10 +2875,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		beginIndx = endList + 1;
 
 		std::vector<Value> sublist(startIdx, endIdx);
-		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &listMutex, &h, &faceIndx, &voxelIndex]() {
-			getOuterRaySurfaces(outerSurfacePairList, sublist, listMutex, h, faceIndx, voxelIndex);
+		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &processedObjects, &listMutex, &h, &faceIndx, &voxelIndex]() {
+			getOuterRaySurfaces(outerSurfacePairList, sublist, processedObjects, listMutex, h, faceIndx, voxelIndex);
 			});
 	}
+	threadList.emplace_back([&] {monitorRayCasting(cleanedProductLookupValues.size(), processedObjects, listMutex);  });
 
 	for (auto& thread : threadList) {
 		if (thread.joinable()) {
@@ -2882,6 +2887,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 	}
 	std::vector<int>().swap(scoreList);
+	std::vector<std::thread>().swap(threadList);
 
 	// make the collection compund shape
 	BRep_Builder builder;
@@ -3511,7 +3517,8 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vect
 
 void CJGeoCreator::getOuterRaySurfaces(
 	std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList,
-	const std::vector<Value>& valueObjectList,
+	const std::vector<Value>& valueObjectList, 
+	int& processedObject,
 	std::mutex& listmutex,
 	DataManager* h,
 	const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
@@ -3519,9 +3526,10 @@ void CJGeoCreator::getOuterRaySurfaces(
 )
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	double buffer = 1 * settingsCollection.voxelSize(); // set the distance from the bb of the evaluated object
+	double searchBuffer = settingsCollection.searchBufferLod32();
 	for (const Value& currentValue : valueObjectList)
 	{
+		processedObject++;
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue.second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
 		TopoDS_Shape currentShape;
@@ -3547,8 +3555,8 @@ void CJGeoCreator::getOuterRaySurfaces(
 			{
 				
 				bg::model::box<BoostPoint3D> pointQuerybox(
-					{ gridPoint.X() - buffer, gridPoint.Y() - buffer, gridPoint.Z() - buffer },
-					{ gridPoint.X() + buffer, gridPoint.Y() + buffer, gridPoint.Z() + buffer }
+					{ gridPoint.X() - searchBuffer, gridPoint.Y() - searchBuffer, gridPoint.Z() - searchBuffer },
+					{ gridPoint.X() + searchBuffer, gridPoint.Y() + searchBuffer, gridPoint.Z() + searchBuffer }
 				);
 
 				std::vector<std::pair<BoostBox3D, std::shared_ptr<voxel>>> pointQResult;
@@ -3564,8 +3572,6 @@ void CJGeoCreator::getOuterRaySurfaces(
 					for (const std::pair<BoostBox3D, TopoDS_Face>& facePair : faceQResult)
 					{
 						// get the potential faces
-						TopoDS_Shape otherShape;
-
 						const TopoDS_Face& otherFace = facePair.second;
 						if (currentFace.IsEqual(otherFace)) { continue; }
 
@@ -3615,6 +3621,38 @@ void CJGeoCreator::getOuterRaySurfaces(
 			listLock.unlock();
 		}
 	}
+	return;
+}
+
+
+void CJGeoCreator::monitorRayCasting(
+	int totalObjects,
+	int& processedObject,
+	std::mutex& listmutex
+)
+{
+	bool running = true;
+	while (running)
+	{
+		std::unique_lock<std::mutex> listlock(listmutex);
+		int currentObjectCount = processedObject;
+		listlock.unlock();
+
+		std::cout
+			<< "\tTotal objects: " << totalObjects
+			<< "; Processed objects: " << currentObjectCount << "      \r";
+
+		if (currentObjectCount == totalObjects)
+		{
+			break;
+		}
+
+		if (running)
+		{
+			std::this_thread::sleep_for(std::chrono::seconds(1));
+		}
+	}
+	std::cout << "\n";
 	return;
 }
 

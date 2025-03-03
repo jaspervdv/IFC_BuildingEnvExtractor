@@ -76,6 +76,7 @@ private:
     double precision_ = 1e-6;
     double precisionCoarse_ = 1e-4;
     double maxProxyPercentage_ = 0.3;
+    double searchBufferLoD32_ = 1.5 * voxelSize_;
 
 	// \/ generated settings \/
 	// if LoD0.0 and 1.0 is generated only no voxels are required
@@ -101,8 +102,6 @@ private:
 
     // set of the LoD abstractions that could include the iteriors (read only!)
     std::unordered_set<double> LoDWInterior_ = { 0.2, 1.2, 2.2, 3.2, 5.0 };
-
-
 
     // \/ stats \/
     // how many proxy objects are present in the input
@@ -292,6 +291,9 @@ public:
 
     double maxProxyPercentage() const { return maxProxyPercentage_; }
     void setMaxProxyPercentage(double value) { maxProxyPercentage_ = value; }
+
+    double searchBufferLod32() const { return searchBufferLoD32_; }
+    void setSearchBufferLoD32(double value) { searchBufferLoD32_ = value; }
 
     int threadcount() const { return threadcount_; }
     void setThreadcount(int value) { threadcount_ = value; }

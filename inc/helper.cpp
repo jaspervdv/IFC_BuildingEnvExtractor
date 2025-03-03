@@ -910,9 +910,9 @@ bool helperFunctions::faceFaceOverlapping(const TopoDS_Face& upperFace, const To
 }
 
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
-	gp_Pnt vert0 = vertices[0];
-	gp_Pnt vert1 = vertices[1];
-	gp_Pnt vert2 = vertices[2];
+	const gp_Pnt& vert0 = vertices[0];
+	const gp_Pnt& vert1 = vertices[1];
+	const gp_Pnt& vert2 = vertices[2];
 
 	BoostPoint3D p1(vert0.X() - vert1.X(), vert0.Y() - vert1.Y(), vert0.Z() - vert1.Z());
 	BoostPoint3D p2(vert1.X() - p.X(), vert1.Y() - p.Y(), vert1.Z() - p.Z());

@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD033 -->
 <!-- markdownlint-disable MD034 -->
 
-The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. The converter can create CityJSON models with overhang (LoD3.0, 3.2 and voxelized shapes) and interior spaces and/or storeys (LoD0.2, 0.3, 1.2, 2.2, 3.2 and voxelized shapes).
+The IfcEnvelopeExtractor enables users to automatically extract the building shell of an IFC-model and convert it to a CityJSON model. Automating this process allows designs to be quickly and easily analyzed on a city scale without the need for lengthy manual conversions. The converter can create CityJSON models with overhang (LoD3.0, 3.2 and voxelized shapes) and interior spaces and/or storeys (LoD0.2, 0.3, 1.2, 2.2, 3.0, 3.1, 3.2, and voxelized shapes).
 
 The development of this conversion process is one of the steps required to close the gap between architecture/BIM and  GIS/city scale models.
 
@@ -392,7 +392,7 @@ Optional:
 * :ballot_box_with_check: "Threads" :ballot_box_with_check:
   * Integer (>0)
   * Sets the maximum allowed threads to be used.
-  * Default value = hardware_concurrency - 2 according to std::threads
+  * Default value = hardware_concurrency (according to std::threads) * 3 - 2 
 
 More options will be added in the future.
 

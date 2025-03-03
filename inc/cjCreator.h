@@ -209,10 +209,18 @@ private:
 	void getOuterRaySurfaces(
 		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList, 
 		const std::vector<Value>& valueObjectList,
+		int& processedObject,
 		std::mutex& listmutex,
 		DataManager* h,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex);
+
+	/// monitor the progress of the getouterraysurfaces code
+	void CJGeoCreator::monitorRayCasting(
+		int totalObjects,
+		int& processedObject,
+		std::mutex& listmutex
+	);
 
 	// query result cleaning code
 
