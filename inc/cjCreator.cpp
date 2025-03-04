@@ -2902,7 +2902,15 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		{
 			typeValueList.emplace_back(2);
 		}
-		if (lookupType == "IfcSlab")
+		else if (lookupType == "IfcWindow")
+		{
+			typeValueList.emplace_back(3);
+		}
+		else if (lookupType == "IfcDoor")
+		{
+			typeValueList.emplace_back(4);
+		}
+		else if (lookupType == "IfcSlab")
 		{
 			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
 			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);
@@ -2933,14 +2941,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			{
 				typeValueList.emplace_back(1);
 			}
-		}
-		else if (lookupType == "IfcWindow")
-		{
-			typeValueList.emplace_back(3);
-		}
-		else if (lookupType == "IfcDoor")
-		{
-			typeValueList.emplace_back(4);
 		}
 		else
 		{
@@ -3539,6 +3539,42 @@ void CJGeoCreator::getOuterRaySurfaces(
 			else { continue; }
 		}
 		else { currentShape = lookup->getProductShape(); }
+		
+		if (lookupType == "IfcPlate") 
+		{
+			IfcSchema::IfcProduct* plateProduct = lookup->getProductPtr();
+			IfcSchema::IfcRelAssociates::list::ptr test = plateProduct->HasAssociations();
+			for (IfcSchema::IfcRelAssociates::list::it it = test->begin(); it != test->end(); ++it)
+			{
+				IfcSchema::IfcRelAssociates* IfcRelAssociates = *it;
+				if (IfcRelAssociates->data().type()->name() != "IfcRelAssociatesMaterial")
+				{
+					continue;
+				}
+
+				IfcSchema::IfcRelAssociatesMaterial* MaterialAss = IfcRelAssociates->as<IfcSchema::IfcRelAssociatesMaterial>();
+				if (MaterialAss->data().type()->name() != "IfcRelAssociatesMaterial")
+				{
+					continue;
+				}
+
+				IfcSchema::IfcMaterialSelect* relMaterial = MaterialAss->RelatingMaterial();
+				if (relMaterial->data().type()->name() != "IfcMaterial")
+				{
+					continue;
+				}
+
+				IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
+				if (ifcMaterial->Name().find("Glass") != std::string::npos)
+				{
+					lookupType = "IfcWindow";
+					break;
+				}
+
+				//TODO: add backup when no glass is used in the name
+			}
+		}
+
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			bool faceIsExterior = false;
