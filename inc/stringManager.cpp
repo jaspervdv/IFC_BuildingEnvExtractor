@@ -366,6 +366,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "No footprint surface has been found";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
+	case ErrorID::warningSimplefication: {
+		const std::string coms = "Simple geometry is used, this can cause issues with semantic voxelization results (windows and doors)";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
 	case ErrorID::warningInputIncFootprintElev: {
 		const std::string coms = "Footprint elevation falls outside of the bounds of the model, lower bounds z value is used";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
@@ -510,8 +514,12 @@ std::string CJObjectEnum::getString(CJObjectID id)
 		return "Window";
 	case CJObjectID::CJTypeDoor:
 		return "Door";
+	case CJObjectID::CJTypeNone:
+		return "None";
 	case CJObjectID::CJTTypeCeilingSurface:
 		return "CeilingSurface";
+	case CJObjectID::CJTTypeOuterCeilingSurface:
+		return "OuterCeilingSurface";
 	case CJObjectID::CJAttHasWindow:
 		return "+hasWindows";
 

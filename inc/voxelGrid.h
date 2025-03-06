@@ -82,6 +82,8 @@ private:
 	/// inverts the dirInx for neighbourSearching
 	static int invertDir(int dirIndx);
 
+	void setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxel, int dirIndx, const std::vector<Value>& intersectingValues);
+
 public:
 	VoxelGrid(DataManager* h);
 
@@ -112,7 +114,7 @@ public:
 	int getRoomSize() { return roomSize_; }
 	double getRoomArea(int roomNum);
 
-	std::vector<std::vector<TopoDS_Edge>> getDirectionalFaces(int dirIndx, double angle, int roomNum);
+	std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> getDirectionalFaces(int dirIndx, double angle, int roomNum);
 
 	gp_Pnt getPointInRoom(int roomNum);
 

@@ -241,6 +241,8 @@ struct helperFunctions{
 	static std::vector<nlohmann::json> collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile);
 	/// get the z value stored in the IfcObjectPlacement 
 	static double getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPlacement, bool deepOnly);
+	/// evaluates if product has glass material related to it
+	static bool hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct);
 
 
 	/// other code

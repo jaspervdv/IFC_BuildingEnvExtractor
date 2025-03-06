@@ -1,5 +1,6 @@
 #include "helper.h"
 #include "DataManager.h"
+#include "stringManager.h"
 
 #include <gp_Pnt.hxx>
 
@@ -8,18 +9,23 @@
 
 class voxelFace {
 private:
-	bool isWall_ = true;
-	bool isWindow_ = false;
-	bool isRoof_ = false;
+	CJObjectID voxelType_ = CJObjectID::CJTypeNone;
 
 public:
+	void setIsDoor();
 	void setIsWall();
 	void setIsWindow();
 	void setIsRoof();
+	void setIsExternalCeiling();
+	void setIsGround();
 
-	bool isWall() { return isWall_; }
-	bool isWindow() { return isWindow_; }
-	bool isRoof() { return isRoof_; }
+	bool isDoor();
+	bool isWall();
+	bool isWindow();
+	bool isRoof();
+	bool isGround();
+
+	CJObjectID getType();
 };
 
 
@@ -150,10 +156,18 @@ public:
 
 	/// set voxel face to roof
 	void addRoofSemantic(int indx);
+	/// set voxel face to outer ceiling
+	void addOuterCeilingSemantic(int indx);
+	/// set voxel face to wall
+	void addWallSemantic(int indx);
 	/// set voxel face to window
 	void addWindowSemantic(int indx);
+	/// set voxel face to door
+	void addDoorSemantic(int indx);
+	/// set voxel face to ground
+	void addGroundSemantic(int indx);
 
-	/// check if voxel has face with window semantic flag
-	bool hasWindow(int dirNum = -1);
+	/// return the type of the voxel face
+	CJObjectID faceType(int dirNum);
 };
 #endif // VOXEL_VOXEL_H

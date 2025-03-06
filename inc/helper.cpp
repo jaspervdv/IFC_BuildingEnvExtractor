@@ -2110,6 +2110,42 @@ double helperFunctions::getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPl
 	return offset + getObjectZOffset(localObjectPlacement, deepOnly);
 }
 
+bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
+{
+	IfcSchema::IfcRelAssociates::list::ptr associations = ifcProduct->HasAssociations();
+	for (IfcSchema::IfcRelAssociates::list::it it = associations->begin(); it != associations->end(); ++it)
+	{
+		IfcSchema::IfcRelAssociates* IfcRelAssociates = *it;
+		if (IfcRelAssociates->data().type()->name() != "IfcRelAssociatesMaterial")
+		{
+			continue;
+		}
+
+		IfcSchema::IfcRelAssociatesMaterial* MaterialAss = IfcRelAssociates->as<IfcSchema::IfcRelAssociatesMaterial>();
+		if (MaterialAss->data().type()->name() != "IfcRelAssociatesMaterial")
+		{
+			continue;
+		}
+
+		IfcSchema::IfcMaterialSelect* relMaterial = MaterialAss->RelatingMaterial();
+		if (relMaterial->data().type()->name() != "IfcMaterial")
+		{
+			continue;
+		}
+
+		IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
+		std::string materialName = boost::to_upper_copy(ifcMaterial->Name());
+
+		if (materialName.find("GLASS") != std::string::npos)
+		{
+			return true;
+		}		std::cout << ifcMaterial->Name() << std::endl;
+
+		//TODO: add backup when no glass is used in the name
+	}
+	return false;
+}
+
 
 double helperFunctions::computeArea(const TopoDS_Shape& theShape)
 {

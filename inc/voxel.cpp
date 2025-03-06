@@ -436,6 +436,36 @@ void voxel::addRoofSemantic(int indx)
 	return;
 }
 
+void voxel::addOuterCeilingSemantic(int indx)
+{
+	if (faceMap_.count(indx))
+	{
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsExternalCeiling();
+		faceMap_[indx] = currentFace;
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsExternalCeiling();
+	faceMap_[indx] = newFace;
+	return;
+}
+
+void voxel::addWallSemantic(int indx)
+{
+	if (faceMap_.count(indx))
+	{
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsWall();
+		faceMap_[indx] = currentFace;
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsWall();
+	faceMap_[indx] = newFace;
+	return;
+}
+
 void voxel::addWindowSemantic(int indx)
 {
 	if (faceMap_.count(indx))
@@ -451,50 +481,129 @@ void voxel::addWindowSemantic(int indx)
 	return;
 }
 
-bool voxel::hasWindow(int dirNum)
+void voxel::addDoorSemantic(int indx)
 {
-	if (faceMap_.size() == 0) { return false; }
-
-	if (dirNum == -1)
+	if (faceMap_.count(indx))
 	{
-		for (auto entry = faceMap_.begin(); entry != faceMap_.end(); entry++)
-		{
-			if (entry->second.isWindow())
-			{
-				return true;
-			}
-		}
-		return false;
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsDoor();
+		faceMap_[indx] = currentFace;
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsDoor();
+	faceMap_[indx] = newFace;
+	return;
+}
+
+void voxel::addGroundSemantic(int indx)
+{
+	if (faceMap_.count(indx))
+	{
+		voxelFace currentFace = faceMap_[indx];
+		currentFace.setIsGround();
+		faceMap_[indx] = currentFace;
+		return;
+	}
+	voxelFace newFace;
+	newFace.setIsGround();
+	faceMap_[indx] = newFace;
+	return;
+}
+
+CJObjectID voxel::faceType(int dirNum)
+{
+	if (faceMap_.size() == 0) { return CJObjectID::CJTypeNone; }
+
+	if (dirNum < 0 || dirNum > 5)
+	{
+		return CJObjectID::CJTypeNone;
 	}
 	else {
 		if (faceMap_.count(dirNum))
 		{
-			if (faceMap_[dirNum].isWindow())
-			{
-				return true;
-			}
+			return faceMap_[dirNum].getType();
 		}
-		return false;
+		return CJObjectID::CJTypeNone;
 	}
+}
+
+void voxelFace::setIsDoor()
+{
+	voxelType_ = CJObjectID::CJTypeDoor;
 }
 
 void voxelFace::setIsWall()
 {
-	isWall_ = true;
-	isWindow_ = false;
-	isRoof_ = false;
+	voxelType_ = CJObjectID::CJTypeWallSurface;
 }
 
 void voxelFace::setIsWindow()
 {
-	isWall_ = false;
-	isWindow_ = true;
-	isRoof_ = false;
+	voxelType_ = CJObjectID::CJTypeWindow;
 }
 
 void voxelFace::setIsRoof()
 {
-	isWall_ = false;
-	isWindow_ = false;
-	isRoof_ = true;
+	voxelType_ = CJObjectID::CJTypeRoofSurface;
+}
+
+void voxelFace::setIsExternalCeiling()
+{
+	voxelType_ = CJObjectID::CJTTypeOuterCeilingSurface;
+}
+
+void voxelFace::setIsGround()
+{
+	voxelType_ = CJObjectID::CJTypeGroundSurface;
+}
+
+bool voxelFace::isDoor()
+{
+	if (voxelType_ == CJObjectID::CJTypeDoor)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool voxelFace::isWall()
+{
+	if (voxelType_ == CJObjectID::CJTypeWallSurface)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool voxelFace::isWindow()
+{
+	if (voxelType_ == CJObjectID::CJTypeWindow)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool voxelFace::isRoof()
+{
+	if (voxelType_ == CJObjectID::CJTypeRoofSurface)
+	{
+		return true;
+	}
+	return false;
+}
+
+bool voxelFace::isGround()
+{
+	if (voxelType_ == CJObjectID::CJTypeGroundSurface)
+	{
+		return true;
+	}
+	return false;
+}
+
+CJObjectID voxelFace::getType()
+{
+	return voxelType_;
 }

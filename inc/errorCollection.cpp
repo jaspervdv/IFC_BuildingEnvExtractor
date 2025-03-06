@@ -103,6 +103,8 @@ ErrorCollection::ErrorCollection() {
 
 		{ErrorID::warningUnableToSimplefy, ErrorObject("I0100", errorWarningStringEnum::getString(ErrorID::warningInputIncFootprintElev, false))},
 
+		{ErrorID::warningSimplefication, ErrorObject("N0001", errorWarningStringEnum::getString(ErrorID::warningSimplefication, false))},
+
 		{ErrorID::failedLoD00, ErrorObject("E0001", "LoD0.0 creation failed")},
 		{ErrorID::failedLoD02, ErrorObject("E0002", "LoD0.2 creation failed")},
 		{ErrorID::failedLoD03, ErrorObject("E0003", "LoD0.3 creation failed")},

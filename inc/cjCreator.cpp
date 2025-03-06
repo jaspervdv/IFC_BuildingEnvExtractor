@@ -3120,7 +3120,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 	auto startTime = std::chrono::steady_clock::now();
 
 	voxelGrid_->computeSurfaceSemantics(h);
-	TopoDS_Shape sewedShape = voxels2Shape(0); //TODO: make work with multiple buildings in a single model
+	std::vector<int> typeValueList;
+	TopoDS_Shape sewedShape = voxels2Shape(0, &typeValueList); //TODO: make work with multiple buildings in a single model
 
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
@@ -3145,6 +3146,29 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 	brepBuilder.Add(voxelSolid, sewedShape);
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
+	std::map<std::string, std::string> nMap;
+	nMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeNone));
+	std::map<std::string, std::string> wMap;
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWindow));
+	std::map<std::string, std::string> dMap;
+	dMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeDoor));
+	std::map<std::string, std::string> rMap;
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	std::map<std::string, std::string> wallMap;
+	wallMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+	std::map<std::string, std::string> ceilMap;
+	ceilMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeOuterCeilingSurface));
+	std::map<std::string, std::string> groundMap;
+	groundMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+	geoObject.appendSurfaceData(nMap);
+	geoObject.appendSurfaceData(wMap);
+	geoObject.appendSurfaceData(dMap);
+	geoObject.appendSurfaceData(rMap);
+	geoObject.appendSurfaceData(wallMap);
+	geoObject.appendSurfaceData(ceilMap);
+	geoObject.appendSurfaceData(groundMap);
+	geoObject.setSurfaceTypeValues(typeValueList);
+
 	geoObjectList.emplace_back(geoObject);
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3167,7 +3191,7 @@ void CJGeoCreator::makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<s
 
 	for (int i = 1; i < voxelGrid_->getRoomSize(); i++) //TODO: multithread (-6 for the surface creation)
 	{
-		TopoDS_Shape sewedShape = voxels2Shape(i);
+		TopoDS_Shape sewedShape = voxels2Shape(i); //TODO: remove windows from this
 
 		gp_Trsf localRotationTrsf;
 		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
@@ -3480,37 +3504,110 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 	return siteObjectList;
 }
 
-TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum)
+TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum, std::vector<int>* typeList)
 {
 	std::vector<std::thread> threads;
-	std::vector<std::vector<TopoDS_Face>> threadFaceLists(6);
+	std::vector<std::pair<TopoDS_Face, CJObjectID>> threadFaceLists;
+	std::mutex faceListMutex;
 
 	for (int i = 0; i < 6; i++) {
-		threads.emplace_back([this, &threadFaceLists, i, roomNum]() {processDirectionalFaces(i, roomNum, std::ref(threadFaceLists[i])); });
+		threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
 	}
-	for (auto& t : threads) { t.join(); }
+	for (auto& thread : threads) { thread.join(); }
 
 	BRepBuilderAPI_Sewing brepSewer;
-	for (const std::vector<TopoDS_Face>& facesList : threadFaceLists) {
-		for (const TopoDS_Face face : facesList) {
-			brepSewer.Add(face);
-		}
+	for (const auto& [face, surfaceType] : threadFaceLists) {
+		brepSewer.Add(face);
 	}
 	brepSewer.Perform();
-	
+	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+	if (typeList == nullptr) { return sewedShape; }
+
+	//TODO: make this a function 
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> typedSurfaceIndx;
+	for (const auto& [face, surfaceType] : threadFaceLists) {
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(face);
+		typedSurfaceIndx.insert(std::make_pair(bbox, typedSurfaceIndx.size()));
+	}
+
+	for (TopExp_Explorer explorer(sewedShape, TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+		GProp_GProps currentGprops;
+		BRepGProp::SurfaceProperties(currentFace, currentGprops);
+
+		bg::model::box <BoostPoint3D> qbox = helperFunctions::createBBox(currentFace);
+
+		std::vector<Value> qResult;
+		typedSurfaceIndx.query(
+			bgi::intersects(qbox),
+			std::back_inserter(qResult)
+		);
+
+		bool found = false;
+		for (const auto& value : qResult)
+		{
+			const auto& typeFacePair = threadFaceLists[value.second];
+			const TopoDS_Face& typedFace = typeFacePair.first;
+			const CJObjectID& surfaceType = typeFacePair.second;
+
+			GProp_GProps typedGprops;
+			BRepGProp::SurfaceProperties(typedFace, typedGprops);
+
+			if (!currentGprops.CentreOfMass().IsEqual(typedGprops.CentreOfMass(), 1e-6)) { continue; }
+			if (abs(currentGprops.Mass() - typedGprops.Mass()) > 1e-4) { continue; }
+			if (surfaceType == CJObjectID::CJTypeWindow)
+			{
+				typeList->emplace_back(1);
+			}
+			else if (surfaceType == CJObjectID::CJTypeDoor)
+			{
+				typeList->emplace_back(2);
+			}
+			else if (surfaceType == CJObjectID::CJTypeRoofSurface)
+			{
+				typeList->emplace_back(3);
+			}
+			else if (surfaceType == CJObjectID::CJTypeWallSurface)
+			{
+				typeList->emplace_back(4);
+			}
+			else if (surfaceType == CJObjectID::CJTTypeOuterCeilingSurface)
+			{
+				typeList->emplace_back(5);
+			}
+			else if (surfaceType == CJObjectID::CJTypeGroundSurface)
+			{
+				typeList->emplace_back(6);
+			}
+			else
+			{
+				typeList->emplace_back(0);
+			}
+			found = true;
+			break;
+		}		
+		if (!found)
+		{
+			typeList->emplace_back(0);
+		}
+	}	
+	//TODO: until here 
 	return brepSewer.SewedShape();
 }
 
 
-void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList) { 
-	std::vector<std::vector<TopoDS_Edge>> faceList = voxelGrid_->getDirectionalFaces(direction, -SettingsCollection::getInstance().gridRotation(), roomNum);
-	
-
-	for (size_t i = 0; i < faceList.size(); i++) {
-		std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(faceList[i]);
+void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mutex& faceListMutex, std::vector<std::pair<TopoDS_Face, CJObjectID>>& collectionList)
+{ 
+	std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> edgeTypeList = voxelGrid_->getDirectionalFaces(direction, -SettingsCollection::getInstance().gridRotation(), roomNum);
+	for (const auto& [currentedgeCollection, surfaceType] : edgeTypeList)
+	{
+		std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(currentedgeCollection);
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
 		TopoDS_Face cleanFace = helperFunctions::wireCluster2Faces(cleanWireList);
-		collectionList.emplace_back(cleanFace);
+		std::unique_lock<std::mutex> listLock(faceListMutex);
+		collectionList.emplace_back(std::make_pair(cleanFace, surfaceType));
+		listLock.unlock();
 	}
 	return;
 }
@@ -3543,35 +3640,9 @@ void CJGeoCreator::getOuterRaySurfaces(
 		if (lookupType == "IfcPlate") 
 		{
 			IfcSchema::IfcProduct* plateProduct = lookup->getProductPtr();
-			IfcSchema::IfcRelAssociates::list::ptr test = plateProduct->HasAssociations();
-			for (IfcSchema::IfcRelAssociates::list::it it = test->begin(); it != test->end(); ++it)
+			if (helperFunctions::hasGlassMaterial(plateProduct));
 			{
-				IfcSchema::IfcRelAssociates* IfcRelAssociates = *it;
-				if (IfcRelAssociates->data().type()->name() != "IfcRelAssociatesMaterial")
-				{
-					continue;
-				}
-
-				IfcSchema::IfcRelAssociatesMaterial* MaterialAss = IfcRelAssociates->as<IfcSchema::IfcRelAssociatesMaterial>();
-				if (MaterialAss->data().type()->name() != "IfcRelAssociatesMaterial")
-				{
-					continue;
-				}
-
-				IfcSchema::IfcMaterialSelect* relMaterial = MaterialAss->RelatingMaterial();
-				if (relMaterial->data().type()->name() != "IfcMaterial")
-				{
-					continue;
-				}
-
-				IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
-				if (ifcMaterial->Name().find("Glass") != std::string::npos)
-				{
-					lookupType = "IfcWindow";
-					break;
-				}
-
-				//TODO: add backup when no glass is used in the name
+				lookupType = "IfcWindow";
 			}
 		}
 
@@ -3757,7 +3828,14 @@ void CJGeoCreator::extractOuterVoxelSummary(CJT::CityObject* shellObject, DataMa
 		}
 
 		if (!isOuterShell) { continue; }
-		if (!currentVoxel->hasWindow()) { continue; }
+
+		for (size_t i = 0; i < 6; i++)
+		{
+			if (currentVoxel->faceType(i) != CJObjectID::CJTypeWindow) { continue; }
+			windowArea += voxelArea;
+		}
+
+		
 		windowArea += voxelArea;
 	}
 

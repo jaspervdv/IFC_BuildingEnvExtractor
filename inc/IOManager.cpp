@@ -227,6 +227,13 @@ void IOManager::printSummary()
 	std::cout << "- Max thread count\n";
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.threadcount() << "\n\n";
 
+	if (settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.summaryVoxels() ||
+		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.makeV())
+	{
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningSimplefication) << "\n\n";
+		ErrorCollection::getInstance().addError(ErrorID::warningSimplefication);
+	}
+
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << "\n\n";
 }
 

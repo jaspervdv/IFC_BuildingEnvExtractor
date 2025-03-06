@@ -63,6 +63,8 @@ enum class ErrorID {
 	warningNoRoofOutline,
 	warningNoFootprint,
 
+	warningSimplefication,
+
 	warningInputIncFootprintElev,
 
 	failedLoD00, // LoD0.0 creation failed

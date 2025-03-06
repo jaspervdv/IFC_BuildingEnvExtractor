@@ -199,9 +199,9 @@ private:
 	// voxel shape related code
 
 	// creates shape represnatation based on the voxels
-	TopoDS_Shape voxels2Shape(int roomNum);
+	TopoDS_Shape voxels2Shape(int roomNum, std::vector<int>* typeList = nullptr);
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
-	void processDirectionalFaces(int direction, int roomNum, std::vector<TopoDS_Face>& collectionList);
+	void processDirectionalFaces(int direction, int roomNum, std::mutex& faceListMutex, std::vector<std::pair<TopoDS_Face, CJObjectID>>& collectionList);
 
 	// LoD32 ray casting related code
 
@@ -216,7 +216,7 @@ private:
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex);
 
 	/// monitor the progress of the getouterraysurfaces code
-	void CJGeoCreator::monitorRayCasting(
+	void monitorRayCasting(
 		int totalObjects,
 		int& processedObject,
 		std::mutex& listmutex
