@@ -3134,7 +3134,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "LoD5.0");
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
 		geoObject = kernel->convertToJSON(sewedShape, "5.0");
-		geoObjectList.emplace_back(geoObject);
 	}
 	else
 	{

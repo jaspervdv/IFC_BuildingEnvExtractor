@@ -205,7 +205,9 @@ void SettingsCollection::generateGeneralSettings()
 			!make13() &&
 			!make22() &&
 			!make30() &&
+			!make31() &&
 			!make32() &&
+			!makeV() &&
 			!summaryVoxels())
 		{
 			setRequireVoxels(false);
