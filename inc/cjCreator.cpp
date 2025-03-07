@@ -3128,24 +3128,26 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 	sewedShape.Move(localRotationTrsf);
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
+	CJT::GeoObject geoObject;
 	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
 	{
 		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "LoD5.0");
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
-		CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
+		geoObject = kernel->convertToJSON(sewedShape, "5.0");
 		geoObjectList.emplace_back(geoObject);
+	}
+	else
+	{
+		BRep_Builder brepBuilder;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid voxelSolid;
+		brepBuilder.MakeSolid(voxelSolid);
+		brepBuilder.Add(voxelSolid, sewedShape);
 
-		return geoObjectList;
+		geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
 	}
 
-	BRep_Builder brepBuilder;
-	TopoDS_Shell shell;
-	brepBuilder.MakeShell(shell);
-	TopoDS_Solid voxelSolid;
-	brepBuilder.MakeSolid(voxelSolid);
-	brepBuilder.Add(voxelSolid, sewedShape);
-
-	CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
 	std::map<std::string, std::string> nMap;
 	nMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeNone));
 	std::map<std::string, std::string> wMap;

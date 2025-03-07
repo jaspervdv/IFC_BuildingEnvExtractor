@@ -2139,7 +2139,9 @@ bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
 		if (materialName.find("GLASS") != std::string::npos)
 		{
 			return true;
-		}		std::cout << ifcMaterial->Name() << std::endl;
+		}
+
+
 
 		//TODO: add backup when no glass is used in the name
 	}
