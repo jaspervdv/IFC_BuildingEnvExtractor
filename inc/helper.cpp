@@ -2136,12 +2136,17 @@ bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
 		IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
 		std::string materialName = boost::to_upper_copy(ifcMaterial->Name());
 
-		if (materialName.find("GLASS") != std::string::npos)
+		IfcSchema::IfcMaterialProperties::list::ptr ifcPropertyList = ifcMaterial->HasProperties();
+
+		if (materialName.find("GLASS") != std::string::npos || materialName.find("GLAZED") != std::string::npos)
 		{
-			return true;
+			//return true;
 		}
 
-
+		for (auto et = ifcPropertyList->begin(); et != ifcPropertyList->end(); ++et)
+		{
+			std::cout << (*et)->data().toString() << std::endl;
+		}
 
 		//TODO: add backup when no glass is used in the name
 	}
@@ -2301,4 +2306,20 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 		filteredFaceList.emplace_back(currentFace);
 	}
 	return filteredFaceList;
+}
+
+TopoDS_Face helperFunctions::plane2Face(const Handle(Geom_Plane)& geoPlane, const double& planeSize)
+{
+	const gp_Pln& currentPlane = geoPlane->Pln();
+	const gp_Pnt& currentOrigin = currentPlane.Location();
+	const gp_Dir& currentNormal = currentPlane.Axis().Direction();
+	Handle(Geom_Plane) geomPlane = new Geom_Plane(currentPlane);
+
+	Standard_Real UMin = -planeSize;
+	Standard_Real UMax = planeSize;
+	Standard_Real VMin = -planeSize;
+	Standard_Real VMax = planeSize;
+
+	TopoDS_Face occtFace = BRepBuilderAPI_MakeFace(geomPlane, UMin, UMax, VMin, VMax, Precision::Confusion());
+	return occtFace;
 }

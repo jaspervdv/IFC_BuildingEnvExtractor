@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC4
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -261,6 +261,8 @@ struct helperFunctions{
 	static bool isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR);
 	/// returns list where dubs have been removed
 	static std::vector<TopoDS_Face> removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList, bool fullProcessing = false);
+	/// returns a square face with the characteristics of the input plane
+	static TopoDS_Face plane2Face(const Handle(Geom_Plane)& geoPlane, const double& planeSize);
 
 };
 #endif // HELPER_HELPER_H

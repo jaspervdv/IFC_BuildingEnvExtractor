@@ -2816,7 +2816,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 		else { currentShape = lookup->getProductShape(); }
 
-		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer); //TODO: add buffer
+		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer); 
 		int score = std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend());
 		if (score == 0) { continue; }
 		
@@ -2889,12 +2889,83 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	std::vector<int>().swap(scoreList);
 	std::vector<std::thread>().swap(threadList);
 
+	//TODO: remove dubs
+	// remove encapsulated faces
+	bgi::rtree<Value, bgi::rstar<treeDepth_>> facePairIndx;
+	for (size_t i = 0; i < outerSurfacePairList.size(); i++)
+	{
+		const std::pair<TopoDS_Face, std::string>& currentFacePair = outerSurfacePairList[i];
+		BoostBox3D bbox = helperFunctions::createBBox(currentFacePair.first);
+		facePairIndx.insert(std::make_pair(bbox, i));
+	}
+
+	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList;
+	for (const auto& [currentBbox, currentFaceIndx] : facePairIndx)
+	{
+		if (outerSurfacePairList[currentFaceIndx].second == "IfcWindow")
+		{
+			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
+			continue;
+		}
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		facePairIndx.query(bgi::intersects(
+			currentBbox), std::back_inserter(qResult));
+
+		if (qResult.size() == 0)
+		{
+			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
+			continue;
+		}
+
+		const TopoDS_Face& currentFace = outerSurfacePairList[currentFaceIndx].first;
+
+		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+		double currentArea = helperFunctions::computeArea(currentFace);
+
+		bool encapsulated = false;
+		for (const auto& [otherBbox, otherFaceIndx] : qResult)
+		{
+			if (currentFaceIndx == otherFaceIndx) { continue; }
+
+			const TopoDS_Face& otherFace = outerSurfacePairList[otherFaceIndx].first;
+			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-6)) { continue; }
+			double otherArea = helperFunctions::computeArea(otherFace);
+
+			if (currentArea > otherArea) { continue; }
+			encapsulated = true;
+			for (TopExp_Explorer explorer(currentFace, TopAbs_VERTEX); explorer.More(); explorer.Next())
+			{
+				const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer.Current());
+				BRepExtrema_DistShapeShape distCalculator(otherFace, vertex);
+				distCalculator.Perform();
+
+				if (distCalculator.Value() >= 1e-4)
+				{
+					encapsulated = false;
+					break;
+				}
+			}
+
+			if (encapsulated)
+			{
+				break;
+			}
+		}
+
+		if (!encapsulated)
+		{
+			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
+		}
+	}
+
 	// make the collection compund shape
 	BRep_Builder builder;
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
 	std::vector<int> typeValueList;
-	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : outerSurfacePairList)
+	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : cleanedOuterSurfacePairList)
 	{
 		const std::string& lookupType = currentFacePair.second;
 		const TopoDS_Face& currentFace = currentFacePair.first;
@@ -2948,104 +3019,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 
 		builder.Add(collectionShape, currentFace);
-	}
-
-
-	if (false)
-	{
-		std::vector<Handle(Geom_Plane)> uniqueOuterPlanes;
-		for (const auto& [currentFace, ifcType] : outerSurfacePairList)
-		{
-			bool dub = false;
-			Handle(Geom_Surface) geomSurface = BRep_Tool::Surface(currentFace);
-			if (geomSurface.IsNull()) { continue; }
-			Handle(Geom_Plane) currentGeoPlane = Handle(Geom_Plane)::DownCast(geomSurface);
-			if (currentGeoPlane.IsNull()) { continue; }
-			gp_Pln currentPlane = currentGeoPlane->Pln();
-			gp_Dir currentNormal = currentPlane.Axis().Direction();
-			gp_Pnt currentOrigin = currentPlane.Location();
-
-			for (size_t j = 0; j < uniqueOuterPlanes.size(); j++)
-			{
-				Handle(Geom_Plane) otherGeoPlane = uniqueOuterPlanes[j];
-				gp_Pln otherPlane = otherGeoPlane->Pln();
-				gp_Dir otherNormal = otherPlane.Axis().Direction();
-				gp_Pnt otherOrigin = otherPlane.Location();
-
-				if (!currentNormal.IsParallel(otherNormal, settingsCollection.precision())) { continue; }
-
-				if (otherOrigin.Distance(currentOrigin) < settingsCollection.precision())
-				{
-					dub = true;
-					break;
-				}
-
-				gp_Vec ooVec = gp_Vec(currentOrigin, otherOrigin);
-
-				if (abs(abs(ooVec.Angle(currentNormal)) - 1.5708) < settingsCollection.precisionCoarse() && abs(abs(ooVec.Angle(otherNormal)) - 1.5708) < settingsCollection.precisionCoarse())
-				{
-					dub = true;
-					break;
-				}
-			}
-
-			if (!dub)
-			{
-				uniqueOuterPlanes.emplace_back(currentGeoPlane);
-			}
-		}
-
-		//get Bounds for the creation of the cell complex
-
-		double surfaceSize = Max(
-			h->getUrrPoint().X() - h->getLllPoint().X(),
-			h->getUrrPoint().Y() - h->getLllPoint().Y()
-		) * 2;
-
-		std::vector<TopoDS_Face> planeFaceCollection;
-		for (const Handle(Geom_Plane)& currentGeoPlane : uniqueOuterPlanes)
-		{
-			gp_Pln currentPlane = currentGeoPlane->Pln();
-			gp_Pnt currentOrigin = currentPlane.Location();
-			gp_Dir currentNormal = currentPlane.Axis().Direction();
-			Handle(Geom_Plane) geomPlane = new Geom_Plane(currentPlane);
-
-			Standard_Real UMin = -surfaceSize;
-			Standard_Real UMax = surfaceSize;
-			Standard_Real VMin = -surfaceSize;
-			Standard_Real VMax = surfaceSize;
-
-			TopoDS_Face largerFace = BRepBuilderAPI_MakeFace(geomPlane, UMin, UMax, VMin, VMax, Precision::Confusion());
-
-			planeFaceCollection.emplace_back(largerFace);
-		}
-
-
-		//TODO: multithread this
-		for (size_t i = 0; i < planeFaceCollection.size(); i++)
-		{
-			TopoDS_Face currentFace = planeFaceCollection[i];
-
-			std::vector<TopoDS_Edge> rawEdgeList;
-			for (size_t j = 0; j < planeFaceCollection.size(); j++)
-			{
-
-				if (i == j) { continue; }
-				TopoDS_Face otherFace = planeFaceCollection[j];
-				BRepAlgoAPI_Section section(currentFace, otherFace, Standard_False);
-				section.ComputePCurveOn1(Standard_True);
-				section.Approximation(Standard_True);
-				section.Build();
-
-				if (!section.IsDone()) { continue; }
-
-				TopoDS_Shape sectionEdges = section.Shape();
-				for (TopExp_Explorer exp(sectionEdges, TopAbs_EDGE); exp.More(); exp.Next())
-				{
-					rawEdgeList.emplace_back(TopoDS::Edge(exp.Current()));
-				}
-			}
-		}
 	}
 
 	gp_Trsf localRotationTrsf;
