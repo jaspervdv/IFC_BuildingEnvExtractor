@@ -175,9 +175,10 @@ private:
 	/// remove redundant edges and faces from a solid shape
 	TopoDS_Shape simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap = false);
 	/// remove redundant edges and faces from a group of faces
-	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap = false);
+	std::vector<TopoDS_Face> simplefyFacePool(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap = false);
 	/// remove redundant edges and faces from a group of faces assisted with the normal direction of the faces
-	std::vector<TopoDS_Face> simplefySolid(const std::vector<TopoDS_Face>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap = false);
+	template<typename T>
+	std::vector<T> simplefyFacePool(const std::vector<T>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap = false);
 	/// creates an index populated with unique faces
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> indexUniqueFaces(const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>>& faceIndx);
 	
@@ -205,7 +206,16 @@ private:
 
 	// LoD32 ray casting related code
 
-	// get the outer surface by raycasting against exterior voxels
+		// get the outer surface by raycasting against exterior voxels
+	void getOuterRaySurfaces(
+		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList,
+		const std::vector<Value>& totalValueObjectList,
+		const std::vector<int>& scoreList,
+		DataManager* h,
+		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
+		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex);
+
+	// get the outer surface by raycasting against exterior voxels (subprocess)
 	void getOuterRaySurfaces(
 		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList, 
 		const std::vector<Value>& valueObjectList,

@@ -972,8 +972,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 	TopoDS_Solid simpleBuilding;
 	brepBuilder.MakeSolid(simpleBuilding);
 
-	std::vector<TopoDS_Face> mergedFaceList = simplefySolid(facelist, normalList, evalOverlap);
-
+	std::vector<TopoDS_Face> mergedFaceList = simplefyFacePool(facelist, normalList, evalOverlap);
 
 	if (mergedFaceList.size() == facelist.size())
 	{
@@ -994,7 +993,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 }
 
 
-std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap) {
+std::vector<TopoDS_Face> CJGeoCreator::simplefyFacePool(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap) {
 	std::vector<gp_Dir> normalList;
 	for (size_t i = 0; i < surfaceList.size(); i++)
 	{
@@ -1008,40 +1007,68 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 	}
 
 	if (surfaceList.size() != normalList.size()) { return surfaceList; }
-	return simplefySolid(surfaceList, normalList, evalOverlap);
+	return simplefyFacePool(surfaceList, normalList, evalOverlap);
 }
 
-
-std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Face>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap) {
+template <typename T>
+std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList, const std::vector<gp_Dir>& normalList, bool evalOverlap) {
 
 	if (!surfaceList.size()) { return surfaceList; }
+
+	constexpr bool usePair = !std::is_same_v<T, TopoDS_Face>;
+
+	auto getFace = [](const T& item) -> const TopoDS_Face& {
+		if constexpr (std::is_same_v<T, TopoDS_Face>) {
+			return item;
+		}
+		else {
+			return item.first;
+		}
+	};
+
+	auto getType = [](const T& item) -> const std::string& {
+		if constexpr (std::is_same_v<T, TopoDS_Face>) {
+			return "";
+		}
+		else {
+			return item.second;
+		}
+	};
+
 	if (surfaceList.size() != normalList.size()) { return surfaceList; }
 
 	// make spatial index
 	bgi::rtree<Value, bgi::rstar<25>> shapeIdx;
 	for (int i = 0; i < surfaceList.size(); i++)
 	{
-		TopoDS_Face currentFace = surfaceList[i];
+		TopoDS_Face currentFace = getFace(surfaceList[i]);
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
 		shapeIdx.insert(std::make_pair(bbox, i));
 	}
-	std::vector<TopoDS_Face> cleanedFaceList;
 
+	std::vector<T> cleanedFaceList;
 	std::vector<int> mergedSurfaceIdxList = {0};
-	std::vector<int> tempMergeSurfaceIdxList;
 	std::vector<int> evalList(surfaceList.size());
 
 	double precision = SettingsCollection::getInstance().precision();
-
 	while (true)
 	{
+		int currentSurfaceIdxSize = mergedSurfaceIdxList.size();
 		for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
 		{
 			int currentIdx = mergedSurfaceIdxList[i];
 			if (evalList[currentIdx] == 1) { continue; }
 			evalList[currentIdx] = 1;
 
-			TopoDS_Face currentFace = surfaceList[currentIdx];
+			std::string currentType = getType(surfaceList[currentIdx]);
+			if (currentType == "IfcWindow" || currentType == "IfcDoor")
+			{
+				cleanedFaceList.emplace_back(surfaceList[currentIdx]);
+				currentSurfaceIdxSize = 0;
+				break;
+			}
+
+			TopoDS_Face currentFace = getFace(surfaceList[currentIdx]);
 			gp_Dir currentdir = normalList[currentIdx];
 
 			bg::model::box < BoostPoint3D > cummulativeBox = helperFunctions::createBBox(currentFace);
@@ -1054,69 +1081,70 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 			for (size_t j = 0; j < qResult.size(); j++)
 			{
 				int otherFaceIdx = qResult[j].second;
-				TopoDS_Face otherFace = surfaceList[otherFaceIdx];
+				TopoDS_Face otherFace = getFace(surfaceList[otherFaceIdx]); 
 				gp_Dir otherdir = normalList[otherFaceIdx];
 
 				if (currentIdx == otherFaceIdx) { continue; }
 				if (evalList[otherFaceIdx] == 1) { continue; }
 				if (!currentdir.IsParallel(otherdir, precision)) { continue; }
 
-				if (helperFunctions::shareEdge(currentFace, otherFace))
+				if (!helperFunctions::shareEdge(currentFace, otherFace)) { continue; }
+
+				if (std::find(mergedSurfaceIdxList.begin(), mergedSurfaceIdxList.end(), otherFaceIdx) == mergedSurfaceIdxList.end())
 				{
-					bool isDub = false;
-					for (size_t k = 0; k < mergedSurfaceIdxList.size(); k++)
-					{
-						if (mergedSurfaceIdxList[k] == otherFaceIdx)
-						{
-							isDub = true;
-							break;
-						}
-					}
-
-					if (!isDub)
-					{
-						for (size_t k = 0; k < tempMergeSurfaceIdxList.size(); k++)
-						{
-							if (tempMergeSurfaceIdxList[k] == otherFaceIdx)
-							{
-								isDub = true;
-								break;
-							}
-						}
-					}
-
-
-					if (!isDub)
-					{
-						tempMergeSurfaceIdxList.emplace_back(otherFaceIdx);
-						continue;
-					}
+					mergedSurfaceIdxList.emplace_back(otherFaceIdx);
+					continue;
 				}
 			}
 		}
 
-		if (tempMergeSurfaceIdxList.size() == 0)
+		if (mergedSurfaceIdxList.size() == currentSurfaceIdxSize)
 		{
 			if (mergedSurfaceIdxList.size() == 1)
 			{
-				cleanedFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[0]]);
+				if constexpr (usePair)
+				{
+					cleanedFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[0]]);
+				}
+				else
+				{
+					cleanedFaceList.emplace_back(getFace(surfaceList[mergedSurfaceIdxList[0]]));
+				}		
 			}
 			else
 			{
 				std::vector<TopoDS_Face> tempFaceList;
 				for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
 				{
-					tempFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[i]]);
+					tempFaceList.emplace_back(getFace(surfaceList[mergedSurfaceIdxList[i]]));
 				}
 				TopoDS_Face mergedFace = mergeFaces(tempFaceList);
 
 				if (!mergedFace.IsNull())
 				{
-					cleanedFaceList.emplace_back(mergedFace);
+					if constexpr (usePair)
+					{
+						cleanedFaceList.emplace_back(std::make_pair(mergedFace, ""));
+					}
+					else
+					{
+						cleanedFaceList.emplace_back(mergedFace);
+					}
 				}
 				else
 				{
-					cleanedFaceList.insert(cleanedFaceList.end(), tempFaceList.begin(), tempFaceList.end());
+					if constexpr (usePair)
+					{
+						for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
+						{
+							cleanedFaceList.emplace_back(surfaceList[mergedSurfaceIdxList[i]]);
+						}
+					}
+					else
+					{
+						cleanedFaceList.insert(cleanedFaceList.end(), tempFaceList.begin(), tempFaceList.end());
+					}
+					
 				}
 			}
 
@@ -1126,23 +1154,13 @@ std::vector<TopoDS_Face> CJGeoCreator::simplefySolid(const std::vector<TopoDS_Fa
 				if (evalList[i] == 0)
 				{
 					mergedSurfaceIdxList = { (int) i };
-					tempMergeSurfaceIdxList.clear();
 					newSetFound = true;
 					break;
 				}
 			}
-			if (newSetFound)
-			{
-				continue;
-			}
+			if (newSetFound) { continue; }
 			break;
 		}
-
-		for (size_t i = 0; i < tempMergeSurfaceIdxList.size(); i++)
-		{
-			mergedSurfaceIdxList.emplace_back(tempMergeSurfaceIdxList[i]);
-		}
-		tempMergeSurfaceIdxList.clear();
 	}
 	return cleanedFaceList;
 }
@@ -2802,7 +2820,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	double searchBuffer = settingsCollection.searchBufferLod32();
 
 	std::vector<int> scoreList;
-	int totalScore = 0;
 	std::vector<Value> cleanedProductLookupValues;
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
@@ -2820,7 +2837,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		int score = std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend());
 		if (score == 0) { continue; }
 		
-		totalScore += score;
 		scoreList.emplace_back(score);
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -2831,134 +2847,22 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
 	}
 	std::vector<Value>().swap(productLookupValues);
-	// evaluate which surfaces are visible
+	
+	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, std::string>> outerSurfacePairList;
-
-	// split the range over cores
-	int coreUse = SettingsCollection::getInstance().threadcount();
-	if (coreUse > cleanedProductLookupValues.size())
-	{
-		while (coreUse > cleanedProductLookupValues.size()) { coreUse /= 2; }
-	}
-	coreUse -= 1;
-	double targetScore = totalScore / coreUse;
-
-	std::vector<std::thread> threadList;
-	std::mutex listMutex;
-
-	int beginIndx = 0;
-	int processedObjects = 0;
-	for (size_t i = 0; i < coreUse; i++)
-	{
-		if (beginIndx >= scoreList.size())
-		{
-			break;
-		}
-
-		int endList = scoreList.size() - 1;
-		double currentScore = 0;
-		if (i != coreUse - 1)
-		{
-			for (size_t j = beginIndx; j < scoreList.size(); j++)
-			{
-				currentScore += scoreList[j];
-				if (targetScore <= currentScore)
-				{
-					endList = j;
-					break;
-				}
-			}
-		}
-
-		auto startIdx = cleanedProductLookupValues.begin() + beginIndx;
-		auto endIdx = cleanedProductLookupValues.begin() + endList + 1;
-		beginIndx = endList + 1;
-
-		std::vector<Value> sublist(startIdx, endIdx);
-		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &processedObjects, &listMutex, &h, &faceIndx, &voxelIndex]() {
-			getOuterRaySurfaces(outerSurfacePairList, sublist, processedObjects, listMutex, h, faceIndx, voxelIndex);
-			});
-	}
-	threadList.emplace_back([&] {monitorRayCasting(cleanedProductLookupValues.size(), processedObjects, listMutex);  });
-
-	for (auto& thread : threadList) {
-		if (thread.joinable()) {
-			thread.join();
-		}
-	}
+	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
 	std::vector<int>().swap(scoreList);
-	std::vector<std::thread>().swap(threadList);
 
-	//TODO: remove dubs
-	// remove encapsulated faces
-	bgi::rtree<Value, bgi::rstar<treeDepth_>> facePairIndx;
-	for (size_t i = 0; i < outerSurfacePairList.size(); i++)
+	// remove dub and incapsulated surfaces by merging them
+	std::vector<gp_Dir> normalList;
+	normalList.reserve(outerSurfacePairList.size());
+
+	for (const auto& [currentFace, currentType] : outerSurfacePairList)
 	{
-		const std::pair<TopoDS_Face, std::string>& currentFacePair = outerSurfacePairList[i];
-		BoostBox3D bbox = helperFunctions::createBBox(currentFacePair.first);
-		facePairIndx.insert(std::make_pair(bbox, i));
+		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace));
 	}
 
-	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList;
-	for (const auto& [currentBbox, currentFaceIndx] : facePairIndx)
-	{
-		if (outerSurfacePairList[currentFaceIndx].second == "IfcWindow")
-		{
-			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
-			continue;
-		}
-
-		std::vector<Value> qResult;
-		qResult.clear();
-		facePairIndx.query(bgi::intersects(
-			currentBbox), std::back_inserter(qResult));
-
-		if (qResult.size() == 0)
-		{
-			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
-			continue;
-		}
-
-		const TopoDS_Face& currentFace = outerSurfacePairList[currentFaceIndx].first;
-
-		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
-		double currentArea = helperFunctions::computeArea(currentFace);
-
-		bool encapsulated = false;
-		for (const auto& [otherBbox, otherFaceIndx] : qResult)
-		{
-			if (currentFaceIndx == otherFaceIndx) { continue; }
-
-			const TopoDS_Face& otherFace = outerSurfacePairList[otherFaceIndx].first;
-			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-6)) { continue; }
-			double otherArea = helperFunctions::computeArea(otherFace);
-
-			if (currentArea > otherArea) { continue; }
-			encapsulated = true;
-			for (TopExp_Explorer explorer(currentFace, TopAbs_VERTEX); explorer.More(); explorer.Next())
-			{
-				const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer.Current());
-				BRepExtrema_DistShapeShape distCalculator(otherFace, vertex);
-				distCalculator.Perform();
-
-				if (distCalculator.Value() >= 1e-4)
-				{
-					encapsulated = false;
-					break;
-				}
-			}
-
-			if (encapsulated)
-			{
-				break;
-			}
-		}
-
-		if (!encapsulated)
-		{
-			cleanedOuterSurfacePairList.emplace_back(outerSurfacePairList[currentFaceIndx]);
-		}
-	}
+	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList = simplefyFacePool(outerSurfacePairList, normalList);
 
 	// make the collection compund shape
 	BRep_Builder builder;
@@ -3582,6 +3486,63 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mute
 		std::unique_lock<std::mutex> listLock(faceListMutex);
 		collectionList.emplace_back(std::make_pair(cleanFace, surfaceType));
 		listLock.unlock();
+	}
+	return;
+}
+
+void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList, const std::vector<Value>& totalValueObjectList, const std::vector<int>& scoreList, DataManager* h, const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx, const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex)
+{
+	// split the range over cores
+	int coreUse = SettingsCollection::getInstance().threadcount();
+	if (coreUse > totalValueObjectList.size())
+	{
+		while (coreUse > totalValueObjectList.size()) { coreUse /= 2; }
+	}
+	coreUse -= 1;
+	double targetScore = std::accumulate(scoreList.begin(), scoreList.end(), 0) / coreUse;
+
+	std::vector<std::thread> threadList;
+	std::mutex listMutex;
+
+	int beginIndx = 0;
+	int processedObjects = 0;
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		if (beginIndx >= scoreList.size())
+		{
+			break;
+		}
+
+		int endList = scoreList.size() - 1;
+		double currentScore = 0;
+		if (i != coreUse - 1)
+		{
+			for (size_t j = beginIndx; j < scoreList.size(); j++)
+			{
+				currentScore += scoreList[j];
+				if (targetScore <= currentScore)
+				{
+					endList = j;
+					break;
+				}
+			}
+		}
+
+		auto startIdx = totalValueObjectList.begin() + beginIndx;
+		auto endIdx = totalValueObjectList.begin() + endList + 1;
+		beginIndx = endList + 1;
+
+		std::vector<Value> sublist(startIdx, endIdx);
+		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &processedObjects, &listMutex, &h, &faceIdx, &voxelIndex]() {
+			getOuterRaySurfaces(outerSurfacePairList, sublist, processedObjects, listMutex, h, faceIdx, voxelIndex);
+		});
+	}
+	threadList.emplace_back([&] {monitorRayCasting(totalValueObjectList.size(), processedObjects, listMutex);  });
+
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
 	}
 	return;
 }

@@ -1854,12 +1854,58 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 		splitter.SetTools(toolList);
 		splitter.Build();
-		TopoDS_Face outerFace = getOuterFace(splitter.Shape(), boundingFace);
-		if (outerFace.IsNull()) { continue; }
 
-		for (const TopoDS_Face& innerWireFace : invertFace(outerFace))
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
+		TopoDS_Face outerFace;
+		std::vector<TopoDS_Face> innerFaces;
+		for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
-			innerWireFaces.emplace_back(innerWireFace);
+			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
+
+			if (optionalPoint == std::nullopt) { continue; }
+			gp_Pnt pointOnFace = *optionalPoint;
+
+			BRepExtrema_DistShapeShape distanceCalcBase(currentFace, BRepBuilderAPI_MakeVertex(p0));
+			distanceCalcBase.Perform();
+
+			if (distanceCalcBase.Value() < 1e-6) {
+				for (const TopoDS_Face invertedFace : invertFace(currentFace))
+				{
+					outerFace = invertedFace;
+					break;
+				}
+				continue;
+			}
+
+			BRepExtrema_DistShapeShape distanceCalcFace(faceComplex, BRepBuilderAPI_MakeVertex(pointOnFace));
+			distanceCalcFace.Perform();
+
+			if (distanceCalcFace.Value() > 1e-6) {
+				innerFaces.emplace_back(currentFace);
+			}
+		}
+
+		if (innerFaces.empty())
+		{
+			innerWireFaces.emplace_back(outerFace);
+			continue;
+		}
+		BRepBuilderAPI_MakeFace faceMaker(outerFace);
+
+		for (size_t i = 0; i < innerFaces.size(); i++)
+		{
+			for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
+			{
+				TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+				faceMaker.Add(voidWire);
+			}
+		}
+
+		for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+		{
+			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			innerWireFaces.emplace_back(currentFace);
 		}
 	}
 	return innerWireFaces;
