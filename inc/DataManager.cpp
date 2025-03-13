@@ -899,7 +899,6 @@ void DataManager::internalizeGeo()
 	gp_Vec ifcTrsf = computeObjectTranslation();
 	objectTranslation_.SetTranslationPart(ifcTrsf);
 	objectIfcTranslation_.SetTranslationPart(-ifcTrsf + geoTrsf.TranslationPart());
-	//TODO: store the gereference data
 	elementCountSummary();
 	try
 	{

@@ -1724,12 +1724,17 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 }
 
 TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList) {
+
 	BRepBuilderAPI_MakeFace faceBuilder;
 	std::vector<TopoDS_Face> faceList;
 	gp_Vec normal = computeFaceNormal(wireList[0]);
+
+	if (normal.Magnitude() < 1e-6) { return TopoDS_Face(); }
+
 	std::vector<gp_Pnt> pointList = getUniquePoints(wireList[0]);
 	gp_Pnt originPoint = pointList[0];
 	gp_Vec castingVector = gp_Vec(originPoint, pointList[1]);
+
 	for (const TopoDS_Wire& currentWire : wireList)
 	{
 		if (helperFunctions::getUniquePoints(currentWire).size() < 3) { continue; }
@@ -1737,9 +1742,9 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 			gp_Pln(originPoint, normal),
 			currentWire
 		);
-
 		if (faceBuilder.Error() == BRepBuilderAPI_FaceDone) { faceList.emplace_back(faceBuilder.Face()); }
 	}
+
 	if (!faceList.size()) { return TopoDS_Face(); }
 	if (faceList.size() == 1) { return faceList[0]; }
 
@@ -1838,6 +1843,7 @@ std::vector<TopoDS_Face> helperFunctions::cleanFaces(const std::vector<TopoDS_Fa
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
 {
 	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
+	
 	std::vector<TopoDS_Face> innerWireFaces;
 
 	for (const TopoDS_Shape& faceComplex : faceCluster)
@@ -1891,8 +1897,14 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			innerWireFaces.emplace_back(outerFace);
 			continue;
 		}
-		BRepBuilderAPI_MakeFace faceMaker(outerFace);
 
+		if (outerFace.IsNull())
+		{
+			//TODO: find out how to avoid this case
+			continue;
+		}
+
+		BRepBuilderAPI_MakeFace faceMaker(outerFace);
 		for (size_t i = 0; i < innerFaces.size(); i++)
 		{
 			for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
@@ -1901,7 +1913,6 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				faceMaker.Add(voidWire);
 			}
 		}
-
 		for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
@@ -2182,17 +2193,17 @@ bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
 		IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
 		std::string materialName = boost::to_upper_copy(ifcMaterial->Name());
 
-		IfcSchema::IfcMaterialProperties::list::ptr ifcPropertyList = ifcMaterial->HasProperties();
+		//IfcSchema::IfcMaterialProperties::list::ptr ifcPropertyList = ifcMaterial->HasProperties();
 
 		if (materialName.find("GLASS") != std::string::npos || materialName.find("GLAZED") != std::string::npos)
 		{
-			//return true;
+			return true;
 		}
 
-		for (auto et = ifcPropertyList->begin(); et != ifcPropertyList->end(); ++et)
-		{
-			std::cout << (*et)->data().toString() << std::endl;
-		}
+		//for (auto et = ifcPropertyList->begin(); et != ifcPropertyList->end(); ++et)
+		//{
+		//	std::cout << (*et)->data().toString() << std::endl;
+		//}
 
 		//TODO: add backup when no glass is used in the name
 	}
@@ -2217,8 +2228,22 @@ double helperFunctions::computeArea(const TopoDS_Face& theFace)
 
 void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 {
-	auto hasTriangles = BRepTools::Triangulation(shape, 0.01);
-	if (!hasTriangles) { auto mesh = BRepMesh_IncrementalMesh(shape, 0.01, Standard_False, 0.5); }
+	for (TopExp_Explorer faceExpl(shape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		if (!BRep_Tool::Triangulation(currentFace, TopLoc_Location()).IsNull()) {
+			continue;
+		}
+		for (size_t i = 1; i <= 3; i++)
+		{
+			double refinement = 1 / i;
+			BRepMesh_IncrementalMesh(currentFace, 0.01 * refinement, Standard_False, 0.5 * refinement);
+			if (!BRep_Tool::Triangulation(currentFace, TopLoc_Location()).IsNull()) {
+				break;
+			}
+		}
+	}
+	return;
 }
 
 bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)

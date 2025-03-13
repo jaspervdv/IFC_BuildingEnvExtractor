@@ -232,6 +232,12 @@ private:
 		std::mutex& listmutex
 	);
 
+	/// trims the surfaces that are left from the outer ray detection for lod32
+	void splitOuterSurfaces(
+		std::vector<std::pair<TopoDS_Face, std::string>>& splittedFacesOut, 
+		std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut, 
+		const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList);
+
 	// query result cleaning code
 
 	/// remove dublicate values from valueList

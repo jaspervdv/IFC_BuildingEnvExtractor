@@ -1061,14 +1061,10 @@ std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList,
 			evalList[currentIdx] = 1;
 
 			std::string currentType = getType(surfaceList[currentIdx]);
-			if (currentType == "IfcWindow" || currentType == "IfcDoor")
-			{
-				cleanedFaceList.emplace_back(surfaceList[currentIdx]);
-				currentSurfaceIdxSize = 0;
-				break;
-			}
+			if (currentType == "IfcWindow" || currentType == "IfcDoor") { break; }
 
 			TopoDS_Face currentFace = getFace(surfaceList[currentIdx]);
+
 			gp_Dir currentdir = normalList[currentIdx];
 
 			bg::model::box < BoostPoint3D > cummulativeBox = helperFunctions::createBBox(currentFace);
@@ -1083,6 +1079,9 @@ std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList,
 				int otherFaceIdx = qResult[j].second;
 				TopoDS_Face otherFace = getFace(surfaceList[otherFaceIdx]); 
 				gp_Dir otherdir = normalList[otherFaceIdx];
+
+				std::string otherTpe = getType(surfaceList[otherFaceIdx]);
+				if (currentType == "IfcWindow" || currentType == "IfcDoor") { continue; }
 
 				if (currentIdx == otherFaceIdx) { continue; }
 				if (evalList[otherFaceIdx] == 1) { continue; }
@@ -1114,17 +1113,38 @@ std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList,
 			else
 			{
 				std::vector<TopoDS_Face> tempFaceList;
+				std::map<std::string, double> functionAreaMap;
 				for (size_t i = 0; i < mergedSurfaceIdxList.size(); i++)
 				{
-					tempFaceList.emplace_back(getFace(surfaceList[mergedSurfaceIdxList[i]]));
+					TopoDS_Face currentFace = getFace(surfaceList[mergedSurfaceIdxList[i]]);
+					std::string currentType = getType(surfaceList[mergedSurfaceIdxList[i]]);
+					double currentArea = helperFunctions::computeArea(currentFace);
+					tempFaceList.emplace_back(currentFace);
+
+					if (functionAreaMap.find(currentType) == functionAreaMap.end())
+					{
+						functionAreaMap.emplace(currentType, 0);
+					}
+					functionAreaMap[currentType] += currentArea;
 				}
 				TopoDS_Face mergedFace = mergeFaces(tempFaceList);
-
 				if (!mergedFace.IsNull())
-				{
+				{ 
+					// get the surface type of the type that has the largest area
+					double maxArea = 0;
+					std::string surfaceTypeName = "";
+					for (const auto& [typeName, areaValue] : functionAreaMap)
+					{
+						if (areaValue > maxArea)
+						{
+							maxArea = areaValue;
+							surfaceTypeName = typeName;
+						}
+					}
+
 					if constexpr (usePair)
 					{
-						cleanedFaceList.emplace_back(std::make_pair(mergedFace, ""));
+						cleanedFaceList.emplace_back(std::make_pair(mergedFace, surfaceTypeName));
 					}
 					else
 					{
@@ -1239,7 +1259,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	}
 
 	std::vector<TopoDS_Face> cleanedMergingFaces = helperFunctions::removeDubFaces(mergingFaces);
-
 	std::vector<TopoDS_Face> mergedFaces = helperFunctions::planarFaces2Outline(cleanedMergingFaces);
 	
 	if (!mergedFaces.size())
@@ -1256,7 +1275,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
 	TopoDS_Face cleanedFace = helperFunctions::wireCluster2Faces(cleanWireList);
-
+	if (cleanedFace.IsNull()) { return TopoDS_Face(); }
 	transform.Invert();
 	BRepBuilderAPI_Transform transformer(cleanedFace, transform);
 	return TopoDS::Face(transformer.Shape());
@@ -2856,20 +2875,109 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	// remove dub and incapsulated surfaces by merging them
 	std::vector<gp_Dir> normalList;
 	normalList.reserve(outerSurfacePairList.size());
-
 	for (const auto& [currentFace, currentType] : outerSurfacePairList)
 	{
 		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace));
 	}
-
 	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList = simplefyFacePool(outerSurfacePairList, normalList);
+	std::vector<std::pair<TopoDS_Face, std::string>>().swap(outerSurfacePairList);
+
+	// clip surfaces that are in contact with eachother
+	std::vector<std::pair<TopoDS_Face, std::string>> splitOuterSurfacePairList;
+	std::vector<std::pair<TopoDS_Face, std::string>> unSplitOuterSurfacePairList;
+
+	splitOuterSurfaces(splitOuterSurfacePairList, unSplitOuterSurfacePairList, cleanedOuterSurfacePairList);
+	std::vector<std::pair<TopoDS_Face, std::string>>().swap(cleanedOuterSurfacePairList);
+	// remove internal faces
+	bgi::rtree<std::pair<BoostBox3D, int>, bgi::rstar<25>> splitFaceIndx; //TODO: remove?
+	std::vector<std::pair<TopoDS_Face, std::string>> totalSplitOuterSurfacePairList;
+
+	for (const auto& [currentFace, currentType] : splitOuterSurfacePairList)
+	{
+		totalSplitOuterSurfacePairList.emplace_back(std::pair(currentFace, currentType));
+		BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
+		splitFaceIndx.insert(std::make_pair(currentBox, splitFaceIndx.size()));
+	}
+	std::vector<std::pair<TopoDS_Face, std::string>> finalOuterSurfacePairList;
+	for (const auto& [currentFace, currentType] : unSplitOuterSurfacePairList)
+	{
+		totalSplitOuterSurfacePairList.emplace_back(std::pair(currentFace, currentType));
+		finalOuterSurfacePairList.emplace_back(std::pair(currentFace, currentType));
+		BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
+		splitFaceIndx.insert(std::make_pair(currentBox, splitFaceIndx.size()));
+	}
+
+	for (const auto& [currentFace, currentType] : splitOuterSurfacePairList)
+	{
+		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalCurrentPoint == std::nullopt) { continue; }
+		gp_Pnt currentPoint = *optionalCurrentPoint;
+		bg::model::box<BoostPoint3D> pointQuerybox(
+			{ currentPoint.X() - searchBuffer, currentPoint.Y() - searchBuffer, currentPoint.Z() - searchBuffer },
+			{ currentPoint.X() + searchBuffer, currentPoint.Y() + searchBuffer, currentPoint.Z() + searchBuffer }
+		);
+
+		std::vector<std::pair<BoostBox3D, std::shared_ptr<voxel>>> pointQResult;
+		voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
+
+		if (pointQResult.empty()) { continue; }
+
+		bool isExterior = true;
+		for (const auto& [voxelBbox, voxel] : pointQResult)
+		{
+			bool clearLine = true;
+			gp_Pnt voxelCore = voxel->getOCCTCenterPoint();
+
+			bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(currentPoint, voxelCore, settingsCollection.precision()));
+			std::vector<std::pair<BoostBox3D, int>>faceQResult;
+			splitFaceIndx.query(bgi::intersects(productQuerybox), std::back_inserter(faceQResult));
+
+			for (const std::pair<BoostBox3D, int>& facePair : faceQResult)
+			{
+				// get the potential faces
+				const TopoDS_Face& otherFace = totalSplitOuterSurfacePairList[facePair.second].first;
+				if (currentFace.IsEqual(otherFace)) { continue; }
+
+				//test for linear intersections
+				TopLoc_Location loc;
+				auto mesh = BRep_Tool::Triangulation(otherFace, loc);
+				if (mesh.IsNull()) {
+					clearLine = false;
+					continue;
+				}
+
+				for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
+				{
+					const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+					std::vector<gp_Pnt> trianglePoints{
+						mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+						mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+						mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+					};
+
+					if (helperFunctions::triangleIntersecting({ currentPoint, voxelCore }, trianglePoints))
+					{
+						clearLine = false;
+						break;
+					}
+				}
+				if (!clearLine) { break; }
+			}
+			if (clearLine)
+			{
+				finalOuterSurfacePairList.emplace_back(std::pair(currentFace, currentType));
+				break;
+			}
+		}
+	}
 
 	// make the collection compund shape
 	BRep_Builder builder;
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
 	std::vector<int> typeValueList;
-	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : cleanedOuterSurfacePairList)
+	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : finalOuterSurfacePairList)
 	{
 		const std::string& lookupType = currentFacePair.second;
 		const TopoDS_Face& currentFace = currentFacePair.first;
@@ -3983,6 +4091,88 @@ void CJGeoCreator::createSemanticData(CJT::GeoObject* geoObject, const TopoDS_Sh
 	}
 
 	populateSurfaceData(geoObject, functionList, isExterior);
+	return;
+}
+
+void CJGeoCreator::splitOuterSurfaces(
+	std::vector<std::pair<TopoDS_Face, std::string>>& splittedFacesOut, 
+	std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut, 
+	const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList
+)
+{
+
+	bgi::rtree<std::pair<BoostBox3D, int>, bgi::rstar<25>> faceIndx;
+	for (const auto& [currentFace, currentType] : outerSurfacePairList)
+	{
+		BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
+		faceIndx.insert(std::pair(currentBox, faceIndx.size()));
+	}
+
+	for (const auto& [currentFace, currentType] : outerSurfacePairList)
+	{
+		BOPAlgo_Splitter divider;
+		divider.SetFuzzyValue(SettingsCollection::getInstance().precision());
+		divider.SetRunParallel(Standard_False);
+		divider.AddArgument(currentFace);
+
+		std::vector<std::pair<BoostBox3D, int>> qResult;
+		qResult.clear();
+		faceIndx.query(bgi::intersects(helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
+
+		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+
+		int toolCount = 0;
+		for (const auto& [otherBox, otherIndx] : qResult)
+		{
+			const TopoDS_Face& otherFace = outerSurfacePairList[otherIndx].first;
+			if (currentFace.IsEqual(otherFace)) { continue; }
+			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-6)) { continue; }
+			if (helperFunctions::shareEdge(currentFace, otherFace)) { continue; }
+
+			BRepExtrema_DistShapeShape distanceCalc(currentFace, otherFace);;
+			distanceCalc.Perform();
+			if (distanceCalc.Value() > 1e-6) { continue; }
+			divider.AddTool(otherFace);
+			toolCount++;
+		}
+
+		if (toolCount == 0)
+		{
+			helperFunctions::triangulateShape(currentFace);
+			untouchedFacesOut.emplace_back(std::pair(currentFace, currentType));
+			continue;
+		}
+
+		divider.Perform();
+		TopoDS_Shape splitFaceList = divider.Shape();
+		if (splitFaceList.IsNull())
+		{
+			helperFunctions::triangulateShape(currentFace);
+			untouchedFacesOut.emplace_back(std::pair(currentFace, currentType));
+			continue;
+		}
+
+		std::vector<TopoDS_Face> faceList;
+		for (TopExp_Explorer faceExp(splitFaceList, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+			TopoDS_Face face = TopoDS::Face(faceExp.Current());
+			faceList.emplace_back(face); 
+		}
+
+		if (faceList.size() <= 1)
+		{
+			helperFunctions::triangulateShape(currentFace);
+			untouchedFacesOut.emplace_back(std::pair(currentFace, currentType));
+		}
+		else
+		{
+			for (const TopoDS_Face face : faceList)
+			{
+				helperFunctions::triangulateShape(face);
+				splittedFacesOut.emplace_back(std::pair(face, currentType));
+			}
+		}
+
+	}
 	return;
 }
 
