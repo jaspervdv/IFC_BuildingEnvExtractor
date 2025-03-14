@@ -4125,12 +4125,19 @@ void CJGeoCreator::splitOuterSurfaces(
 		{
 			const TopoDS_Face& otherFace = outerSurfacePairList[otherIndx].first;
 			if (currentFace.IsEqual(otherFace)) { continue; }
-			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-4)) { continue; }
-			//if (helperFunctions::shareEdge(currentFace, otherFace)) { continue; }
+			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-4)) {
+				std::optional<gp_Pnt> otherPointOpt = helperFunctions::getPointOnFace(otherFace);
+				if (otherPointOpt == std::nullopt) { continue; }
 
-			BRepExtrema_DistShapeShape distanceCalc(currentFace, otherFace);;
-			distanceCalc.Perform();
-			if (distanceCalc.Value() > 1e-4) { continue; }
+				BRepExtrema_DistShapeShape distanceCalc(currentFace, BRepBuilderAPI_MakeVertex(*otherPointOpt));
+				if (distanceCalc.Value() > 1e-4) { continue; }
+			}
+			else
+			{
+				BRepExtrema_DistShapeShape distanceCalc(currentFace, otherFace);
+				distanceCalc.Perform();
+				if (distanceCalc.Value() > 1e-4) { continue; }
+			}			
 			divider.AddTool(otherFace);
 			toolCount++;
 		}

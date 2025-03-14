@@ -775,6 +775,29 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 {
 	std::vector<std::pair<gp_Vec, int>> vecCountMap;
 	double precision = SettingsCollection::getInstance().precision();
+
+	std::vector<double> distances;
+	for (size_t i = 0; i < pointList.size(); i += 2)
+	{
+		gp_Pnt p1 = pointList[i];
+		gp_Pnt p2 = pointList[i + 1];
+
+		distances.emplace_back(p1.Distance(p2));
+	}
+	std::sort(distances.begin(), distances.end());
+
+	double medianDistance;
+	if (distances.size() % 2 != 0)
+	{
+		medianDistance = distances[distances.size() / 2];
+	}
+	else
+	{
+		medianDistance = distances[(distances.size() - 1) / 2 + (distances.size() + 1) / 2] / 2;
+	}
+
+	double minDistance = medianDistance * 0.05;
+
 	for (size_t i = 0; i < pointList.size(); i += 2)
 	{
 		gp_Pnt p1 = pointList[i];
@@ -786,7 +809,9 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 			p2.SetZ(0);
 		}
 
-		if (p1.Distance(p2) < precision) { continue; }
+		double distance = p1.Distance(p2);
+		if (distance < minDistance){continue;}
+		if (distance < precision) { continue; }
 		gp_Vec vec = gp_Vec(p1, p2);
 
 		if (!isHorizontal)
