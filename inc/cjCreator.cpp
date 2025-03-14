@@ -1064,7 +1064,6 @@ std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList,
 			if (currentType == "IfcWindow" || currentType == "IfcDoor") { break; }
 
 			TopoDS_Face currentFace = getFace(surfaceList[currentIdx]);
-
 			gp_Dir currentdir = normalList[currentIdx];
 
 			bg::model::box < BoostPoint3D > cummulativeBox = helperFunctions::createBBox(currentFace);
@@ -2852,10 +2851,10 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 		else { currentShape = lookup->getProductShape(); }
 
-		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer); 
+		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer);
 		int score = std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend());
 		if (score == 0) { continue; }
-		
+
 		scoreList.emplace_back(score);
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -2866,30 +2865,20 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
 	}
 	std::vector<Value>().swap(productLookupValues);
-	
+
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, std::string>> outerSurfacePairList;
 	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
 	std::vector<int>().swap(scoreList);
 
-	// remove dub and incapsulated surfaces by merging them
-	std::vector<gp_Dir> normalList;
-	normalList.reserve(outerSurfacePairList.size());
-	for (const auto& [currentFace, currentType] : outerSurfacePairList)
-	{
-		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace));
-	}
-	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList = simplefyFacePool(outerSurfacePairList, normalList);
-	std::vector<std::pair<TopoDS_Face, std::string>>().swap(outerSurfacePairList);
-
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, std::string>> splitOuterSurfacePairList;
 	std::vector<std::pair<TopoDS_Face, std::string>> unSplitOuterSurfacePairList;
 
-	splitOuterSurfaces(splitOuterSurfacePairList, unSplitOuterSurfacePairList, cleanedOuterSurfacePairList);
-	std::vector<std::pair<TopoDS_Face, std::string>>().swap(cleanedOuterSurfacePairList);
+	splitOuterSurfaces(splitOuterSurfacePairList, unSplitOuterSurfacePairList, outerSurfacePairList);
+	std::vector<std::pair<TopoDS_Face, std::string>>().swap(outerSurfacePairList);
 	// remove internal faces
-	bgi::rtree<std::pair<BoostBox3D, int>, bgi::rstar<25>> splitFaceIndx; //TODO: remove?
+	bgi::rtree<std::pair<BoostBox3D, int>, bgi::rstar<25>> splitFaceIndx;
 	std::vector<std::pair<TopoDS_Face, std::string>> totalSplitOuterSurfacePairList;
 
 	for (const auto& [currentFace, currentType] : splitOuterSurfacePairList)
@@ -2972,12 +2961,22 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 	}
 
+	// remove dub and incapsulated surfaces by merging them
+	std::vector<gp_Dir> normalList;
+	normalList.reserve(finalOuterSurfacePairList.size());
+	for (const auto& [currentFace, currentType] : finalOuterSurfacePairList)
+	{
+		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace));
+	}
+	std::vector<std::pair<TopoDS_Face, std::string>> cleanedOuterSurfacePairList = simplefyFacePool(finalOuterSurfacePairList, normalList);
+	std::vector<std::pair<TopoDS_Face, std::string>>().swap(finalOuterSurfacePairList);
+
 	// make the collection compund shape
 	BRep_Builder builder;
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
 	std::vector<int> typeValueList;
-	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : finalOuterSurfacePairList)
+	for (const std::pair<TopoDS_Face, std::string>& currentFacePair : cleanedOuterSurfacePairList)
 	{
 		const std::string& lookupType = currentFacePair.second;
 		const TopoDS_Face& currentFace = currentFacePair.first;
@@ -4111,7 +4110,7 @@ void CJGeoCreator::splitOuterSurfaces(
 	for (const auto& [currentFace, currentType] : outerSurfacePairList)
 	{
 		BOPAlgo_Splitter divider;
-		divider.SetFuzzyValue(SettingsCollection::getInstance().precision());
+		divider.SetFuzzyValue(SettingsCollection::getInstance().precisionCoarse());
 		divider.SetRunParallel(Standard_False);
 		divider.AddArgument(currentFace);
 
@@ -4126,12 +4125,12 @@ void CJGeoCreator::splitOuterSurfaces(
 		{
 			const TopoDS_Face& otherFace = outerSurfacePairList[otherIndx].first;
 			if (currentFace.IsEqual(otherFace)) { continue; }
-			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-6)) { continue; }
-			if (helperFunctions::shareEdge(currentFace, otherFace)) { continue; }
+			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-4)) { continue; }
+			//if (helperFunctions::shareEdge(currentFace, otherFace)) { continue; }
 
 			BRepExtrema_DistShapeShape distanceCalc(currentFace, otherFace);;
 			distanceCalc.Perform();
-			if (distanceCalc.Value() > 1e-6) { continue; }
+			if (distanceCalc.Value() > 1e-4) { continue; }
 			divider.AddTool(otherFace);
 			toolCount++;
 		}
