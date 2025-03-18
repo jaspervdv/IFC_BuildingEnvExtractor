@@ -556,7 +556,7 @@ void VoxelGrid::setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxe
 				continue;
 			}
 		}
-		if (productTypeName == "IfcWall" || productTypeName == "IfcWallStandardCase")
+		if (productTypeName == "IfcWall" || productTypeName == "IfcWallStandardCase" || productTypeName == "IfcColumn")
 		{
 			hasWallSurface = true;
 			continue;

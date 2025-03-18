@@ -33,6 +33,9 @@
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <Poly_Triangle.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -776,6 +779,7 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 	std::vector<std::pair<gp_Vec, int>> vecCountMap;
 	double precision = SettingsCollection::getInstance().precision();
 
+	// compute median lenght of all edges
 	std::vector<double> distances;
 	for (size_t i = 0; i < pointList.size(); i += 2)
 	{
@@ -795,45 +799,51 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 	{
 		medianDistance = distances[(distances.size() - 1) / 2 + (distances.size() + 1) / 2] / 2;
 	}
-
 	double minDistance = medianDistance * 0.05;
 
-	for (size_t i = 0; i < pointList.size(); i += 2)
+	while (true)
 	{
-		gp_Pnt p1 = pointList[i];
-		gp_Pnt p2 = pointList[i + 1];
-
-		if (isHorizontal)
+		for (size_t i = 0; i < pointList.size(); i += 2)
 		{
-			p1.SetZ(0);
-			p2.SetZ(0);
-		}
+			gp_Pnt p1 = pointList[i];
+			gp_Pnt p2 = pointList[i + 1];
 
-		double distance = p1.Distance(p2);
-		if (distance < minDistance){continue;}
-		if (distance < precision) { continue; }
-		gp_Vec vec = gp_Vec(p1, p2);
-
-		if (!isHorizontal)
-		{
-			if (abs(vec.Z()) < 0.001) {
-				continue;
-			}
-		}
-
-		bool vFound = false;
-		for (auto& vecPair : vecCountMap)
-		{
-			if (vecPair.first.IsParallel(vec, precision))
+			if (isHorizontal)
 			{
-				vecPair.second += 1;
-				vFound = true;
-				break;
+				p1.SetZ(0);
+				p2.SetZ(0);
 			}
+
+			double distance = p1.Distance(p2);
+			if (distance < minDistance) { continue; }
+			if (distance < precision) { continue; }
+			gp_Vec vec = gp_Vec(p1, p2);
+
+			if (!isHorizontal)
+			{
+				if (abs(vec.Z()) < 0.001) {
+					continue;
+				}
+			}
+
+			bool vFound = false;
+			for (auto& vecPair : vecCountMap)
+			{
+				if (vecPair.first.IsParallel(vec, precision))
+				{
+					vecPair.second += 1;
+					vFound = true;
+					break;
+				}
+			}
+			if (vFound) { continue; }
+			vecCountMap.emplace_back(std::pair<gp_Vec, int>(vec, 1));
 		}
-		if (vFound) { continue; }
-		vecCountMap.emplace_back(std::pair<gp_Vec, int>(vec, 1));
+
+		if (!vecCountMap.empty()) { break; }
+		minDistance = 0;
 	}
+	
 	std::pair<gp_Vec, int> RotationVecPair = *vecCountMap.begin();
 	for (auto& vecPair : vecCountMap)
 	{
@@ -2256,13 +2266,45 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 	for (TopExp_Explorer faceExpl(shape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 	{
 		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-		if (!BRep_Tool::Triangulation(currentFace, TopLoc_Location()).IsNull()) {
+
+		if (currentFace.IsNull() || BRep_Tool::Surface(currentFace).IsNull()) {
 			continue;
 		}
+
+		TopLoc_Location loc;
+		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(currentFace, loc);
+
+		if (!triangulation.IsNull()) {
+			continue;  // No triangulation present, skip to the next face
+		}
+
+		std::vector<gp_Pnt> uniquePointList =  helperFunctions::getUniquePoints(currentFace);
+
+		if (uniquePointList.size() < 3) { continue; }
+		if (uniquePointList.size() == 3)
+		{
+			gp_Trsf inverseLoc = loc.Transformation().Inverted();
+			Handle(Poly_Triangulation) triangulation = new Poly_Triangulation(3, 1, Standard_False);
+
+			TColgp_Array1OfPnt nodes(1, 3);
+			nodes.SetValue(1, uniquePointList[0].Transformed(inverseLoc));
+			nodes.SetValue(2, uniquePointList[1].Transformed(inverseLoc));
+			nodes.SetValue(3, uniquePointList[2].Transformed(inverseLoc));
+			triangulation->ChangeNodes() = nodes;
+
+			Poly_Array1OfTriangle triangles(1, 1);  // One triangle at index 1
+			triangles.SetValue(1, Poly_Triangle(1, 2, 3));
+			triangulation->ChangeTriangles() = triangles;
+
+			BRep_Builder builder;
+			builder.UpdateFace(currentFace, triangulation);
+			continue;
+		}
+
 		for (size_t i = 1; i <= 3; i++)
 		{
 			double refinement = 1 / i;
-			BRepMesh_IncrementalMesh(currentFace, 0.01 * refinement, Standard_False, 0.5 * refinement);
+			BRepMesh_IncrementalMesh(currentFace, 0.01 * refinement, Standard_False, 0.5 * refinement, Standard_True);
 			if (!BRep_Tool::Triangulation(currentFace, TopLoc_Location()).IsNull()) {
 				break;
 			}

@@ -412,7 +412,6 @@ void CJGeoCreator::SplitInAndOuterHFaces(const std::vector<TopoDS_Face>& inputFa
 		{
 			innerFaces.emplace_back(currentFace);
 		}
-
 	}
 	return;
 }
@@ -455,7 +454,6 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 			std::vector<TopoDS_Face> innerFaces;
 			std::vector<TopoDS_Face> outerFaces;
 			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
-
 			for (const TopoDS_Face& filteredFace : innerFaces)
 			{
 				innerToolList.Append(filteredFace);
@@ -1990,7 +1988,8 @@ void CJGeoCreator::make2DStoreys(
 
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
+		make2DStorey(storeyMutex, h, kernel, storeyCityObject, storyProgressList, unitScale, is03);
+		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
