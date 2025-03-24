@@ -2349,7 +2349,8 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 		{
 			double refinement = 1 / i;
 			BRepMesh_IncrementalMesh(currentFace, 0.01 * refinement, Standard_False, 0.5 * refinement, Standard_True);
-			if (!BRep_Tool::Triangulation(currentFace, TopLoc_Location()).IsNull()) {
+			TopLoc_Location locLocal;
+			if (!BRep_Tool::Triangulation(currentFace, locLocal).IsNull()) {
 				break;
 			}
 		}
