@@ -634,6 +634,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		return;
 	}
 	facesOut = helperFunctions::planarFaces2Outline(cleanedFaceList, cuttingPlane);
+	return;
 }
 
 void CJGeoCreator::makeFloorSectionComplex(
@@ -1988,8 +1989,7 @@ void CJGeoCreator::make2DStoreys(
 
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		make2DStorey(storeyMutex, h, kernel, storeyCityObject, storyProgressList, unitScale, is03);
-		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
+		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
@@ -2015,7 +2015,6 @@ void CJGeoCreator::make2DStorey(
 {
 	std::string LoDString = "0.2";
 	if (is03) { LoDString = "0.3"; }
-
 	double storeyUserBuffer = SettingsCollection::getInstance().horizontalSectionOffset();
 
 	gp_Trsf trsf;

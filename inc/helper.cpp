@@ -1897,7 +1897,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		splitter.Build();
 
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
-		TopoDS_Face outerFace;
+		std::vector<TopoDS_Face> outerInvFaceList;
 		std::vector<TopoDS_Face> innerFaces;
 		for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
@@ -1913,15 +1913,15 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			if (distanceCalcBase.Value() < 1e-6) {
 				for (const TopoDS_Face invertedFace : invertFace(currentFace))
 				{
-					outerFace = invertedFace;
-					break;
+					if (invertedFace.IsNull()) { continue; }
+					outerInvFaceList.emplace_back(invertedFace);
 				}
 				continue;
 			}
 
+			// get faces that are created by the voids in the boolean process
 			BRepExtrema_DistShapeShape distanceCalcFace(faceComplex, BRepBuilderAPI_MakeVertex(pointOnFace));
 			distanceCalcFace.Perform();
-
 			if (distanceCalcFace.Value() > 1e-6) {
 				innerFaces.emplace_back(currentFace);
 			}
@@ -1929,30 +1929,74 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 		if (innerFaces.empty())
 		{
-			innerWireFaces.emplace_back(outerFace);
+			for (const TopoDS_Face& currentInvFace : outerInvFaceList)
+			{
+				innerWireFaces.emplace_back(currentInvFace);
+			}
 			continue;
 		}
 
-		if (outerFace.IsNull())
+		if (outerInvFaceList.empty())
 		{
 			//TODO: find out how to avoid this case
 			continue;
 		}
 
-		BRepBuilderAPI_MakeFace faceMaker(outerFace);
-		for (size_t i = 0; i < innerFaces.size(); i++)
+		if (outerInvFaceList.size() == 1)
 		{
-			for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
+			BRepBuilderAPI_MakeFace faceMaker(outerInvFaceList[0]);
+			for (size_t i = 0; i < innerFaces.size(); i++)
 			{
-				TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
-				faceMaker.Add(voidWire);
+				for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
+				{
+					TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+					faceMaker.Add(voidWire);
+				}
+			}
+			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+			{
+				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+				innerWireFaces.emplace_back(currentFace);
 			}
 		}
-		for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+		else
 		{
-			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-			innerWireFaces.emplace_back(currentFace);
-		}
+			for (const TopoDS_Face& currentFace : outerInvFaceList)
+			{
+				BRepBuilderAPI_MakeFace faceMaker(currentFace);
+				bool needProcessing = false;
+				for (size_t i = 0; i < innerFaces.size(); i++)
+				{
+					std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFaces[i]);
+					if (optionalPoint == std::nullopt) { continue; }
+					gp_Pnt pointOnFace = *optionalPoint;
+
+					BRepExtrema_DistShapeShape distanceCalcBase(currentFace, BRepBuilderAPI_MakeVertex(pointOnFace));
+					distanceCalcBase.Perform();
+
+					if (distanceCalcBase.Value() > 1e-6) { continue; }
+
+					for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
+					{
+						TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+						faceMaker.Add(voidWire);
+						needProcessing = true;
+					}
+				}
+
+				if (!needProcessing)
+				{
+					innerWireFaces.emplace_back(currentFace);
+					continue;
+				}
+
+				for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+				{
+					TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+					innerWireFaces.emplace_back(currentFace);
+				}
+			}
+		}		
 	}
 	return innerWireFaces;
 }

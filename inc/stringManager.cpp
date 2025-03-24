@@ -515,7 +515,7 @@ std::string CJObjectEnum::getString(CJObjectID id)
 	case CJObjectID::CJTypeDoor:
 		return "Door";
 	case CJObjectID::CJTypeNone:
-		return "None";
+		return "+None";
 	case CJObjectID::CJTTypeCeilingSurface:
 		return "CeilingSurface";
 	case CJObjectID::CJTTypeOuterCeilingSurface:

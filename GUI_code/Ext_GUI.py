@@ -25,11 +25,11 @@ class LoDSettings:
         self.lod50 = tkinter.IntVar(value=0)
 
     def hasLoD(self):
-        if (not self.lod00.get() and not self.lod02.get() and not self.lod03.get() and not self.lod10.get()
-                and not self.lod12.get() and not self.lod13.get() and not self.lod22.get() and not self.lod32.get()
-                and not self.lod50.get()):
-            return False
-        return True
+        return any(lod.get() for lod in [
+            self.lod00, self.lod02, self.lod03, self.lod04,
+            self.lod10, self.lod12, self.lod13, self.lod22,
+            self.lod30, self.lod31, self.lod32, self.lod50
+        ])
 
 class FootprintSettings:
     def __init__(self):
