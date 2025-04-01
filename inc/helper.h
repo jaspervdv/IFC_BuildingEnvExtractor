@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -244,6 +244,23 @@ struct helperFunctions{
 	/// evaluates if product has glass material related to it
 	static bool hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct);
 
+	/// write to file code
+
+	/// write shape to step
+	static void writeToSTEP(const TopoDS_Shape& theShape, const std::string& targetPath);
+	/// write list of shapes to step
+	template <typename T>
+	static void writeToSTEP(const std::vector<T>& theShapeList, const std::string& targetPath);
+	/// write list of shapes to step
+	template <typename T>
+	static void writeToSTEP(const std::vector<std::vector<T>>& theShapeList, const std::string& targetPath);
+	
+	/// write shape to obj
+	template <typename T>
+	static void writeToOBJ(const T& theShape, const std::string& targetPath);
+	/// write shape to obj
+	template <typename T>
+	static void writeToOBJ(const std::vector<T>& theShapeList, const std::string& targetPath);
 
 	/// other code
  

@@ -117,8 +117,8 @@ void SurfaceGridPair::populateGrid(double distance)
 	double xDistance = distance;
 	double yDistance = distance;
 
-	int xSteps = ceil(xRange / xDistance);
-	int ySteps = ceil(yRange / yDistance);
+	int xSteps = static_cast<int>(ceil(xRange / xDistance));
+	int ySteps = static_cast<int>(ceil(yRange / yDistance));
 
 	xDistance = xRange / xSteps;
 	yDistance = yRange / ySteps;
@@ -168,7 +168,7 @@ void SurfaceGridPair::populateGrid(double distance)
 					(legPoint.Z() - centerPoint.Z()) / xSteps
 				);
 
-				for (size_t j = 0; j < xSteps; j++)
+				for (int j = 0; j < xSteps; j++)
 				{
 					pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint.Translated(translationVec * j))
 					);

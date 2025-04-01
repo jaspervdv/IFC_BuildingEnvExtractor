@@ -129,7 +129,7 @@ private:
 	// storey generation code
 
 	/// adds a storey object to the city object
-	void make2DStorey(std::mutex& storeyMutex, DataManager* h, CJT::Kernel* kernel, const std::shared_ptr<CJT::CityObject>& storeyCityObject, std::map<std::string, int>& progressMap, int unitScale, bool is03);
+	void make2DStorey(std::mutex& storeyMutex, DataManager* h, CJT::Kernel* kernel, const std::shared_ptr<CJT::CityObject>& storeyCityObject, std::vector<TopoDS_Shape>& copyGeoList, std::map<std::string, int>& progressMap, int unitScale, bool is03);
 	/// give user updates about the state of storey creation
 	void monitorStoreys(std::mutex& storeyMutex, std::map<std::string, int>& progressMap, int totalProcesses);
 

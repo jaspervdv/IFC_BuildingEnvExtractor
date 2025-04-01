@@ -292,6 +292,10 @@ The configuration json has a very simple structure. An example can be found belo
         "Georeference" : 1,
         "Merge semantic objects": 1,
     },
+    "Output format" : {
+        "STEP file" : 1,
+        "OBJ file" : 1,
+    },
     "Generate report": 1,
     "Threads": 12
 }
@@ -385,7 +389,15 @@ Optional:
   * Boolean
   * Toggles semantic objects to be merged if they have identical attributes.
   * Default value = true
-* :white_check_mark: "Output report" :white_check_mark:
+* :ballot_box_with_check: "Output format" "STEP file" :ballot_box_with_check:
+  * Boolean
+  * Toggles the copying of the output shaped to a .step file
+  * Default value = false
+* :ballot_box_with_check: "Output format" "OBJ file" :ballot_box_with_check:
+  * Boolean
+  * Toggles the copying of the output shaped to a .obj file
+  * Default value = false
+* :ballot_box_with_check: "Output report" :ballot_box_with_check:
   * Boolean
   * Toggles the output of a report file, see [this section](#report-json) for more info.
   * Default value = true

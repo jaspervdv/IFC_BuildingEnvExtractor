@@ -76,9 +76,30 @@ template void helperFunctions::bBoxDiagonal<TopoDS_Shell>(const TopoDS_Shell& th
 template void helperFunctions::bBoxDiagonal<TopoDS_Solid>(const TopoDS_Solid& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 template void helperFunctions::bBoxDiagonal<TopoDS_Shape>(const TopoDS_Shape& theShapeList, gp_Pnt* lllPoint, gp_Pnt* urrPoint, const double buffer, const double angle, const double secondAngle);
 
-
 template gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Face& theFace);
 template gp_Vec helperFunctions::computeFaceNormal(const TopoDS_Wire& theFace);
+
+template void helperFunctions::writeToSTEP<TopoDS_Face>(const std::vector<TopoDS_Face>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Shell>(const std::vector<TopoDS_Shell>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Solid>(const std::vector<TopoDS_Solid>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, const std::string& targetPath);
+
+template void helperFunctions::writeToSTEP<TopoDS_Face>(const std::vector<std::vector<TopoDS_Face>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Shell>(const std::vector<std::vector<TopoDS_Shell>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Solid>(const std::vector<std::vector<TopoDS_Solid>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToSTEP<TopoDS_Shape>(const std::vector<std::vector<TopoDS_Shape>>& theShapeList, const std::string& targetPath);
+
+template void helperFunctions::writeToOBJ<TopoDS_Face>(const TopoDS_Face& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shell>(const TopoDS_Shell& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Solid>(const TopoDS_Solid& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shape>(const TopoDS_Shape& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Compound>(const TopoDS_Compound& theShapeList, const std::string& targetPath);
+
+template void helperFunctions::writeToOBJ<TopoDS_Face>(const std::vector<TopoDS_Face>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shell>(const std::vector<TopoDS_Shell>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Solid>(const std::vector<TopoDS_Solid>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Compound>(const std::vector<TopoDS_Compound>& theShapeList, const std::string& targetPath);
 
 
 BoostPoint3D helperFunctions::Point3DOTB(const gp_Pnt& oP) {
@@ -1902,6 +1923,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			// ignore extremely small surfaces
+			if (helperFunctions::computeArea(currentFace) < 0.005) { continue; }
 			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
 
 			if (optionalPoint == std::nullopt) { continue; }
@@ -1965,9 +1988,9 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			{
 				BRepBuilderAPI_MakeFace faceMaker(currentFace);
 				bool needProcessing = false;
-				for (size_t i = 0; i < innerFaces.size(); i++)
+				for (const TopoDS_Face& innerFace : innerFaces)
 				{
-					std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFaces[i]);
+					std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFace);
 					if (optionalPoint == std::nullopt) { continue; }
 					gp_Pnt pointOnFace = *optionalPoint;
 
@@ -1976,12 +1999,10 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 					if (distanceCalcBase.Value() > 1e-6) { continue; }
 
-					for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
-					{
-						TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
-						faceMaker.Add(voidWire);
-						needProcessing = true;
-					}
+					TopoDS_Wire voidWire = BRepTools::OuterWire(innerFace);
+					faceMaker.Add(voidWire);
+					needProcessing = true;
+
 				}
 
 				if (!needProcessing)
@@ -2289,6 +2310,112 @@ bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
 	return false;
 }
 
+
+void helperFunctions::writeToSTEP(const TopoDS_Shape& theShape, const std::string& targetPath)
+{
+	std::stringstream buffer;
+	std::streambuf* originalBuffer = std::cout.rdbuf(buffer.rdbuf());
+
+	STEPControl_Writer writer;
+	writer.Transfer(theShape, STEPControl_AsIs);
+	IFSelect_ReturnStatus stat = writer.Write(targetPath.c_str());
+
+	std::cout.rdbuf(originalBuffer);
+	return;
+}
+
+template <typename T>
+void helperFunctions::writeToSTEP(const std::vector<T>& theShapeList, const std::string& targetPath)
+{
+	std::stringstream buffer;
+	std::streambuf* originalBuffer = std::cout.rdbuf(buffer.rdbuf());
+
+	STEPControl_Writer writer;
+	for (const T& shape : theShapeList) { writer.Transfer(shape, STEPControl_AsIs); }
+	IFSelect_ReturnStatus stat = writer.Write(targetPath.c_str());
+
+	std::cout.rdbuf(originalBuffer);
+	return;
+}
+
+template <typename T>
+void helperFunctions::writeToSTEP(const std::vector<std::vector<T>>& theShapeList, const std::string& targetPath)
+{
+	std::stringstream buffer;
+	std::streambuf* originalBuffer = std::cout.rdbuf(buffer.rdbuf());
+
+	STEPControl_Writer writer;
+	for (const auto& nestedList : theShapeList)
+	{
+		for (const T& shape : nestedList) { writer.Transfer(shape, STEPControl_AsIs); }
+	}
+	
+	IFSelect_ReturnStatus stat = writer.Write(targetPath.c_str());
+
+	std::cout.rdbuf(originalBuffer);
+	return;
+}
+
+template <typename T>
+void helperFunctions::writeToOBJ(const T& theShape, const std::string& targetPath)
+{
+	std::vector<T> shapeList = { theShape };
+	writeToOBJ(shapeList, targetPath);
+	return;
+}
+
+template <typename T>
+void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::string& targetPath)
+{
+	std::ofstream objFile(targetPath);
+	int vertIdxOffset = 1;
+	std::vector<std::vector<int>> nestedTriangleIndx;
+
+	for (const T& theShape : theShapeList)
+	{
+		for (TopExp_Explorer exp(theShape, TopAbs_FACE); exp.More(); exp.Next()) {
+			TopoDS_Face face = TopoDS::Face(exp.Current());
+			TopLoc_Location loc;
+
+			auto mesh = BRep_Tool::Triangulation(face, loc);
+
+			if (mesh.IsNull())
+			{
+				triangulateShape(face);
+				mesh = BRep_Tool::Triangulation(face, loc);
+			}
+
+			for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
+			{
+				const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+				std::vector<int> triangleIndx = {};
+				for (size_t i = 1; i <= 3; i++)
+				{
+					gp_XYZ xyz = mesh->Nodes().Value(theTriangle(i)).Transformed(loc).Coord();
+
+					objFile << "v " << xyz.X() << " " << xyz.Y() << " " << xyz.Z() << "\n";
+					triangleIndx.emplace_back(vertIdxOffset);
+					vertIdxOffset++;
+				}
+
+				nestedTriangleIndx.emplace_back(triangleIndx);
+			}
+		}
+	}
+
+	for (const auto& triangleList : nestedTriangleIndx)
+	{
+		objFile << "f";
+		for (int indx : triangleList)
+		{
+			objFile << " " << indx;
+		}
+		objFile << "\n";
+	}
+	objFile.close();
+	return;
+}
 
 double helperFunctions::computeArea(const TopoDS_Shape& theShape)
 {

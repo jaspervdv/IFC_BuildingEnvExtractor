@@ -139,6 +139,9 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	try { settingsCollection.setIFCRelatedSettings(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
+	try { settingsCollection.setFormatRelatedSettings(json); }
+	catch (const std::string& errorString) { throw errorString; }
+
 	// set IFC related values 
 	try { settingsCollection.generateGeneralSettings(); }
 	catch (const std::string& errorString) { throw errorString; }
@@ -160,13 +163,32 @@ void IOManager::printSummary()
 	std::cout << "- Input File(s):\n";
 	for (const std::string& inputPath : settingsCollection.getIfcPathList()) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << inputPath << "\n"; }
 	std::cout << "- Output File:\n";
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputIFCPath() << "\n";
+	if (settingsCollection.createJSON())
+	{
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputJSONPath() << "\n";
+	}
+	if (settingsCollection.createSTEP())
+	{
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputSTEPPath() << "\n";
+	}
+	if (settingsCollection.createOBJ())
+	{
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputOBJPath() << "\n";
+	}
+
 	std::cout << "- Create Report:\n";
 	std::cout << boolToString(settingsCollection.writeReport()) << "\n";
 	std::cout << "- Report File:\n";
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getOutputReportPath() << "\n";
 	std::cout << "- LoD export enabled:\n";
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << "\n\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << getLoDEnabled() << "\n";
+	std::cout << "- Output format:\n";
+	std::string formatString = "";
+	if (settingsCollection.createJSON()) { formatString += "JSON, "; }
+	if (settingsCollection.createSTEP()) { formatString += "STEP, "; }
+	if (settingsCollection.createOBJ()) { formatString += "OBJ, "; }
+	formatString.erase(formatString.size() - 2);
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << formatString << "\n\n";
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "IFC settings\n";
 	std::cout << "- Model rotation:\n";
@@ -282,7 +304,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::filePathOutput);
 
 	ioJSON[inputOName] = settingsCollection.getIfcPathList();
-	ioJSON[outputOName] = settingsCollection.getOutputIFCPath();
+	ioJSON[outputOName] = settingsCollection.getOutputJSONPath();
 	settingsJSON[filePathsOName] = ioJSON;
 
 	// store the report data
@@ -334,7 +356,7 @@ nlohmann::json IOManager::settingsToJSON()
 		}
 	}
 	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
-	ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();;
+	ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();
 	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeoGrade();
 	settingsJSON[ifcOName] = ifcJSON;
 
@@ -781,14 +803,14 @@ bool IOManager::write(bool reportOnly)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	if (settingsCollection.getOutputIFCPath() == "") {
+	if (settingsCollection.getOutputJSONPath() == "") {
 		//TODO: add cout for no report file made
 		return true; 
 	} // no output path set yet, cannot write to unknown location
 
 	if (!reportOnly)
 	{
-		cityCollection_->dumpJson(settingsCollection.getOutputIFCPath());
+		cityCollection_->dumpJson(settingsCollection.getOutputJSONPath());
 	}
 	if (!settingsCollection.writeReport()) { return true; }
 	nlohmann::json report;

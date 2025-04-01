@@ -171,7 +171,7 @@ void VoxelGrid::addVoxelColumn(int beginIindx, int endIdx, DataManager* h, int* 
 std::vector<int> VoxelGrid::computeColumnScore(DataManager* h)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	int voxelSize = settingsCollection.voxelSize();
+	double voxelSize = settingsCollection.voxelSize();
 	int loopRange = xRelRange_ * yRelRange_;
 	int plateIndx = (zRelRange_ - 1) * xRelRange_ * yRelRange_;
 

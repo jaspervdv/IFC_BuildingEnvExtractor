@@ -193,6 +193,26 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 	return;
 }
 
+void SettingsCollection::setFormatRelatedSettings(const nlohmann::json& json)
+{
+	//output format related processing settings
+	std::string outputOName = JsonObjectInEnum::getString(JsonObjectInID::outputFormat);
+	if (!json.contains(outputOName)) { return; }
+	nlohmann::json outputDataJson = json[outputOName];
+
+	try
+	{
+		//setCreateJSON(outputDataJson);
+		setCreateOBJ(outputDataJson);
+		setCreateSTEP(outputDataJson);
+	}
+	catch (const std::string& errorString)
+	{
+		throw errorString;
+	}
+	return;
+}
+
 void SettingsCollection::generateGeneralSettings()
 {
 	// set generated settings
@@ -265,7 +285,7 @@ void SettingsCollection::setIOPaths(const nlohmann::json& json)
 	{
 		try
 		{
-			setOutputIFCPath(getJsonPath(filePaths[outputOName], true, "json"));
+			setOutputJSONPath(getJsonPath(filePaths[outputOName], true, "json"));
 		}
 		catch (const ErrorID& exceptionId)
 		{
@@ -292,10 +312,10 @@ void SettingsCollection::setIOPaths(const nlohmann::json& json)
 	}
 	else
 	{
-		boost::filesystem::path filePath(getOutputIFCPath());
+		boost::filesystem::path filePath(getOutputJSONPath());
 		boost::filesystem::path parentFolder = filePath.parent_path();
 		boost::filesystem::path fileNameStem = filePath.stem();
-		std::string reportPath = (parentFolder / (fileNameStem.string() + "_report.json")).string();
+		std::string reportPath = parentFolder.string() + "/" + fileNameStem.string() + "_report.json";
 		setOutputReportPath(reportPath);
 	}
 	
@@ -322,6 +342,15 @@ void SettingsCollection::setIOPaths(const nlohmann::json& json)
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + inputOName);
 		}
 	}
+	return;
+}
+
+void SettingsCollection::setOutputJSONPath(const std::string& value)
+{
+	boost::filesystem::path filePath(value);
+	boost::filesystem::path parentFolder = filePath.parent_path();
+	boost::filesystem::path fileNameStem = filePath.stem();
+	outputBasePath_ = parentFolder.string() + "/" + fileNameStem.string();
 	return;
 }
 
@@ -613,6 +642,60 @@ void SettingsCollection::setWriteReport(const nlohmann::json& json)
 		catch (const ErrorID& exceptionId)
 		{
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + outputReportOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setCreateJSON(const nlohmann::json& json)
+{
+	std::string outputFormatOName = JsonObjectInEnum::getString(JsonObjectInID::outputFormatJSON);
+	if (json.contains(outputFormatOName))
+	{
+		try
+		{
+			bool formatBool = getJsonBoolValue(json[outputFormatOName]);
+			setCreateJSON(formatBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + outputFormatOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setCreateSTEP(const nlohmann::json& json)
+{
+	std::string outputFormatOName = JsonObjectInEnum::getString(JsonObjectInID::outputFormatSTEP);
+	if (json.contains(outputFormatOName))
+	{
+		try
+		{
+			bool formatBool = getJsonBoolValue(json[outputFormatOName]);
+			setCreateSTEP(formatBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + outputFormatOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setCreateOBJ(const nlohmann::json& json)
+{
+	std::string outputFormatOName = JsonObjectInEnum::getString(JsonObjectInID::outputFormatOBJ);
+	if (json.contains(outputFormatOName))
+	{
+		try
+		{
+			bool formatBool = getJsonBoolValue(json[outputFormatOName]);
+			setCreateOBJ(formatBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + outputFormatOName);
 		}
 	}
 	return;

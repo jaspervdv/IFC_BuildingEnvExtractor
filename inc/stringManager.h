@@ -126,6 +126,59 @@ public:
 	static std::string getString(ErrorID id, bool withImportance = true);
 };
 
+/// collects all the file extension of the output
+enum class fileExtensionID {
+	JSON,
+	STEP,
+	OBJ,
+	dash,
+
+	interior,
+	exterior,
+
+	OBJLoD00,
+	OBJLoD02,
+	OBJLoD03,
+	OBJLoD04,
+	OBJLoD10,
+	OBJLoD12,
+	OBJLoD13,
+	OBJLoD22,
+	OBJLoD30,
+	OBJLoD31,
+	OBJLoD32,
+	OBJLoD50,
+
+	STEPLoD00,
+	STEPLoD02,
+	STEPLoD03,
+	STEPLoD04,
+	STEPLoD10,
+	STEPLoD12,
+	STEPLoD13,
+	STEPLoD22,
+	STEPLoD30,
+	STEPLoD31,
+	STEPLoD32,
+	STEPLoD50,
+
+	OBJLoD02Interior,
+	OBJLoD03Interior,
+
+	STEPLoD02Interior,
+	STEPLoD03Interior,
+	STEPLoD12Interior,
+	STEPLoD22Interior,
+	STEPLoD32Interior,
+	STEPLoD50Interior,
+};
+
+
+class fileExtensionEnum {
+public:
+	static std::string getString(fileExtensionID id);
+};
+
 // collects all the JSON object of the config files
 enum class JsonObjectInID {
 	outputReport,
@@ -157,6 +210,11 @@ enum class JsonObjectInID {
 	JSONGenExterior,
 	JSONGeoreference,
 	JSONMergeSemantics,
+
+	outputFormat,
+	outputFormatJSON,
+	outputFormatOBJ,
+	outputFormatSTEP,
 
 	lodOutput,
 

@@ -390,6 +390,97 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 	}
 }
 
+
+std::string fileExtensionEnum::getString(fileExtensionID id)
+{
+	switch (id) {
+	case fileExtensionID::JSON:
+		return ".json";
+	case fileExtensionID::OBJ:
+		return ".obj";
+	case fileExtensionID::STEP:
+		return ".step";
+	case fileExtensionID::dash:
+		return "_";
+
+	case fileExtensionID::interior:
+		return "i";
+	case fileExtensionID::exterior:
+		return "e";
+
+	case fileExtensionID::OBJLoD00:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD00" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD02:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD02" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD03:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD03" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD04:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD04" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD10:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD10" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD12:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD12" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD13:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD13" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD22:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD22" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD30:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD30" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD31:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD31" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD32:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD32" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD50:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD50" + getString(fileExtensionID::OBJ);
+
+	case fileExtensionID::STEPLoD00:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD00" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD02:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD02" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD03:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD03" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD04:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD04" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD10:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD10" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD12:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD12" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD13:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD13" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD22:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD22" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD30:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD30" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD31:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD31" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD32:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD32" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD50:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD50" + getString(fileExtensionID::STEP);
+
+	case fileExtensionID::OBJLoD02Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD02" + getString(fileExtensionID::OBJ);
+	case fileExtensionID::OBJLoD03Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD03" + getString(fileExtensionID::OBJ);
+
+	case fileExtensionID::STEPLoD02Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD02" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD03Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD03" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD12Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD12" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD32Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD32" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoD50Interior:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::interior) + "LoD50" + getString(fileExtensionID::STEP);
+
+	default:
+		return "";
+	}
+
+}
+
+
 std::string sourceIdentifierEnum::getString(sourceIdentifierID id)
 {
 	switch (id) {
@@ -467,6 +558,15 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Georeference";
 	case JsonObjectInID::JSONMergeSemantics:
 		return "Merge semantic objects";
+
+	case JsonObjectInID::outputFormat:
+		return "Output format";
+	case JsonObjectInID::outputFormatJSON:
+		return "JSON file";
+	case JsonObjectInID::outputFormatOBJ:
+		return "OBJ file";
+	case JsonObjectInID::outputFormatSTEP:
+		return "STEP file";
 	
 	case JsonObjectInID::lodOutput:
 		return "LoD output";

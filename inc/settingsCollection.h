@@ -19,8 +19,8 @@ private:
 
     std::string InputJsonPath_;
 	std::vector<std::string> inputIFCPathList_ = {};
-	std::string outputCityPath_ = "";
-	std::string outputReportPath_ = "";
+    std::string outputBasePath_ = "";
+;	std::string outputReportPath_ = "";
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = false;
@@ -48,6 +48,12 @@ private:
 
 	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
+
+    bool createJSON_ = true;
+    bool createSTEP_ = false;
+    bool mergeSTEP_ = false;
+    bool createOBJ_ = false;
+    bool mereOBJ_ = false;
 
 	// variables set the deviding objects
 	bool useDefaultDiv_ = true;
@@ -131,6 +137,8 @@ public:
     void setVoxelRelatedSettings(const nlohmann::json& json);
     // read and store the ifc component related settings
     void setIFCRelatedSettings(const nlohmann::json& json);
+    // read and store the output format related settings
+    void setFormatRelatedSettings(const nlohmann::json& json);
     // set the generative settings related to the user submitted settings
     void generateGeneralSettings();
 
@@ -149,8 +157,11 @@ public:
     void addToIfcPathList(const std::string& value) { inputIFCPathList_.emplace_back(value); }
     void clearIfcPathList() { inputIFCPathList_.clear(); }
 
-    const std::string& getOutputIFCPath() const { return outputCityPath_; }
-    void setOutputIFCPath(const std::string& value) { outputCityPath_ = value; }
+    const std::string& getOutputBasePath() const { return outputBasePath_; }
+    const std::string getOutputJSONPath() { return outputBasePath_ + ".json"; }
+    const std::string getOutputOBJPath() { return outputBasePath_ + "_nLoDxx.obj"; }
+    const std::string getOutputSTEPPath() { return outputBasePath_ + "_nLoDxx.STEP"; }
+    void setOutputJSONPath(const std::string& value);
 
     const std::string& getOutputReportPath() const { return outputReportPath_; }
     void setOutputReportPath(const std::string& value) { outputReportPath_ = value; }
@@ -231,6 +242,18 @@ public:
     bool writeReport() const { return writeReport_; }
     void setWriteReport(bool value) { writeReport_ = value; }
     void setWriteReport(const nlohmann::json& json);
+
+    bool createJSON() const { return createJSON_; }
+    void setCreateJSON(bool value) { createJSON_ = value; }
+    void setCreateJSON(const nlohmann::json& json);
+
+    bool createSTEP() const { return createSTEP_; }
+    void setCreateSTEP(bool value) { createSTEP_ = value; }
+    void setCreateSTEP(const nlohmann::json& json);
+
+    bool createOBJ() const { return createOBJ_; }
+    void setCreateOBJ(bool value) { createOBJ_ = value; }
+    void setCreateOBJ(const nlohmann::json& json);
 
     bool storeCustomWallAttributes() const { return addCustomWallAttributes_; }
     void setStoreCustomWallAttributes(bool value) { addCustomWallAttributes_ = value; }
