@@ -101,6 +101,12 @@ template void helperFunctions::writeToOBJ<TopoDS_Solid>(const std::vector<TopoDS
 template void helperFunctions::writeToOBJ<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, const std::string& targetPath);
 template void helperFunctions::writeToOBJ<TopoDS_Compound>(const std::vector<TopoDS_Compound>& theShapeList, const std::string& targetPath);
 
+inline bool operator<(const gp_XYZ& left, const gp_XYZ& right) {
+	if (left.X() != right.X()) return left.X() < right.X();
+	if (left.Y() != right.Y()) return left.Y() < right.Y();
+	return left.Z() < right.Z();
+}
+
 
 BoostPoint3D helperFunctions::Point3DOTB(const gp_Pnt& oP) {
 	return BoostPoint3D(oP.X(), oP.Y(), oP.Z());
@@ -2370,6 +2376,7 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 	std::ofstream objFile(targetPath);
 	int vertIdxOffset = 1;
 	std::vector<std::vector<int>> nestedTriangleIndx;
+	std::map<gp_XYZ, int> vertMap;
 
 	for (const T& theShape : theShapeList)
 	{
@@ -2394,8 +2401,15 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 				{
 					gp_XYZ xyz = mesh->Nodes().Value(theTriangle(i)).Transformed(loc).Coord();
 
+					if (vertMap.find(xyz) != vertMap.end())
+					{
+						triangleIndx.emplace_back(vertMap[xyz]);
+						continue;
+					}
+
 					objFile << "v " << xyz.X() << " " << xyz.Y() << " " << xyz.Z() << "\n";
 					triangleIndx.emplace_back(vertIdxOffset);
+					vertMap[xyz] = vertIdxOffset;
 					vertIdxOffset++;
 				}
 

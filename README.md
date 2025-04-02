@@ -294,7 +294,7 @@ The configuration json has a very simple structure. An example can be found belo
     },
     "Output format" : {
         "STEP file" : 1,
-        "OBJ file" : 1,
+        "OBJ file" : 1
     },
     "Generate report": 1,
     "Threads": 12
