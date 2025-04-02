@@ -3049,7 +3049,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
 	}
 	std::vector<Value>().swap(productLookupValues);
-
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, std::string>> outerSurfacePairList;
 	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
@@ -3058,13 +3057,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, std::string>> splitOuterSurfacePairList;
 	std::vector<std::pair<TopoDS_Face, std::string>> unSplitOuterSurfacePairList;
-
 	splitOuterSurfaces(splitOuterSurfacePairList, unSplitOuterSurfacePairList, outerSurfacePairList);
 	std::vector<std::pair<TopoDS_Face, std::string>>().swap(outerSurfacePairList);
 	// remove internal faces
 	bgi::rtree<std::pair<BoostBox3D, int>, bgi::rstar<25>> splitFaceIndx;
 	std::vector<std::pair<TopoDS_Face, std::string>> totalSplitOuterSurfacePairList;
-
 	for (const auto& [currentFace, currentType] : splitOuterSurfacePairList)
 	{
 		totalSplitOuterSurfacePairList.emplace_back(std::pair(currentFace, currentType));
@@ -4334,13 +4331,18 @@ void CJGeoCreator::splitOuterSurfaces(
 		faceIndx.query(bgi::intersects(helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
 
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+		if (currentNormal.Magnitude() < 1e-6) { continue; }
 
 		int toolCount = 0;
 		for (const auto& [otherBox, otherIndx] : qResult)
 		{
 			const TopoDS_Face& otherFace = outerSurfacePairList[otherIndx].first;
 			if (currentFace.IsEqual(otherFace)) { continue; }
-			if (currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), 1e-4)) {
+
+			gp_Vec otherNormal = helperFunctions::computeFaceNormal(otherFace);
+			if (otherNormal.Magnitude() < 1e-6) { continue; }
+
+			if (currentNormal.IsParallel(otherNormal, 1e-4)) {
 				std::optional<gp_Pnt> otherPointOpt = helperFunctions::getPointOnFace(otherFace);
 				if (otherPointOpt == std::nullopt) { continue; }
 

@@ -244,6 +244,9 @@ def runCode(input_path,
         lod_list.append(5.0)
     json_dictionary["LoD output"] = lod_list
 
+    json_dictionary["Output format"] = {}
+    json_dictionary["Output format"]["STEP file"] = 0
+    json_dictionary["Output format"]["OBJ file"] = 0
 
     with open(json_path, "w") as outfile:
         json.dump(json_dictionary, outfile)
