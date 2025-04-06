@@ -722,6 +722,50 @@ gp_Pnt helperFunctions::getLastPointShape(const TopoDS_Shape& shape) {
 	return BRep_Tool::Pnt(endVertex);;
 }
 
+bool helperFunctions::pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& thePoint, double precision)
+{
+	if (precision == 0.0) { precision = SettingsCollection::getInstance().precision(); }
+
+	for (TopExp_Explorer faceExpl(shape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(currentFace, loc);
+
+		if (mesh.IsNull())
+		{
+			helperFunctions::triangulateShape(currentFace);
+			mesh = BRep_Tool::Triangulation(currentFace, loc);
+		}
+		if (mesh.IsNull()) { continue; }
+
+		for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
+		{
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+			gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+			gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+			gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+			double baseArea = computeArea(p1, p2, p3);
+
+			double area1 = computeArea(thePoint, p1, p2);
+			if (area1 - baseArea > precision) { continue; }
+
+			double area2 = computeArea(thePoint, p1, p3);
+			if (area2 - baseArea > precision) { continue; }
+
+			double area3 = computeArea(thePoint, p2, p3);
+			if (area3 - baseArea > precision) { continue; }
+
+			if (abs(baseArea - (area1 + area2 + area3)) > precision * baseArea ) { continue; }
+			return true;
+		}
+	}
+	return false;
+}
+
 
 gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge)
 {
@@ -1335,14 +1379,8 @@ std::vector<TopoDS_Face> helperFunctions::mergeCoFaces(const std::vector<TopoDS_
 		bool isFound = false;
 		for (const TopoDS_Face originalFace : theFaceList)
 		{
-			BRepExtrema_DistShapeShape distanceCalc1(
-				originalFace,
-				BRepBuilderAPI_MakeVertex(currentPoint)
-			);
-			distanceCalc1.Perform();
-
-			if (distanceCalc1.Value() < precision)
-			{ 
+			if (pointOnShape(originalFace, currentPoint))
+			{
 				isFound = true;
 				break;
 			}
@@ -1366,13 +1404,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeCoFaces(const std::vector<TopoDS_
 		bool isFound = false;
 		for (const TopoDS_Face originalFace : theFaceList)
 		{
-			BRepExtrema_DistShapeShape distanceCalc1(
-				originalFace,
-				BRepBuilderAPI_MakeVertex(currentPoint)
-			);
-			distanceCalc1.Perform();
-
-			if (distanceCalc1.Value() < precision)
+			if (pointOnShape(originalFace, currentPoint))
 			{
 				isFound = true;
 				break;
@@ -1926,6 +1958,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
 		std::vector<TopoDS_Face> outerInvFaceList;
 		std::vector<TopoDS_Face> innerFaces;
+
 		for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
@@ -1936,10 +1969,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			if (optionalPoint == std::nullopt) { continue; }
 			gp_Pnt pointOnFace = *optionalPoint;
 
-			BRepExtrema_DistShapeShape distanceCalcBase(currentFace, BRepBuilderAPI_MakeVertex(p0));
-			distanceCalcBase.Perform();
-
-			if (distanceCalcBase.Value() < 1e-6) {
+			if (pointOnShape(currentFace, p0))
+			{
 				for (const TopoDS_Face invertedFace : invertFace(currentFace))
 				{
 					if (invertedFace.IsNull()) { continue; }
@@ -1948,10 +1979,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				continue;
 			}
 
-			// get faces that are created by the voids in the boolean process
-			BRepExtrema_DistShapeShape distanceCalcFace(faceComplex, BRepBuilderAPI_MakeVertex(pointOnFace));
-			distanceCalcFace.Perform();
-			if (distanceCalcFace.Value() > 1e-6) {
+			if (!pointOnShape(faceComplex, pointOnFace))
+			{
 				innerFaces.emplace_back(currentFace);
 			}
 		}
@@ -2000,10 +2029,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 					if (optionalPoint == std::nullopt) { continue; }
 					gp_Pnt pointOnFace = *optionalPoint;
 
-					BRepExtrema_DistShapeShape distanceCalcBase(currentFace, BRepBuilderAPI_MakeVertex(pointOnFace));
-					distanceCalcBase.Perform();
-
-					if (distanceCalcBase.Value() > 1e-6) { continue; }
+					if (!pointOnShape(currentFace, pointOnFace)) { continue; }
 
 					TopoDS_Wire voidWire = BRepTools::OuterWire(innerFace);
 					faceMaker.Add(voidWire);
@@ -2558,6 +2584,14 @@ bool helperFunctions::isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR)
 	return true;
 }
 
+double helperFunctions::computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2)
+{
+	gp_Vec v01(p0, p1);
+	gp_Vec v02(p0, p2);
+	gp_Vec cross = v01.Crossed(v02);
+	return 0.5 * cross.Magnitude();
+}
+
 std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList, bool fullProcessing)
 {
 	std::vector<TopoDS_Face> cleanedFaceList;
@@ -2568,6 +2602,8 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 	bgi::rtree<Value, bgi::rstar<25>> spatialIndex;
 	for (const TopoDS_Face& currentFace : inputFaceList)
 	{
+		if (computeArea(currentFace) < 1e-6) { continue; }
+
 		std::vector<Value> qResult;
 		qResult.clear();
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
@@ -2599,7 +2635,7 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 
 		std::vector<Value> qResult;
 		qResult.clear();
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace, 0.0);
 		spatialIndex.query(bgi::intersects(
 			bbox), std::back_inserter(qResult));
 
@@ -2615,11 +2651,11 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 			for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
 			{
 				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				BRepExtrema_DistShapeShape distanceCalc(otherFace, vertex); //TODO: speed up with linear intersection function?
-				distanceCalc.Perform();
-
-				if (distanceCalc.Value() > precision) {
+				gp_Pnt p = BRep_Tool::Pnt(vertex);
+				if (!pointOnShape(otherFace, p))
+				{
 					isSurrounded = false;
+					break;
 				}
 			}
 			if (isSurrounded) { 

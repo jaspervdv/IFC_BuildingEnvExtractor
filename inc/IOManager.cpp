@@ -537,6 +537,22 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingExterior) << std::endl;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	
+	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || 
+		settingsCollection.footPrintBased() || 
+		settingsCollection.make30()
+		)
+	{
+		try
+		{
+			geoCreator->makeFootprint(internalDataManager_.get());
+		}
+		catch (const std::exception&)
+		{
+			ErrorCollection::getInstance().addError(ErrorID::errorFootprintFailed);
+			succesfullExit_ = 0;
+		}
+	}
 
 	if (settingsCollection.make00())
 	{
@@ -759,19 +775,6 @@ bool IOManager::run()
 	{
 		ErrorCollection::getInstance().addError(ErrorID::errorFailedInit);
 		return false;
-	}
-
-	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || settingsCollection.footPrintBased() || settingsCollection.make30())
-	{
-		try
-		{
-			geoCreator.makeFootprint(internalDataManager_.get());
-		}
-		catch (const std::exception&)
-		{
-			ErrorCollection::getInstance().addError(ErrorID::errorFootprintFailed);
-			succesfullExit_ = 0;
-		}
 	}
 
 	// create the actual geometry

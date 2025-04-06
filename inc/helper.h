@@ -145,6 +145,8 @@ struct helperFunctions{
 	static gp_Pnt getFirstPointShape(const TopoDS_Shape& shape);
 	/// get last point on shape (used for wires and edges)
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
+	/// check if point is on shape
+	static bool pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& thePoint, double precision = 0.0);
 	
 	/// direction and angle code
 
@@ -268,6 +270,8 @@ struct helperFunctions{
 	static double computeArea(const TopoDS_Shape& theShape);
 	/// compute the area of a face
 	static double computeArea(const TopoDS_Face& theFace);
+	/// compute the area of a triange
+	static double computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2);
 	/// get a nested list represeting the triangulation of an object
 	static void triangulateShape(const TopoDS_Shape& shape);
 	/// checks if a bbox has volume

@@ -162,11 +162,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 			gp_Pnt projectedPoint = gp_Pnt(currentPoint.X(), currentPoint.Y(), 0);
 			for (BuildingSurfaceCollection& currentSurfaceCol : buildingSurfaceCollectionList)
 			{
-				BRepExtrema_DistShapeShape distanceCalc(currentSurfaceCol.getRoofOutline(), BRepBuilderAPI_MakeVertex(projectedPoint));
-				distanceCalc.Perform();
-				double distance = distanceCalc.Value();
-
-				if (distance < 0.001)
+				if (helperFunctions::pointOnShape(currentSurfaceCol.getRoofOutline(), projectedPoint, SettingsCollection::getInstance().precisionCoarse()))
 				{
 					currentSurfaceCol.addRoof(currentSurface);
 					found = true;
@@ -627,7 +623,6 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		//TODO: add error
 		return;
 	}
-
 	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::removeDubFaces(splitFaceList, true);
 	if (!cleanedFaceList.size())
 	{
@@ -1130,6 +1125,7 @@ std::vector<T> CJGeoCreator::simplefyFacePool(const std::vector<T>& surfaceList,
 				TopoDS_Face mergedFace = mergeFaces(tempFaceList);
 				if (!mergedFace.IsNull())
 				{ 
+					
 					// get the surface type of the type that has the largest area
 					double maxArea = 0;
 					std::string surfaceTypeName = "";
@@ -1225,7 +1221,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	gp_Vec clusterNormal = helperFunctions::computeFaceNormal(mergeFaces[0]);
 	gp_Vec horizontalNormal = gp_Vec(0, 0, 1);
 
-
 	gp_Trsf transform;
 	std::vector<TopoDS_Face> mergingFaces;
 	if (clusterNormal.Magnitude() < 1e-6)
@@ -1260,7 +1255,6 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 
 	std::vector<TopoDS_Face> cleanedMergingFaces = helperFunctions::removeDubFaces(mergingFaces);
 	std::vector<TopoDS_Face> mergedFaces = helperFunctions::planarFaces2Outline(cleanedMergingFaces);
-	
 	if (!mergedFaces.size())
 	{
 		//TODO: add error
@@ -1296,7 +1290,7 @@ void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, st
 }
 
 
-bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape)
+bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape) //TODO: might be dup
 {
 	double precision = SettingsCollection::getInstance().precision();
 	for (TopExp_Explorer explorer(encapsulatedShape, TopAbs_FACE); explorer.More(); explorer.Next())
@@ -1307,13 +1301,11 @@ bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const 
 		for (TopExp_Explorer explorer2(innerSurface, TopAbs_VERTEX); explorer2.More(); explorer2.Next())
 		{
 			const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer2.Current());
-			BRepExtrema_DistShapeShape distCalculator(outerSurface, vertex);
-			distCalculator.Perform();
 
-			if (distCalculator.Value() >= precision)
-			{ 
+			if (!helperFunctions::pointOnShape(outerSurface, BRep_Tool::Pnt(vertex)))
+			{
 				encapsulated = false;
-				break; 
+				break;
 			}
 		}
 		if (encapsulated)
@@ -2015,6 +2007,7 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
+		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
 		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
@@ -2049,7 +2042,6 @@ void CJGeoCreator::make2DStoreys(
 			helperFunctions::writeToOBJ(copyGeoList, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD02Interior));
 		}
 	}
-
 
 	printTime(startTime, std::chrono::steady_clock::now());
 	return;
@@ -2871,14 +2863,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 				std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
 				if (optionalPoint == std::nullopt) { continue; }
 
-				TopoDS_Vertex currentVertex = BRepBuilderAPI_MakeVertex(*optionalPoint);
-
 				for (const TopoDS_Shape& otherStoryFace : toolList)
 				{
-					BRepExtrema_DistShapeShape distanceTop(otherStoryFace, currentVertex);
-					distanceTop.Perform();
-
-					if (distanceTop.Value() > precision) { continue; }
+					if (!helperFunctions::pointOnShape(otherStoryFace, *optionalPoint))
+					{
+						continue;
+					}
 					toBeExtrudedFaces.emplace_back(currentFace);
 					break;
 				}
@@ -2943,16 +2933,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 
 			if (currentCenterPoint == std::nullopt) { continue; }
 
-			TopoDS_Vertex currentVertex = BRepBuilderAPI_MakeVertex(*currentCenterPoint);
-
 			bool found = false;
 			for (const auto& [otherBoundingBox, otherHorizontalFace] : qResult)
 			{
 				if (horizontalFace.IsEqual(otherHorizontalFace)) { continue; }
-				BRepExtrema_DistShapeShape distanceTop(otherHorizontalFace, currentVertex);
-				distanceTop.Perform();
 
-				if (distanceTop.Value() <= precision)
+				if (helperFunctions::pointOnShape(otherHorizontalFace, *currentCenterPoint))
 				{
 					found = true;
 					break;
@@ -3053,7 +3039,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	std::vector<std::pair<TopoDS_Face, std::string>> outerSurfacePairList;
 	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
 	std::vector<int>().swap(scoreList);
-
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, std::string>> splitOuterSurfacePairList;
 	std::vector<std::pair<TopoDS_Face, std::string>> unSplitOuterSurfacePairList;
