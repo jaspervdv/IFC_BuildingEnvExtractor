@@ -667,10 +667,9 @@ std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace
 		for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 		{
 			TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
-			BRepExtrema_DistShapeShape distanceCalc(BRepBuilderAPI_MakeVertex(point), currentWire);
-			distanceCalc.Perform();
 
-			if (distanceCalc.Value() <= precision) {
+			if (helperFunctions::pointOnWire(currentWire, point))
+			{
 				isEdge = true;
 				break;
 			}
@@ -763,6 +762,27 @@ bool helperFunctions::pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& theP
 			return true;
 		}
 	}
+	return false;
+}
+
+bool helperFunctions::pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint)
+{
+	for (TopExp_Explorer currentExpl(theWire, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
+		if (pointOnEdge(currentEdge, thePoint)) { return true; }
+	}
+	return false;
+}
+
+bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint)
+{
+	gp_Pnt p1 = getFirstPointShape(theEdge);
+	gp_Pnt p2 = getLastPointShape(theEdge);
+
+	double baseDistance = p1.Distance(p2);
+
+	if (abs(baseDistance - (p1.Distance(thePoint) + p2.Distance(thePoint))) < SettingsCollection::getInstance().precision()) { return true; }
 	return false;
 }
 
@@ -1029,8 +1049,8 @@ double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vert
 
 bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, const std::vector<gp_Pnt>& triangle)
 {
-	gp_Pnt lineStart = line[0];
-	gp_Pnt lineEnd = line[1];
+	const gp_Pnt& lineStart = line[0];
+	const gp_Pnt& lineEnd = line[1];
 
 	for (size_t i = 0; i < 3; i++)
 	{
@@ -1146,6 +1166,44 @@ std::optional<gp_Pnt> helperFunctions::linearLineIntersection(const TopoDS_Edge&
 	);
 }
 
+bool helperFunctions::LineShapeIntersection(const TopoDS_Shape& theShape, const gp_Pnt& lP1, const gp_Pnt& lP2)
+{
+	for (TopExp_Explorer faceExpl(theShape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+
+		if (LineShapeIntersection(currentFace, lP1, lP2)) { return true; }
+	}
+	return false;
+}
+
+bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2)
+{
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
+
+	if (mesh.IsNull())
+	{
+		helperFunctions::triangulateShape(theFace);
+		mesh = BRep_Tool::Triangulation(theFace, loc);
+	}
+	if (mesh.IsNull()) { return false; }
+
+	for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		if (helperFunctions::triangleIntersecting({ lP1, lp2 }, {p1, p2, p3}))
+		{
+			return true;
+		}
+	}
+	return false;
+}
 
 TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, const TopoDS_Wire& mergingWire) {
 	double precision = SettingsCollection::getInstance().precision();

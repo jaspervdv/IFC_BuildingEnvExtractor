@@ -320,7 +320,6 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 				TopoDS_Edge otherEdge = TopoDS::Edge(expl.Current());
 				BRepExtrema_DistShapeShape distanceCalc(otherEdge, currentEvalPoint->getEvalEdge());
 
-
 				if (distanceCalc.Value() < 0.001)
 				{
 					currentEvalPoint->setInvisible();

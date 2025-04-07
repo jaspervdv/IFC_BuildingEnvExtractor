@@ -111,7 +111,7 @@ private:
 
 	void FinefilterSurface(
 		const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList,
-		const std::vector<std::shared_ptr<SurfaceGridPair>>& otherShapeList,
+		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<SurfaceGridPair>>, bgi::rstar<25>>& shapeIdx,
 		std::mutex& processMutex,
 		std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
 	);

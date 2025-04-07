@@ -147,6 +147,10 @@ struct helperFunctions{
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
 	/// check if point is on shape
 	static bool pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& thePoint, double precision = 0.0);
+	/// check if point is on edge
+	static bool pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint);
+	/// check if point is on edge
+	static bool pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint);
 	
 	/// direction and angle code
 
@@ -190,6 +194,13 @@ struct helperFunctions{
 	static std::optional<gp_Pnt> linearLineIntersection(const Edge& edge1, const Edge& edge2, bool projected, double buffer = 0.01);
 	/// get the intersection between two linear lines, returns 0 if not intersection
 	static std::optional<gp_Pnt> linearLineIntersection(const TopoDS_Edge& edge1, const TopoDS_Edge& edge2, bool projected, double buffer = 0.01);
+
+	/// surface line intersection related code
+
+	/// check if a line intersects with a shape
+	static bool LineShapeIntersection(const TopoDS_Shape& theShape, const gp_Pnt& lP1, const gp_Pnt& lP2);
+	/// check if a line intersects with a face
+	static bool LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2);
 
 	// surface and wire merging code
 

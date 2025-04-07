@@ -755,9 +755,10 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 		
 		if (!bufferSurface.IsNull())
 		{
-			TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
-			BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, bufferSurface);
-			if (distanceWireCalc.Value() > 1e-6) { continue; }
+			if (!helperFunctions::LineShapeIntersection(bufferSurface, basePoint, bottomPoint))
+			{
+				continue;
+			}
 		}
 		TopoDS_Edge upperEvalLine = BRepBuilderAPI_MakeEdge(basePoint, topPoint);
 		
@@ -773,8 +774,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 			TopoDS_Face otherFace = otherSurfaceValue.second;
 			if (currentFace.IsEqual(otherFace)) { continue; }
 
-			BRepExtrema_DistShapeShape distanceWireCalc(upperEvalLine, otherFace);
-			if (distanceWireCalc.Value() < 1e-6)
+			if (helperFunctions::LineShapeIntersection(otherFace, basePoint, topPoint))
 			{
 				isHidden = true;
 				break;
@@ -1574,6 +1574,19 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, s
 std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList)
 {
 	auto startTime = std::chrono::steady_clock::now();
+
+	// make spatial index of the shapes
+	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<SurfaceGridPair>>, bgi::rstar<25>> shapeIdx;
+	for (const std::shared_ptr<SurfaceGridPair>& surfGridPair : shapeList)
+	{
+		bg::model::box <BoostPoint3D> bbox = bg::model::box < BoostPoint3D >(
+			BoostPoint3D(helperFunctions::Point3DOTB(surfGridPair->getLLLPoint())),
+			BoostPoint3D(helperFunctions::Point3DOTB(surfGridPair->getURRPoint()))
+			);
+
+		shapeIdx.insert(std::make_pair(bbox, surfGridPair));
+	}
+
 	// split the range over cores
 	int coreUse = SettingsCollection::getInstance().threadcount();
 	if (coreUse > shapeList.size())
@@ -1592,8 +1605,8 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 		auto endIdx = (i == coreUse - 1) ? shapeList.end() : startIdx + splitListSize;
 
 		std::vector<std::shared_ptr<SurfaceGridPair>> sublist(startIdx, endIdx);
-		threadList.emplace_back([this, sublist, &shapeList, &processMutex, &fineFilteredShapeList]() {
-			FinefilterSurface(sublist, shapeList, processMutex, &fineFilteredShapeList); 
+		threadList.emplace_back([this, sublist, &shapeIdx, &processMutex, &fineFilteredShapeList]() {
+			FinefilterSurface(sublist, shapeIdx, processMutex, &fineFilteredShapeList);
 			});
 	}
 
@@ -1608,14 +1621,37 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 
 void CJGeoCreator::FinefilterSurface(
 	const std::vector<std::shared_ptr<SurfaceGridPair>>& shapeList,
-	const std::vector<std::shared_ptr<SurfaceGridPair>>& otherShapeList,
+	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<SurfaceGridPair>>, bgi::rstar<25>>& shapeIdx,
 	std::mutex& processMutex,
 	std::vector<std::shared_ptr<SurfaceGridPair>>* fineFilteredShapeList
 )
 {
 	for (const std::shared_ptr<SurfaceGridPair>& currentSurfacePair : shapeList)
 	{
-		if (!currentSurfacePair->testIsVisable(otherShapeList)) { continue; }
+		//	querry potential overlapping surfacesI 
+		gp_Pnt lll = currentSurfacePair->getLLLPoint();
+		gp_Pnt urr = currentSurfacePair->getURRPoint();
+		urr.Translate(gp_Pnt(0, 0, 0), gp_Pnt(0, 0, 1000));
+
+		BoostBox3D bbox = BoostBox3D(helperFunctions::Point3DOTB(lll), helperFunctions::Point3DOTB(urr));
+
+		std::vector<std::pair<BoostBox3D, std::shared_ptr<SurfaceGridPair>>> qResult;
+		qResult.clear();
+		shapeIdx.query(bgi::intersects(
+			bbox), std::back_inserter(qResult));
+
+		const TopoDS_Face currentFace = currentSurfacePair->getFace();
+		std::vector<std::shared_ptr<SurfaceGridPair>> potentialBlockingFaces;
+		for (const auto& [otherbbox, otherSurfacePair] : qResult)
+		{
+			if (currentFace.IsEqual(otherSurfacePair->getFace()))
+			{
+				continue;
+			}
+			potentialBlockingFaces.emplace_back(otherSurfacePair);
+		}
+
+		if (!currentSurfacePair->testIsVisable(potentialBlockingFaces)) { continue; }
 		std::lock_guard<std::mutex> faceLock(processMutex);
 		fineFilteredShapeList->emplace_back(currentSurfacePair);
 	}
@@ -3093,31 +3129,11 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 				const TopoDS_Face& otherFace = totalSplitOuterSurfacePairList[facePair.second].first;
 				if (currentFace.IsEqual(otherFace)) { continue; }
 
-				//test for linear intersections
-				TopLoc_Location loc;
-				auto mesh = BRep_Tool::Triangulation(otherFace, loc);
-				if (mesh.IsNull()) {
-					clearLine = false;
-					continue;
-				}
-
-				for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
+				if (helperFunctions::LineShapeIntersection(otherFace, currentPoint, voxelCore))
 				{
-					const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
-					std::vector<gp_Pnt> trianglePoints{
-						mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
-						mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
-						mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
-					};
-
-					if (helperFunctions::triangleIntersecting({ currentPoint, voxelCore }, trianglePoints))
-					{
-						clearLine = false;
-						break;
-					}
+					clearLine = false;
+					break;
 				}
-				if (!clearLine) { break; }
 			}
 			if (clearLine)
 			{
@@ -3546,8 +3562,6 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 			basePoint.Z() + 10000
 		);
 
-		TopoDS_Edge ray = BRepBuilderAPI_MakeEdge(basePoint, endPoint);
-
 		std::vector<Value> qResult;
 		siteFacesSpatialIndex.query(
 			bgi::intersects(
@@ -3565,10 +3579,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 			int currentIndx = qResult[j].second;
 			if (currentIndx == i) { continue; }
 
-			BRepExtrema_DistShapeShape distanceWireCalc(groundPlaneFaces[currentIndx], ray);
-			distanceWireCalc.Perform();
-
-			if (distanceWireCalc.Value() < 0.00001)
+			if (helperFunctions::LineShapeIntersection(groundPlaneFaces[currentIndx], basePoint, endPoint))
 			{
 				isCovered = true;
 				break;
@@ -3627,13 +3638,13 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 		gp_Pnt p1 = facePoint.Translated(faceNormal);
 		gp_Pnt p2 = facePoint.Translated(faceNormal.Reversed());
 
-		TopoDS_Edge ray1 = BRepBuilderAPI_MakeEdge(p1, gp_Pnt(p1.X(), p1.Y(), p1.Z() + 1000));
-		TopoDS_Edge ray2 = BRepBuilderAPI_MakeEdge(p2, gp_Pnt(p2.X(), p2.Y(), p2.Z() + 1000));
+		gp_Pnt offSetP1 = gp_Pnt(p1.X(), p1.Y(), p1.Z() + 1000);
+		gp_Pnt offSetP2 = gp_Pnt(p1.X(), p1.Y(), p1.Z() + 1000);
 
 		std::vector<Value> qResult;
 		siteSelectionFacesSpatialIndex.query(
 			bgi::intersects(
-				helperFunctions::createBBox({ ray1, ray2 })
+				helperFunctions::createBBox({ offSetP1, offSetP2 })
 			),
 			std::back_inserter(qResult)
 		);
@@ -3642,14 +3653,8 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 		for (size_t j = 0; j < qResult.size(); j++)
 		{
 			TopoDS_Face horizontalFace = siteSelectionFaceList[qResult[j].second];
-
-			BRepExtrema_DistShapeShape distanceWireCalc1(horizontalFace, ray1);
-			BRepExtrema_DistShapeShape distanceWireCalc2(horizontalFace, ray2);
-			distanceWireCalc1.Perform();
-			distanceWireCalc2.Perform();
-
-			if (distanceWireCalc1.Value() < 0.00001) { intersectionCount++; }
-			if (distanceWireCalc2.Value() < 0.00001) { intersectionCount++; }
+			if (helperFunctions::LineShapeIntersection(horizontalFace, p1, offSetP1)) { intersectionCount++; }
+			if (helperFunctions::LineShapeIntersection(horizontalFace, p2, offSetP2)) { intersectionCount++; }
 
 			if (intersectionCount >=2)
 			{
@@ -4331,8 +4336,7 @@ void CJGeoCreator::splitOuterSurfaces(
 				std::optional<gp_Pnt> otherPointOpt = helperFunctions::getPointOnFace(otherFace);
 				if (otherPointOpt == std::nullopt) { continue; }
 
-				BRepExtrema_DistShapeShape distanceCalc(currentFace, BRepBuilderAPI_MakeVertex(*otherPointOpt));
-				if (distanceCalc.Value() > 1e-4) { continue; }
+				if (!helperFunctions::pointOnShape(currentFace, *otherPointOpt, 1e-4)) { continue; }
 			}
 			else
 			{
@@ -4473,13 +4477,11 @@ void CJGeoCreator::splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces,
 		gp_Pnt bottomPoint = gp_Pnt(basePoint.X(), basePoint.Y(), basePoint.Z() - 100000);
 
 		// test if falls within buffersurface
-		TopoDS_Edge lowerEvalLine = BRepBuilderAPI_MakeEdge(basePoint, bottomPoint);
 
-		BRepExtrema_DistShapeShape distanceWireCalc(lowerEvalLine, footprintFace);
-		if (distanceWireCalc.Value() > 1e-6) 
+		if (!helperFunctions::LineShapeIntersection(footprintFace, basePoint, bottomPoint))
 		{
 			outOverhangFaces.emplace_back(subFace);
-			continue; 
+			continue;
 		}
 		outRoofFaces.emplace_back(subFace);
 	}
