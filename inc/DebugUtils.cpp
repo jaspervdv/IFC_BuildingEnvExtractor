@@ -3,6 +3,10 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Face.hxx>
+#include <BRepCheck_Wire.hxx>
+
 template void DebugUtils::printFaces<TopoDS_Face>(const std::vector<TopoDS_Face>& shape);
 template void DebugUtils::printFaces<TopoDS_Shell>(const std::vector<TopoDS_Shell>& shape);
 template void DebugUtils::printFaces<TopoDS_Solid>(const std::vector<TopoDS_Solid>& shape);
@@ -134,6 +138,59 @@ void DebugUtils::WriteToTxt(const std::vector<TopoDS_Shape>& shapeList, const st
 		}
 	}
 	outputFile.close();
+}
+
+void DebugUtils::outPutFaceError(const TopoDS_Face& theShape)
+{
+	BRepCheck_Analyzer analyzer(theShape);
+
+	if (!analyzer.IsValid()) {
+		std::cout << "Face is invalid...\n";
+		BRepCheck_Face faceCheck(theShape);
+
+		// Get list of specific errors
+		for (const auto& status : faceCheck.Status())
+		{
+			std::cout << "Face Status: " << status << "\n";
+		}
+
+		for (TopExp_Explorer exp(theShape, TopAbs_WIRE); exp.More(); exp.Next()) {
+			TopoDS_Wire wire = TopoDS::Wire(exp.Current());
+			outputWireError(wire);
+		}
+	}
+	else
+	{
+		std::cout << "Face is valid\n";
+	}
+	std::cout << "Face precision: " << BRep_Tool::Tolerance(theShape) << "\n";
+	return;
+}
+
+void DebugUtils::outputWireError(const TopoDS_Wire& theShape)
+{
+	BRepCheck_Analyzer analyzer(theShape);
+
+	if (!analyzer.IsValid()) {
+		std::cout << "Wire is invalid..." << std::endl;
+		BRepCheck_Wire wireCheck(theShape);
+
+		for (const auto& status : wireCheck.Status())
+		{
+			std::cout << "Wire Status: " << status << std::endl;
+		}
+	}
+	else
+	{
+		std::cout << "Wire is valid" << std::endl;
+	}
+
+	for (TopExp_Explorer expl(theShape, TopAbs_EDGE); expl.More(); expl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+		std::cout << "Edge precision: " << BRep_Tool::Tolerance(currentEdge) << "\n";
+	}
+	return;
 }
 
 template<typename T>

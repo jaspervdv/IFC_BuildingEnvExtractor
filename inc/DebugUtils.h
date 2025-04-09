@@ -43,6 +43,11 @@ struct DebugUtils {
 	/// Ouptu shape to txt file
 	static void WriteToTxt(const std::vector<TopoDS_Face>& shapeList, const std::string& pathString);
 	static void WriteToTxt(const std::vector<TopoDS_Shape>& shapeList, const std::string& pathString);
+
+	/// prints the issues that a face has
+	static void outPutFaceError(const TopoDS_Face& theShape);
+	/// prints the issues that a wire has
+	static void outputWireError(const TopoDS_Wire& theShape);
 };
 
 #endif // DEBUGUTILS_DEBUGUTILS_H

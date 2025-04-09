@@ -188,6 +188,11 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace, 0.5);
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentFace);
+
+		if (helperFunctions::computeArea(currentFace) <= 1e-6)
+		{
+			std::cout << "t" << std::endl;
+		}
 	}
 
 	//// group surfaces
@@ -629,7 +634,6 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		//TODO: add error
 		return;
 	}
-
 	facesOut = helperFunctions::planarFaces2Outline(cleanedFaceList, cuttingPlane);
 	return;
 }
@@ -1500,7 +1504,15 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 	std::vector<TopoDS_Face> projectedFaceList;
 	for (const RCollection& currentGroup : rCollectionList)
 	{
-		projectedFaceList.emplace_back(currentGroup.getProjectedFace());
+		TopoDS_Face currentFace = currentGroup.getProjectedFace();
+
+		if (currentFace.IsNull()) { continue; }
+		projectedFaceList.emplace_back(currentFace);
+	}
+
+	if (projectedFaceList.empty())
+	{
+		return {};
 	}
 
 	// create plane on which the projection has to be made
@@ -2043,8 +2055,8 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
+		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });

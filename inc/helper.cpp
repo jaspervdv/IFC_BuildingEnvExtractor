@@ -36,6 +36,7 @@
 #include <TColgp_Array1OfPnt.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <Poly_Triangle.hxx>
+#include <BRepCheck_Analyzer.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1305,6 +1306,8 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 
 std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Face>& theFaceList)
 {
+	if (theFaceList.size() == 1) { return theFaceList; }
+
 	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
 
 	std::vector<gp_Vec> faceNormalList;
@@ -1516,7 +1519,6 @@ TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1
 }
 
 TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double height) {
-	
 	gp_GTrsf trsf;
 	trsf.SetVectorialPart(
 		gp_Mat(
@@ -1526,7 +1528,6 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		)
 	);
 	trsf.SetTranslationPart(gp_XYZ(0, 0, height));
-
 	TopoDS_Shape flatFace = BRepBuilderAPI_GTransform(theFace, trsf, true).Shape();
 	return TopoDS::Face(flatFace);
 }
@@ -2031,12 +2032,11 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			{
 				for (const TopoDS_Face invertedFace : invertFace(currentFace))
 				{
-					if (invertedFace.IsNull()) { continue; }
+					if (invertedFace.IsNull()) {  continue; }
 					outerInvFaceList.emplace_back(invertedFace);
 				}
 				continue;
 			}
-
 			if (!pointOnShape(faceComplex, pointOnFace))
 			{
 				innerFaces.emplace_back(currentFace);
@@ -2060,15 +2060,39 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 		if (outerInvFaceList.size() == 1)
 		{
-			BRepBuilderAPI_MakeFace faceMaker(outerInvFaceList[0]);
+			TopoDS_Face outerFace = outerInvFaceList[0];
+			BRepBuilderAPI_MakeFace faceMaker(outerFace);
 			for (size_t i = 0; i < innerFaces.size(); i++)
 			{
 				for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
 				{
 					TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+					if (voidWire.Orientation() != TopAbs_REVERSED) { voidWire.Reverse(); }
 					faceMaker.Add(voidWire);
 				}
 			}
+
+			// check if all valid
+			bool isval = true;
+			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+			{
+				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+
+				BRepCheck_Analyzer check(currentFace);
+				if (!check.IsValid()) {
+					if (helperFunctions::computeArea(currentFace) > 1e-6)
+					{
+						continue;
+					}
+
+					innerWireFaces.emplace_back(outerFace);
+					isval = false;
+					break;
+				}
+			}
+
+			if (!isval) { continue; }
+
 			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 			{
 				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
@@ -2103,8 +2127,13 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 				for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 				{
-					TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-					innerWireFaces.emplace_back(currentFace);
+					TopoDS_Face localFace = TopoDS::Face(faceExpl.Current());
+					BRepCheck_Analyzer check(localFace);
+					if (!check.IsValid()) {
+						innerWireFaces.emplace_back(currentFace);
+						continue;
+					}
+					innerWireFaces.emplace_back(localFace);
 				}
 			}
 		}		
@@ -2211,7 +2240,23 @@ std::vector<TopoDS_Face> helperFunctions::invertFace(const TopoDS_Face& inputFac
 			}
 		}
 		if (!isInner) { continue; }
+
+		if (!currentWire.Closed())
+		{
+			continue;
+		}
+
+		if (currentWire.Orientation() == TopAbs_REVERSED)
+		{
+			currentWire.Reverse();
+		}
+
 		TopoDS_Face innerFace = BRepBuilderAPI_MakeFace(currentWire);
+
+		BRepCheck_Analyzer check(innerFace);
+		if (!check.IsValid()) {
+			//TODO: add error
+		}
 
 		if (innerFace.IsNull()) { continue; }
 		mergedFaceList.emplace_back(innerFace);
@@ -2347,7 +2392,20 @@ double helperFunctions::getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPl
 #if defined(USE_IFC4x3)
 		offset = axisPlacement->Location()->as<IfcSchema::IfcCartesianPoint>()->Coordinates()[2];
 #else
-		offset = axisPlacement->Location()->Coordinates()[2];
+		try
+		{
+			std::vector<double> coord = axisPlacement->Location()->Coordinates();
+
+			if (coord.size() >= 3)
+			{
+				offset = axisPlacement->Location()->Coordinates()[2];
+			}
+		}
+		catch (const std::exception&)
+		{
+
+		}
+
 #endif // DEBUG
 	}
 	if (localObjectPlacement == nullptr)
