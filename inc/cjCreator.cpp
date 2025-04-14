@@ -3481,14 +3481,6 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 		IfcSchema::IfcSite::list::ptr siteElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSite>();
 
 		if (!siteElements->size()) { continue; }
-		geoCount += siteElements->size();
-
-		if (geoCount > 1)
-		{
-			ErrorCollection::getInstance().addError(ErrorID::warningIfcDubSites);
-			std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcDubSites) << std::endl;
-			return std::vector<CJT::CityObject>();
-		}
 
 		IfcSchema::IfcSite* siteElement = *siteElements->begin();
 		
@@ -3508,7 +3500,6 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 			IfcSchema::IfcGeographicElement::list::ptr geographicElements = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcGeographicElement>();
 
 			if (!geographicElements->size()) { continue; }
-			geoCount += geographicElements->size();
 			for (auto it = geographicElements->begin(); it != geographicElements->end(); ++it)
 			{
 				IfcSchema::IfcGeographicElement* geographicElement = *it;
@@ -3524,6 +3515,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 #endif // USE_IFC4
 	}
 	
+	std::cout << siteShapeList.size() << std::endl;
 	if (siteShapeList.empty())
 	{
 		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSites);
@@ -3531,9 +3523,13 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 		return std::vector<CJT::CityObject>();
 	}
 
-	for (const TopoDS_Shape& currentSiteShape : siteShapeList)
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+
+	for (TopoDS_Shape currentSiteShape : siteShapeList)
 	{
 		CJT::CityObject siteObject;
+		currentSiteShape.Move(localRotationTrsf);
 		CJT::GeoObject geoObject = kernel->convertToJSON(currentSiteShape, "3");
 		siteObject.addGeoObject(geoObject);
 		siteObject.setType(CJT::Building_Type::TINRelief);
