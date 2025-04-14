@@ -238,6 +238,22 @@ private:
 		std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut, 
 		const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList);
 
+	/// trims the surfaces that are left from the outer ray detection for lod32 (subprocess)
+	void splitOuterSurfaces(
+		std::vector<std::pair<TopoDS_Face, std::string>>& splittedFacesOut,
+		std::mutex& splittedListMutex,
+		std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut,
+		std::mutex& untouchedListMutex,
+		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIndx,
+		const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList);
+
+	// get the outer surface by raycasting against exterior voxels from a single point on surface
+	void simpleRaySurfaceCast(
+		std::vector<std::pair<TopoDS_Face, std::string>>& outList,
+		const std::vector<std::pair<TopoDS_Face, std::string>>& surfaceList,
+		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex,
+		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& surfaceIndx);
+
 	// query result cleaning code
 
 	/// remove dublicate values from valueList

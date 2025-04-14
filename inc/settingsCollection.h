@@ -36,6 +36,8 @@ private:
 	bool make32_ = false;
 	bool makeV_ = false;
 
+    bool makeSite_ = false;
+
 	bool makeOutlines_ = false;
 	bool makeFootPrint_ = false;
 	bool makeRoofPrint_ = true;
@@ -206,6 +208,10 @@ public:
 
     bool makeV() const { return makeV_; }
     void setMakeV(bool value) { makeV_ = value; }
+
+    bool makeSite() const { return makeSite_; }
+    void setMakeSite(bool value) { makeSite_ = value; }
+    void setMakeSite(const nlohmann::json& json);
 
     bool makeOutlines() const { return makeOutlines_; }
     void setMakeOutlines(bool value) { makeOutlines_ = value; }

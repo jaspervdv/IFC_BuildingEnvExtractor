@@ -287,8 +287,9 @@ The configuration json has a very simple structure. An example can be found belo
         "Horizontal section offset": 0,
         "Generate footprint": 1,
         "Generate roof outline": 1,
-        "Generate interior": 1,
+        "Generate interior": 0,
         "Generate exterior": 1,
+        "Generate site": 0,
         "Georeference" : 1,
         "Merge semantic objects": 1,
     },
@@ -377,6 +378,10 @@ Optional:
   * Boolean
   * Toggles building's exterior generation
   * Default value = true
+* :ballot_box_with_check: "JSON" "Generate site" :ballot_box_with_check:
+  * Boolean
+  * Toggles building's site copying process
+  * Default value = false
 * :white_check_mark: "JSON" "Generate roof outline" :white_check_mark:
   * Boolean
   * Toggles the roof outline to be exported for LoD0.2

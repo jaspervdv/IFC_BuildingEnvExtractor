@@ -240,6 +240,8 @@ void IOManager::printSummary()
 	std::cout << boolToString(settingsCollection.makeInterior()) << "\n";
 	std::cout << "- Generate exterior:\n";
 	std::cout << boolToString(settingsCollection.makeExterior()) << "\n";
+	std::cout << "- Output site:\n";
+	std::cout << boolToString(settingsCollection.makeSite()) << "\n";
 	std::cout << "- Georeference:\n";
 	std::cout << boolToString(settingsCollection.geoReference()) << "\n";
 	std::cout << "- Merge semantic objects:\n";
@@ -370,6 +372,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string jsonGenRootprintOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenRoofOutline);
 	std::string jsonGenInteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenInterior);
 	std::string jsonGenExteriorOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenExterior);
+	std::string jsonGensiteOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenSite);
 	std::string jsonGeoreferenceOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGeoreference);
 	std::string jsonMergeSemanticsOName = JsonObjectInEnum::getString(JsonObjectInID::JSONMergeSemantics);
 
@@ -384,6 +387,7 @@ nlohmann::json IOManager::settingsToJSON()
 	}
 	jsonJSON[jsonGenInteriorOName] = settingsCollection.makeInterior();
 	jsonJSON[jsonGenExteriorOName] = settingsCollection.makeExterior();
+	jsonJSON[jsonGensiteOName] = settingsCollection.makeSite();
 	jsonJSON[jsonGeoreferenceOName] = settingsCollection.geoReference();
 	jsonJSON[jsonMergeSemanticsOName] = settingsCollection.mergeSemantics();
 	settingsJSON[jsonOName] = jsonJSON;
@@ -626,6 +630,7 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 			return std::vector<CJT::GeoObject>{geoCreator->makeV(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoD50, timeV_);
 	}
+	std::cout << "\n";
 	return;
 }
 
@@ -787,7 +792,7 @@ bool IOManager::run()
 	{
 		processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
 	}
-	if (false) //TODO: store the site
+	if (settingsCollection.makeSite()) //TODO: store the site
 	{
 		processSitelod(&geoCreator, collection, &cityBuildingObject, &kernel);
 	}

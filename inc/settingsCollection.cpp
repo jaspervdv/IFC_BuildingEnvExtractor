@@ -132,6 +132,7 @@ void SettingsCollection::setJSONRelatedSettings(const nlohmann::json& json)
 	{
 		setMakeInterior(jsonDataJson);
 		setMakeExterior(jsonDataJson);
+		setMakeSite(jsonDataJson);
 		setFootprintElevation(jsonDataJson);
 		setHorizontalSectionOffset(jsonDataJson);
 
@@ -441,6 +442,25 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 
 		ErrorCollection::getInstance().addError(ErrorID::errorJsonInvalidLod, formattedLoD);
 		throw std::string(errorWarningStringEnum::getString(ErrorID::errorJsonInvalidLod) + formattedLoD);
+	}
+	return;
+}
+
+void SettingsCollection::setMakeSite(const nlohmann::json& json)
+{
+	std::string generateSiteOName = JsonObjectInEnum::getString(JsonObjectInID::JSONGenSite);
+	if (json.contains(generateSiteOName))
+	{
+		try
+		{
+			bool exteriorbool = getJsonBoolValue(json[generateSiteOName]);
+			setMakeSite(exteriorbool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, generateSiteOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + generateSiteOName);
+		}
 	}
 	return;
 }
