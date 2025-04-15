@@ -208,7 +208,7 @@ private:
 
 		// get the outer surface by raycasting against exterior voxels
 	void getOuterRaySurfaces(
-		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList,
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList,
 		const std::vector<Value>& totalValueObjectList,
 		const std::vector<int>& scoreList,
 		DataManager* h,
@@ -217,7 +217,7 @@ private:
 
 	// get the outer surface by raycasting against exterior voxels (subprocess)
 	void getOuterRaySurfaces(
-		std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList, 
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList,
 		const std::vector<Value>& valueObjectList,
 		int& processedObject,
 		std::mutex& listmutex,
@@ -234,23 +234,23 @@ private:
 
 	/// trims the surfaces that are left from the outer ray detection for lod32
 	void splitOuterSurfaces(
-		std::vector<std::pair<TopoDS_Face, std::string>>& splittedFacesOut, 
-		std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut, 
-		const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList);
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& splittedFacesOut,
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& untouchedFacesOut,
+		const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList);
 
 	/// trims the surfaces that are left from the outer ray detection for lod32 (subprocess)
 	void splitOuterSurfaces(
-		std::vector<std::pair<TopoDS_Face, std::string>>& splittedFacesOut,
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& splittedFacesOut,
 		std::mutex& splittedListMutex,
-		std::vector<std::pair<TopoDS_Face, std::string>>& untouchedFacesOut,
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& untouchedFacesOut,
 		std::mutex& untouchedListMutex,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIndx,
-		const std::vector<std::pair<TopoDS_Face, std::string>>& outerSurfacePairList);
+		const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList);
 
 	// get the outer surface by raycasting against exterior voxels from a single point on surface
 	void simpleRaySurfaceCast(
-		std::vector<std::pair<TopoDS_Face, std::string>>& outList,
-		const std::vector<std::pair<TopoDS_Face, std::string>>& surfaceList,
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outList,
+		const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& surfaceList,
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& surfaceIndx);
 
