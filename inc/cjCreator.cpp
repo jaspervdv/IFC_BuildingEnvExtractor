@@ -3177,6 +3177,20 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	BRep_Builder builder;
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
+
+	std::vector<std::map<std::string, std::string>> SurfaceTypeCollection;
+	std::map<std::string, std::string> grMap;
+	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+	std::map<std::string, std::string> wMap;
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+	std::map<std::string, std::string> rMap;
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+
+	SurfaceTypeCollection.emplace_back(grMap);
+	SurfaceTypeCollection.emplace_back(wMap);
+	SurfaceTypeCollection.emplace_back(rMap);
+
+
 	std::vector<int> typeValueList;
 	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : cleanedOuterSurfacePairList)
 	{
@@ -3189,11 +3203,47 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		}
 		else if (productType == "IfcWindow")
 		{
-			typeValueList.emplace_back(3);
+			std::map<std::string, std::string> windowMap;
+
+			// store generic data
+			if (product->Name().has_value())
+			{
+				windowMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
+			}
+			windowMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
+			windowMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
+			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
+			for (nlohmann::json attributeObject : attributeList)
+			{
+				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
+					windowMap[jsonObIt.key()] = jsonObIt.value().dump();
+				}
+			}
+			typeValueList.emplace_back(SurfaceTypeCollection.size());
+			SurfaceTypeCollection.emplace_back(windowMap);
+
 		}
 		else if (productType == "IfcDoor")
 		{
-			typeValueList.emplace_back(4);
+			std::map<std::string, std::string> doorMap;
+
+			// store generic data
+			if (product->Name().has_value())
+			{
+				doorMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
+			}
+			doorMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
+			doorMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
+			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
+			for (nlohmann::json attributeObject : attributeList)
+			{
+				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
+					doorMap[jsonObIt.key()] = jsonObIt.value().dump();
+				}
+			}
+
+			typeValueList.emplace_back(SurfaceTypeCollection.size());
+			SurfaceTypeCollection.emplace_back(doorMap);
 		}
 		else if (productType == "IfcSlab")
 		{
@@ -3240,22 +3290,14 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
+
+	for (const auto& surfaceAttMap : SurfaceTypeCollection)
+	{
+		geoObject.appendSurfaceData(surfaceAttMap);
+	}
+
+
 	// create semantic data map
-	std::map<std::string, std::string> grMap;
-	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-	std::map<std::string, std::string> wMap;
-	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-	std::map<std::string, std::string> rMap;
-	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-	std::map<std::string, std::string> windowMap;
-	windowMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWindow));
-	std::map<std::string, std::string> dMap;
-	dMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeDoor));
-	geoObject.appendSurfaceData(grMap);
-	geoObject.appendSurfaceData(wMap);
-	geoObject.appendSurfaceData(rMap);
-	geoObject.appendSurfaceData(windowMap);
-	geoObject.appendSurfaceData(dMap);
 	geoObject.setSurfaceTypeValues(typeValueList);
 
 	if (settingsCollection.createOBJ())
