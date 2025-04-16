@@ -2630,12 +2630,24 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 			builder.UpdateFace(currentFace, triangulation);
 			continue;
 		}
+		double area = computeArea(currentFace);
 
 		for (size_t i = 1; i <= 3; i++)
 		{
 			double refinement = 1 / i;
-			BRepMesh_IncrementalMesh(currentFace, 0.01 * refinement, Standard_False, 0.5 * refinement, Standard_True);
+			double deflection = 0.01 * refinement;
+			double triangleCount = area / (0.5 * deflection * deflection * std::sqrt(3.0));
+			if (std::isinf(triangleCount))
+			{
+				break;
+			}
+
+			BRepTools::Clean(currentFace);
+
+
+			BRepMesh_IncrementalMesh(currentFace, deflection, Standard_False, 0.5 * refinement, Standard_True);
 			TopLoc_Location locLocal;
+			Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(currentFace, loc);
 			if (!BRep_Tool::Triangulation(currentFace, locLocal).IsNull()) {
 				break;
 			}

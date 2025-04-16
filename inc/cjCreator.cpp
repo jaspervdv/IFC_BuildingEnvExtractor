@@ -677,7 +677,6 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	std::vector<Value> productLookupValues;
 	bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(cuttingPlane, 0.15);
 	h->getIndexPointer()->query(bgi::intersects(searchBox), std::back_inserter(productLookupValues));
-	
 	std::vector<TopoDS_Face> splitFaceList = section2Faces(productLookupValues, h, sectionHeight);
 
 	if (!splitFaceList.size())
@@ -685,6 +684,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		//TODO: add error
 		return;
 	}
+
 	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::removeDubFaces(splitFaceList, true);
 	if (!cleanedFaceList.size())
 	{
