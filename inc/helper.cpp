@@ -37,6 +37,7 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <Poly_Triangle.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -249,16 +250,18 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& theface)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
 
 	if (helperFunctions::computeArea(theface) < 0.01) { return {}; }
+
+	std::vector<gp_Pnt> wirePointList;
+	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
 	offsetter.Perform(-settingsCollection.precisionCoarse());
 
 	if (!offsetter.IsDone()) { return {}; }
 	const TopoDS_Shape offsettedFace = offsetter.Shape();
 	if (offsettedFace.IsNull()) { return {}; }
 
-	std::vector<gp_Pnt> wirePointList;
+
 	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());

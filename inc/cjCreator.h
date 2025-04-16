@@ -220,13 +220,15 @@ private:
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList,
 		const std::vector<Value>& valueObjectList,
 		int& processedObject,
+		std::mutex& processedObjectmutex,
 		std::mutex& listmutex,
 		DataManager* h,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex);
 
 	/// monitor the progress of the getouterraysurfaces code
-	void monitorRayCasting(
+	void updateCounter(
+		const std::string& prefixText,
 		int totalObjects,
 		int& processedObject,
 		std::mutex& listmutex
@@ -244,6 +246,8 @@ private:
 		std::mutex& splittedListMutex,
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& untouchedFacesOut,
 		std::mutex& untouchedListMutex,
+		int& totalObjectsProcessed,
+		std::mutex& totalObjectsProcessedMutex,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIndx,
 		const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList);
 

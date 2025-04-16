@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC4
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -81,7 +81,7 @@ struct helperFunctions{
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, const double& angle);
 	// get a grid of points that are placed over a surface
 	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
-	// get a grid of points that are placed alongside the wire on a face
+	// get a grid of points that are placed alongside the wire on a face (not threadsave)
 	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
 	/// check if points are equal
 	static bool pointIsSame(const BoostPoint3D& lp, const BoostPoint3D& rp);

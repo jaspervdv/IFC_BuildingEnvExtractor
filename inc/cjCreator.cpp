@@ -3190,62 +3190,71 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	SurfaceTypeCollection.emplace_back(wMap);
 	SurfaceTypeCollection.emplace_back(rMap);
 
-
+	std::map<std::string, int> attributeLookup; //gui to lookup indx;
 	std::vector<int> typeValueList;
+
 	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : cleanedOuterSurfacePairList)
 	{
 		const  IfcSchema::IfcProduct* product = currentFacePair.second;
 		std::string productType = product->data().type()->name();
 		const TopoDS_Face& currentFace = currentFacePair.first;
+
+		builder.Add(collectionShape, currentFace);
+
+		if (productType == "IfcPlate") //TODO: make this smarter
+		{
+			std::map<std::string, std::string> windowMap;
+			if (!helperFunctions::hasGlassMaterial(product))
+			{
+				typeValueList.emplace_back(1);
+				continue;
+			}
+			productType = "IfcWindow";
+		}
 		if (productType == "IfcRoof")
 		{
 			typeValueList.emplace_back(2);
+			continue;
 		}
-		else if (productType == "IfcWindow")
+		if (productType == "IfcWindow" || productType == "IfcDoor")
 		{
-			std::map<std::string, std::string> windowMap;
+			if (attributeLookup.find(product->GlobalId()) != attributeLookup.end())
+			{
+				typeValueList.emplace_back(attributeLookup[product->GlobalId()]);
+				continue;
+			}
 
-			// store generic data
+			std::map<std::string, std::string> objectMap;
 			if (product->Name().has_value())
 			{
-				windowMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
+				objectMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
 			}
-			windowMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
-			windowMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
+			objectMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
+
+			if (productType == "IfcWindow")
+			{
+				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
+			}
+			else
+			{
+				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
+			}
+
+
 			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
 			for (nlohmann::json attributeObject : attributeList)
 			{
 				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
-					windowMap[jsonObIt.key()] = jsonObIt.value().dump();
-				}
-			}
-			typeValueList.emplace_back(SurfaceTypeCollection.size());
-			SurfaceTypeCollection.emplace_back(windowMap);
-
-		}
-		else if (productType == "IfcDoor")
-		{
-			std::map<std::string, std::string> doorMap;
-
-			// store generic data
-			if (product->Name().has_value())
-			{
-				doorMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
-			}
-			doorMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
-			doorMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
-			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
-			for (nlohmann::json attributeObject : attributeList)
-			{
-				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
-					doorMap[jsonObIt.key()] = jsonObIt.value().dump();
+					objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
 				}
 			}
 
+			attributeLookup[product->GlobalId()] = SurfaceTypeCollection.size();
 			typeValueList.emplace_back(SurfaceTypeCollection.size());
-			SurfaceTypeCollection.emplace_back(doorMap);
+			SurfaceTypeCollection.emplace_back(objectMap);
+			continue;
 		}
-		else if (productType == "IfcSlab")
+		if (productType == "IfcSlab")
 		{
 			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
 			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);
@@ -3276,13 +3285,9 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 			{
 				typeValueList.emplace_back(1);
 			}
+			continue;
 		}
-		else
-		{
-			typeValueList.emplace_back(1);
-		}
-
-		builder.Add(collectionShape, currentFace);
+		typeValueList.emplace_back(1);
 	}
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
@@ -3707,6 +3712,7 @@ void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, IfcSch
 
 	std::vector<std::thread> threadList;
 	std::mutex listMutex;
+	std::mutex processedCountMutex;
 
 	int beginIndx = 0;
 	int processedObjects = 0;
@@ -3737,11 +3743,12 @@ void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, IfcSch
 		beginIndx = endList + 1;
 
 		std::vector<Value> sublist(startIdx, endIdx);
-		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &processedObjects, &listMutex, &h, &faceIdx, &voxelIndex]() {
-			getOuterRaySurfaces(outerSurfacePairList, sublist, processedObjects, listMutex, h, faceIdx, voxelIndex);
+		threadList.emplace_back([this, &outerSurfacePairList, sublist = std::move(sublist), &processedObjects, &processedCountMutex, &listMutex, &h, &faceIdx, &voxelIndex]() {
+			getOuterRaySurfaces(outerSurfacePairList, sublist, processedObjects, processedCountMutex, listMutex, h, faceIdx, voxelIndex);
 		});
 	}
-	threadList.emplace_back([&] {monitorRayCasting(totalValueObjectList.size(), processedObjects, listMutex);  });
+
+	threadList.emplace_back([&] {updateCounter("Evaluating outer objects", totalValueObjectList.size(), processedObjects, listMutex);  });
 
 	for (auto& thread : threadList) {
 		if (thread.joinable()) {
@@ -3755,6 +3762,7 @@ void CJGeoCreator::getOuterRaySurfaces(
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList,
 	const std::vector<Value>& valueObjectList, 
 	int& processedObject,
+	std::mutex& processedObjectmutex,
 	std::mutex& listmutex,
 	DataManager* h,
 	const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
@@ -3765,7 +3773,9 @@ void CJGeoCreator::getOuterRaySurfaces(
 	double searchBuffer = settingsCollection.searchBufferLod32();
 	for (const Value& currentValue : valueObjectList)
 	{
+		std::unique_lock<std::mutex> processCountLock(processedObjectmutex);
 		processedObject++;
+		processCountLock.unlock();
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue.second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
 		TopoDS_Shape currentShape;
@@ -3775,15 +3785,6 @@ void CJGeoCreator::getOuterRaySurfaces(
 			else { continue; }
 		}
 		else { currentShape = lookup->getProductShape(); }
-		
-		if (lookupType == "IfcPlate") 
-		{
-			IfcSchema::IfcProduct* plateProduct = lookup->getProductPtr();
-			if (helperFunctions::hasGlassMaterial(plateProduct))
-			{
-				lookupType = "IfcWindow";
-			}
-		}
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -3793,7 +3794,9 @@ void CJGeoCreator::getOuterRaySurfaces(
 
 			//Create a grid over the surface and the offsetted wire
 			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
-			std::vector<gp_Pnt> wireGridList;// = helperFunctions::getPointGridOnWire(currentFace);
+			std::unique_lock<std::mutex> lock(listmutex); //TODO: better mutex
+			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace);
+			lock.unlock();
 			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
 
 			// cast a line from the grid to surrounding voxels
@@ -3871,7 +3874,8 @@ void CJGeoCreator::getOuterRaySurfaces(
 }
 
 
-void CJGeoCreator::monitorRayCasting(
+void CJGeoCreator::updateCounter(
+	const std::string& prefixText,
 	int totalObjects,
 	int& processedObject,
 	std::mutex& listmutex
@@ -3885,8 +3889,7 @@ void CJGeoCreator::monitorRayCasting(
 		listlock.unlock();
 
 		std::cout
-			<< "\tTotal objects: " << totalObjects
-			<< "; Processed objects: " << currentObjectCount << "      \r";
+			<< "\t" << prefixText << " - " << currentObjectCount << " of " << totalObjects << "      \r";		
 
 		if (currentObjectCount == totalObjects)
 		{
@@ -4209,8 +4212,10 @@ void CJGeoCreator::splitOuterSurfaces(
 
 	std::mutex untouchedListMutex;
 	std::mutex splittedListMutex;
+	std::mutex processedCountMutex;
 	std::vector<std::thread> threadList;
 
+	int processedCount = 0;
 	for (size_t i = 0; i < coreUse; i++)
 	{
 		auto startIdx = outerSurfacePairList.begin() + i * splitListSize;
@@ -4218,10 +4223,14 @@ void CJGeoCreator::splitOuterSurfaces(
 
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> sublist(startIdx, endIdx);
 
-		threadList.emplace_back([this, &splittedFacesOut, &splittedListMutex, &untouchedFacesOut, &untouchedListMutex, &faceIndx, sublist]() {
-			splitOuterSurfaces(splittedFacesOut, splittedListMutex, untouchedFacesOut, untouchedListMutex, faceIndx, sublist);
+		threadList.emplace_back([this, &splittedFacesOut, &splittedListMutex, &untouchedFacesOut, &untouchedListMutex, &processedCount, &processedCountMutex, &faceIndx, sublist]() {
+			splitOuterSurfaces(splittedFacesOut, splittedListMutex, untouchedFacesOut, untouchedListMutex, processedCount, processedCountMutex, faceIndx, sublist);
 		});
 	}
+
+
+	threadList.emplace_back([&] {updateCounter("Trimming outer surfaces", outerSurfacePairList.size(), processedCount, processedCountMutex);  });
+
 
 	for (auto& thread : threadList) {
 		if (thread.joinable()) {
@@ -4229,7 +4238,6 @@ void CJGeoCreator::splitOuterSurfaces(
 		}
 	}
 	//TODO: process indicator
-
 	return;
 }
 
@@ -4238,12 +4246,18 @@ void CJGeoCreator::splitOuterSurfaces(
 	std::mutex& splittedListMutex,
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& untouchedFacesOut,
 	std::mutex& untouchedListMutex,
+	int& totalObjectsProcessed,
+	std::mutex& totalObjectsProcessedMutex,
 	const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIndx,
 	const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList
 )
 {
 	for (const auto& [currentFace, currentProduct] : outerSurfacePairList)
 	{
+		std::unique_lock<std::mutex> processCountLock(totalObjectsProcessedMutex);
+		totalObjectsProcessed++;
+		processCountLock.unlock();
+
 		BOPAlgo_Splitter divider;
 		divider.SetFuzzyValue(SettingsCollection::getInstance().precisionCoarse());
 		divider.SetRunParallel(Standard_False);
