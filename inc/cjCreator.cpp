@@ -3198,7 +3198,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		const  IfcSchema::IfcProduct* product = currentFacePair.second;
 		std::string productType = product->data().type()->name();
 		const TopoDS_Face& currentFace = currentFacePair.first;
-
 		builder.Add(collectionShape, currentFace);
 
 		if (productType == "IfcPlate") //TODO: make this smarter
@@ -3230,7 +3229,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 				objectMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
 			}
 			objectMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
-
 			if (productType == "IfcWindow")
 			{
 				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
@@ -3240,8 +3238,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
 			}
 
-
 			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
+
 			for (nlohmann::json attributeObject : attributeList)
 			{
 				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {

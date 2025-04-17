@@ -2282,8 +2282,6 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 #else
 		IfcSchema::IfcObject::list::ptr relatedObjectList = relDefItem->RelatedObjects();
 #endif
-
-
 		bool match = false;
 		for (auto objectIt = relatedObjectList->begin(); objectIt != relatedObjectList->end(); objectIt++)
 		{
@@ -2297,15 +2295,18 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 #else
 		IfcSchema::IfcPropertySetDefinition* propertyDef = relDefItem->RelatingPropertyDefinition();
 #endif
+		if (propertyDef == nullptr) { continue; }
 
 		if (propertyDef->data().type()->name() != "IfcPropertySet") { continue; }
 		IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
 		IfcSchema::IfcProperty::list::ptr propertyList = propertySet->HasProperties();
 		for (auto propertyIt = propertyList->begin(); propertyIt != propertyList->end(); propertyIt++)
 		{
+			if (*propertyIt == nullptr) { continue; }
 			IfcSchema::IfcPropertySingleValue* propertyItem = (*propertyIt)->as<IfcSchema::IfcPropertySingleValue>();
 
 			IfcSchema::IfcValue* ifcValue = propertyItem->NominalValue();
+			if (ifcValue == nullptr) { continue; }
 
 			std::string propertyIdName = ifcValue->data().type()->name();
 
