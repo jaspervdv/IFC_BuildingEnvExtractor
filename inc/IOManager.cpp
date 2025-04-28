@@ -252,7 +252,8 @@ void IOManager::printSummary()
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.threadcount() << "\n\n";
 
 	if (settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.summaryVoxels() ||
-		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.makeV())
+		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.makeV() ||
+		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.make32())
 	{
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningSimplefication) << "\n\n";
 		ErrorCollection::getInstance().addError(ErrorID::warningSimplefication);

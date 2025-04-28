@@ -20,21 +20,15 @@ template std::string DataManager::getIfcObjectName<IfcSchema::IfcSite>(const std
 template std::string DataManager::getIfcObjectName<IfcSchema::IfcBuilding>(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
 template std::string DataManager::getIfcObjectName<IfcSchema::IfcSite>(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
 
-IfcProductSpatialData::IfcProductSpatialData(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape, const TopoDS_Shape& simpleShape)
+IfcProductSpatialData::IfcProductSpatialData(IfcSchema::IfcProduct* productPtr, const TopoDS_Shape& productShape)
 {
 	ErrorCollection& errorCollection = ErrorCollection::getInstance();
 
 	productPtr_ = std::make_unique<IfcSchema::IfcProduct>(*productPtr);
 	productShape_ = productShape;
-	simpleShape_ = simpleShape;
-	TopoDS_Shape meshShape = productShape_;
 	std::string objectType = productPtr->data().type()->name();
-	if ( objectType == "IfcDoor" || objectType == "IfcWindow" )
-	{
-		meshShape = simpleShape_;
-	}
 
-	for (TopExp_Explorer expl(meshShape, TopAbs_FACE); expl.More(); expl.Next())
+	for (TopExp_Explorer expl(productShape_, TopAbs_FACE); expl.More(); expl.Next())
 	{
 		TopoDS_Face productFace = TopoDS::Face(expl.Current());
 
@@ -68,7 +62,6 @@ IfcProductSpatialData::IfcProductSpatialData(IfcSchema::IfcProduct* productPtr, 
 		isDetailed_ = true;
 	}
 }
-
 
 double fileKernelCollection::getSiPrefixValue(const IfcSchema::IfcSIUnit& unitItem) {
 	boost::optional<IfcSchema::IfcSIPrefix::Value> prefixOption = unitItem.Prefix();
@@ -433,11 +426,33 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 {
 	// pass over if dub
 	if (getObjectShapeLocation(product) != -1) { return; }
-	TopoDS_Shape shape = getObjectShape(product); //TODO: rewrite to function for family related objects
+	std::string productType = product->data().type()->name();
+	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
+
+	TopoDS_Shape shape;
+	if (openingObjects.find(productType) != openingObjects.end())
+	{
+		shape = getObjectShape(product, true); //TODO: fix bool, rn vague
+	}
+	else
+	{
+		shape = getObjectShape(product);
+	}
+
 	if (shape.IsNull())
 	{
 		ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectConversion, product->GlobalId());
 		return;
+	}
+
+	if (productType == "IfcDoor" || productType == "IfcWindow")
+	{
+		shape = helperFunctions::boxSimplefyShape(shape);
+		if (shape.IsNull())
+		{
+			ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
+			return;
+		}
 	}
 
 	bg::model::box <BoostPoint3D> box;
@@ -455,25 +470,8 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 		ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
 		return;
 	}
-	
-	TopoDS_Shape simpleShape;
-	std::string productType = product->data().type()->name();
-	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
-	if (openingObjects.find(productType) != openingObjects.end())
-	{
-		simpleShape = getObjectShape(product, true);
-	}
 
-	if (productType == "IfcDoor" || productType == "IfcWindow")
-	{
-		simpleShape = helperFunctions::boxSimplefyShape(shape);
-		if (simpleShape.IsNull())
-		{
-			ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
-			return;
-		}
-	}
-	std::shared_ptr<IfcProductSpatialData> lookup = std::make_shared<IfcProductSpatialData>(product, shape, simpleShape);
+	std::shared_ptr<IfcProductSpatialData> lookup = std::make_shared<IfcProductSpatialData>(product, shape);
 	if (addToRoomIndx)
 	{
 		std::lock_guard<std::mutex> spaceLock(spaceIndexMutex_);
@@ -634,7 +632,7 @@ void DataManager::updateShapeMemory(IfcSchema::IfcProduct* product, TopoDS_Shape
 	}
 
 	std::shared_ptr<IfcProductSpatialData> currentLookupvalue = productLookup_[productIndxLookup_[objectType][product->GlobalId()]];
-	currentLookupvalue->setSimpleShape(shape);
+	currentLookupvalue->setProductShape(shape);
 }
 
 
@@ -1250,10 +1248,6 @@ TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, 
 	std::shared_ptr<IfcProductSpatialData> currentProductData = productLookup_[obbjectShapeLocation];
 
 	std::shared_lock<std::shared_mutex> lock(indexMutex_);
-	if (isSimple && currentProductData->hasSimpleShape())
-	{
-		return currentProductData->getSimpleShape();
-	}
 	return currentProductData->getProductShape();
 }
 
@@ -1264,8 +1258,10 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
-	if (SettingsCollection::getInstance().simplefyGeoGrade() == 0) { isSimple = false; }
-	else if (SettingsCollection::getInstance().simplefyGeoGrade() == 2) { isSimple = true; }
+	int simplefyGeoGrade = SettingsCollection::getInstance().simplefyGeoGrade();
+
+	if (simplefyGeoGrade == 0) { isSimple = false; }
+	else if (simplefyGeoGrade == 2) { isSimple = true; }
 	else if (openingObjects.find(objectType) == openingObjects.end()) { isSimple = false; }
 
 	// get the object from memory if available

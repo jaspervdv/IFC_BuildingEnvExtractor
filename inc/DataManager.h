@@ -46,8 +46,6 @@ private:
 	std::unique_ptr<IfcSchema::IfcProduct> productPtr_;
 	// full shape of the product
 	TopoDS_Shape productShape_;
-	// simplefied shape of the product (can be empty)
-	TopoDS_Shape simpleShape_;
 
 	// spatial index of the triangles constructing the mesh of the object
 	bgi::rtree<Value, bgi::rstar<25>> triangleIndex_;
@@ -60,25 +58,20 @@ private:
 public:
 	IfcProductSpatialData(
 		IfcSchema::IfcProduct* productPtr,
-		const TopoDS_Shape& productShape,
-		const TopoDS_Shape& simpleShape);
+		const TopoDS_Shape& productShape);
 
 	~IfcProductSpatialData() {
 	}
 	/// returns the pointer of the product 
 	IfcSchema::IfcProduct* getProductPtr() { return productPtr_.get(); }
 	/// returns the shape of the product
-	const TopoDS_Shape& getProductShape() { return productShape_; }
-	/// replaces or sets the stored simple shape of the product
-	void setSimpleShape(const TopoDS_Shape& newShape) { simpleShape_ = newShape; }
-	/// returns the simplefied shape of the product
-	const TopoDS_Shape& getSimpleShape() { return simpleShape_; }
+	const TopoDS_Shape& getProductShape() { return productShape_;  }
+	/// replaces or sets the stored shape of the product
+	void setProductShape(const TopoDS_Shape& newShape) { productShape_ = newShape; }
 	/// returns the index for the triangulated shape
 	bgi::rtree<Value, bgi::rstar<25>>* getIndxPointer() { return &triangleIndex_; }
 	/// returns the triangulated shape vector that coorperates with the index
 	const std::vector<MeshTriangle>& getProductTriangleList() { return productTrianglePoints_; }
-	/// check if the object has a simplefied shape
-	bool hasSimpleShape() { return !simpleShape_.IsNull(); }
 };
 
 class fileKernelCollection 

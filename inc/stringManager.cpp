@@ -367,7 +367,7 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 	case ErrorID::warningSimplefication: {
-		const std::string coms = "Simple geometry is used, this can cause issues with semantic voxelization results (windows and doors)";
+		const std::string coms = "Simple geometry is used, this can cause issues with windows and door detection";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 	case ErrorID::warningInputIncFootprintElev: {

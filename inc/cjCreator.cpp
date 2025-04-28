@@ -360,9 +360,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& p
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
-		TopoDS_Shape currentShape;
-		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
-		else { currentShape = lookup->getProductShape(); }
+		TopoDS_Shape currentShape = lookup->getProductShape();
 		shapeList.emplace_back(currentShape);
 	}
 	return section2Faces(shapeList, cutlvl);
@@ -1495,9 +1493,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::beamProjection(DataManager* h)
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue);
 		TopoDS_Shape currentShape;
-		if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
-		else { currentShape = lookup->getProductShape(); }
-		topObjectList.emplace_back(currentShape);
+		topObjectList.emplace_back(lookup->getProductShape());
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3118,13 +3114,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
-		TopoDS_Shape currentShape;
-		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
-		{
-			if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
-			else { continue; }
-		}
-		else { currentShape = lookup->getProductShape(); }
+		TopoDS_Shape currentShape = lookup->getProductShape();
 
 		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer);
 		int score = static_cast<int>(std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend()));
@@ -3776,13 +3766,7 @@ void CJGeoCreator::getOuterRaySurfaces(
 		processCountLock.unlock();
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue.second);
 		std::string lookupType = lookup->getProductPtr()->data().type()->name();
-		TopoDS_Shape currentShape;
-		if (lookupType == "IfcDoor" || lookupType == "IfcWindow")
-		{
-			if (lookup->hasSimpleShape()) { currentShape = lookup->getSimpleShape(); }
-			else { continue; }
-		}
-		else { currentShape = lookup->getProductShape(); }
+		TopoDS_Shape currentShape = lookup->getProductShape(); 
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{

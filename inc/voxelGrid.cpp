@@ -128,7 +128,6 @@ bool VoxelGrid::addVoxel(int indx, DataManager* h)
 	for (const Value& resultItem : qResult)
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(resultItem.second);
-		std::string productType = lookup->getProductPtr()->data().type()->name();
 		if (boxel->checkIntersecting(*lookup, pointList, midPointOCCT, settingsCollection.intersectionLogic()))
 		{
 			boxel->addInternalProduct(resultItem);
