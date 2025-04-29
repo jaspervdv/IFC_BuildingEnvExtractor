@@ -38,6 +38,7 @@
 #include <Poly_Triangle.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
+#include <TopExp.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -791,7 +792,7 @@ bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& theP
 }
 
 
-gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge)
+gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge) //TODO: make this smarter
 {
 	double precision = SettingsCollection::getInstance().precision();
 	gp_Pnt startpoint = getFirstPointShape(theEdge);
@@ -1731,150 +1732,82 @@ std::vector<TopoDS_Wire> helperFunctions::cleanWires(const std::vector<TopoDS_Wi
 	return cleanedWires;
 }
 
-TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
-	std::vector<TopoDS_Edge> edgeList;
-	double precision = SettingsCollection::getInstance().precision();
+TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix the issue with "floating" points
+	
+	TopTools_IndexedDataMapOfShapeListOfShape vertexToEdges;
+	TopExp::MapShapesAndAncestors(wire, TopAbs_VERTEX, TopAbs_EDGE, vertexToEdges);
 
-	if (!wire.Closed()) { return wire; }
-	for (TopExp_Explorer edgeExp(wire, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) 
-	{
-		TopoDS_Edge currentEdge = TopoDS::Edge(edgeExp.Current());
-		if (currentEdge.IsNull()) { continue; }
-		gp_Pnt cp1 = helperFunctions::getFirstPointShape(currentEdge);
-		gp_Pnt cp2 = helperFunctions::getLastPointShape(currentEdge);
-		if (cp1.Distance(cp2) < precision) { continue; }
-		edgeList.emplace_back(currentEdge);
-	}
-	if (edgeList.size() < 3) { return wire; }
 
-	// order and rotate the edges
-	std::vector<TopoDS_Edge> orderedEdgeList = { edgeList[0] };
-	std::vector<int> evalList(edgeList.size(), 0);
-	evalList[0] = 1;
-	TopoDS_Edge growingEdge = edgeList[0];
-	while (true)
-	{
-		gp_Pnt cp1 = getFirstPointShape(growingEdge);
-		gp_Pnt cp2 = getLastPointShape(growingEdge);
-
-		bool hasFound = false;
-		for (size_t i = 0; i < edgeList.size(); i++)
-		{
-			if (evalList[i] == 1) { continue; }
-
-			TopoDS_Edge otherEdge = edgeList[i];
-			gp_Pnt op1 = getFirstPointShape(otherEdge);
-			gp_Pnt op2 = getLastPointShape(otherEdge);
-
-			if (op1.IsEqual(op2, precision)) { continue; }
-			if (growingEdge.IsEqual(otherEdge)) { continue; }
-			if (cp2.IsEqual(op1, precision))
-			{
-				orderedEdgeList.emplace_back(otherEdge);
-			}
-			else if (cp2.IsEqual(op2, precision))
-			{
-				otherEdge = BRepBuilderAPI_MakeEdge(op2, op1);
-				orderedEdgeList.emplace_back(otherEdge);
-			}
-			else
-			{
-				continue;
-			}
-
-			growingEdge = otherEdge;
-			evalList[i] = 1;
-			hasFound = true;
-		}
-		if (!hasFound)
-		{
-			break;
-		}
+	std::vector<TopoDS_Edge> allEdges;
+	for (TopExp_Explorer exp(wire, TopAbs_EDGE); exp.More(); exp.Next()) {
+		TopoDS_Edge currentEdge = TopoDS::Edge(exp.Current());
+		allEdges.emplace_back(currentEdge);
 	}
 
-	//get a startpoint at the corner of a wire
-	gp_Pnt connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
-	gp_Vec startingVec = helperFunctions::computeEdgeDir(orderedEdgeList[0]);
-	if (startingVec.IsParallel(helperFunctions::computeEdgeDir(orderedEdgeList.back()), precision)) 
+	TopTools_MapOfShape visited;
+	BRepBuilderAPI_MakeWire wireMaker;
+	for (const TopoDS_Edge& currentEdge : allEdges)
 	{
-		for (size_t i = 1; i < orderedEdgeList.size(); i++)
+		if (visited.Contains(currentEdge)) { continue; }
+		visited.Add(currentEdge);
+
+		std::vector<TopoDS_Edge> colinGroup{ currentEdge };
+
+		gp_Vec currentDir = helperFunctions::computeEdgeDir(currentEdge);
+
+		// grow forwards
+		TopoDS_Vertex firstVertex = TopExp::FirstVertex(currentEdge, true);
+		while (true)
 		{
-			if (!startingVec.IsParallel(helperFunctions::computeEdgeDir(orderedEdgeList[i]), precision))
+			const TopTools_ListOfShape& adjEdges = vertexToEdges.FindFromKey(firstVertex);
+			bool found = false;
+			for (const TopoDS_Shape& potentialShape : adjEdges) {
+				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
+				if (visited.Contains(potentialEdge)) { continue; }
+				if (!currentDir.IsParallel(helperFunctions::computeEdgeDir(potentialEdge), 1e-6)) { continue; }
+				colinGroup.insert(colinGroup.begin(), potentialEdge);
+				visited.Add(potentialEdge);
+				firstVertex = TopExp::FirstVertex(potentialEdge, true);
+				found = true;
+			}
+			if (!found)
 			{
-				std::rotate(orderedEdgeList.begin(), orderedEdgeList.begin() + i, orderedEdgeList.end());
 				break;
 			}
 		}
-	}
 
-	connection = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
-	
-	BRepBuilderAPI_MakeWire wireMaker;
-	std::vector<int> merged(orderedEdgeList.size());
-	for (size_t i = 0; i < orderedEdgeList.size(); i++) // merge parralel 
-	{
-		if (merged[i] == 1) { continue; }
-		merged[i] = 1;
-
-		TopoDS_Edge currentEdge = orderedEdgeList[i];
-		gp_Vec currentVec = helperFunctions::computeEdgeDir(currentEdge);
-
-		if (currentVec.Magnitude() == 0)
+		// grow backwards
+		TopoDS_Vertex lastVertex = TopExp::LastVertex(currentEdge, true);
+		while (true)
 		{
-			merged[i] = 1;
+			const TopTools_ListOfShape& adjEdges = vertexToEdges.FindFromKey(lastVertex);
+			bool found = false;
+			for (const TopoDS_Shape& potentialShape : adjEdges) {
+				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
+				if (visited.Contains(potentialEdge)) { continue; }
+				if (!currentDir.IsParallel(helperFunctions::computeEdgeDir(potentialEdge), 1e-6)) { continue; }
+				colinGroup.emplace_back(potentialEdge);
+				visited.Add(potentialEdge);
+				lastVertex = TopExp::LastVertex(potentialEdge, true);
+				found = true;
+			}
+			if (!found)
+			{
+				break;
+			}
+		}
+
+		if (colinGroup.size() == 1)
+		{
+			wireMaker.Add(currentEdge);
 			continue;
 		}
 
-		gp_Pnt endPoint = helperFunctions::getLastPointShape(currentEdge);
-
-		for (size_t j = i + 1; j < orderedEdgeList.size(); j++)
-		{
-			if (merged[j] == 1) { continue; }
-
-			TopoDS_Edge otherEdge = orderedEdgeList[j];
-			gp_Vec otherVec = helperFunctions::computeEdgeDir(otherEdge);
-
-			if (otherVec.Magnitude() == 0)
-			{
-				merged[j] = 1;
-				continue;
-			}
-
-			if (currentVec.IsParallel(otherVec, 0.01)) {
-				merged[j] = 1;
-				continue;
-			}
-
-			if (j + 1 == orderedEdgeList.size())
-			{
-				endPoint = helperFunctions::getFirstPointShape(otherEdge);
-				break;
-			}
-
-			endPoint = helperFunctions::getFirstPointShape(otherEdge);
-
-			gp_Vec endPointVec = gp_Vec(connection, endPoint);
-
-			if (endPointVec.Magnitude() == 0) { break; }
-			else if (!currentVec.IsParallel(endPointVec, 0.01)) { endPoint = helperFunctions::getLastPointShape(otherEdge); }
-
-			break;
-		}
-
-		if (connection.IsEqual(endPoint, precision)) { continue; }
-
-		wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, endPoint));
-		connection = endPoint;
+		gp_Pnt p1 = BRep_Tool::Pnt(TopExp::FirstVertex(colinGroup.front(), true));
+		gp_Pnt p2 = BRep_Tool::Pnt(TopExp::LastVertex(colinGroup.back(), true));
+		TopoDS_Edge mergedEdge = BRepBuilderAPI_MakeEdge(p1,p2);
+		wireMaker.Add(mergedEdge);
 	}
-
-	if (connection.IsEqual(helperFunctions::getFirstPointShape(orderedEdgeList[0]), precision))
-	{
-		TopoDS_Wire finalWire = wireMaker.Wire();
-		return finalWire;
-	}
-
-	gp_Pnt finalPoint = helperFunctions::getFirstPointShape(orderedEdgeList[0]);
-	wireMaker.Add(BRepBuilderAPI_MakeEdge(connection, finalPoint));
 	TopoDS_Wire finalWire = wireMaker.Wire();
 	return finalWire;
 }

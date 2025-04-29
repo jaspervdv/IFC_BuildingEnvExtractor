@@ -258,6 +258,8 @@ private:
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex,
 		const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& surfaceIndx);
 
+	void setLoD32SurfaceAttributes(std::vector<std::map<std::string, std::string>>& outSurfaceTypeCollection, std::vector<int>& outTypeValueList, const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& surfacePairList, DataManager* h);
+
 	// query result cleaning code
 
 	/// remove dublicate values from valueList

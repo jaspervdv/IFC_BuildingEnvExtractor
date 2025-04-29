@@ -263,8 +263,12 @@ void CJGeoCreator::simpleRaySurfaceCast(
 	double searchBuffer = SettingsCollection::getInstance().searchBufferLod32();
 	double precision = SettingsCollection::getInstance().precision();
 
+	int c = 0;
 	for (const auto& [currentFace, currentProduct] : surfaceList)
 	{
+		c++;
+		std::cout << "\tIsolating outer surfaces - " << c << " of " << surfaceList.size() << "\r";
+
 		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
 		if (optionalCurrentPoint == std::nullopt) { continue; }
 		gp_Pnt currentPoint = *optionalCurrentPoint;
@@ -307,6 +311,7 @@ void CJGeoCreator::simpleRaySurfaceCast(
 			}
 		}
 	}
+	std::cout << "\n";
 	return;
 }
 
@@ -1327,6 +1332,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 	{
 		wireList.emplace_back(TopoDS::Wire(expl.Current()));
 	}
+
 	std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
 	if (cleanWireList.size() == 0) { return TopoDS_Face(); }
 	TopoDS_Face cleanedFace = helperFunctions::wireCluster2Faces(cleanWireList);
@@ -1943,6 +1949,128 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 	//TODO: clean the spatial index?
 
 	return cityRoomObjects;
+}
+
+void CJGeoCreator::setLoD32SurfaceAttributes(
+	std::vector<std::map<std::string, std::string>>& outSurfaceTypeCollection, 
+	std::vector<int>& outTypeValueList, 
+	const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& surfacePairList,
+	DataManager* h
+)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	std::map<std::string, std::string> grMap;
+	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+	std::map<std::string, std::string> wMap;
+	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+	std::map<std::string, std::string> rMap;
+	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+
+	outSurfaceTypeCollection.emplace_back(grMap);
+	outSurfaceTypeCollection.emplace_back(wMap);
+	outSurfaceTypeCollection.emplace_back(rMap);
+
+	std::map<std::string, int> attributeLookup; //gui to lookup indx;
+	int c = 0;
+	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : surfacePairList)
+	{
+		c++;
+		std::cout << "\tCopying Attribute data - " << c << " of " << surfacePairList.size() << "\r";
+
+		const  IfcSchema::IfcProduct* product = currentFacePair.second;
+		std::string productType = product->data().type()->name();
+		const TopoDS_Face& currentFace = currentFacePair.first;
+
+		if (productType == "IfcPlate") //TODO: make this smarter
+		{
+			std::map<std::string, std::string> windowMap;
+			if (!helperFunctions::hasGlassMaterial(product))
+			{
+				outTypeValueList.emplace_back(1);
+				continue;
+			}
+			productType = "IfcWindow";
+		}
+		if (productType == "IfcRoof")
+		{
+			outTypeValueList.emplace_back(2);
+			continue;
+		}
+		if (productType == "IfcWindow" || productType == "IfcDoor")
+		{
+			if (attributeLookup.find(product->GlobalId()) != attributeLookup.end())
+			{
+				outTypeValueList.emplace_back(attributeLookup[product->GlobalId()]);
+				continue;
+			}
+
+			std::map<std::string, std::string> objectMap;
+			if (product->Name().has_value())
+			{
+				objectMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
+			}
+			objectMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
+			if (productType == "IfcWindow")
+			{
+				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
+			}
+			else
+			{
+				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
+			}
+
+			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
+
+			for (nlohmann::json attributeObject : attributeList)
+			{
+				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
+					objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
+				}
+			}
+
+			attributeLookup[product->GlobalId()] = outSurfaceTypeCollection.size();
+			outTypeValueList.emplace_back(outSurfaceTypeCollection.size());
+			outSurfaceTypeCollection.emplace_back(objectMap);
+			continue;
+		}
+		if (productType == "IfcSlab")
+		{
+			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
+			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);
+
+			if (pointOnface == std::nullopt)
+			{
+				outTypeValueList.emplace_back(1);
+				continue;
+			}
+
+			if (pointOnface->Z() < settingsCollection.footprintElevation() && abs(vecOfFace.Z()) > 0.1)
+			{
+				//TODO: do a raycast straight downwards
+
+				outTypeValueList.emplace_back(0);
+			}
+			else if (pointOnface->Z() < settingsCollection.footprintElevation())
+			{
+				outTypeValueList.emplace_back(1);
+			}
+			else if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) > 0.1)
+			{
+				//TODO: do a raycast straight upwards
+
+				outTypeValueList.emplace_back(2);
+			}
+			else
+			{
+				outTypeValueList.emplace_back(1);
+			}
+			continue;
+		}
+		outTypeValueList.emplace_back(1);
+	}
+	std::cout << "\n";
+	return;
 }
 
 CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale)
@@ -3098,18 +3226,19 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
 	populateVoxelIndex(&voxelIndex, intersectingVoxels);
+
 	// collect and index the products which are presumed to be part of the exterior
 	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
-	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIndx;
 	if (productLookupValues.size() <= 0)
 	{
 		throw ErrorID::failedLoD32;
 		return{};
 	}
-	double searchBuffer = settingsCollection.searchBufferLod32();
 
 	std::vector<int> scoreList;
 	std::vector<Value> cleanedProductLookupValues;
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIndx;	
+	double searchBuffer = settingsCollection.searchBufferLod32();
 	for (size_t i = 0; i < productLookupValues.size(); i++)
 	{
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
@@ -3130,15 +3259,18 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
 	}
 	std::vector<Value>().swap(productLookupValues);
+
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> outerSurfacePairList;
 	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
 	std::vector<int>().swap(scoreList);
+
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> splitOuterSurfacePairList;
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> unSplitOuterSurfacePairList;
 	splitOuterSurfaces(splitOuterSurfacePairList, unSplitOuterSurfacePairList, outerSurfacePairList);
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(outerSurfacePairList);
+
 	// remove internal faces
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> splitFaceIndx;
 	for (const auto& [currentFace, currentProduct] : splitOuterSurfacePairList)
@@ -3154,6 +3286,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		splitFaceIndx.insert(std::make_pair(currentBox, currentFace));
 	}
 	simpleRaySurfaceCast(finalOuterSurfacePairList, splitOuterSurfacePairList, voxelIndex, splitFaceIndx);
+
 	// remove dub and incapsulated surfaces by merging them
 	std::vector<gp_Dir> normalList;
 	normalList.reserve(finalOuterSurfacePairList.size());
@@ -3163,120 +3296,21 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	}
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> cleanedOuterSurfacePairList = simplefyFacePool(finalOuterSurfacePairList, normalList); //TODO: multithread
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(finalOuterSurfacePairList);
+
 	// make the collection compund shape
 	BRep_Builder builder;
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
 
 	std::vector<std::map<std::string, std::string>> SurfaceTypeCollection;
-	std::map<std::string, std::string> grMap;
-	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-	std::map<std::string, std::string> wMap;
-	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-	std::map<std::string, std::string> rMap;
-	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-
-	SurfaceTypeCollection.emplace_back(grMap);
-	SurfaceTypeCollection.emplace_back(wMap);
-	SurfaceTypeCollection.emplace_back(rMap);
-
-	std::map<std::string, int> attributeLookup; //gui to lookup indx;
 	std::vector<int> typeValueList;
-
+	setLoD32SurfaceAttributes(SurfaceTypeCollection, typeValueList, cleanedOuterSurfacePairList, h);
 	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : cleanedOuterSurfacePairList)
 	{
-		const  IfcSchema::IfcProduct* product = currentFacePair.second;
-		std::string productType = product->data().type()->name();
 		const TopoDS_Face& currentFace = currentFacePair.first;
 		builder.Add(collectionShape, currentFace);
-
-		if (productType == "IfcPlate") //TODO: make this smarter
-		{
-			std::map<std::string, std::string> windowMap;
-			if (!helperFunctions::hasGlassMaterial(product))
-			{
-				typeValueList.emplace_back(1);
-				continue;
-			}
-			productType = "IfcWindow";
-		}
-		if (productType == "IfcRoof")
-		{
-			typeValueList.emplace_back(2);
-			continue;
-		}
-		if (productType == "IfcWindow" || productType == "IfcDoor")
-		{
-			if (attributeLookup.find(product->GlobalId()) != attributeLookup.end())
-			{
-				typeValueList.emplace_back(attributeLookup[product->GlobalId()]);
-				continue;
-			}
-
-			std::map<std::string, std::string> objectMap;
-			if (product->Name().has_value())
-			{
-				objectMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
-			}
-			objectMap[CJObjectEnum::getString(CJObjectID::ifcGuid)] = product->GlobalId();
-			if (productType == "IfcWindow")
-			{
-				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeWindow);
-			}
-			else
-			{
-				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
-			}
-
-			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0));
-
-			for (nlohmann::json attributeObject : attributeList)
-			{
-				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
-					objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
-				}
-			}
-
-			attributeLookup[product->GlobalId()] = SurfaceTypeCollection.size();
-			typeValueList.emplace_back(SurfaceTypeCollection.size());
-			SurfaceTypeCollection.emplace_back(objectMap);
-			continue;
-		}
-		if (productType == "IfcSlab")
-		{
-			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
-			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);
-
-			if (pointOnface == std::nullopt)
-			{
-				typeValueList.emplace_back(1);
-				continue;
-			}
-
-			if (pointOnface->Z() < settingsCollection.footprintElevation() && abs(vecOfFace.Z()) > 0.1)
-			{
-				//TODO: do a raycast straight downwards
-
-				typeValueList.emplace_back(0);
-			}
-			else if (pointOnface->Z() < settingsCollection.footprintElevation())
-			{
-				typeValueList.emplace_back(1);
-			}
-			else if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) > 0.1)
-			{
-				//TODO: do a raycast straight upwards
-
-				typeValueList.emplace_back(2);
-			}
-			else
-			{
-				typeValueList.emplace_back(1);
-			}
-			continue;
-		}
-		typeValueList.emplace_back(1);
 	}
+
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 	collectionShape.Move(localRotationTrsf);
@@ -4211,7 +4245,7 @@ void CJGeoCreator::splitOuterSurfaces(
 	}
 
 
-	threadList.emplace_back([&] {updateCounter("Trimming outer surfaces", outerSurfacePairList.size(), processedCount, processedCountMutex);  });
+	threadList.emplace_back([&] {updateCounter("Splitting outer surfaces", outerSurfacePairList.size(), processedCount, processedCountMutex);  });
 
 
 	for (auto& thread : threadList) {
