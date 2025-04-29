@@ -62,6 +62,7 @@ enum class ErrorID {
 	warningUnableToSimplefy,
 	warningNoRoofOutline,
 	warningNoFootprint,
+	warningNonLinearEdges,
 
 	warningSimplefication,
 

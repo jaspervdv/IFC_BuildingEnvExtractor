@@ -255,6 +255,20 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 	if (helperFunctions::computeArea(theface) < 0.01) { return {}; }
 
 	std::vector<gp_Pnt> wirePointList;
+
+	for (TopExp_Explorer exp(theface, TopAbs_EDGE); exp.More(); exp.Next()) {
+		TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+		Standard_Real first, last;
+		Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+		if (curve.IsNull()) {
+			return {};  // Skip degenerated edges
+		}
+		if (!curve->IsKind(STANDARD_TYPE(Geom_Line))) {
+			ErrorCollection::getInstance().addError(ErrorID::warningNonLinearEdges);  // Found a non-linear edge
+			return {};
+		}
+	}
+
 	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
 	offsetter.Perform(-settingsCollection.precisionCoarse());
 

@@ -366,6 +366,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "No footprint surface has been found";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
+	case ErrorID::warningNonLinearEdges: {
+		const std::string coms = "Face partially bound by non-linear edge/wire";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }
 	case ErrorID::warningSimplefication: {
 		const std::string coms = "Simple geometry is used, this can cause issues with windows and door detection";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
