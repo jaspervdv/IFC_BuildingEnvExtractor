@@ -151,7 +151,7 @@ void DebugUtils::outPutFaceError(const TopoDS_Face& theShape)
 		// Get list of specific errors
 		for (const auto& status : faceCheck.Status())
 		{
-			std::cout << "Face Status: " << status << "\n";
+			std::cout << "Face Status: " << status << " : " << checkStatusToString(status) << "\n";
 		}
 
 		for (TopExp_Explorer exp(theShape, TopAbs_WIRE); exp.More(); exp.Next()) {
@@ -191,6 +191,88 @@ void DebugUtils::outputWireError(const TopoDS_Wire& theShape)
 		std::cout << "Edge precision: " << BRep_Tool::Tolerance(currentEdge) << "\n";
 	}
 	return;
+}
+
+std::string DebugUtils::checkStatusToString(const BRepCheck_Status& statusCode)
+{
+	switch (statusCode) {
+	case BRepCheck_NoError:
+		return "No error";
+	case BRepCheck_InvalidPointOnCurve:
+		return "Invalid point on curve";
+	case BRepCheck_InvalidPointOnCurveOnSurface:
+		return "Invalid point on curve on surface";
+	case BRepCheck_InvalidPointOnSurface:
+		return "Invalid point on surface";
+	case BRepCheck_No3DCurve:
+		return "No 3D curve";
+	case BRepCheck_Multiple3DCurve:
+		return "Multiple 3D curves";
+	case BRepCheck_Invalid3DCurve:
+		return "Invalid 3D curve";
+	case BRepCheck_NoCurveOnSurface:
+		return "No curve on surface";
+	case BRepCheck_InvalidCurveOnSurface:
+		return "Invalid curve on surface";
+	case BRepCheck_InvalidCurveOnClosedSurface:
+		return "Invalid curve on closed surface";
+	case BRepCheck_InvalidSameRangeFlag:
+		return "Invalid same range flag";
+	case BRepCheck_InvalidSameParameterFlag:
+		return "Invalid same parameter flag";
+	case BRepCheck_InvalidDegeneratedFlag:
+		return "Invalid degenerated flag";
+	case BRepCheck_FreeEdge:
+		return "Free edge";
+	case BRepCheck_InvalidMultiConnexity:
+		return "Invalid multi-connexity";
+	case BRepCheck_InvalidRange:
+		return "Invalid range";
+	case BRepCheck_EmptyWire:
+		return "Empty wire";
+	case BRepCheck_RedundantEdge:
+		return "Redundant edge";
+	case BRepCheck_SelfIntersectingWire:
+		return "Self-intersecting wire";
+	case BRepCheck_NoSurface:
+		return "No surface";
+	case BRepCheck_InvalidWire:
+		return "Invalid wire";
+	case BRepCheck_RedundantWire:
+		return "Redundant wire";
+	case BRepCheck_IntersectingWires:
+		return "Intersecting wires";
+	case BRepCheck_InvalidImbricationOfWires:
+		return "Invalid imbrication of wires";
+	case BRepCheck_EmptyShell:
+		return "Empty shell";
+	case BRepCheck_RedundantFace:
+		return "Redundant face";
+	case BRepCheck_InvalidImbricationOfShells:
+		return "Invalid imbrication of shells";
+	case BRepCheck_UnorientableShape:
+		return "Unorientable shape";
+	case BRepCheck_NotClosed:
+		return "Not closed";
+	case BRepCheck_NotConnected:
+		return "Not connected";
+	case BRepCheck_SubshapeNotInShape:
+		return "Subshape not in shape";
+	case BRepCheck_BadOrientation:
+		return "Bad orientation";
+	case BRepCheck_BadOrientationOfSubshape:
+		return "Bad orientation of subshape";
+	case BRepCheck_InvalidPolygonOnTriangulation:
+		return "Invalid polygon on triangulation";
+	case BRepCheck_InvalidToleranceValue:
+		return "Invalid tolerance value";
+	case BRepCheck_EnclosedRegion:
+		return "Enclosed region";
+	case BRepCheck_CheckFail:
+		return "Check failed";
+	default:
+		return "Unknown status";
+	}
 }
 
 template<typename T>

@@ -39,6 +39,9 @@
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <TopExp.hxx>
+#include <BRep_Tool.hxx>
+#include <ShapeFix_Face.hxx>
+#include <ShapeFix_Wire.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -965,6 +968,25 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 	return RotationVecPair.first.Normalized();
 }
 
+bool helperFunctions::wireIsForwards(const TopoDS_Face& theFace, const TopoDS_Wire& theWire)
+{
+	TopoDS_Face faceNeutral = TopoDS::Face(theFace.Located(TopLoc_Location()));
+
+	double area = 0.0;
+	for (TopExp_Explorer expl(theWire, TopAbs_EDGE); expl.More(); expl.Next()) {
+		TopoDS_Edge edge = TopoDS::Edge(expl.Current());
+		Standard_Real f, l;
+		Handle(Geom2d_Curve) c2d = BRep_Tool::CurveOnSurface(edge, faceNeutral, f, l);
+		if (c2d.IsNull()) continue;
+
+		gp_Pnt2d p1 = c2d->Value(f);
+		gp_Pnt2d p2 = c2d->Value(l);
+		area += (p2.X() - p1.X()) * (p2.Y() + p1.Y());  // Shoelace rule
+	}
+	std::cout << area << std::endl;
+	return (area > 0);
+}
+
 
 bool helperFunctions::shareEdge(const TopoDS_Face& theFace, const TopoDS_Face& theotherFace)
 {
@@ -1747,14 +1769,18 @@ std::vector<TopoDS_Wire> helperFunctions::cleanWires(const std::vector<TopoDS_Wi
 }
 
 TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix the issue with "floating" points
-	
 	TopTools_IndexedDataMapOfShapeListOfShape vertexToEdges;
 	TopExp::MapShapesAndAncestors(wire, TopAbs_VERTEX, TopAbs_EDGE, vertexToEdges);
 
+	if (!wire.Closed())
+	{
+		return {};
+	}
 
 	std::vector<TopoDS_Edge> allEdges;
 	for (TopExp_Explorer exp(wire, TopAbs_EDGE); exp.More(); exp.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(exp.Current());
+		if (currentEdge.Orientation() == TopAbs_INTERNAL) { continue; }
 		allEdges.emplace_back(currentEdge);
 	}
 
@@ -1769,8 +1795,11 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix th
 
 		gp_Vec currentDir = helperFunctions::computeEdgeDir(currentEdge);
 
+		if (currentDir.Magnitude() < 1e-6) { continue; }
+
 		// grow forwards
 		TopoDS_Vertex firstVertex = TopExp::FirstVertex(currentEdge, true);
+
 		while (true)
 		{
 			const TopTools_ListOfShape& adjEdges = vertexToEdges.FindFromKey(firstVertex);
@@ -1778,7 +1807,15 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix th
 			for (const TopoDS_Shape& potentialShape : adjEdges) {
 				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
 				if (visited.Contains(potentialEdge)) { continue; }
-				if (!currentDir.IsParallel(helperFunctions::computeEdgeDir(potentialEdge), 1e-6)) { continue; }
+
+				gp_Vec otherDir = helperFunctions::computeEdgeDir(potentialEdge);
+				if (otherDir.Magnitude() < 1e-6) 
+				{ 
+					visited.Add(potentialEdge);
+					continue; 
+				}
+
+				if (!currentDir.IsParallel(otherDir, 1e-6)) { continue; }
 				colinGroup.insert(colinGroup.begin(), potentialEdge);
 				visited.Add(potentialEdge);
 				firstVertex = TopExp::FirstVertex(potentialEdge, true);
@@ -1799,7 +1836,14 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix th
 			for (const TopoDS_Shape& potentialShape : adjEdges) {
 				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
 				if (visited.Contains(potentialEdge)) { continue; }
-				if (!currentDir.IsParallel(helperFunctions::computeEdgeDir(potentialEdge), 1e-6)) { continue; }
+				gp_Vec otherDir = helperFunctions::computeEdgeDir(potentialEdge);
+				if (otherDir.Magnitude() < 1e-6)
+				{
+					visited.Add(potentialEdge);
+					continue;
+				}
+
+				if (!currentDir.IsParallel(otherDir, 1e-6)) { continue; }
 				colinGroup.emplace_back(potentialEdge);
 				visited.Add(potentialEdge);
 				lastVertex = TopExp::LastVertex(potentialEdge, true);
@@ -1823,7 +1867,12 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix th
 		wireMaker.Add(mergedEdge);
 	}
 	TopoDS_Wire finalWire = wireMaker.Wire();
-	return finalWire;
+	if (finalWire.Closed())
+	{
+		return finalWire;
+	}
+	return wire;
+
 }
 
 TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList) {
@@ -1947,7 +1996,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 {
 	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
 	
-	std::vector<TopoDS_Face> innerWireFaces;
+	std::vector<TopoDS_Face> outputFaceList;
 
 	for (const TopoDS_Shape& faceComplex : faceCluster)
 	{
@@ -1997,7 +2046,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		{
 			for (const TopoDS_Face& currentInvFace : outerInvFaceList)
 			{
-				innerWireFaces.emplace_back(currentInvFace);
+				outputFaceList.emplace_back(currentInvFace);
 			}
 			continue;
 		}
@@ -2010,43 +2059,34 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 		if (outerInvFaceList.size() == 1)
 		{
-			TopoDS_Face outerFace = outerInvFaceList[0];
-			BRepBuilderAPI_MakeFace faceMaker(outerFace);
+			TopoDS_Face currentOuterFace = outerInvFaceList[0];
+			gp_Vec currentNormal = computeFaceNormal(currentOuterFace);
+			Handle(Geom_Plane) plane = new Geom_Plane(getFirstPointShape(currentOuterFace), currentNormal);
+
+			TopoDS_Wire outerWire = BRepTools::OuterWire(currentOuterFace);
+
+			BRepBuilderAPI_MakeFace faceMaker(plane, outerWire, 1e-6);
+
 			for (size_t i = 0; i < innerFaces.size(); i++)
 			{
 				for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
 				{
 					TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
-					if (voidWire.Orientation() != TopAbs_REVERSED) { voidWire.Reverse(); }
 					faceMaker.Add(voidWire);
 				}
 			}
 
-			// check if all valid
-			bool isval = true;
-			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
-			{
-				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			TopoDS_Face currentFace = faceMaker.Face();
 
-				BRepCheck_Analyzer check(currentFace);
-				if (!check.IsValid()) {
-					if (helperFunctions::computeArea(currentFace) > 1e-6)
-					{
-						continue;
-					}
-
-					innerWireFaces.emplace_back(outerFace);
-					isval = false;
-					break;
-				}
+			BRepCheck_Analyzer check(currentFace);
+			if (!check.IsValid()) {
+				outputFaceList.emplace_back(currentOuterFace);
+				continue;
 			}
-
-			if (!isval) { continue; }
-
 			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 			{
 				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-				innerWireFaces.emplace_back(currentFace);
+				outputFaceList.emplace_back(currentFace);
 			}
 		}
 		else
@@ -2071,7 +2111,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 				if (!needProcessing)
 				{
-					innerWireFaces.emplace_back(currentFace);
+					outputFaceList.emplace_back(currentFace);
 					continue;
 				}
 
@@ -2080,15 +2120,21 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 					TopoDS_Face localFace = TopoDS::Face(faceExpl.Current());
 					BRepCheck_Analyzer check(localFace);
 					if (!check.IsValid()) {
-						innerWireFaces.emplace_back(currentFace);
+						outputFaceList.emplace_back(currentFace);
 						continue;
 					}
-					innerWireFaces.emplace_back(localFace);
+					outputFaceList.emplace_back(localFace);
 				}
 			}
 		}		
 	}
-	return innerWireFaces;
+
+	for (TopoDS_Face& currentFace : outputFaceList)
+	{
+		helperFunctions::triangulateShape(currentFace, true);
+	}
+
+	return outputFaceList;
 }
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces)
@@ -2539,7 +2585,7 @@ double helperFunctions::computeArea(const TopoDS_Face& theFace)
 	return gprops.Mass();
 }
 
-void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
+void helperFunctions::triangulateShape(const TopoDS_Shape& shape, bool force)
 {
 	for (TopExp_Explorer faceExpl(shape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 	{
@@ -2553,7 +2599,11 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(currentFace, loc);
 
 		if (!triangulation.IsNull()) {
-			continue;  // No triangulation present, skip to the next face
+			if (!force)
+			{
+				continue;  // No triangulation present, skip to the next face
+			}
+			BRepTools::Clean(currentFace);
 		}
 
 		std::vector<gp_Pnt> uniquePointList =  helperFunctions::getUniquePoints(currentFace);
@@ -2591,8 +2641,6 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape)
 			}
 
 			BRepTools::Clean(currentFace);
-
-
 			BRepMesh_IncrementalMesh(currentFace, deflection, Standard_False, 0.5 * refinement, Standard_True);
 			TopLoc_Location locLocal;
 			Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(currentFace, loc);

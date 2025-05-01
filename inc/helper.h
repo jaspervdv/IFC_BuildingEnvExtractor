@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -165,6 +165,9 @@ struct helperFunctions{
 	static double computeLargestAngle(const TopoDS_Face& theFace);
 	/// compute the horizontal dir based on vector count
 	static gp_Vec getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal);
+	/// compute if wire is properly oriented
+	static bool wireIsForwards(const TopoDS_Face& theFace, const TopoDS_Wire& theWire);
+
 
 	/// overlapping object code
 
@@ -284,7 +287,7 @@ struct helperFunctions{
 	/// compute the area of a triange
 	static double computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2);
 	/// get a nested list represeting the triangulation of an object
-	static void triangulateShape(const TopoDS_Shape& shape);
+	static void triangulateShape(const TopoDS_Shape& shape, bool force=false);
 	/// checks if a bbox has volume
 	static bool hasVolume(const bg::model::box <BoostPoint3D>& bbox);
 	/// checks if two bbox are equal

@@ -996,11 +996,13 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 			faceIdx.insert(std::make_pair(faceBox, extrusionFace));
 		}
 	}
+
 	// remove the faces that will presumably not split a single face
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
 	std::vector<TopoDS_Face> cleanedsplitFaceList = helperFunctions::cleanFaces(splitFaceList);
 	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(cleanedsplitFaceList, lowestZ, bufferSurface);
+
 	//clean the surfaces
 	return  visibleFaceList;
 }
@@ -2238,8 +2240,8 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
+		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
@@ -2556,6 +2558,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 
 std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h, CJT::Kernel* kernel, int unitScale, bool useFlatFaces, bool footprintBased)
 {
+
 	if (!hasTopFaces_)
 	{
 		initializeBasic(h);
@@ -2597,7 +2600,9 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 			std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z());
 			nestedFaceList.emplace_back(faceList);
 		}
+
 	}
+
 	return nestedFaceList;
 }
 

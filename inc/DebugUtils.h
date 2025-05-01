@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <TopoDS.hxx>
+#include <BRepCheck_Status.hxx>
 
 #ifndef DEBUGUTILS_DEBUGUTILS_H
 #define DEBUGUTILS_DEBUGUTILS_H
@@ -48,6 +49,8 @@ struct DebugUtils {
 	static void outPutFaceError(const TopoDS_Face& theShape);
 	/// prints the issues that a wire has
 	static void outputWireError(const TopoDS_Wire& theShape);
+	/// converte brepcheck_status to cout
+	static std::string checkStatusToString(const BRepCheck_Status& statusCode);
 };
 
 #endif // DEBUGUTILS_DEBUGUTILS_H
