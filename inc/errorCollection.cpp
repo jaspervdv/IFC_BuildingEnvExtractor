@@ -98,8 +98,9 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::warningNoSolid, ErrorObject("I0018", errorWarningStringEnum::getString(ErrorID::warningNoSolid, false))},
 		{ErrorID::warningUnableToMesh, ErrorObject("I0019", errorWarningStringEnum::getString(ErrorID::warningUnableToMesh, false))},
 		{ErrorID::warningUnableToSimplefy, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy, false))},
-		{ErrorID::warningNoRoofOutline, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningNoRoofOutline, false))},
-		{ErrorID::warningNoFootprint, ErrorObject("I0020", errorWarningStringEnum::getString(ErrorID::warningNoFootprint, false))},
+		{ErrorID::warningUnableToExtrude, ErrorObject("I0021", errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy, false))},
+		{ErrorID::warningNoRoofOutline, ErrorObject("I0022", errorWarningStringEnum::getString(ErrorID::warningNoRoofOutline, false))},
+		{ErrorID::warningNoFootprint, ErrorObject("I0023", errorWarningStringEnum::getString(ErrorID::warningNoFootprint, false))},
 
 		{ErrorID::warningUnableToSimplefy, ErrorObject("I0100", errorWarningStringEnum::getString(ErrorID::warningInputIncFootprintElev, false))},
 

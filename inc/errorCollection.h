@@ -60,6 +60,7 @@ enum class ErrorID {
 	warningNoSolid,
 	warningUnableToMesh,
 	warningUnableToSimplefy,
+	warningUnableToExtrude,
 	warningNoRoofOutline,
 	warningNoFootprint,
 	warningNonLinearEdges,

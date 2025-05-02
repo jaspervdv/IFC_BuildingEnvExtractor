@@ -871,6 +871,12 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+		if (extrudedShape.IsNull())
+		{
+			ErrorCollection::getInstance().addError(ErrorID::warningUnableToExtrude);
+			continue;
+		}
+
 		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
 
@@ -944,6 +950,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 	std::vector<TopoDS_Shape> prismList;
 	TopoDS_Shape simplefiedShape = simplefySolid(sewedShape);
+
 	if (simplefiedShape.IsNull())
 	{
 		prismList.emplace_back(sewedShape);
@@ -1588,7 +1595,6 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, 0);
 	std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::planarFaces2Outline(projectedFaceList, cuttingPlane);
-	DebugUtils::printFaces(mergedSurfaces);
 	printTime(startTime, std::chrono::steady_clock::now());
 	return mergedSurfaces;
 }

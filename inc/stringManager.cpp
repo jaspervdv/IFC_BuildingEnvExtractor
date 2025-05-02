@@ -358,6 +358,10 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "Not all shapes could be simplefied, unsimplefied shape is stored";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }	
+	case ErrorID::warningUnableToExtrude: {
+		const std::string coms = "Not all surfaces can be extruded into a prism, most likely caused by non straight edges in the input model";
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
+		return coms; }	
 	case ErrorID::warningNoRoofOutline: {
 		const std::string coms = "No roofoutline surface has been found";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
