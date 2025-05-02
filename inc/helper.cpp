@@ -2031,7 +2031,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			{
 				for (const TopoDS_Face invertedFace : invertFace(currentFace))
 				{
-					if (invertedFace.IsNull()) {  continue; }
+					if (invertedFace.IsNull()) { continue; }
 					outerInvFaceList.emplace_back(invertedFace);
 				}
 				continue;
@@ -2042,42 +2042,36 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			}
 		}
 
-		if (innerFaces.empty())
-		{
-			for (const TopoDS_Face& currentInvFace : outerInvFaceList)
-			{
-				outputFaceList.emplace_back(currentInvFace);
-			}
-			continue;
-		}
-
 		if (outerInvFaceList.empty())
 		{
 			//TODO: find out how to avoid this case
 			continue;
 		}
 
-		if (outerInvFaceList.size() == 1)
+		for (const TopoDS_Face& currentOuterFace : outerInvFaceList)
 		{
-			TopoDS_Face currentOuterFace = outerInvFaceList[0];
 			gp_Vec currentNormal = computeFaceNormal(currentOuterFace);
 			Handle(Geom_Plane) plane = new Geom_Plane(getFirstPointShape(currentOuterFace), currentNormal);
 
 			TopoDS_Wire outerWire = BRepTools::OuterWire(currentOuterFace);
-
+			outerWire = cleanWire(outerWire);
 			BRepBuilderAPI_MakeFace faceMaker(plane, outerWire, 1e-6);
 
 			for (size_t i = 0; i < innerFaces.size(); i++)
 			{
+				std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFaces[i]);
+				if (optionalPoint == std::nullopt) { continue; }
+				gp_Pnt pointOnFace = *optionalPoint;
+				if (!pointOnShape(currentOuterFace, pointOnFace)) { continue; }
 				for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
 				{
 					TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
+					voidWire = cleanWire(voidWire);
 					faceMaker.Add(voidWire);
 				}
 			}
 
 			TopoDS_Face currentFace = faceMaker.Face();
-
 			BRepCheck_Analyzer check(currentFace);
 			if (!check.IsValid()) {
 				outputFaceList.emplace_back(currentOuterFace);
@@ -2089,44 +2083,6 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				outputFaceList.emplace_back(currentFace);
 			}
 		}
-		else
-		{
-			for (const TopoDS_Face& currentFace : outerInvFaceList)
-			{
-				BRepBuilderAPI_MakeFace faceMaker(currentFace);
-				bool needProcessing = false;
-				for (const TopoDS_Face& innerFace : innerFaces)
-				{
-					std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFace);
-					if (optionalPoint == std::nullopt) { continue; }
-					gp_Pnt pointOnFace = *optionalPoint;
-
-					if (!pointOnShape(currentFace, pointOnFace)) { continue; }
-
-					TopoDS_Wire voidWire = BRepTools::OuterWire(innerFace);
-					faceMaker.Add(voidWire);
-					needProcessing = true;
-
-				}
-
-				if (!needProcessing)
-				{
-					outputFaceList.emplace_back(currentFace);
-					continue;
-				}
-
-				for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
-				{
-					TopoDS_Face localFace = TopoDS::Face(faceExpl.Current());
-					BRepCheck_Analyzer check(localFace);
-					if (!check.IsValid()) {
-						outputFaceList.emplace_back(currentFace);
-						continue;
-					}
-					outputFaceList.emplace_back(localFace);
-				}
-			}
-		}		
 	}
 
 	for (TopoDS_Face& currentFace : outputFaceList)

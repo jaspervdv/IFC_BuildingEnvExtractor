@@ -1588,6 +1588,7 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 
 	TopoDS_Face cuttingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, 0);
 	std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::planarFaces2Outline(projectedFaceList, cuttingPlane);
+	DebugUtils::printFaces(mergedSurfaces);
 	printTime(startTime, std::chrono::steady_clock::now());
 	return mergedSurfaces;
 }
