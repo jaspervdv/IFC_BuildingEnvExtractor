@@ -811,6 +811,11 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 
 		for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face subFace = TopoDS::Face(expl.Current());
+
+			TopTools_IndexedMapOfShape aMap;
+			TopExp::MapShapes(subFace, TopAbs_EDGE, aMap);
+
+			if (aMap.Size() <= 2) { continue; }
 			splitFaceList.emplace_back(subFace);
 		}
 	}

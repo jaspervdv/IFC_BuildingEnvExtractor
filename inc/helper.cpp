@@ -1838,6 +1838,7 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) { //TODO: fix th
 		allEdges.emplace_back(currentEdge);
 	}
 
+
 	TopTools_MapOfShape visited;
 	BRepBuilderAPI_MakeWire wireMaker;
 	for (const TopoDS_Edge& currentEdge : allEdges)
@@ -2025,7 +2026,6 @@ std::vector<TopoDS_Face> helperFunctions::cleanFaces(const std::vector<TopoDS_Fa
 		{
 			wireList.emplace_back(TopoDS::Wire(explorer.Current()));
 		}
-
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
 		
 		if (cleanWireList.size() < 1)
