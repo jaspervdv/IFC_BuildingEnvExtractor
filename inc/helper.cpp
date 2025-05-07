@@ -42,6 +42,10 @@
 #include <BRep_Tool.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_Wire.hxx>
+#include <Geom_Curve.hxx>
+#include <Geom_Line.hxx>
+#include <Standard_Type.hxx>
+#include <GCPnts_UniformAbscissa.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1572,21 +1576,71 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 	return TopoDS::Face(flatFace);
 }
 
+TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
+{
+	gp_Pnt p0 = getFirstPointShape(theFace);
+	gp_Vec normal = computeFaceNormal(theFace);
+	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
+
+	const TopoDS_Wire& outerWire = BRepTools::OuterWire(theFace);
+	if (outerWire.IsNull()) { return TopoDS_Face(); }
+	if (!outerWire.Closed()) { return TopoDS_Face(); }
+
+	TopoDS_Wire outerCleanedWire = replaceCurves(outerWire);
+	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
+
+	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
+	{
+		const TopoDS_Wire& currentWire = TopoDS::Wire(expl.Current());
+		if (currentWire.IsEqual(outerWire)) { continue; }
+		TopoDS_Wire currentCleanWire = replaceCurves(currentWire);
+		if (currentCleanWire.IsNull()) { continue; }
+		if (!currentCleanWire.Closed()) { continue; }
+		
+		BRepBuilderAPI_MakeFace faceMaker2(currentCleanWire);
+		TopoDS_Face innerFace = faceMaker2.Face();
+		if (innerFace.IsNull()) { continue; }
+		if (computeArea(innerFace) < 0.001) { continue; }
+		faceMaker.Add(currentCleanWire);
+	}
+
+	TopoDS_Face currentFace = faceMaker.Face();
+	if (currentFace.IsNull()) { return theFace; }
+	return currentFace;
+}
+
 
 std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edge>& edgeList) {
 	std::vector<TopoDS_Wire> wireCollection;
 	std::vector<TopoDS_Wire> wireCollectionClosed;
 	std::vector<TopoDS_Edge> tempEdgeList;
 
+	std::vector<TopoDS_Edge> cleanEdgelist;
+	for (const TopoDS_Edge& currentEdge : edgeList)
+	{
+		if (helperFunctions::isStraight(currentEdge))
+		{
+			cleanEdgelist.emplace_back(currentEdge);
+			continue;
+		}
+
+		TopoDS_Compound EdgeComp = helperFunctions::CurveToCompound(currentEdge);
+
+		for (TopExp_Explorer exp(EdgeComp, TopAbs_EDGE); exp.More(); exp.Next()) {
+			TopoDS_Edge cleanedEdge = TopoDS::Edge(exp.Current());
+			cleanEdgelist.emplace_back(cleanedEdge);
+		}
+	}
+
 	//BRepBuilderAPI_MakeWire wireMaker;
 	bool loopFound = false;
 
-	TopoDS_Edge currentEdge = edgeList[0];
-	std::vector<int> evaluated(edgeList.size());
+	TopoDS_Edge currentEdge = cleanEdgelist[0];
+	std::vector<int> evaluated(cleanEdgelist.size());
 	evaluated[0] = 1;
 
-	gp_Pnt originPoint = helperFunctions::getFirstPointShape(edgeList[0]); // the original point of the original edge
-	gp_Pnt extendingPoint = helperFunctions::getLastPointShape(edgeList[0]); // the point from which will be extended
+	gp_Pnt originPoint = helperFunctions::getFirstPointShape(cleanEdgelist[0]); // the original point of the original edge
+	gp_Pnt extendingPoint = helperFunctions::getLastPointShape(cleanEdgelist[0]); // the point from which will be extended
 
 	tempEdgeList.emplace_back(currentEdge);
 
@@ -1597,10 +1651,10 @@ std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edg
 		bool hasStapped = false; // true if a stap is found in the while iteration
 		bool closed = false; // true if the extensionpoint meets the originpoint
 
-		for (size_t i = 0; i < edgeList.size(); i++)
+		for (size_t i = 0; i < cleanEdgelist.size(); i++)
 		{
 			if (evaluated[i] != 0) { continue; } // pass over evaluated edges
-			TopoDS_Edge otherEdge = edgeList[i];
+			TopoDS_Edge otherEdge = cleanEdgelist[i];
 
 			gp_Pnt p1 = helperFunctions::getFirstPointShape(otherEdge);
 			gp_Pnt p2 = helperFunctions::getLastPointShape(otherEdge);
@@ -1657,13 +1711,13 @@ std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edg
 		}
 
 
-		for (size_t i = 0; i < edgeList.size(); i++) // search next unused edge to create new wire
+		for (size_t i = 0; i < cleanEdgelist.size(); i++) // search next unused edge to create new wire
 		{
 			if (evaluated[i] != 0) { continue; } // pass over evaluated edges
 
-			originPoint = helperFunctions::getFirstPointShape(edgeList[i]); // the original point of the original edge
-			extendingPoint = helperFunctions::getLastPointShape(edgeList[i]); // the point from which will be extended
-			tempEdgeList.emplace_back(edgeList[i]);
+			originPoint = helperFunctions::getFirstPointShape(cleanEdgelist[i]); // the original point of the original edge
+			extendingPoint = helperFunctions::getLastPointShape(cleanEdgelist[i]); // the point from which will be extended
+			tempEdgeList.emplace_back(cleanEdgelist[i]);
 
 			evaluated[i] = 1;
 			isReversed = false;
@@ -2051,6 +2105,9 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		for (const TopoDS_Face& currentOuterFace : outerInvFaceList)
 		{
 			gp_Vec currentNormal = computeFaceNormal(currentOuterFace);
+			if (currentNormal.Magnitude() < SettingsCollection::getInstance().precision()) { continue; }
+
+			gp_Pnt p0 = getFirstPointShape(currentOuterFace);
 			Handle(Geom_Plane) plane = new Geom_Plane(getFirstPointShape(currentOuterFace), currentNormal);
 
 			TopoDS_Wire outerWire = BRepTools::OuterWire(currentOuterFace);
@@ -2089,7 +2146,6 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 	{
 		helperFunctions::triangulateShape(currentFace, true);
 	}
-
 	return outputFaceList;
 }
 
@@ -2606,6 +2662,82 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape, bool force)
 		}
 	}
 	return;
+}
+
+TopoDS_Compound helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
+{
+	Standard_Real first, last;
+	Handle(Geom_Curve) curve = BRep_Tool::Curve(theEdge, first, last);
+
+	TopoDS_Compound compound;
+	BRep_Builder builder;
+	builder.MakeCompound(compound);
+
+	if (curve.IsNull()) return compound;
+
+	GeomAdaptor_Curve adaptorCurve(curve, first, last);
+	GCPnts_UniformAbscissa abscissa(adaptorCurve, 10, first, last);
+	if (!abscissa.IsDone()) return compound;
+
+	for (int i = 1; i < abscissa.NbPoints(); ++i) {
+		gp_Pnt p1 = adaptorCurve.Value(abscissa.Parameter(i));
+		gp_Pnt p2 = adaptorCurve.Value(abscissa.Parameter(i + 1));
+		TopoDS_Edge segment = BRepBuilderAPI_MakeEdge(p1, p2);
+		builder.Add(compound, segment);
+	}
+
+	return compound;
+}
+
+TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
+{
+	std::vector<TopoDS_Edge> fixedEdges;
+	for (TopExp_Explorer expl(theWire, TopAbs_EDGE); expl.More(); expl.Next()) {
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+
+		if (isStraight(currentEdge))
+		{
+			fixedEdges.emplace_back(currentEdge);
+			continue;
+		}
+
+		TopoDS_Compound straightCurve = CurveToCompound(currentEdge);
+		
+		for (TopExp_Explorer expl2(straightCurve, TopAbs_EDGE); expl2.More(); expl2.Next()) {
+			TopoDS_Edge straightenedEdge = TopoDS::Edge(expl2.Current());
+			fixedEdges.emplace_back(straightenedEdge);
+		}
+	}
+	std::vector<TopoDS_Wire> fixedWire = growWires(fixedEdges);
+	if (fixedWire.empty()) { return theWire; }
+	return fixedWire[0];
+}
+
+bool helperFunctions::isStraight(const TopoDS_Edge& theEdge)
+{
+	Standard_Real first, last;
+	Handle(Geom_Curve) curve = BRep_Tool::Curve(theEdge, first, last);
+
+	if (curve.IsNull()) {
+		return false;
+	}
+
+	Handle(Geom_Line) line = Handle(Geom_Line)::DownCast(curve);
+	return !line.IsNull();
+}
+
+bool helperFunctions::isStraight(const TopoDS_Wire& theWire)
+{
+	for (TopExp_Explorer explorer(theWire, TopAbs_EDGE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Edge& edge = TopoDS::Edge(explorer.Current());
+
+		if (!isStraight(edge))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)

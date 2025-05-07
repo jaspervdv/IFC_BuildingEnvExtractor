@@ -226,6 +226,8 @@ struct helperFunctions{
 	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
+	/// creates a clean copy of the input face with no curves
+	static TopoDS_Face wipeFaceClean(const TopoDS_Face& theFace);
 
 	/// @brief grows wires from unordered exterior edges
 	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
@@ -278,6 +280,22 @@ struct helperFunctions{
 	template <typename T>
 	static void writeToOBJ(const std::vector<T>& theShapeList, const std::string& targetPath);
 
+	/// triangulation related code
+
+	/// get a nested list represeting the triangulation of an object
+	static void triangulateShape(const TopoDS_Shape& shape, bool force = false);
+
+	/// approximates a curved edge with straight segmented approximation
+	static TopoDS_Compound CurveToCompound(const TopoDS_Edge& theEdge);
+	/// replaces curves from wires with straight segmented approximation
+	static TopoDS_Wire replaceCurves(const TopoDS_Wire& theWire);
+
+	/// return true if the edge is a straight line
+	static bool isStraight(const TopoDS_Edge& theEdge);
+	/// return true if all edges in a wire are straight lines
+	static bool isStraight(const TopoDS_Wire& theWire);
+
+
 	/// other code
  
 	/// compute the area of a shape
@@ -286,8 +304,7 @@ struct helperFunctions{
 	static double computeArea(const TopoDS_Face& theFace);
 	/// compute the area of a triange
 	static double computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2);
-	/// get a nested list represeting the triangulation of an object
-	static void triangulateShape(const TopoDS_Shape& shape, bool force=false);
+
 	/// checks if a bbox has volume
 	static bool hasVolume(const bg::model::box <BoostPoint3D>& bbox);
 	/// checks if two bbox are equal

@@ -185,15 +185,20 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	for (size_t i = 0; i < Collection.size(); i++)
 	{
 		const TopoDS_Face& currentFace = Collection[i]->getFace();
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace, 0.5);
-		spatialIndex.insert(std::make_pair(bbox, i));
-		faceList.emplace_back(currentFace);
 
 		if (helperFunctions::computeArea(currentFace) <= 1e-6)
 		{
-			std::cout << "t" << std::endl;
+			continue;
 		}
+		TopoDS_Face currentCleanFace = helperFunctions::wipeFaceClean(currentFace);
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
+		spatialIndex.insert(std::make_pair(bbox, i));
+		faceList.emplace_back(currentCleanFace);
+		//DebugUtils::printFaces(currentCleanFace);
 	}
+
+	//DebugUtils::WriteToSTEP(faceList, "C:/Users/Jasper/Desktop/desk/test.step");
+
 
 	//// group surfaces
 	std::vector<RCollection> mergedRSurfaces;
@@ -534,7 +539,14 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(innerSplitter.Shape(), boundingFace));
 			for (const TopoDS_Face& invertedFace : invertedFaces)
 			{
-				intFacesOut.emplace_back(invertedFace);
+				TopoDS_Face cleanedInvertedFace = helperFunctions::wipeFaceClean(invertedFace);
+
+				if (cleanedInvertedFace.IsNull())
+				{
+					intFacesOut.emplace_back(invertedFace); //TODO: why is it not trimming
+					continue;
+				}
+				intFacesOut.emplace_back(cleanedInvertedFace);
 			}
 		}
 
@@ -546,7 +558,13 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(outerSplitter.Shape(), boundingFace));
 			for (const TopoDS_Face& invertedFace : invertedFaces)
 			{
-				extFacesOut.emplace_back(invertedFace);
+				TopoDS_Face cleanedInvertedFace = helperFunctions::wipeFaceClean(invertedFace);
+				if (cleanedInvertedFace.IsNull())
+				{
+					extFacesOut.emplace_back(invertedFace);
+					continue;
+				}
+				extFacesOut.emplace_back(cleanedInvertedFace);
 			}
 		}
 	}
@@ -694,7 +712,15 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 		//TODO: add error
 		return;
 	}
-	facesOut = helperFunctions::planarFaces2Outline(cleanedFaceList, cuttingPlane);
+	std::vector<TopoDS_Face> floorSectionList = helperFunctions::planarFaces2Outline(cleanedFaceList, cuttingPlane);
+	
+	facesOut.reserve(floorSectionList.size());
+	for (const TopoDS_Face& currentOutFace : floorSectionList)
+	{
+		TopoDS_Face cleanedOutFace = helperFunctions::wipeFaceClean(currentOutFace);
+		facesOut.emplace_back(cleanedOutFace);
+	}
+
 	return;
 }
 
@@ -1575,7 +1601,6 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 	for (const RCollection& currentGroup : rCollectionList)
 	{
 		TopoDS_Face currentFace = currentGroup.getProjectedFace();
-
 		if (currentFace.IsNull()) { continue; }
 		projectedFaceList.emplace_back(currentFace);
 	}
@@ -2402,7 +2427,6 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 		// find the matching cityspace object
 		IfcSchema::IfcSpace* spaceIfcObject = *spaceIt;
 		std::string spaceGuid = spaceIfcObject->GlobalId();
-
 		bool spaceFound = false;
 		std::shared_ptr<CJT::CityObject> matchingCityRoomObject;
 		for (std::shared_ptr<CJT::CityObject> roomCityObject : roomCityObjects)
@@ -2473,13 +2497,14 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 				}
 				if (!clearLine){ continue; }
 
+				TopoDS_Face cleanedCurrentFace = helperFunctions::wipeFaceClean(currentFace);
 				if (settingsCollection.make02() || settingsCollection.make12())
 				{
-					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(currentFace, lowestZ));
+					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(cleanedCurrentFace, lowestZ));
 				}
 				if (settingsCollection.make22())
 				{
-					topFaceList.emplace_back(currentFace);
+					topFaceList.emplace_back(cleanedCurrentFace);
 				}
 				break;
 			}
@@ -2518,8 +2543,8 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 		}
 		if (settingsCollection.make22()) {
 			if (!topFaceList.size()) { continue; }
-			std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
 
+			std::vector<TopoDS_Shape> roomPrismList = computePrisms(topFaceList, lowestZ);
 			if (roomPrismList.size() == 1)
 			{
 				if (roomPrismList[0].IsNull()) { return; } //TODO: check why this is needed for the gaia model (also at LoD12 creation)
@@ -2527,7 +2552,8 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 
 				//if (settingsCollection.createSTEP() || settingsCollection.createOBJ()) { copyLoD12GeoList.emplace_back(roomPrismList[0]); }
 
-				CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");;
+				CJT::GeoObject roomGeoObject22 = kernel->convertToJSON(roomPrismList[0], "2.2");
+
 				createSemanticData(&roomGeoObject22, roomPrismList[0], false);
 				matchingCityRoomObject->addGeoObject(roomGeoObject22);
 			}
