@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -228,6 +228,8 @@ struct helperFunctions{
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 	/// creates a clean copy of the input face with no curves
 	static TopoDS_Face wipeFaceClean(const TopoDS_Face& theFace);
+	/// creates a clean copy of the input face with no curves
+	static std::vector<TopoDS_Face> wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList);
 
 	/// @brief grows wires from unordered exterior edges
 	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);
@@ -236,9 +238,6 @@ struct helperFunctions{
 	static std::vector<TopoDS_Wire> cleanWires(const std::vector<TopoDS_Wire>& wireList);
 	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 	static TopoDS_Face wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
-
-	static std::vector<TopoDS_Face> cleanFaces(const std::vector<TopoDS_Face>& inputFaceList);
-
 
 	// planar simplification code
 

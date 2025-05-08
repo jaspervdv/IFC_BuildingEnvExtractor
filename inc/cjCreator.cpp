@@ -1038,7 +1038,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	// remove the faces that will presumably not split a single face
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
-	std::vector<TopoDS_Face> cleanedsplitFaceList = helperFunctions::cleanFaces(splitFaceList);
+	std::vector<TopoDS_Face> cleanedsplitFaceList = helperFunctions::wipeFaceClean(splitFaceList);
 	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(cleanedsplitFaceList, lowestZ, bufferSurface);
 
 	//clean the surfaces
