@@ -804,14 +804,12 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 			{
 				continue;
 			}
-
 			divider.AddTool(currentSplitter);
 		}
 		divider.Perform();
 
 		for (TopExp_Explorer expl(divider.Shape(), TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face subFace = TopoDS::Face(expl.Current());
-
 			TopTools_IndexedMapOfShape aMap;
 			TopExp::MapShapes(subFace, TopAbs_EDGE, aMap);
 
@@ -1038,8 +1036,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	// remove the faces that will presumably not split a single face
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
-	std::vector<TopoDS_Face> cleanedsplitFaceList = helperFunctions::wipeFaceClean(splitFaceList);
-	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(cleanedsplitFaceList, lowestZ, bufferSurface);
+	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurface);
 
 	//clean the surfaces
 	return  visibleFaceList;
@@ -2617,13 +2614,13 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 		{
 			if (useFlatFaces)
 			{
-				faceCollection.emplace_back(surfaceGroup.getFlatFace());
+				faceCollection.emplace_back(helperFunctions::wipeFaceClean(surfaceGroup.getFlatFace()));
 			}
 			else
 			{
 				for (const TopoDS_Face currentFace : surfaceGroup.getFaces())
 				{
-					faceCollection.emplace_back(currentFace);
+					faceCollection.emplace_back(helperFunctions::wipeFaceClean(currentFace));
 				}
 			}
 		}

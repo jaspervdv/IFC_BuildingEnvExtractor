@@ -1574,11 +1574,12 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 	);
 	trsf.SetTranslationPart(gp_XYZ(0, 0, height));
 	TopoDS_Shape flatFace = BRepBuilderAPI_GTransform(theFace, trsf, true).Shape();
-	return TopoDS::Face(flatFace);
+	return helperFunctions::wipeFaceClean(TopoDS::Face(flatFace));
 }
 
 TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 {
+
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
 	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
@@ -1608,6 +1609,13 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 	}
 
 	TopoDS_Face currentFace = faceMaker.Face();
+	BRepCheck_Analyzer analyzer(currentFace);
+
+	if (!analyzer.IsValid())
+	{
+		return theFace;
+	}
+
 	if (currentFace.IsNull()) { return theFace; }
 	return currentFace;
 }
