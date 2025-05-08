@@ -46,6 +46,7 @@
 #include <Geom_Line.hxx>
 #include <Standard_Type.hxx>
 #include <GCPnts_UniformAbscissa.hxx>
+#include <BRepTools_WireExplorer.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1616,20 +1617,9 @@ std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edg
 	std::vector<TopoDS_Edge> tempEdgeList;
 
 	std::vector<TopoDS_Edge> cleanEdgelist;
-	for (const TopoDS_Edge& currentEdge : edgeList)
+	for (const TopoDS_Edge& currentEdge : replaceCurves(edgeList))
 	{
-		if (helperFunctions::isStraight(currentEdge))
-		{
-			cleanEdgelist.emplace_back(currentEdge);
-			continue;
-		}
-
-		TopoDS_Compound EdgeComp = helperFunctions::CurveToCompound(currentEdge);
-
-		for (TopExp_Explorer exp(EdgeComp, TopAbs_EDGE); exp.More(); exp.Next()) {
-			TopoDS_Edge cleanedEdge = TopoDS::Edge(exp.Current());
-			cleanEdgelist.emplace_back(cleanedEdge);
-		}
+		cleanEdgelist.emplace_back(currentEdge);
 	}
 
 	//BRepBuilderAPI_MakeWire wireMaker;
@@ -1731,81 +1721,93 @@ std::vector<TopoDS_Wire> helperFunctions::growWires(const std::vector<TopoDS_Edg
 		}
 	}
 
-	if (wireCollection.size() == 0) { return wireCollectionClosed; }
+	if (wireCollection.size() != 0) {
 
-	BRepBuilderAPI_MakeWire wireMaker = BRepBuilderAPI_MakeWire();
-	TopoDS_Wire currentWire = wireCollection[0];
-	wireCollection.erase(wireCollection.begin());
+		BRepBuilderAPI_MakeWire wireMaker = BRepBuilderAPI_MakeWire();
+		TopoDS_Wire currentWire = wireCollection[0];
+		wireCollection.erase(wireCollection.begin());
 
-	double maxWireDistance = 1.5;
+		double maxWireDistance = 1.5;
 
-	int currentWireIdx = 0;
-	while (true) // merge the openWires
-	{
-		bool stepped = false;
-
-		double distance = 99999999999;
-		int idxMatch = -1;
-		TopoDS_Edge connectionEdge;
-
-		gp_Pnt startpoint = helperFunctions::getFirstPointShape(currentWire);
-		gp_Pnt endpoint = helperFunctions::getLastPointShape(currentWire);
-
-		for (int i = 0; i < wireCollection.size(); i++)
+		int currentWireIdx = 0;
+		while (true) // merge the openWires
 		{
-			TopoDS_Wire otherwire = wireCollection[i];
-			gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(otherwire);
-			gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(otherwire);
+			bool stepped = false;
 
-			double d1 = startpoint.Distance(otherStartpoint);
-			double d2 = startpoint.Distance(otherEndpoint);
-			double d3 = endpoint.Distance(otherStartpoint);
-			double d4 = endpoint.Distance(otherEndpoint);
+			double distance = 99999999999;
+			int idxMatch = -1;
+			TopoDS_Edge connectionEdge;
 
-			if (d1 < maxWireDistance && d1 < distance)
+			gp_Pnt startpoint = helperFunctions::getFirstPointShape(currentWire);
+			gp_Pnt endpoint = helperFunctions::getLastPointShape(currentWire);
+
+			for (int i = 0; i < wireCollection.size(); i++)
 			{
-				idxMatch = i;
-				distance = d1;
-				connectionEdge = BRepBuilderAPI_MakeEdge(startpoint, otherStartpoint);
-			}
-			if (d2 < maxWireDistance && d2 < distance)
-			{
-				idxMatch = i;
-				distance = d2;
-				connectionEdge = BRepBuilderAPI_MakeEdge(startpoint, otherEndpoint);
-			}
-			if (d3 < maxWireDistance && d3 < distance)
-			{
-				idxMatch = i;
-				distance = d3;
-				connectionEdge = BRepBuilderAPI_MakeEdge(endpoint, otherStartpoint);
-			}
-			if (d4 < maxWireDistance && d4 < distance)
-			{
-				idxMatch = i;
-				distance = d4;
-				connectionEdge = BRepBuilderAPI_MakeEdge(endpoint, otherEndpoint);
-			}
-		}
+				TopoDS_Wire otherwire = wireCollection[i];
+				gp_Pnt otherStartpoint = helperFunctions::getFirstPointShape(otherwire);
+				gp_Pnt otherEndpoint = helperFunctions::getLastPointShape(otherwire);
 
-		if (idxMatch != -1)
-		{
-			currentWire = helperFunctions::mergeWireOrientated(currentWire, BRepBuilderAPI_MakeWire(connectionEdge));
-			currentWire = helperFunctions::mergeWireOrientated(currentWire, wireCollection[idxMatch]);
-			wireCollection.erase(wireCollection.begin() + idxMatch);
-			stepped = true;
-		}
+				double d1 = startpoint.Distance(otherStartpoint);
+				double d2 = startpoint.Distance(otherEndpoint);
+				double d3 = endpoint.Distance(otherStartpoint);
+				double d4 = endpoint.Distance(otherEndpoint);
 
-		if (!stepped)
-		{
-			wireCollectionClosed.emplace_back(helperFunctions::closeWireOrientated(currentWire));
-			if (wireCollection.size() == 0) { break; }
+				if (d1 < maxWireDistance && d1 < distance)
+				{
+					idxMatch = i;
+					distance = d1;
+					connectionEdge = BRepBuilderAPI_MakeEdge(startpoint, otherStartpoint);
+				}
+				if (d2 < maxWireDistance && d2 < distance)
+				{
+					idxMatch = i;
+					distance = d2;
+					connectionEdge = BRepBuilderAPI_MakeEdge(startpoint, otherEndpoint);
+				}
+				if (d3 < maxWireDistance && d3 < distance)
+				{
+					idxMatch = i;
+					distance = d3;
+					connectionEdge = BRepBuilderAPI_MakeEdge(endpoint, otherStartpoint);
+				}
+				if (d4 < maxWireDistance && d4 < distance)
+				{
+					idxMatch = i;
+					distance = d4;
+					connectionEdge = BRepBuilderAPI_MakeEdge(endpoint, otherEndpoint);
+				}
+			}
 
-			currentWireIdx++;
-			currentWire = wireCollection[0];
-			wireCollection.erase(wireCollection.begin());
+			if (idxMatch != -1)
+			{
+				currentWire = helperFunctions::mergeWireOrientated(currentWire, BRepBuilderAPI_MakeWire(connectionEdge));
+				currentWire = helperFunctions::mergeWireOrientated(currentWire, wireCollection[idxMatch]);
+				wireCollection.erase(wireCollection.begin() + idxMatch);
+				stepped = true;
+			}
+
+			if (!stepped)
+			{
+				wireCollectionClosed.emplace_back(helperFunctions::closeWireOrientated(currentWire));
+				if (wireCollection.size() == 0) { break; }
+
+				currentWireIdx++;
+				currentWire = wireCollection[0];
+				wireCollection.erase(wireCollection.begin());
+			}
 		}
 	}
+
+	for (const TopoDS_Wire& currentWire : wireCollectionClosed)
+	{
+		
+		 
+	}
+
+	
+
+
+
 	return wireCollectionClosed;
 }
 
@@ -2664,35 +2666,38 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape, bool force)
 	return;
 }
 
-TopoDS_Compound helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
+TopoDS_Wire helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
 {
 	Standard_Real first, last;
 	Handle(Geom_Curve) curve = BRep_Tool::Curve(theEdge, first, last);
 
-	TopoDS_Compound compound;
-	BRep_Builder builder;
-	builder.MakeCompound(compound);
+	BRepBuilderAPI_MakeWire builder;
 
-	if (curve.IsNull()) return compound;
+	if (curve.IsNull()) return {};
 
 	GeomAdaptor_Curve adaptorCurve(curve, first, last);
 	GCPnts_UniformAbscissa abscissa(adaptorCurve, 10, first, last);
-	if (!abscissa.IsDone()) return compound;
+	if (!abscissa.IsDone()) return {};
 
 	for (int i = 1; i < abscissa.NbPoints(); ++i) {
 		gp_Pnt p1 = adaptorCurve.Value(abscissa.Parameter(i));
 		gp_Pnt p2 = adaptorCurve.Value(abscissa.Parameter(i + 1));
 		TopoDS_Edge segment = BRepBuilderAPI_MakeEdge(p1, p2);
-		builder.Add(compound, segment);
+		builder.Add(segment);
 	}
 
-	return compound;
+	builder.Build();
+	if (builder.IsDone())
+	{
+		return builder.Wire();
+	}
+	return {};
 }
 
 TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 {
 	std::vector<TopoDS_Edge> fixedEdges;
-	for (TopExp_Explorer expl(theWire, TopAbs_EDGE); expl.More(); expl.Next()) {
+	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 
 		if (isStraight(currentEdge))
@@ -2701,16 +2706,70 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 			continue;
 		}
 
-		TopoDS_Compound straightCurve = CurveToCompound(currentEdge);
-		
+		TopoDS_Wire straightCurve = CurveToCompound(currentEdge);
+
+		// if the wire is incorrectly ordered the order is reversed
+		std::vector<TopoDS_Edge> straightEdgeList;
+		for (BRepTools_WireExplorer expl2(straightCurve); expl2.More(); expl2.Next()) {
+			TopoDS_Edge straightenedEdge = TopoDS::Edge(expl2.Current());
+			straightEdgeList.emplace_back(straightenedEdge);
+		}
+
+		if (fixedEdges.empty())
+		{
+			fixedEdges.insert(std::end(fixedEdges), std::begin(straightEdgeList), std::end(straightEdgeList));
+			continue;
+		}
+
+		TopoDS_Edge lastEdge = fixedEdges.back();
+		TopoDS_Edge connectingEdge = straightEdgeList[0];
+		gp_Pnt lp1 = helperFunctions::getFirstPointShape(lastEdge);
+		gp_Pnt lp2 = helperFunctions::getLastPointShape(lastEdge);
+		gp_Pnt sp1 = helperFunctions::getFirstPointShape(connectingEdge);
+		gp_Pnt sp2 = helperFunctions::getLastPointShape(connectingEdge);
+
+		if (!lp1.IsEqual(sp1, 1e-6) && !lp1.IsEqual(sp2, 1e-6) && !lp2.IsEqual(sp1, 1e-6) && !lp2.IsEqual(sp2, 1e-6))
+		{
+			std::reverse(straightEdgeList.begin(), straightEdgeList.end());
+		}
+		fixedEdges.insert(std::end(fixedEdges), std::begin(straightEdgeList), std::end(straightEdgeList));
+	}
+
+	if (fixedEdges.empty()) { return theWire; }
+
+	BRepBuilderAPI_MakeWire builder;
+	for (const TopoDS_Edge& fixedEdge : fixedEdges)
+	{
+		builder.Add(fixedEdge);
+	}
+
+	builder.Build();
+	if (!builder.IsDone())
+	{
+		return theWire;
+	}
+	return builder.Wire();
+}
+
+std::vector<TopoDS_Edge> helperFunctions::replaceCurves(const std::vector<TopoDS_Edge>& theEdgeList)
+{
+	std::vector<TopoDS_Edge> fixedEdges;
+	for (const TopoDS_Edge& currentEdge : theEdgeList)
+	{
+		if (isStraight(currentEdge))
+		{
+			fixedEdges.emplace_back(currentEdge);
+			continue;
+		}
+
+		TopoDS_Wire straightCurve = CurveToCompound(currentEdge);
+
 		for (TopExp_Explorer expl2(straightCurve, TopAbs_EDGE); expl2.More(); expl2.Next()) {
 			TopoDS_Edge straightenedEdge = TopoDS::Edge(expl2.Current());
 			fixedEdges.emplace_back(straightenedEdge);
 		}
 	}
-	std::vector<TopoDS_Wire> fixedWire = growWires(fixedEdges);
-	if (fixedWire.empty()) { return theWire; }
-	return fixedWire[0];
+	return fixedEdges;
 }
 
 bool helperFunctions::isStraight(const TopoDS_Edge& theEdge)

@@ -3663,10 +3663,10 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum, std::vector<int>* typeList)
 	std::mutex faceListMutex;
 
 	for (int i = 0; i < 6; i++) {
-		threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
+		processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists));
+		//threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
 	}
 	for (auto& thread : threads) { thread.join(); }
-
 	BRepBuilderAPI_Sewing brepSewer;
 	for (const auto& [face, surfaceType] : threadFaceLists) {
 		brepSewer.Add(face);
@@ -3754,9 +3754,15 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mute
 	std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> edgeTypeList = voxelGrid_->getDirectionalFaces(direction, -SettingsCollection::getInstance().gridRotation(), roomNum);
 	for (const auto& [currentedgeCollection, surfaceType] : edgeTypeList)
 	{
+		std::cout << "1" << std::endl;
 		std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(currentedgeCollection);
+		std::cout << "2" << std::endl;
+		std::cout << "w: " << wireList.size() << std::endl;
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
+		std::cout << "3" << std::endl;
+		std::cout << "w: " << cleanWireList.size() << std::endl;
 		TopoDS_Face cleanFace = helperFunctions::wireCluster2Faces(cleanWireList);
+		std::cout << "4" << std::endl;
 		std::unique_lock<std::mutex> listLock(faceListMutex);
 		collectionList.emplace_back(std::make_pair(cleanFace, surfaceType));
 		listLock.unlock();

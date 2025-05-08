@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC4
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -286,9 +286,11 @@ struct helperFunctions{
 	static void triangulateShape(const TopoDS_Shape& shape, bool force = false);
 
 	/// approximates a curved edge with straight segmented approximation
-	static TopoDS_Compound CurveToCompound(const TopoDS_Edge& theEdge);
+	static TopoDS_Wire CurveToCompound(const TopoDS_Edge& theEdge);
 	/// replaces curves from wires with straight segmented approximation
 	static TopoDS_Wire replaceCurves(const TopoDS_Wire& theWire);
+	/// replaces curves with straight segmented approximation
+	static std::vector<TopoDS_Edge> replaceCurves(const std::vector<TopoDS_Edge>& theEdgeList);
 
 	/// return true if the edge is a straight line
 	static bool isStraight(const TopoDS_Edge& theEdge);
