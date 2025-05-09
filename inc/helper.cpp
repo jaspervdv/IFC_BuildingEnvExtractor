@@ -47,6 +47,7 @@
 #include <Standard_Type.hxx>
 #include <GCPnts_UniformAbscissa.hxx>
 #include <BRepTools_WireExplorer.hxx>
+#include <ProjLib_ProjectOnPlane.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1579,6 +1580,15 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 
 TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 {
+	BRepCheck_Analyzer analyzer2(theFace);
+	if (!analyzer2.IsValid())
+	{
+		//std::cout << "invalid in\n";
+	}
+	else
+	{
+		//std::cout << "valid in \n";
+	}
 
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
@@ -1600,7 +1610,7 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 		if (currentStraightWire.IsNull()) { continue; }
 		if (!currentStraightWire.Closed()) { continue; }
 		TopoDS_Wire currentCleanWire = cleanWire(currentStraightWire);
-		
+
 		BRepBuilderAPI_MakeFace faceMaker2(currentCleanWire);
 		TopoDS_Face innerFace = faceMaker2.Face();
 		if (innerFace.IsNull()) { continue; }
@@ -1610,12 +1620,16 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 
 	TopoDS_Face currentFace = faceMaker.Face();
 	BRepCheck_Analyzer analyzer(currentFace);
-
+	//DebugUtils::printPoint(normal);
 	if (!analyzer.IsValid())
 	{
+		//std::cout << "invalid out\n\n";
+
+		//DebugUtils::printFaces(currentFace);
+
 		return theFace;
 	}
-
+	//std::cout << "valid out\n" << std::endl;
 	if (currentFace.IsNull()) { return theFace; }
 	return currentFace;
 }
@@ -2694,6 +2708,8 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 {
 	std::vector<TopoDS_Edge> fixedEdges;
 	double precision = SettingsCollection::getInstance().precision();
+
+	bool isEdited = false;
 	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 
@@ -2703,6 +2719,7 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 			continue;
 		}
 
+		isEdited = true;
 		TopoDS_Wire straightCurve = CurveToCompound(currentEdge);
 
 		// if the wire is incorrectly ordered the order is reversed
@@ -2719,20 +2736,26 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 		}
 
 		TopoDS_Edge lastEdge = fixedEdges.back();
+		TopoDS_Edge	firstEdge = fixedEdges[0];
 		TopoDS_Edge connectingEdge = straightEdgeList[0];
 		gp_Pnt lp1 = helperFunctions::getFirstPointShape(lastEdge);
 		gp_Pnt lp2 = helperFunctions::getLastPointShape(lastEdge);
+		gp_Pnt fp1 = helperFunctions::getFirstPointShape(firstEdge);
+		gp_Pnt fp2 = helperFunctions::getLastPointShape(firstEdge);
 		gp_Pnt sp1 = helperFunctions::getFirstPointShape(connectingEdge);
 		gp_Pnt sp2 = helperFunctions::getLastPointShape(connectingEdge);
 
-		if (!lp1.IsEqual(sp1, precision) && !lp1.IsEqual(sp2, precision) && !lp2.IsEqual(sp1, precision) && !lp2.IsEqual(sp2, precision))
+		if (!lp1.IsEqual(sp1, precision) && !lp1.IsEqual(sp2, precision) &&
+			!lp2.IsEqual(sp1, precision) && !lp2.IsEqual(sp2, precision) &&
+			!fp1.IsEqual(sp1, precision) && !fp1.IsEqual(sp2, precision) &&
+			!fp2.IsEqual(sp1, precision) && !fp2.IsEqual(sp2, precision)
+			)
 		{
 			std::reverse(straightEdgeList.begin(), straightEdgeList.end());
 		}
 		fixedEdges.insert(std::end(fixedEdges), std::begin(straightEdgeList), std::end(straightEdgeList));
 	}
-
-	if (fixedEdges.empty()) { return theWire; }
+	if (!isEdited) { return theWire; }
 
 	BRepBuilderAPI_MakeWire builder;
 	for (const TopoDS_Edge& fixedEdge : fixedEdges)
@@ -2745,7 +2768,14 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 	{
 		return theWire;
 	}
-	return builder.Wire();
+
+	TopoDS_Wire cleanedWire = builder.Wire();
+	if (!cleanedWire.Closed())
+	{
+		return theWire;
+	}
+
+	return cleanedWire;
 }
 
 std::vector<TopoDS_Edge> helperFunctions::replaceCurves(const std::vector<TopoDS_Edge>& theEdgeList)
