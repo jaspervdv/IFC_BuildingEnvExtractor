@@ -48,6 +48,7 @@
 #include <GCPnts_UniformAbscissa.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <ProjLib_ProjectOnPlane.hxx>
+#include <GeomAPI.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -976,20 +977,27 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 
 bool helperFunctions::wireIsForwards(const TopoDS_Face& theFace, const TopoDS_Wire& theWire)
 {
-	TopoDS_Face faceNeutral = TopoDS::Face(theFace.Located(TopLoc_Location()));
-
 	double area = 0.0;
-	for (TopExp_Explorer expl(theWire, TopAbs_EDGE); expl.More(); expl.Next()) {
-		TopoDS_Edge edge = TopoDS::Edge(expl.Current());
+	for (TopExp_Explorer exp(theWire, TopAbs_EDGE); exp.More(); exp.Next())
+	{
+		TopoDS_Edge edge = TopoDS::Edge(exp.Current());
 		Standard_Real f, l;
-		Handle(Geom2d_Curve) c2d = BRep_Tool::CurveOnSurface(edge, faceNeutral, f, l);
-		if (c2d.IsNull()) continue;
 
-		gp_Pnt2d p1 = c2d->Value(f);
-		gp_Pnt2d p2 = c2d->Value(l);
-		area += (p2.X() - p1.X()) * (p2.Y() + p1.Y());  // Shoelace rule
+		Handle(Geom2d_Curve) curve2d = BRep_Tool::CurveOnSurface(edge, theFace, f, l);
+		if (curve2d.IsNull()) continue;
+
+		gp_Pnt2d p1 = curve2d->Value(f);
+		gp_Pnt2d p2;
+
+		const int n = 10;
+		for (int i = 1; i <= n; ++i)
+		{
+			Standard_Real t = f + (l - f) * i / n;
+			p2 = curve2d->Value(t);
+			area += (p2.X() - p1.X()) * (p2.Y() + p1.Y());
+			p1 = p2;
+		}
 	}
-	std::cout << area << std::endl;
 	return (area > 0);
 }
 
@@ -1578,8 +1586,13 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 	return helperFunctions::wipeFaceClean(TopoDS::Face(flatFace));
 }
 
-TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
+TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace, bool isActive)
 {
+	if (!isActive)
+	{
+		return theFace;
+	}
+	
 	BRepCheck_Analyzer analyzer2(theFace);
 	if (!analyzer2.IsValid())
 	{
@@ -1592,55 +1605,81 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace)
 
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
-	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
+	if (normal.Magnitude() < 1e-6) 	{ return TopoDS_Face(); }
 
-	const TopoDS_Wire& outerWire = BRepTools::OuterWire(theFace);
+	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
+	TopoDS_Wire outerWire = BRepTools::OuterWire(theFace);
 	if (outerWire.IsNull()) { return TopoDS_Face(); }
 	if (!outerWire.Closed()) { return TopoDS_Face(); }
 
+	TopoDS_Wire outerWireClean = outerWire;
+	if (!wireIsForwards(theFace, outerWireClean))
+	{
+		outerWireClean.Orientation(TopAbs_REVERSED);
+	}
+	else
+	{
+		outerWireClean.Orientation(TopAbs_FORWARD);
+	}
+
 	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
-	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
-	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
+	//TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
+	BRepBuilderAPI_MakeFace faceMaker(plane, outerstraightWire, 1e-6);
 
 	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 	{
-		const TopoDS_Wire& currentWire = TopoDS::Wire(expl.Current());
+		TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
 		if (currentWire.IsEqual(outerWire)) { continue; }
-		TopoDS_Wire currentStraightWire = replaceCurves(currentWire);
+
+		if (!wireIsForwards(theFace, currentWire))
+		{
+			currentWire.Orientation(TopAbs_FORWARD);
+		}
+		else
+		{
+			currentWire.Orientation(TopAbs_REVERSED);
+		}
+
+		TopoDS_Wire& currentStraightWire = replaceCurves(currentWire);
 		if (currentStraightWire.IsNull()) { continue; }
 		if (!currentStraightWire.Closed()) { continue; }
-		TopoDS_Wire currentCleanWire = cleanWire(currentStraightWire);
+		//TopoDS_Wire currentCleanWire = cleanWire(currentStraightWire);
 
-		BRepBuilderAPI_MakeFace faceMaker2(currentCleanWire);
+		BRepBuilderAPI_MakeFace faceMaker2(currentStraightWire);
 		TopoDS_Face innerFace = faceMaker2.Face();
 		if (innerFace.IsNull()) { continue; }
 		if (computeArea(innerFace) < 0.001) { continue; }
-		faceMaker.Add(currentCleanWire);
+		faceMaker.Add(currentStraightWire);
 	}
 
 	TopoDS_Face currentFace = faceMaker.Face();
+
+	ShapeFix_Face fixer(currentFace);
+	fixer.FixOrientation();
+	fixer.Perform();
+	currentFace = fixer.Face();
+
 	BRepCheck_Analyzer analyzer(currentFace);
-	//DebugUtils::printPoint(normal);
 	if (!analyzer.IsValid())
 	{
-		//std::cout << "invalid out\n\n";
-
+		std::cout << "invalid out\n\n";
 		//DebugUtils::printFaces(currentFace);
+		//std::cout << "\n";
 
 		return theFace;
 	}
-	//std::cout << "valid out\n" << std::endl;
+
 	if (currentFace.IsNull()) { return theFace; }
 	return currentFace;
 }
 
-std::vector<TopoDS_Face> helperFunctions::wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList)
+std::vector<TopoDS_Face> helperFunctions::wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList, bool isActive)
 {
 	std::vector<TopoDS_Face> outputList;
 	outputList.reserve(theFaceList.size());
 	for (const TopoDS_Face& currentFace : theFaceList)
 	{
-		TopoDS_Face cleanedFace = wipeFaceClean(currentFace);
+		TopoDS_Face cleanedFace = wipeFaceClean(currentFace, isActive);
 		if (cleanedFace.IsNull())
 		{
 			outputList.emplace_back(currentFace);
@@ -1649,6 +1688,53 @@ std::vector<TopoDS_Face> helperFunctions::wipeFaceClean(const std::vector<TopoDS
 		outputList.emplace_back(cleanedFace);
 	}
 	return outputList;
+}
+
+TopoDS_Wire helperFunctions::wipeWireClean(const TopoDS_Wire& theWire)
+{
+	std::cout << "swap" << std::endl;
+	BRepBuilderAPI_MakeWire wireMaker;
+	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
+		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+
+
+
+		TopoDS_Edge reversedEdge = BRepBuilderAPI_MakeEdge(helperFunctions::getFirstPointShape(currentEdge), helperFunctions::getLastPointShape(currentEdge));
+
+		wireMaker.Add(reversedEdge);
+	}
+	TopoDS_Wire newWire = wireMaker.Wire();
+	return newWire;
+}
+
+TopoDS_Wire helperFunctions::projectWireOnPlane(const TopoDS_Wire& wire, const Handle(Geom_Plane)& plane)
+{
+	const Handle(Geom_Surface) surface = Handle(Geom_Surface)::DownCast(plane);
+
+	BRepBuilderAPI_MakeWire wireBuilder;
+	BRep_Builder builder;
+
+	for (TopExp_Explorer exp(wire, TopAbs_EDGE); exp.More(); exp.Next())
+	{
+		TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+
+		Standard_Real f, l;
+		Handle(Geom_Curve) curve3d = BRep_Tool::Curve(edge, f, l);
+		if (curve3d.IsNull()) continue;
+
+		// Project to 2D on the plane
+		Handle(Geom2d_Curve) curve2d = GeomAPI::To2d(curve3d, plane->Pln());
+		if (curve2d.IsNull()) continue;
+
+		// Create new edge
+		TopoDS_Edge newEdge = BRepBuilderAPI_MakeEdge(curve3d, f, l);
+		builder.UpdateEdge(newEdge, curve2d, surface, TopLoc_Location(), 1e-6);
+		newEdge.Orientation(edge.Orientation()); // preserve orientation
+
+		wireBuilder.Add(newEdge);
+	}
+
+	return wireBuilder.Wire();
 }
 
 
@@ -2102,6 +2188,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				}
 				continue;
 			}
+
 			if (!pointOnShape(faceComplex, pointOnFace))
 			{
 				innerFaces.emplace_back(currentFace);
@@ -2140,13 +2227,12 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				}
 			}
 
-			TopoDS_Face currentFace = faceMaker.Face();
+			TopoDS_Face currentFace = wipeFaceClean(faceMaker.Face(), true);
 			BRepCheck_Analyzer check(currentFace);
 			if (!check.IsValid()) {
-				outputFaceList.emplace_back(currentOuterFace);
 				continue;
 			}
-			for (TopExp_Explorer faceExpl(faceMaker.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+			for (TopExp_Explorer faceExpl(currentFace, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 			{
 				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
 				outputFaceList.emplace_back(currentFace);
@@ -2713,9 +2799,19 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 
-		if (isStraight(currentEdge))
+		if (isStraight(currentEdge)) //TODO: make this smarter
 		{
-			fixedEdges.emplace_back(currentEdge);
+			gp_Pnt p1 = getFirstPointShape(currentEdge);
+			gp_Pnt p2 = getFirstPointShape(currentEdge);
+
+			if (p1.IsEqual(p2, 1e-6))
+			{
+				continue;
+			}
+
+			TopoDS_Edge segment = BRepBuilderAPI_MakeEdge(p1, p2);
+
+			fixedEdges.emplace_back(segment);
 			continue;
 		}
 

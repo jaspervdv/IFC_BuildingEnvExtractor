@@ -2274,8 +2274,8 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
+		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });

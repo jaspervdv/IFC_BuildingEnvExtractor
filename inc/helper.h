@@ -227,9 +227,13 @@ struct helperFunctions{
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 	/// creates a clean copy of the input face with no curves
-	static TopoDS_Face wipeFaceClean(const TopoDS_Face& theFace);
+	static TopoDS_Face wipeFaceClean(const TopoDS_Face& theFace, bool isActive = false);
 	/// creates a clean copy of the input face with no curves
-	static std::vector<TopoDS_Face> wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList);
+	static std::vector<TopoDS_Face> wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList, bool isActive = false);
+	/// creates a clean copy of the input face with no curves
+	static TopoDS_Wire wipeWireClean(const TopoDS_Wire& theWire);
+	/// projects a wire on a plane
+	static TopoDS_Wire projectWireOnPlane(const TopoDS_Wire& wire, const Handle(Geom_Plane)& plane);
 
 	/// @brief grows wires from unordered exterior edges
 	static std::vector<TopoDS_Wire> growWires(const std::vector<TopoDS_Edge>& edgeList);

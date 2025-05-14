@@ -2,6 +2,7 @@
 
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
+#include <BRepTools_WireExplorer.hxx>
 
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepCheck_Face.hxx>
@@ -53,13 +54,21 @@ std::string DebugUtils::pointToString2D(const T& currentPoint)
 std::string DebugUtils::faceToString(const TopoDS_Face& currentFace)
 {
 	std::string currentString = "new\n";
-	for (TopExp_Explorer expl(currentFace, TopAbs_VERTEX); expl.More(); expl.Next())
+	for (TopExp_Explorer WireExpl(currentFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
 	{
-		TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-		gp_Pnt p = BRep_Tool::Pnt(vertex);
+		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
+		for (BRepTools_WireExplorer expl(currentWire); expl.More(); expl.Next()) {
+			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 
-		currentString += pointToString3D(p);
+			for (TopExp_Explorer expl(currentEdge, TopAbs_VERTEX); expl.More(); expl.Next())
+			{
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt p = BRep_Tool::Pnt(vertex);
+				currentString += pointToString3D(p);
+			}
+		}
 	}
+
 	return currentString;
 }
 
@@ -153,17 +162,16 @@ void DebugUtils::outPutFaceError(const TopoDS_Face& theShape)
 		{
 			std::cout << "Face Status: " << status << " : " << checkStatusToString(status) << "\n";
 		}
-
-		for (TopExp_Explorer exp(theShape, TopAbs_WIRE); exp.More(); exp.Next()) {
-			TopoDS_Wire wire = TopoDS::Wire(exp.Current());
-			outputWireError(wire);
-		}
 	}
 	else
 	{
 		std::cout << "Face is valid\n";
 	}
 	std::cout << "Face precision: " << BRep_Tool::Tolerance(theShape) << "\n";
+	for (TopExp_Explorer exp(theShape, TopAbs_WIRE); exp.More(); exp.Next()) {
+		TopoDS_Wire wire = TopoDS::Wire(exp.Current());
+		outputWireError(wire);
+	}
 	return;
 }
 
