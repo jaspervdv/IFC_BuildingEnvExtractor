@@ -227,9 +227,11 @@ struct helperFunctions{
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 	/// creates a clean copy of the input face with no curves
-	static TopoDS_Face wipeFaceClean(const TopoDS_Face& theFace, bool isActive = false);
+	static TopoDS_Face TessellateFace(const TopoDS_Face& theFace);
 	/// creates a clean copy of the input face with no curves
-	static std::vector<TopoDS_Face> wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList, bool isActive = false);
+	static std::vector<TopoDS_Face> TessellateFace(const std::vector<TopoDS_Face>& theFaceList);
+	/// fixes face if face is broken
+	static bool fixFace(TopoDS_Face* theFace);
 	/// creates a clean copy of the input face with no curves
 	static TopoDS_Wire wipeWireClean(const TopoDS_Wire& theWire);
 	/// projects a wire on a plane
@@ -309,6 +311,9 @@ struct helperFunctions{
 	static double computeArea(const TopoDS_Face& theFace);
 	/// compute the area of a triange
 	static double computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2);
+
+	/// count the number of wires in a face
+	static int wireCount(const TopoDS_Face& theFace);
 
 	/// checks if a bbox has volume
 	static bool hasVolume(const bg::model::box <BoostPoint3D>& bbox);

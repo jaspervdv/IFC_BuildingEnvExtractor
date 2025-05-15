@@ -1431,10 +1431,12 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 		}
 
 		std::vector<TopoDS_Face> mergedFaceList = mergeCoFaces(mergingPairList);
-		std::vector<TopoDS_Face> cleanedFaces = wipeFaceClean(mergedFaceList);
-		for (const TopoDS_Face& currentCleanedFace : cleanedFaces)
+		for (TopoDS_Face mergedFace : mergedFaceList)
 		{
-			cleanedFaceCollection.emplace_back(currentCleanedFace);
+			if (fixFace(&mergedFace))
+			{
+				cleanedFaceCollection.emplace_back(mergedFace);
+			}	
 		}
 	}
 	return cleanedFaceCollection;
@@ -1585,29 +1587,13 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		)
 	);
 	trsf.SetTranslationPart(gp_XYZ(0, 0, height));
-	TopoDS_Shape flatFace = BRepBuilderAPI_GTransform(theFace, trsf, true).Shape();
-	return helperFunctions::wipeFaceClean(TopoDS::Face(flatFace));
+	TopoDS_Face flatFace = TopoDS::Face(BRepBuilderAPI_GTransform(theFace, trsf, true).Shape());
+	fixFace(&flatFace);
+	return flatFace;
 }
 
-TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace, bool isActive)
+TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 {
-
-	if (!isActive)
-	{
-		return theFace;
-	}
-
-	BRepCheck_Analyzer analyzer2(theFace);
-	bool validIn = analyzer2.IsValid();
-	if (!validIn)
-	{
-		std::cout << "invalid in\n";
-	}
-	else
-	{
-		std::cout << "valid in\n";
-	}
-
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
 	if (normal.Magnitude() < 1e-6) 	{ return TopoDS_Face(); }
@@ -1620,9 +1606,12 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace, bool isAc
 	TopoDS_Wire outerWireClean = outerWire;
 	outerWireClean.Orientation(TopAbs_FORWARD);
 
-	//TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
-	TopoDS_Wire outerCleanedWire = cleanWire(outerWire);
-	BRepBuilderAPI_MakeFace faceMaker(plane, outerWire, 1e-6);
+	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
+	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
+	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
+
+	std::cout << "new" << std::endl;
+	DebugUtils::printPoints(outerstraightWire);
 
 	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 	{
@@ -1630,49 +1619,62 @@ TopoDS_Face helperFunctions::wipeFaceClean(const TopoDS_Face& theFace, bool isAc
 		if (currentWire.IsEqual(outerWire)) { continue; }
 		currentWire.Orientation(TopAbs_REVERSED);
 
-		//TopoDS_Wire& currentStraightWire = replaceCurves(currentWire);
-		//if (currentStraightWire.IsNull()) { continue; }
-		//if (!currentStraightWire.Closed()) { continue; }
-		TopoDS_Wire currentCleanWire = cleanWire(currentWire);
+		TopoDS_Wire& currentStraightWire = replaceCurves(currentWire);
+		if (currentStraightWire.IsNull()) { continue; }
+		if (!currentStraightWire.Closed()) { continue; }
+		TopoDS_Wire currentCleanWire = cleanWire(currentStraightWire);
 
 		BRepBuilderAPI_MakeFace faceMaker2(currentCleanWire);
 		TopoDS_Face innerFace = faceMaker2.Face();
 		if (innerFace.IsNull()) { continue; }
 		if (computeArea(innerFace) < 0.001) { continue; }
-		faceMaker.Add(currentWire);
+		faceMaker.Add(currentCleanWire);
 	}
-
+	
 	TopoDS_Face currentFace = faceMaker.Face();
-
-	ShapeFix_Face fixer(currentFace);
-	fixer.FixOrientation(); // fixes the innerwire invalid issue
-
-	fixer.Perform();
-	currentFace = fixer.Face();
-
-	BRepCheck_Analyzer analyzer(currentFace);
-	if (!analyzer.IsValid())
+	if (!fixFace(&currentFace))
 	{
-		std::cout << "invalid out\n";
-		DebugUtils::printFaces(currentFace);
-		std::cout << "\nold face\n";
-		DebugUtils::printFaces(currentFace);
-		std::cout << "\n\n\n";
-
+		std::cout << "invalid out\n" << std::endl;
 		return theFace;
 	}
-	std::cout << "valid out\n\n";
-	if (currentFace.IsNull()) { return theFace; }
 	return currentFace;
 }
 
-std::vector<TopoDS_Face> helperFunctions::wipeFaceClean(const std::vector<TopoDS_Face>& theFaceList, bool isActive)
+bool helperFunctions::fixFace(TopoDS_Face* theFace)
+{
+	BRepCheck_Analyzer analyzer(*theFace);
+	if (analyzer.IsValid()) // no need to fix
+	{
+		return theFace;
+	}
+
+	ShapeFix_Face faceFixer(*theFace);
+	if (wireCount(*theFace) > 1)
+	{
+		faceFixer.FixOrientation(); // fixes the innerwire invalid issue
+	}
+	faceFixer.Perform();
+
+	TopoDS_Face fixedFace = faceFixer.Face();
+
+	BRepCheck_Analyzer cleanAnalyzer(fixedFace);
+	if (!cleanAnalyzer.IsValid())
+	{
+		return false;
+	}
+	if (fixedFace.IsNull()) { return false; }
+
+	*theFace = fixedFace;
+	return true;
+}
+
+std::vector<TopoDS_Face> helperFunctions::TessellateFace(const std::vector<TopoDS_Face>& theFaceList)
 {
 	std::vector<TopoDS_Face> outputList;
 	outputList.reserve(theFaceList.size());
 	for (const TopoDS_Face& currentFace : theFaceList)
 	{
-		TopoDS_Face cleanedFace = wipeFaceClean(currentFace, isActive);
+		TopoDS_Face cleanedFace = TessellateFace(currentFace);
 		if (cleanedFace.IsNull())
 		{
 			outputList.emplace_back(currentFace);
@@ -2221,9 +2223,9 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 				}
 			}
 
-			TopoDS_Face currentFace = wipeFaceClean(faceMaker.Face(), true);
+			TopoDS_Face currentFace = faceMaker.Face();
 			BRepCheck_Analyzer check(currentFace);
-			if (!check.IsValid()) {
+			if (!fixFace(&currentFace)) {
 				continue;
 			}
 			for (TopExp_Explorer faceExpl(currentFace, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
@@ -2982,6 +2984,16 @@ double helperFunctions::computeArea(const gp_Pnt& p0, const gp_Pnt& p1, const gp
 	gp_Vec v02(p0, p2);
 	gp_Vec cross = v01.Crossed(v02);
 	return 0.5 * cross.Magnitude();
+}
+
+int helperFunctions::wireCount(const TopoDS_Face& theFace)
+{
+	int count = 0;
+	for (TopExp_Explorer WireExpl(theFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
+	{
+		count++;
+	}
+	return count;
 }
 
 std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList, bool fullProcessing)

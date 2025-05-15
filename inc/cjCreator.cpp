@@ -190,7 +190,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		{
 			continue;
 		}
-		TopoDS_Face currentCleanFace = helperFunctions::wipeFaceClean(currentFace);
+		TopoDS_Face currentCleanFace = helperFunctions::TessellateFace(currentFace);
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentCleanFace);
@@ -539,7 +539,7 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(innerSplitter.Shape(), boundingFace));
 			for (const TopoDS_Face& invertedFace : invertedFaces)
 			{
-				TopoDS_Face cleanedInvertedFace = helperFunctions::wipeFaceClean(invertedFace);
+				TopoDS_Face cleanedInvertedFace = helperFunctions::TessellateFace(invertedFace);
 
 				if (cleanedInvertedFace.IsNull())
 				{
@@ -558,7 +558,7 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(outerSplitter.Shape(), boundingFace));
 			for (const TopoDS_Face& invertedFace : invertedFaces)
 			{
-				TopoDS_Face cleanedInvertedFace = helperFunctions::wipeFaceClean(invertedFace);
+				TopoDS_Face cleanedInvertedFace = helperFunctions::TessellateFace(invertedFace);
 				if (cleanedInvertedFace.IsNull())
 				{
 					extFacesOut.emplace_back(invertedFace);
@@ -717,7 +717,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	facesOut.reserve(floorSectionList.size());
 	for (const TopoDS_Face& currentOutFace : floorSectionList)
 	{
-		TopoDS_Face cleanedOutFace = helperFunctions::wipeFaceClean(currentOutFace);
+		TopoDS_Face cleanedOutFace = helperFunctions::TessellateFace(currentOutFace);
 		facesOut.emplace_back(cleanedOutFace);
 	}
 
@@ -2499,7 +2499,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 				}
 				if (!clearLine){ continue; }
 
-				TopoDS_Face cleanedCurrentFace = helperFunctions::wipeFaceClean(currentFace);
+				TopoDS_Face cleanedCurrentFace = helperFunctions::TessellateFace(currentFace);
 				if (settingsCollection.make02() || settingsCollection.make12())
 				{
 					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(cleanedCurrentFace, lowestZ));
@@ -2614,13 +2614,13 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 		{
 			if (useFlatFaces)
 			{
-				faceCollection.emplace_back(helperFunctions::wipeFaceClean(surfaceGroup.getFlatFace()));
+				faceCollection.emplace_back(surfaceGroup.getFlatFace());
 			}
 			else
 			{
 				for (const TopoDS_Face currentFace : surfaceGroup.getFaces())
 				{
-					faceCollection.emplace_back(helperFunctions::wipeFaceClean(currentFace));
+					faceCollection.emplace_back(currentFace);
 				}
 			}
 		}
