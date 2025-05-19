@@ -1610,9 +1610,6 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
 	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
 
-	std::cout << "new" << std::endl;
-	DebugUtils::printPoints(outerstraightWire);
-
 	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
@@ -1632,6 +1629,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	}
 	
 	TopoDS_Face currentFace = faceMaker.Face();
+	
 	if (!fixFace(&currentFace))
 	{
 		std::cout << "invalid out\n" << std::endl;
@@ -2774,6 +2772,11 @@ TopoDS_Wire helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
 	for (int i = 1; i < abscissa.NbPoints(); ++i) {
 		gp_Pnt p1 = adaptorCurve.Value(abscissa.Parameter(i));
 		gp_Pnt p2 = adaptorCurve.Value(abscissa.Parameter(i + 1));
+
+		if (p1.IsEqual(p2, 1e-6))
+		{ continue;
+		}
+
 		TopoDS_Edge segment = BRepBuilderAPI_MakeEdge(p1, p2);
 		builder.Add(segment);
 	}
@@ -2790,15 +2793,15 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 {
 	std::vector<TopoDS_Edge> fixedEdges;
 	double precision = SettingsCollection::getInstance().precision();
-
 	bool isEdited = false;
+
 	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 
 		if (isStraight(currentEdge)) //TODO: make this smarter
 		{
 			gp_Pnt p1 = getFirstPointShape(currentEdge);
-			gp_Pnt p2 = getFirstPointShape(currentEdge);
+			gp_Pnt p2 = getLastPointShape(currentEdge);
 
 			if (p1.IsEqual(p2, 1e-6))
 			{
@@ -2865,6 +2868,8 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 
 	if (!cleanedWire.Closed())
 	{
+		std::cout << "in" << std::endl;
+		DebugUtils::printPoints(cleanedWire);
 		return theWire;
 	}
 

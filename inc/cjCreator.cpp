@@ -190,7 +190,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		{
 			continue;
 		}
-		TopoDS_Face currentCleanFace = helperFunctions::TessellateFace(currentFace);
+		TopoDS_Face currentCleanFace = helperFunctions::TessellateFace(currentFace); //tODO: should be more central
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentCleanFace);
