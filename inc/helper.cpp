@@ -51,7 +51,7 @@
 #include <GeomAPI.hxx>
 #include <ShapeFix_Edge.hxx>
 #include <ShapeFix_Wire.hxx>
-
+#include <BRepTools_ReShape.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1632,7 +1632,8 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	
 	if (!fixFace(&currentFace))
 	{
-		std::cout << "invalid out\n" << std::endl;
+		//DebugUtils::printFaces(currentFace);
+		//std::cout << "invalid out\n" << std::endl;
 		return theFace;
 	}
 	return currentFace;
@@ -2235,10 +2236,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		for (TopExp_Explorer faceExpl(test, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-			if (!fixFace(&currentFace))
-			{
-				continue;
-			}
+			if (!fixFace(&currentFace)) { continue; }
 
 			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
 			if (optionalPoint == std::nullopt) { continue; }
@@ -2250,6 +2248,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 	for (TopoDS_Face& currentFace : outputFaceList)
 	{
+		currentFace = TessellateFace(currentFace);
+		fixFace(&currentFace);
 		helperFunctions::triangulateShape(currentFace, true);
 	}
 	return outputFaceList;
