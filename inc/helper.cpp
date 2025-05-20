@@ -1651,6 +1651,7 @@ bool helperFunctions::fixFace(TopoDS_Face* theFace)
 	{
 		faceFixer.FixOrientation(); // fixes the innerwire invalid issue
 	}
+	faceFixer.FixIntersectingWires();
 	faceFixer.Perform();
 
 	TopoDS_Face fixedFace = faceFixer.Face();
@@ -2140,97 +2141,110 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
 {
-	std::vector<TopoDS_Shape> faceCluster = planarFaces2Cluster(planarFaces);
-	
+	std::vector<TopoDS_Shape> faceClusterList = planarFaces2Cluster(planarFaces);
+	if (faceClusterList.empty()) { return {}; }
 	std::vector<TopoDS_Face> outputFaceList;
 
-	for (const TopoDS_Shape& faceComplex : faceCluster)
+	const TopoDS_Shape& faceCluster = faceClusterList[0];
+
+	// split section face with the merged splitting faces
+	BRepAlgoAPI_Splitter splitter;
+	splitter.SetFuzzyValue(1e-4);
+	TopTools_ListOfShape toolList;
+	TopTools_ListOfShape argumentList;
+
+	argumentList.Append(boundingFace);
+	splitter.SetArguments(argumentList);
+	toolList.Append(faceCluster);
+
+	splitter.SetTools(toolList);
+	splitter.Build();
+
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
+	std::vector<TopoDS_Face> outerInvFaceList;
+	std::vector<TopoDS_Face> innerFaces;
+
+	for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 	{
-		// split section face with the merged splitting faces
-		BRepAlgoAPI_Splitter splitter;
-		splitter.SetFuzzyValue(1e-4);
-		TopTools_ListOfShape toolList;
-		TopTools_ListOfShape argumentList;
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		// ignore extremely small surfaces
+		if (helperFunctions::computeArea(currentFace) < 0.005) { continue; }
+		std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
 
-		argumentList.Append(boundingFace);
-		splitter.SetArguments(argumentList);
-		toolList.Append(faceComplex);
+		if (optionalPoint == std::nullopt) { continue; }
+		gp_Pnt pointOnFace = *optionalPoint;
 
-		splitter.SetTools(toolList);
-		splitter.Build();
-
-		gp_Pnt p0 = helperFunctions::getFirstPointShape(boundingFace);
-		std::vector<TopoDS_Face> outerInvFaceList;
-		std::vector<TopoDS_Face> innerFaces;
-
-		for (TopExp_Explorer faceExpl(splitter.Shape(), TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+		if (pointOnShape(currentFace, p0))
 		{
-			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-			// ignore extremely small surfaces
-			if (helperFunctions::computeArea(currentFace) < 0.005) { continue; }
-			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
-
-			if (optionalPoint == std::nullopt) { continue; }
-			gp_Pnt pointOnFace = *optionalPoint;
-
-			if (pointOnShape(currentFace, p0))
+			for (const TopoDS_Face invertedFace : invertFace(currentFace))
 			{
-				for (const TopoDS_Face invertedFace : invertFace(currentFace))
-				{
-					if (invertedFace.IsNull()) { continue; }
-					outerInvFaceList.emplace_back(invertedFace);
-				}
-				continue;
+				if (invertedFace.IsNull()) { continue; }
+				outerInvFaceList.emplace_back(invertedFace);
 			}
-
-			if (!pointOnShape(faceComplex, pointOnFace))
-			{
-				innerFaces.emplace_back(currentFace);
-			}
-		}
-
-		if (outerInvFaceList.empty())
-		{
-			//TODO: find out how to avoid this case
 			continue;
 		}
 
-		for (const TopoDS_Face& currentOuterFace : outerInvFaceList)
+		if (!pointOnShape(faceCluster, pointOnFace))
 		{
-			gp_Vec currentNormal = computeFaceNormal(currentOuterFace);
-			if (currentNormal.Magnitude() < SettingsCollection::getInstance().precision()) { continue; }
+			innerFaces.emplace_back(currentFace);
+		}
+	}
 
-			gp_Pnt p0 = getFirstPointShape(currentOuterFace);
-			Handle(Geom_Plane) plane = new Geom_Plane(getFirstPointShape(currentOuterFace), currentNormal);
+	if (outerInvFaceList.empty())
+	{
+		//TODO: find out how to avoid this case
+		return {};
+	}
 
-			TopoDS_Wire outerWire = BRepTools::OuterWire(currentOuterFace);
-			outerWire = cleanWire(outerWire);
-			BRepBuilderAPI_MakeFace faceMaker(plane, outerWire, 1e-6);
+	for (const TopoDS_Face& currentOuterFace : outerInvFaceList)
+	{
+		gp_Vec currentNormal = computeFaceNormal(currentOuterFace);
+		if (currentNormal.Magnitude() < SettingsCollection::getInstance().precision()) { continue; }
 
-			for (size_t i = 0; i < innerFaces.size(); i++)
+		BRepAlgoAPI_Splitter cleanSplitter;
+		cleanSplitter.SetFuzzyValue(1e-4);
+		TopTools_ListOfShape cleanToolList;
+		TopTools_ListOfShape cleanArgumentList;
+
+		cleanArgumentList.Append(currentOuterFace);
+		cleanSplitter.SetArguments(cleanArgumentList);
+
+		for (size_t i = 0; i < innerFaces.size(); i++)
+		{
+			std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFaces[i]);
+			if (optionalPoint == std::nullopt) { continue; }
+			gp_Pnt pointOnFace = *optionalPoint;
+			if (!pointOnShape(currentOuterFace, pointOnFace)) { continue; }
+
+			cleanToolList.Append(innerFaces[i]);
+		}
+
+		if (cleanToolList.IsEmpty() )
+		{
+			outputFaceList.emplace_back(currentOuterFace);
+			continue;
+		}
+
+		cleanSplitter.SetTools(cleanToolList);
+		cleanSplitter.Build();
+
+		TopoDS_Shape test = cleanSplitter.Shape();
+
+		if (test.IsNull()) { continue; }
+
+		for (TopExp_Explorer faceExpl(test, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+		{
+			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			if (!fixFace(&currentFace))
 			{
-				std::optional<gp_Pnt> optionalPoint = getPointOnFace(innerFaces[i]);
-				if (optionalPoint == std::nullopt) { continue; }
-				gp_Pnt pointOnFace = *optionalPoint;
-				if (!pointOnShape(currentOuterFace, pointOnFace)) { continue; }
-				for (TopExp_Explorer expl(innerFaces[i], TopAbs_WIRE); expl.More(); expl.Next())
-				{
-					TopoDS_Wire voidWire = TopoDS::Wire(expl.Current());
-					voidWire = cleanWire(voidWire);
-					faceMaker.Add(voidWire);
-				}
-			}
-
-			TopoDS_Face currentFace = faceMaker.Face();
-			BRepCheck_Analyzer check(currentFace);
-			if (!fixFace(&currentFace)) {
 				continue;
 			}
-			for (TopExp_Explorer faceExpl(currentFace, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
-			{
-				TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-				outputFaceList.emplace_back(currentFace);
-			}
+
+			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
+			if (optionalPoint == std::nullopt) { continue; }
+			gp_Pnt pointOnFace = *optionalPoint;
+			if (!pointOnShape(faceCluster, pointOnFace)) { continue; }
+			outputFaceList.emplace_back(currentFace);
 		}
 	}
 
@@ -2868,8 +2882,8 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 
 	if (!cleanedWire.Closed())
 	{
-		std::cout << "in" << std::endl;
-		DebugUtils::printPoints(cleanedWire);
+		//std::cout << "hit" << std::endl;
+		//DebugUtils::printPoints(cleanedWire);
 		return theWire;
 	}
 

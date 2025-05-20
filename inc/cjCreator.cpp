@@ -707,6 +707,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	}
 
 	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::removeDubFaces(splitFaceList, true);
+
 	if (!cleanedFaceList.size())
 	{
 		//TODO: add error
