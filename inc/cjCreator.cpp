@@ -1903,9 +1903,20 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 {
 	std::vector<std::shared_ptr<CJT::CityObject>> cityRoomObjects;
 
-	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
 
-	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	IfcSchema::IfcSpace::list spaceList;
+
+	for (size_t i = 0; i < h->getSourceFileCount(); i++)
+	{
+		IfcSchema::IfcSpace::list::ptr sourceSpaceList = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSpace>();
+
+		for (auto spaceIt = sourceSpaceList->begin(); spaceIt != sourceSpaceList->end(); ++spaceIt)
+		{
+			spaceList.push(*spaceIt);
+		}
+	}
+
+	for (auto spaceIt = spaceList.begin(); spaceIt != spaceList.end(); ++spaceIt)
 	{
 		IfcSchema::IfcSpace* spaceObject = *spaceIt;
 
