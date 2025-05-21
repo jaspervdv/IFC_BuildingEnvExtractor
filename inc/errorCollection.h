@@ -132,9 +132,16 @@ public:
 		return instance;
 	}
 
+	// add error code and optional name of the process/object it occurs
 	void addError(ErrorID id, const std::string& objectName = "");
+	// add error code and optional name of the process/object it occurs
 	void addError(ErrorID id, const std::vector<std::string>& objectNameList);
+	// wipe error code from the error list
 	void removeError(ErrorID id);
+
+	const std::map<ErrorID, ErrorObject>& getErrorCollection() { return errorCollection_; }
+
+	bool hasError();
 
 	nlohmann::json toJson();
 };

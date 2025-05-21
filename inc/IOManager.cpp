@@ -262,6 +262,25 @@ void IOManager::printSummary()
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << "\n\n";
 }
 
+void IOManager::printErrors()
+{
+	ErrorCollection& errorCol = ErrorCollection::getInstance();
+
+	std::cout << "[INFO] Warnings/Errors:\n";
+	if (!errorCol.hasError())
+	{
+		std::cout << "\tCode 0\n";
+		return;
+	}
+
+	for (const auto& error : errorCol.getErrorCollection())
+	{
+		ErrorObject currentError = error.second;
+		std::cout << "\tCode " << currentError.errorCode_ << " : " << currentError.errorDescript_ << "\n";
+	}
+	return;
+}
+
 std::string IOManager::boolToString(const bool boolValue)
 {
 	if (boolValue) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "yes"; }
@@ -805,6 +824,9 @@ bool IOManager::run()
 	collection->addCityObject(cityInnerShellObject);
 	collection->cullDuplicatedVerices();
 	cityCollection_ = collection;
+
+	printErrors();
+
 	return succesfullExit_;
 }
 

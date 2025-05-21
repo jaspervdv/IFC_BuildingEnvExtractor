@@ -46,6 +46,8 @@ private:
 	
 	// console outputs the settings that are utilized
 	void printSummary();
+	// console output the encountered errors
+	void printErrors();
 	// outputs yes or no based on a input bool
 	std::string boolToString(const bool boolValue);
 

@@ -118,7 +118,7 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::failedLoD32, ErrorObject("E0032", "LoD3.2 creation failed")},
 		{ErrorID::failedLoD50, ErrorObject("E0042", "Voxel shape creation failed")},
 
-		{ErrorID::propertyNotImplemented, ErrorObject("P0000", "Property not implemented")}
+		{ErrorID::propertyNotImplemented, ErrorObject("P0000", "IFC file has attribute property that is not supported")}
 	};
 }
 
@@ -183,6 +183,12 @@ void ErrorCollection::addError(ErrorID id, const std::vector<std::string>& objec
 	return;
 }
 
+
+bool ErrorCollection::hasError()
+{
+	if (errorCollection_.empty()) { return false; }
+	return true;
+}
 
 nlohmann::json ErrorCollection::toJson() {
 	
