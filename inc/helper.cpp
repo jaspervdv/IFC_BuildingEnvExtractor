@@ -2236,8 +2236,10 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		for (TopExp_Explorer faceExpl(test, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-			if (!fixFace(&currentFace)) { continue; }
-
+			if (!fixFace(&currentFace)) {
+				//TODO: add error
+				//TODO: find fixes
+			}
 			std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
 			if (optionalPoint == std::nullopt) { continue; }
 			gp_Pnt pointOnFace = *optionalPoint;
