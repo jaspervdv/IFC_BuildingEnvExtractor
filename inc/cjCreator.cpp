@@ -34,6 +34,9 @@
 #include <BRepAlgoAPI_Section.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
+#include <ShapeFix_Shell.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <ShapeAnalysis_Shell.hxx>
 
 #include <TopExp_Explorer.hxx>
 #include <TopoDS_Edge.hxx>
@@ -574,15 +577,13 @@ void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFaces
 TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
 	BRep_Builder brepBuilder;
-	BRepBuilderAPI_Sewing brepSewer;
+	BRepBuilderAPI_Sewing brepSewer(1e-6); //TODO: this is not a very pretty solution
 	TopoDS_Shell shell;
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid solidShape;
 	brepBuilder.MakeSolid(solidShape);
 
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
-	brepSewer.Add(evalFace);
-	brepSewer.Add(projectedFace.Reversed());
 	int edgeCount = 0;
 	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
 		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
@@ -597,9 +598,12 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		{
 			if (p0.Z() >= splittingFaceHeight || p1.Z() >= splittingFaceHeight) { return TopoDS_Solid(); }
 		}
-		
 
-		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p0, p1, gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight), gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight));
+		gp_Pnt p2 = gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight);
+		gp_Pnt p3 = gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight);
+		
+		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p2, p1, p0);
+
 		brepSewer.Add(sideFace);
 		edgeCount++;
 	}
@@ -609,15 +613,23 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		return TopoDS_Solid();
 	}
 
+	brepSewer.Add(evalFace);
+	brepSewer.Add(projectedFace.Reversed());
 	brepSewer.Perform();
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
 
-	if (sewedShape.Closed())
+	ShapeAnalysis_Shell shellChecker;
+	shellChecker.LoadShells(sewedShape);
+	if (sewedShape.ShapeType() != TopAbs_SHELL)
+	{
+		return solidShape;
+	}
+	else if (sewedShape.Closed() || !shellChecker.HasFreeEdges())
 	{
 		brepBuilder.Add(solidShape, sewedShape);
 	}
-	else {
-		return TopoDS_Solid(); //TODO: resolve this issue
+	else
+	{
 		brepBuilder.Add(solidShape, sewedShape); 
 	}
 	return solidShape;
@@ -919,14 +931,12 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 			toBeSplitfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
 			toBesSplitFaceList.emplace_back(extrusionFace);
 		}
-		BoostBox3D topFaceBox = helperFunctions::createBBox(currentFace);
-		toBeSplitfaceIdx.insert(std::make_pair(topFaceBox, currentFace));
-		toBesSplitFaceList.emplace_back(currentFace);
 	}
 
 	// remove dub faces and split them
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(toBeSplitfaceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
+
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
@@ -945,24 +955,28 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 		bool isDub = false;
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
+		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
+		gp_Pnt currentPoint = *optionalCurrentPoint;
+
 		for (const auto& [otherBox, otherFace] : qResult)
 		{
 			if (currentFace.IsEqual(otherFace)) { continue; }
 			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) { continue; }
-			if (!helperFunctions::isSame(currentBox, otherBox)) { continue; }
+
+			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) { continue; }
 
 			isDub = true;
 		}
 		if (!isDub)
 		{
 			brepSewer.Add(currentFace);
-
-			if (abs(currentNormal.Z()) < 1e-4) { continue; }
-			TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(currentFace, lowestZ);
-
-			if (helperFunctions::computeFaceNormal(flattenedFace).Magnitude() < 1e-4) { continue; }
-			brepSewer.Add(helperFunctions::projectFaceFlat(currentFace, lowestZ));
 		}
+	}
+
+	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
+	{
+		brepSewer.Add(currentFace);
+		brepSewer.Add(helperFunctions::projectFaceFlat(currentFace, lowestZ));
 	}
 
 	brepSewer.Perform();
@@ -2286,8 +2300,8 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
+		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });

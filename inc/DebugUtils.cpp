@@ -283,6 +283,39 @@ std::string DebugUtils::checkStatusToString(const BRepCheck_Status& statusCode)
 	}
 }
 
+void DebugUtils::outPutShapeType(const TopoDS_Shape& theShape)
+{
+	std::cout << shapeTypeToString(theShape.ShapeType()) << "\n";
+
+}
+
+std::string DebugUtils::shapeTypeToString(const TopAbs_ShapeEnum& shapeEnum)
+{
+	switch (shapeEnum)
+	{
+	case TopAbs_COMPOUND: 
+		return "Compound";
+	case TopAbs_COMPSOLID:
+		return "Compsolid";
+	case TopAbs_SOLID:
+		return "Solid";
+	case TopAbs_SHELL:
+		return "Shell";
+	case TopAbs_FACE:
+		return "Face";
+	case TopAbs_WIRE:
+		return "Wire";
+	case TopAbs_EDGE:
+		return "Edge";
+	case TopAbs_VERTEX:
+		return "Vertex";
+	case TopAbs_SHAPE:
+		return "Shape";
+	default:
+		return "Unkown shape Enum";
+	}
+}
+
 template<typename T>
 void DebugUtils::WriteToSTEP(const T& shape, const std::string& targetPath) {
 	STEPControl_Writer writer;

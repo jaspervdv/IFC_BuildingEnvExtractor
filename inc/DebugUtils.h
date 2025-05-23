@@ -49,8 +49,13 @@ struct DebugUtils {
 	static void outPutFaceError(const TopoDS_Face& theShape);
 	/// prints the issues that a wire has
 	static void outputWireError(const TopoDS_Wire& theShape);
-	/// converte brepcheck_status to cout
+	/// convert brepcheck_status to cout
 	static std::string checkStatusToString(const BRepCheck_Status& statusCode);
+
+	/// prints the shapetype a shape has
+	static void outPutShapeType(const TopoDS_Shape& theShape);
+	/// convert shapeEnum to cout
+	static std::string shapeTypeToString(const TopAbs_ShapeEnum& shapeEnum);
 };
 
 #endif // DEBUGUTILS_DEBUGUTILS_H
