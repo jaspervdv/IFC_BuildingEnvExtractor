@@ -117,12 +117,23 @@ template void helperFunctions::writeToOBJ<TopoDS_Solid>(const std::vector<TopoDS
 template void helperFunctions::writeToOBJ<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, const std::string& targetPath);
 template void helperFunctions::writeToOBJ<TopoDS_Compound>(const std::vector<TopoDS_Compound>& theShapeList, const std::string& targetPath);
 
-inline bool operator<(const gp_XYZ& left, const gp_XYZ& right) {
-	if (left.X() != right.X()) return left.X() < right.X();
-	if (left.Y() != right.Y()) return left.Y() < right.Y();
-	return left.Z() < right.Z();
-}
+struct gp_XYZ_Hash {
+	std::size_t operator()(const gp_XYZ& p) const {
+		auto round = [](double theVal) -> long long {
+			return static_cast<long long>(std::round(theVal * SettingsCollection::getInstance().precision()));
+		};
+		std::size_t hx = std::hash<long long>()(round(p.X()));
+		std::size_t hy = std::hash<long long>()(round(p.Y()));
+		std::size_t hz = std::hash<long long>()(round(p.Z()));
+		return hx ^ (hy << 1) ^ (hz << 2);
+	}
+};
 
+struct gp_XYZ_Equal {
+	bool operator()(const gp_XYZ& a, const gp_XYZ& b) const {
+		return a.IsEqual(b, 1e-6); // 1e-6 is a reasonable geometric tolerance
+	}
+};
 
 BoostPoint3D helperFunctions::Point3DOTB(const gp_Pnt& oP) {
 	return BoostPoint3D(oP.X(), oP.Y(), oP.Z());
@@ -2635,7 +2646,7 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 	std::ofstream objFile(targetPath);
 	int vertIdxOffset = 1;
 	std::vector<std::vector<int>> nestedTriangleIndx;
-	std::map<gp_XYZ, int> vertMap;
+	std::unordered_map<gp_XYZ, int, gp_XYZ_Hash, gp_XYZ_Equal> vertMap;
 
 	for (const T& theShape : theShapeList)
 	{
