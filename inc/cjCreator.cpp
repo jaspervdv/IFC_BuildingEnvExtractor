@@ -898,7 +898,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 {
 	double precision = SettingsCollection::getInstance().precisionCoarse();
 
-	std::vector<TopoDS_Face> splitTopSurfaceList;
+	std::vector<TopoDS_Face> splitTopSurfaceList; // horizontal faces that are to be output
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
 	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ, bufferSurface); }
 
@@ -908,8 +908,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	}
 
 	// extrude the trimmed top surfaces
-	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> toBeSplitfaceIdx; // pair bbox | extruded shape faces
-	std::vector<TopoDS_Face> toBesSplitFaceList;
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> splittingfaceIdx; // horizontal and veritcal faces that can be used to split the to be split faces
+	std::vector<TopoDS_Face> toBesSplitFaceList; // vertical faces that are to be split
+
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
@@ -928,13 +929,17 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
-			toBeSplitfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
+			splittingfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
 			toBesSplitFaceList.emplace_back(extrusionFace);
 		}
+
+		BoostBox3D flatFaceBox = helperFunctions::createBBox(currentFace);
+		splittingfaceIdx.insert(std::make_pair(flatFaceBox, currentFace));
+
 	}
 
 	// remove dub faces and split them
-	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(toBeSplitfaceIdx);
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(splittingfaceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
 
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
@@ -946,6 +951,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		SplitfaceIdx.insert(std::make_pair(faceBox, currentFace));
 	}
 
+	// add the non - dub vertical faces
 	BRepBuilderAPI_Sewing brepSewer(precision);
 	for (const auto& [currentBox, currentFace] : SplitfaceIdx)
 	{
@@ -973,6 +979,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		}
 	}
 
+	// add the horizontal faces (both roof and projects)
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		brepSewer.Add(currentFace);
