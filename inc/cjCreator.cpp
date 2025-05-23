@@ -2449,14 +2449,23 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 
 	gp_Trsf trsf;
 	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-	
-	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
+
+	IfcSchema::IfcSpace::list spaceList;
+	for (size_t i = 0; i < h->getSourceFileCount(); i++)
+	{
+		IfcSchema::IfcSpace::list::ptr sourceSpaceList = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSpace>();
+
+		for (auto spaceIt = sourceSpaceList->begin(); spaceIt != sourceSpaceList->end(); ++spaceIt)
+		{
+			spaceList.push(*spaceIt);
+		}
+	}
 
 	std::vector<TopoDS_Shape> copyLoD02GeoList;
 	std::vector<TopoDS_Shape> copyLoD12GeoList;
 	std::vector<TopoDS_Shape> copyLoD22GeoList;
 
-	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	for (auto spaceIt = spaceList.begin(); spaceIt != spaceList.end(); ++spaceIt)
 	{
 		//TODO: make function?
 		// find the matching cityspace object
@@ -3416,13 +3425,22 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 }
 
 
-void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {
-	IfcSchema::IfcSpace::list::ptr spaceList = h->getSourceFile(0)->instances_by_type<IfcSchema::IfcSpace>();
-	
+void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale) {	
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
-	for (auto spaceIt = spaceList->begin(); spaceIt != spaceList->end(); ++spaceIt)
+	IfcSchema::IfcSpace::list spaceList;
+	for (size_t i = 0; i < h->getSourceFileCount(); i++)
+	{
+		IfcSchema::IfcSpace::list::ptr sourceSpaceList = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSpace>();
+
+		for (auto spaceIt = sourceSpaceList->begin(); spaceIt != sourceSpaceList->end(); ++spaceIt)
+		{
+			spaceList.push(*spaceIt);
+		}
+	}
+
+	for (auto spaceIt = spaceList.begin(); spaceIt != spaceList.end(); ++spaceIt)
 	{
 		//TODO: make function?
 		// find the matching cityspace object
