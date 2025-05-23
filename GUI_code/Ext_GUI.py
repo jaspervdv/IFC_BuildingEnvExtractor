@@ -47,9 +47,11 @@ class DivSettings:
 class OtherSettings:
     def __init__(self):
         self.make_interior = tkinter.IntVar(value=0)
+        self.make_exterior = tkinter.IntVar(value=1)
         self.summary_voxels = tkinter.IntVar(value=0)
         self.make_report = tkinter.IntVar(value=1)
-
+        self.make_obj = tkinter.IntVar(value=0)
+        self.make_step = tkinter.IntVar(value=0)
 
 class Tooltip:
     def __init__(self, widget, text):
@@ -201,16 +203,21 @@ def runCode(input_path,
         json_dictionary["IFC"]["Div objects"] = div_string.split()
 
     if div_settings.simple_geo.get():
-        print("hit")
         json_dictionary["IFC"]["Simplify geometry"] = 2
     else:
         json_dictionary["IFC"]["Simplify geometry"] = 0
 
     json_dictionary["JSON"] = {}
     json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)
+    json_dictionary["JSON"]["Generate exterior"] = other_settings.make_exterior.get()
     json_dictionary["JSON"]["Generate interior"] = other_settings.make_interior.get()
 
     json_dictionary["Generate report"] = other_settings.make_report.get()
+
+    json_dictionary["Output format"] = {}
+    json_dictionary["Output format"]["STEP file"] = other_settings.make_step.get()
+    json_dictionary["Output format"]["OBJ file"] = other_settings.make_obj.get()
+
 
     lod_list = []
     if(lod_settings.lod00.get()):
@@ -243,10 +250,6 @@ def runCode(input_path,
     if (lod_settings.lod50.get()):
         lod_list.append(5.0)
     json_dictionary["LoD output"] = lod_list
-
-    json_dictionary["Output format"] = {}
-    json_dictionary["Output format"]["STEP file"] = 0
-    json_dictionary["Output format"]["OBJ file"] = 0
 
     with open(json_path, "w") as outfile:
         json.dump(json_dictionary, outfile)
@@ -437,7 +440,7 @@ size_button_normal = 8
 
 # setup the window and the grid
 main_window = tkinter.Tk()
-main_window.geometry('500x560')
+main_window.geometry('500x585')
 main_window.resizable(1,0)
 main_window.title("IfcEnvExtactor GUI")
 
@@ -616,6 +619,19 @@ toggle_makelod31.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 
+
+text_format_settings = tkinter.Label(frame_lod_settings_gen, text="Additional format:")
+text_format_settings.pack(pady=[5,0])
+
+frame_format_settings = tkinter.Frame(frame_lod_settings_gen)
+frame_format_settings.pack()
+
+toggle_make_obj = ttk.Checkbutton(frame_format_settings, text=".OBJ", variable=other_settings.make_obj)
+toggle_make_obj.pack(side=tkinter.LEFT, padx=5)
+
+toggle_make_step = ttk.Checkbutton(frame_format_settings, text=".STEP", variable=other_settings.make_step)
+toggle_make_step.pack(side=tkinter.LEFT, padx=5)
+
 # makeSplit
 frame_lod_settings_sep = ttk.Separator(frame_lod_settings_complete, orient=tkinter.VERTICAL)
 frame_lod_settings_sep.pack(side=tkinter.LEFT, expand=True)
@@ -630,16 +646,18 @@ frame_lod_settings_foot.pack(side=tkinter.RIGHT)
 text_lod_settings = tkinter.Label(frame_lod_settings_foot, text="Additional settings")
 text_lod_settings.pack()
 
-toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Generate footprint", variable=footprint_settings.make_footprint)
+toggle_makeexterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate exteriors", variable=other_settings.make_exterior)
+toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors", variable=other_settings.make_interior)
+toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export footprint", variable=footprint_settings.make_footprint)
 toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline", variable=footprint_settings.make_roofprint)
 toggle_footprint = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction", variable=footprint_settings.footprint_based)
-toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors", variable=other_settings.make_interior)
 toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate areas and volumes", variable=other_settings.summary_voxels)
 
+toggle_makeexterior.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_footprint.pack(side=tkinter.TOP, fill=tkinter.X)
-toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_summaryvoxel.pack(side=tkinter.TOP, fill=tkinter.X)
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
@@ -785,9 +803,13 @@ Tooltip(frame_lod_settings1, desired_lod_tooltip_txt)
 Tooltip(frame_lod_settings2, desired_lod_tooltip_txt)
 Tooltip(frame_lod_settings3, desired_lod_tooltip_txt)
 
+Tooltip(toggle_make_obj, "If active output is copied to wavefront .OBJ file(s)")
+Tooltip(toggle_make_step, "If active output is copied to .STEP (ISO 10303) file(s)")
+
 Tooltip(toggle_makefootprint, "If active a footprint will be created at the footprint elevation (lod0.2 only)")
 Tooltip(toggle_makeroofprint, "If active a roof outline will be created (lod0.2 only)")
 Tooltip(toggle_footprint, "If active the footprint will be used to restrict the output (LoD1.2, 1.3 & 2.2)")
+Tooltip(toggle_makeexterior, "If active exterior shells will be stored")
 Tooltip(toggle_makeinterior, "If active spaces will be stored (Lod0.2, 1.2, 2.2, 3.2 & 3.2) and storey "
                              "objects will be created (loD0.2 only)")
 Tooltip(toggle_summaryvoxel, "If active volumes and areas of the shells, storey and spaces are approximated using the voxel grid")
