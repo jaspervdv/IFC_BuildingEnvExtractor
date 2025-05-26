@@ -1616,7 +1616,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 
 	TopoDS_Wire outerWireClean = outerWire;
 	outerWireClean.Orientation(TopAbs_FORWARD);
-
+	 
 	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
 	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
 	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
@@ -1627,7 +1627,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 		if (currentWire.IsEqual(outerWire)) { continue; }
 		currentWire.Orientation(TopAbs_REVERSED);
 
-		TopoDS_Wire& currentStraightWire = replaceCurves(currentWire);
+		TopoDS_Wire currentStraightWire = replaceCurves(currentWire);
 		if (currentStraightWire.IsNull()) { continue; }
 		if (!currentStraightWire.Closed()) { continue; }
 		TopoDS_Wire currentCleanWire = cleanWire(currentStraightWire);
