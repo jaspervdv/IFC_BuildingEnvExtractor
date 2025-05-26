@@ -237,7 +237,7 @@ void SettingsCollection::generateGeneralSettings()
 
 	if (!make32() && !makeV() && !summaryVoxels())
 	{
-		if (!makeFootPrint() && !makeInterior())
+		if (!makeFootPrint() && !makeInterior() && !footPrintBased())
 		{
 			setRequireFullVoxels(false);
 		}
