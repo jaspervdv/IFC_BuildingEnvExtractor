@@ -140,6 +140,9 @@ private:
 
 	void makeFloorSectionComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
 
+	//eliminates the inner voids of a face based on the voxelgrid
+	TopoDS_Face eleminateInnerVoids(const TopoDS_Face& theFace);
+
 	// create list of faces by cutting objects at the floor lvl
 	std::vector<TopoDS_Face> section2Faces(const std::vector<Value>& productLookupValues, DataManager* h, double cutlvl);
 	// create list of faces by cutting objects at the floor lvl

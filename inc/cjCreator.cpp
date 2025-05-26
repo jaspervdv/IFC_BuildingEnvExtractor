@@ -593,13 +593,15 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 		{
 			for (const TopoDS_Face& currentFootprint :  footprintList)
 			{
-				BRepExtrema_DistShapeShape distanceFootRoof(buildingSurfaceData.getRoofOutline(), currentFootprint);
+				TopoDS_Face currentCleanFootprint = eleminateInnerVoids(currentFootprint);
+
+				BRepExtrema_DistShapeShape distanceFootRoof(buildingSurfaceData.getRoofOutline(), currentCleanFootprint);
 				double verticalDistatance = abs(distanceFootRoof.PointOnShape1(1).Z() - distanceFootRoof.PointOnShape2(1).Z());
 				if (abs(verticalDistatance - distanceFootRoof.Value()) > settingsCollection.precision() )
 				{
 					continue;
 				}
-				buildingSurfaceData.setFootPrint(currentFootprint);
+				buildingSurfaceData.setFootPrint(currentCleanFootprint);
 				break;
 			}			
 		}
@@ -715,6 +717,41 @@ void CJGeoCreator::makeFloorSectionComplex(
 	extFacesOut = helperFunctions::planarFaces2Outline(outerFaces);
 
 	return;
+}
+
+TopoDS_Face CJGeoCreator::eleminateInnerVoids(const TopoDS_Face& theFace)
+{
+	const TopoDS_Wire& outerWire = BRepTools::OuterWire(theFace);
+	BRepBuilderAPI_MakeFace faceMaker(outerWire);
+
+	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
+	{
+		const TopoDS_Wire& innerWire = TopoDS::Wire(expl.Current());
+
+		if (outerWire.IsSame(innerWire)) { continue; }
+
+		BRepBuilderAPI_MakeFace innerFaceMaker(innerWire);
+
+		if (!innerFaceMaker.IsDone()) { continue; }
+		TopoDS_Face innerFace = innerFaceMaker.Face();
+
+		std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(innerFace);
+		if (optionalPoint == std::nullopt) { continue; }
+		gp_Pnt facePoint = *optionalPoint;
+
+
+		facePoint.SetZ(facePoint.Z() + SettingsCollection::getInstance().voxelSize() / 0.66);
+		int voxelIndx = voxelGrid_->getCloseByVoxel(facePoint);
+		voxel boxel = voxelGrid_->getVoxel(voxelIndx);
+		if (!boxel.getIsIntersecting() && !boxel.getIsInside())
+		{
+			faceMaker.Add(innerWire);
+		}
+	}
+	TopoDS_Face currentCleanFace = faceMaker.Face();
+
+	return currentCleanFace;
+
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
