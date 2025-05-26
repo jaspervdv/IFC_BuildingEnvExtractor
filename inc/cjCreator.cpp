@@ -497,83 +497,6 @@ void CJGeoCreator::SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::ve
 	return;
 }
 
-void CJGeoCreator::planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal)
-{
-	std::vector<TopoDS_Shape> faceCluster = helperFunctions::planarFaces2Cluster(planarFaces);
-
-	intFacesOut = {};
-	extFacesOut = {};
-
-	for (const TopoDS_Shape& faceComplex : faceCluster)
-	{
-		// split section face with the merged splitting faces
-		BRepAlgoAPI_Splitter innerSplitter;
-		BRepAlgoAPI_Splitter outerSplitter;
-		innerSplitter.SetFuzzyValue(1e-4);
-		outerSplitter.SetFuzzyValue(1e-4);
-		TopTools_ListOfShape innerToolList;
-		TopTools_ListOfShape outerToolList;
-		TopTools_ListOfShape argumentList;
-
-		argumentList.Append(boundingFace);
-		innerSplitter.SetArguments(argumentList);
-		outerSplitter.SetArguments(argumentList);
-		if (filterExternal)
-		{
-
-			std::vector<TopoDS_Face> innerFaces;
-			std::vector<TopoDS_Face> outerFaces;
-			SplitInAndOuterHFaces(faceComplex, innerFaces, outerFaces);
-			for (const TopoDS_Face& filteredFace : innerFaces)
-			{
-				innerToolList.Append(filteredFace);
-			}
-			for (const TopoDS_Face& filteredFace : outerFaces)
-			{
-				outerToolList.Append(filteredFace);
-			}
-		}
-
-		if (innerToolList.Size())
-		{
-			innerSplitter.SetTools(innerToolList);
-			innerSplitter.Build();
-
-			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(innerSplitter.Shape(), boundingFace));
-			for (const TopoDS_Face& invertedFace : invertedFaces)
-			{
-				TopoDS_Face cleanedInvertedFace = helperFunctions::TessellateFace(invertedFace);
-
-				if (cleanedInvertedFace.IsNull())
-				{
-					intFacesOut.emplace_back(invertedFace); //TODO: why is it not trimming
-					continue;
-				}
-				intFacesOut.emplace_back(cleanedInvertedFace);
-			}
-		}
-
-		if (outerToolList.Size())
-		{
-			outerSplitter.SetTools(outerToolList);
-			outerSplitter.Build();
-
-			std::vector<TopoDS_Face> invertedFaces = helperFunctions::invertFace(helperFunctions::getOuterFace(outerSplitter.Shape(), boundingFace));
-			for (const TopoDS_Face& invertedFace : invertedFaces)
-			{
-				TopoDS_Face cleanedInvertedFace = helperFunctions::TessellateFace(invertedFace);
-				if (cleanedInvertedFace.IsNull())
-				{
-					extFacesOut.emplace_back(invertedFace);
-					continue;
-				}
-				extFacesOut.emplace_back(cleanedInvertedFace);
-			}
-		}
-	}
-	return;
-}
-
 TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
 	BRep_Builder brepBuilder;
@@ -780,7 +703,17 @@ void CJGeoCreator::makeFloorSectionComplex(
 		//TODO: add error
 		return;
 	}
-	planarFaces2OutlineComplex(intFacesOut, extFacesOut, cleanedFaceList, cuttingPlane, true);
+
+	std::vector<TopoDS_Shape> faceCluster = helperFunctions::planarFaces2Cluster(cleanedFaceList); //TODO: list fix?
+
+
+	std::vector<TopoDS_Face> innerFaces;
+	std::vector<TopoDS_Face> outerFaces;
+	SplitInAndOuterHFaces(faceCluster[0], innerFaces, outerFaces);
+
+	intFacesOut = helperFunctions::planarFaces2Outline(innerFaces);
+	extFacesOut = helperFunctions::planarFaces2Outline(outerFaces);
+
 	return;
 }
 

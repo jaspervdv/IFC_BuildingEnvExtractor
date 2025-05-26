@@ -150,11 +150,6 @@ private:
 	// split the input shape over interior and exterior horizontal faces based on the voxels
 	void SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::vector<TopoDS_Face>& innerFaces, std::vector<TopoDS_Face>& outerFaces);
 	
-	// planar simplification code
-
-	/// creates face collection for the interior and exterior that represent the merged input shapes
-	void planarFaces2OutlineComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace, bool filterExternal = false);
-
 	// face extruding code
 	
 	/// create a solid extrusion from the projected roofoutline
