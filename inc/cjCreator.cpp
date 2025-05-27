@@ -3436,79 +3436,97 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD50) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
 
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
+
 	voxelGrid_->computeSurfaceSemantics(h);
-	std::vector<int> typeValueList;
-	TopoDS_Shape sewedShape = voxels2Shape(0, &typeValueList); //TODO: make work with multiple buildings in a single model
+	std::vector<int> globalTypeValueList;
+	TopoDS_Shape sewedShape = voxels2Shape(0, &globalTypeValueList);
 
 	gp_Trsf localRotationTrsf;
 	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	sewedShape.Move(localRotationTrsf);
 
-	std::vector< CJT::GeoObject> geoObjectList; // final output collection
-	CJT::GeoObject geoObject;
-	if (sewedShape.ShapeType() == TopAbs_COMPOUND)
+	int typevalCounter = 0;
+	for (TopExp_Explorer expl(sewedShape, TopAbs_SHELL); expl.More(); expl.Next())
 	{
-		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "LoD5.0");
-		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
-		geoObject = kernel->convertToJSON(sewedShape, "5.0");
-		
-		if (SettingsCollection::getInstance().createSTEP())
+		CJT::GeoObject geoObject;
+		TopoDS_Shell currentShell = TopoDS::Shell(expl.Current());
+
+		if (currentShell.Closed())
 		{
-			helperFunctions::writeToOBJ(sewedShape, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD50));
+			BRep_Builder brepBuilder;
+			TopoDS_Shell shell;
+			brepBuilder.MakeShell(shell);
+			TopoDS_Solid voxelSolid;
+			brepBuilder.MakeSolid(voxelSolid);
+			brepBuilder.Add(voxelSolid, currentShell);
+			geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
+
+			if (SettingsCollection::getInstance().createOBJ())
+			{
+				helperFunctions::writeToOBJ(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD50));
+			}
+
+			if (SettingsCollection::getInstance().createSTEP())
+			{
+				helperFunctions::writeToSTEP(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD50));
+			}
+		}
+		else
+		{
+			ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "LoD5.0");
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
+			geoObject = kernel->convertToJSON(currentShell, "5.0");
+
+			if (SettingsCollection::getInstance().createSTEP())
+			{
+				helperFunctions::writeToOBJ(currentShell, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD50));
+			}
+
+			if (SettingsCollection::getInstance().createSTEP())
+			{
+				helperFunctions::writeToSTEP(currentShell, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD50));
+			}
 		}
 
-		if (SettingsCollection::getInstance().createSTEP())
+		std::map<std::string, std::string> nMap;
+		nMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeNone));
+		std::map<std::string, std::string> wMap;
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWindow));
+		std::map<std::string, std::string> dMap;
+		dMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeDoor));
+		std::map<std::string, std::string> rMap;
+		rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+		std::map<std::string, std::string> wallMap;
+		wallMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
+		std::map<std::string, std::string> ceilMap;
+		ceilMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeOuterCeilingSurface));
+		std::map<std::string, std::string> groundMap;
+		groundMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+		geoObject.appendSurfaceData(nMap);
+		geoObject.appendSurfaceData(wMap);
+		geoObject.appendSurfaceData(dMap);
+		geoObject.appendSurfaceData(rMap);
+		geoObject.appendSurfaceData(wallMap);
+		geoObject.appendSurfaceData(ceilMap);
+		geoObject.appendSurfaceData(groundMap);
+
+
+		// split the typevalue list over the seperate building objects
+		int localTypeStartCounter = typevalCounter;
+		for (TopExp_Explorer faceExpl(currentShell, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 		{
-			helperFunctions::writeToSTEP(sewedShape, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD50));
+			typevalCounter++;
 		}
 
+		std::vector<int>::const_iterator localTypeListStart = globalTypeValueList.begin() + localTypeStartCounter;
+		std::vector<int>::const_iterator localTypeListEnd = globalTypeValueList.begin() + typevalCounter;
+		std::vector<int> localTypeValueList(localTypeListStart, localTypeListEnd);
+
+		geoObject.setSurfaceTypeValues(localTypeValueList);
+
+		geoObjectList.emplace_back(geoObject);
 	}
-	else
-	{
-		BRep_Builder brepBuilder;
-		TopoDS_Shell shell;
-		brepBuilder.MakeShell(shell);
-		TopoDS_Solid voxelSolid;
-		brepBuilder.MakeSolid(voxelSolid);
-		brepBuilder.Add(voxelSolid, sewedShape);
-		geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
-
-		if (SettingsCollection::getInstance().createOBJ())
-		{
-			helperFunctions::writeToOBJ(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD50));
-		}
-
-		if (SettingsCollection::getInstance().createSTEP())
-		{
-			helperFunctions::writeToSTEP(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD50));
-		}
-	}
-
-	std::map<std::string, std::string> nMap;
-	nMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeNone));
-	std::map<std::string, std::string> wMap;
-	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWindow));
-	std::map<std::string, std::string> dMap;
-	dMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeDoor));
-	std::map<std::string, std::string> rMap;
-	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-	std::map<std::string, std::string> wallMap;
-	wallMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-	std::map<std::string, std::string> ceilMap;
-	ceilMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeOuterCeilingSurface));
-	std::map<std::string, std::string> groundMap;
-	groundMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-	geoObject.appendSurfaceData(nMap);
-	geoObject.appendSurfaceData(wMap);
-	geoObject.appendSurfaceData(dMap);
-	geoObject.appendSurfaceData(rMap);
-	geoObject.appendSurfaceData(wallMap);
-	geoObject.appendSurfaceData(ceilMap);
-	geoObject.appendSurfaceData(groundMap);
-	geoObject.setSurfaceTypeValues(typeValueList);
-
-	geoObjectList.emplace_back(geoObject);
-
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
@@ -3763,15 +3781,10 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mute
 	std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> edgeTypeList = voxelGrid_->getDirectionalFaces(direction, -SettingsCollection::getInstance().gridRotation(), roomNum);
 	for (const auto& [currentedgeCollection, surfaceType] : edgeTypeList)
 	{
-		std::cout << "1" << std::endl;
 		std::vector<TopoDS_Wire> wireList = helperFunctions::growWires(currentedgeCollection);
-		std::cout << "2" << std::endl;
-		std::cout << "w: " << wireList.size() << std::endl;
 		std::vector<TopoDS_Wire> cleanWireList = helperFunctions::cleanWires(wireList);
-		std::cout << "3" << std::endl;
-		std::cout << "w: " << cleanWireList.size() << std::endl;
 		TopoDS_Face cleanFace = helperFunctions::wireCluster2Faces(cleanWireList);
-		std::cout << "4" << std::endl;
+
 		std::unique_lock<std::mutex> listLock(faceListMutex);
 		collectionList.emplace_back(std::make_pair(cleanFace, surfaceType));
 		listLock.unlock();
