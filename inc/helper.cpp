@@ -299,7 +299,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 	}
 
 	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
-	offsetter.Perform(-settingsCollection.precisionCoarse());
+	offsetter.Perform(-1e-3);
 
 	if (!offsetter.IsDone()) { return {}; }
 	const TopoDS_Shape offsettedFace = offsetter.Shape();

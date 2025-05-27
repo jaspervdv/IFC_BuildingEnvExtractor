@@ -3951,7 +3951,6 @@ void CJGeoCreator::getOuterRaySurfaces(
 			}
 			if (!faceIsExterior) { continue; }
 
-			//store the plane representing the surface
 			std::unique_lock<std::mutex> listLock(listmutex);
 			outerSurfacePairList.emplace_back(std::make_pair(currentFace, lookup->getProductPtr()));
 			listLock.unlock();
