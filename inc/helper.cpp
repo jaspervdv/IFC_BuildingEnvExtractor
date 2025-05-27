@@ -117,6 +117,11 @@ template void helperFunctions::writeToOBJ<TopoDS_Solid>(const std::vector<TopoDS
 template void helperFunctions::writeToOBJ<TopoDS_Shape>(const std::vector<TopoDS_Shape>& theShapeList, const std::string& targetPath);
 template void helperFunctions::writeToOBJ<TopoDS_Compound>(const std::vector<TopoDS_Compound>& theShapeList, const std::string& targetPath);
 
+template void helperFunctions::writeToOBJ<TopoDS_Face>(const std::vector<std::vector<TopoDS_Face>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shell>(const std::vector<std::vector<TopoDS_Shell>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Solid>(const std::vector<std::vector<TopoDS_Solid>>& theShapeList, const std::string& targetPath);
+template void helperFunctions::writeToOBJ<TopoDS_Shape>(const std::vector<std::vector<TopoDS_Shape>>& theShapeList, const std::string& targetPath);
+
 struct gp_XYZ_Hash {
 	std::size_t operator()(const gp_XYZ& p) const {
 		auto round = [](double theVal) -> long long {
@@ -1643,8 +1648,6 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	
 	if (!fixFace(&currentFace))
 	{
-		//DebugUtils::printFaces(currentFace);
-		//std::cout << "invalid out\n" << std::endl;
 		return theFace;
 	}
 	return currentFace;
@@ -2698,6 +2701,21 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 		objFile << "\n";
 	}
 	objFile.close();
+	return;
+}
+
+template <typename T>
+void helperFunctions::writeToOBJ(const std::vector<std::vector<T>>& theShapeList, const std::string& targetPath)
+{
+	std::vector<T> flattenedSurfList;
+	for (const auto& surfList : theShapeList)
+	{
+		for (const auto& theSurf : surfList)
+		{
+			flattenedSurfList.emplace_back(theSurf);
+		}
+	}
+	writeToOBJ(flattenedSurfList, targetPath);
 	return;
 }
 

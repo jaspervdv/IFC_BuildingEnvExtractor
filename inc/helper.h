@@ -281,9 +281,12 @@ struct helperFunctions{
 	/// write shape to obj
 	template <typename T>
 	static void writeToOBJ(const T& theShape, const std::string& targetPath);
-	/// write shape to obj
+	/// write list of shapes to obj
 	template <typename T>
 	static void writeToOBJ(const std::vector<T>& theShapeList, const std::string& targetPath);
+	/// write list of shapes to obj
+	template <typename T>
+	static void writeToOBJ(const std::vector<std::vector<T>>& theShapeList, const std::string& targetPath);
 
 	/// triangulation related code
 

@@ -2599,6 +2599,16 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 	CJT::GeoObject geoObject = kernel->convertToJSON(bbox, "1.0");
 	createSemanticData(&geoObject, bbox);
 
+	if (settingsCollection.createOBJ())
+	{
+		helperFunctions::writeToOBJ(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD00));
+	}
+
+	if (settingsCollection.createSTEP())
+	{
+		helperFunctions::writeToSTEP(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD00));
+	}
+	 
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObject;
 }
@@ -2683,16 +2693,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 
 	if (settingsCollection.createOBJ())
 	{
-		std::vector<TopoDS_Face> flattenedRoofFace;
-		for (const auto& roofList : LoD03RoofFaces_)
-		{
-			for (const auto& roofSurf : roofList)
-			{
-				flattenedRoofFace.emplace_back(roofSurf);
-			}
-		}
-
-		helperFunctions::writeToOBJ(flattenedRoofFace, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD03));
+		helperFunctions::writeToOBJ(LoD03RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD03));
 	}
 
 	if (settingsCollection.createSTEP())
@@ -2735,16 +2736,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 
 	if (settingsCollection.createOBJ())
 	{
-		std::vector<TopoDS_Face> flattenedRoofFace;
-		for (const auto& roofList : LoD04RoofFaces_)
-		{
-			for (const auto& roofSurf : roofList)
-			{
-				flattenedRoofFace.emplace_back(roofSurf);
-			}
-		}
-
-		helperFunctions::writeToOBJ(flattenedRoofFace, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD04));
+		helperFunctions::writeToOBJ(LoD04RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD04));
 	}
 
 	if (settingsCollection.createSTEP())
@@ -3479,8 +3471,9 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 		TopoDS_Solid voxelSolid;
 		brepBuilder.MakeSolid(voxelSolid);
 		brepBuilder.Add(voxelSolid, sewedShape);
+		geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
 
-		if (SettingsCollection::getInstance().createSTEP())
+		if (SettingsCollection::getInstance().createOBJ())
 		{
 			helperFunctions::writeToOBJ(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD50));
 		}
@@ -3489,8 +3482,6 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 		{
 			helperFunctions::writeToSTEP(voxelSolid, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD50));
 		}
-
-		geoObject = kernel->convertToJSON(voxelSolid, "5.0", true);
 	}
 
 	std::map<std::string, std::string> nMap;
