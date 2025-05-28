@@ -182,6 +182,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared_ptr<SurfaceGridPair>>& Collection)
 {
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
+	double precision = SettingsCollection::getInstance().precision();
 	//index
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 	std::vector<TopoDS_Face> faceList;
@@ -189,7 +190,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	{
 		const TopoDS_Face& currentFace = Collection[i]->getFace();
 
-		if (helperFunctions::computeArea(currentFace) <= 1e-6)
+		if (helperFunctions::computeArea(currentFace) <= precision)
 		{
 			continue;
 		}
@@ -500,7 +501,7 @@ void CJGeoCreator::SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::ve
 TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
 	BRep_Builder brepBuilder;
-	BRepBuilderAPI_Sewing brepSewer(1e-6); //TODO: this is not a very pretty solution
+	BRepBuilderAPI_Sewing brepSewer(SettingsCollection::getInstance().precision());
 	TopoDS_Shell shell;
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid solidShape;
@@ -867,6 +868,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter, const TopoDS_Face& bufferSurface)
 {
 	double precision = SettingsCollection::getInstance().precisionCoarse();
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
 	std::vector<TopoDS_Face> splitTopSurfaceList; // horizontal faces that are to be output
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
@@ -895,7 +897,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 			// ignore if not vertical face
 			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
-			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+			if (abs(currentNormal.Z()) > precisionCoarse) { continue; };
 
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
@@ -916,7 +918,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
 		gp_Vec currentVec = helperFunctions::computeFaceNormal(currentFace);
-		if (currentVec.Magnitude() < 1e-6) { continue; }
+		if (currentVec.Magnitude() < precision) { continue; }
 		BoostBox3D faceBox = helperFunctions::createBBox(currentFace);
 		SplitfaceIdx.insert(std::make_pair(faceBox, currentFace));
 	}
@@ -988,6 +990,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const TopoDS_Face& bufferSurface)
 {
 	double precision = SettingsCollection::getInstance().precision();
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
 	// extrude the surfaces and collect their faces
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIdx; // pair bbox | extruded shape faces
@@ -999,7 +1002,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 
 			// ignore if not vertical face
 			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
-			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+			if (abs(currentNormal.Z()) > precisionCoarse) { continue; };
 
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
@@ -1017,7 +1020,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 
 			// ignore if not vertical face
 			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
-			if (abs(currentNormal.Z()) > 1e-4) { continue; };
+			if (abs(currentNormal.Z()) > precisionCoarse) { continue; };
 
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
@@ -1037,6 +1040,8 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 
 TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	std::vector<TopoDS_Face> facelist;
 	std::vector<gp_Dir> normalList;
 
@@ -1044,7 +1049,7 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 		TopoDS_Face face = TopoDS::Face(expl.Current());
 		gp_Vec faceNomal = helperFunctions::computeFaceNormal(face);
 
-		if (faceNomal.Magnitude() < 1e-6)
+		if (faceNomal.Magnitude() < precision)
 		{
 			continue;
 		}
@@ -1082,13 +1087,16 @@ TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool ev
 }
 
 
-std::vector<TopoDS_Face> CJGeoCreator::simplefyFacePool(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap) {
+std::vector<TopoDS_Face> CJGeoCreator::simplefyFacePool(const std::vector<TopoDS_Face>& surfaceList, bool evalOverlap) 
+{
+	double precision = SettingsCollection::getInstance().precision();
+
 	std::vector<gp_Dir> normalList;
 	for (size_t i = 0; i < surfaceList.size(); i++)
 	{
 		gp_Vec faceNomal = helperFunctions::computeFaceNormal(surfaceList[i]);
 
-		if (faceNomal.Magnitude() < 1e-6)
+		if (faceNomal.Magnitude() < precision)
 		{
 			continue;
 		}
@@ -1313,17 +1321,18 @@ bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> CJGeoCreator::ind
 TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces) {
 	if (mergeFaces.size() == 1) { return mergeFaces[0]; }
 
+	double precision = SettingsCollection::getInstance().precision();
 	gp_Vec clusterNormal = helperFunctions::computeFaceNormal(mergeFaces[0]);
 	gp_Vec horizontalNormal = gp_Vec(0, 0, 1);
 
 	gp_Trsf transform;
 	std::vector<TopoDS_Face> mergingFaces;
-	if (clusterNormal.Magnitude() < 1e-6)
+	if (clusterNormal.Magnitude() < precision)
 	{
 		return TopoDS_Face();
 	}
 
-	if (!clusterNormal.IsParallel(horizontalNormal, 1e-6))
+	if (!clusterNormal.IsParallel(horizontalNormal, precision))
 	{
 		std::optional<gp_Pnt> optionalbasePoint = helperFunctions::getPointOnFace(mergeFaces[0]);
 
@@ -1542,6 +1551,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::getUniqueShapedObjects(const std::vector
 	std::vector<double> uniqueTopMass;
 	std::vector<double> uniqueTopArea;
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	for (const TopoDS_Shape& currentShape : topObjectList) //TODO: this could be using indexing
 	{
 		bool isDub = false;
@@ -1559,13 +1570,13 @@ std::vector<TopoDS_Shape> CJGeoCreator::getUniqueShapedObjects(const std::vector
 		for (size_t j = 0; j < uniqueTopObjects.size(); j++)
 		{
 			gp_Pnt otherCenterPoint = uniqueCenterPoint[j];
-			if (!currentCenterPoint.IsEqual(otherCenterPoint, 1e-6)) { continue; }
+			if (!currentCenterPoint.IsEqual(otherCenterPoint, precision)) { continue; }
 			
 			double otherMass = uniqueTopMass[j];
-			if (abs(currentMass - otherMass) > 1e-6) { continue; }
+			if (abs(currentMass - otherMass) > precision) { continue; }
 			
 			double otherArea = uniqueTopArea[j];
-			if (abs(currentArea - otherArea) > 1e-6) { continue; }
+			if (abs(currentArea - otherArea) > precision) { continue; }
 
 			isDub = true;
 			break;
@@ -1766,6 +1777,8 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 	std::vector<gp_Pnt> centerpointHList;
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	// index the valid surfaces
 	for (TopExp_Explorer expl(shape, TopAbs_FACE); expl.More(); expl.Next()) {
 		TopoDS_Face face = TopoDS::Face(expl.Current());
@@ -1810,7 +1823,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 			double otherHeight = otherGroup->getAvHeight();
 			if (height > otherHeight) { continue; }
 			if (!otherGroup->isVisible()) { continue; }
-			if (!currentCenter.IsEqual(centerpointHList[otherIdx], 1e-6)) { continue; }
+			if (!currentCenter.IsEqual(centerpointHList[otherIdx], precision)) { continue; }
 
 			TopoDS_Face otherFace = otherGroup->getFace();
 			if (helperFunctions::faceFaceOverlapping(otherFace, currentFace)) {
@@ -1843,6 +1856,8 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(Da
 {
 	std::vector<std::shared_ptr<CJT::CityObject>> cityStoreyObjects;
 	std::vector<double> elevList;
+
+	double precision = SettingsCollection::getInstance().precision();
 	for (int i = 0; i < h->getSourceFileCount(); i++)
 	{
 		IfcSchema::IfcBuildingStorey::list::ptr storeyList = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcBuildingStorey>();
@@ -1856,7 +1871,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(Da
 			for (size_t i = 0; i < elevList.size(); i++)
 			{
 				double otherStoreyElevation = elevList[i];
-				if (abs(storeyElevation - otherStoreyElevation) > 1e-6) { continue; }
+				if (abs(storeyElevation - otherStoreyElevation) > precision) { continue; }
 
 				// if already made merge the data
 				std::vector<std::string> guidList = cityStoreyObjects[i]->getAttributes()[CJObjectEnum::getString(CJObjectID::ifcGuid)].get<std::vector<std::string>>(); ;
@@ -3083,6 +3098,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 		return{};
 	}
 
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
 	// get all the height data
 	std::vector<double> heightList;
 	heightList.reserve(LoD02Plates_.size());
@@ -3113,7 +3130,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
 		{
 			// get the surface that is compliant with the current storey face and the face of the storey above it
-			if (helperFunctions::computeArea(currentStoryFace) < 1e-4) { continue; }
+			if (helperFunctions::computeArea(currentStoryFace) < precisionCoarse) { continue; }
 
 			TopTools_ListOfShape toolList;
 			for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
@@ -3125,7 +3142,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 			argumentList.Append(currentStoryFace);
 
 			BRepAlgoAPI_Splitter splitter;
-			splitter.SetFuzzyValue(1e-4);
+			splitter.SetFuzzyValue(precisionCoarse);
 			splitter.SetArguments(argumentList);
 			splitter.SetTools(toolList);
 			splitter.Build();
@@ -3198,7 +3215,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 		BRepAlgoAPI_Fuse fuser;
 		fuser.SetArguments(fuseFaces);
 		fuser.SetTools(fuseFaces);
-		fuser.SetFuzzyValue(1e-4);
+		fuser.SetFuzzyValue(precisionCoarse);
 		fuser.Build();
 
 		for (TopExp_Explorer explorer(fuser.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
@@ -3689,9 +3706,12 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum, std::vector<int>* typeList)
 	std::vector<std::pair<TopoDS_Face, CJObjectID>> threadFaceLists;
 	std::mutex faceListMutex;
 
+	double precision = SettingsCollection::getInstance().precision();
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
 	for (int i = 0; i < 6; i++) {
-		processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists));
-		//threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
+		//processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists));
+		threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
 	}
 	for (auto& thread : threads) { thread.join(); }
 	BRepBuilderAPI_Sewing brepSewer;
@@ -3733,8 +3753,8 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum, std::vector<int>* typeList)
 			GProp_GProps typedGprops;
 			BRepGProp::SurfaceProperties(typedFace, typedGprops);
 
-			if (!currentGprops.CentreOfMass().IsEqual(typedGprops.CentreOfMass(), 1e-6)) { continue; }
-			if (abs(currentGprops.Mass() - typedGprops.Mass()) > 1e-4) { continue; }
+			if (!currentGprops.CentreOfMass().IsEqual(typedGprops.CentreOfMass(), precision)) { continue; }
+			if (abs(currentGprops.Mass() - typedGprops.Mass()) > precisionCoarse) { continue; }
 			if (surfaceType == CJObjectID::CJTypeWindow)
 			{
 				typeList->emplace_back(1);
@@ -4338,6 +4358,9 @@ void CJGeoCreator::splitOuterSurfaces(
 	const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList
 )
 {
+	double precision = SettingsCollection::getInstance().precision();
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
 	for (const auto& [currentFace, currentProduct] : outerSurfacePairList)
 	{
 		std::unique_lock<std::mutex> processCountLock(totalObjectsProcessedMutex);
@@ -4354,7 +4377,7 @@ void CJGeoCreator::splitOuterSurfaces(
 		faceIndx.query(bgi::intersects(helperFunctions::createBBox(currentFace)), std::back_inserter(qResult));
 
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
-		if (currentNormal.Magnitude() < 1e-6) { continue; }
+		if (currentNormal.Magnitude() < precision) { continue; }
 
 		int toolCount = 0;
 		for (const auto& [otherBox, otherFace] : qResult)
@@ -4362,19 +4385,19 @@ void CJGeoCreator::splitOuterSurfaces(
 			if (currentFace.IsEqual(otherFace)) { continue; }
 
 			gp_Vec otherNormal = helperFunctions::computeFaceNormal(otherFace);
-			if (otherNormal.Magnitude() < 1e-6) { continue; }
+			if (otherNormal.Magnitude() < precision) { continue; }
 
-			if (currentNormal.IsParallel(otherNormal, 1e-4)) {
+			if (currentNormal.IsParallel(otherNormal, precisionCoarse)) {
 				std::optional<gp_Pnt> otherPointOpt = helperFunctions::getPointOnFace(otherFace);
 				if (otherPointOpt == std::nullopt) { continue; }
 
-				if (!helperFunctions::pointOnShape(currentFace, *otherPointOpt, 1e-4)) { continue; }
+				if (!helperFunctions::pointOnShape(currentFace, *otherPointOpt, precisionCoarse)) { continue; }
 			}
 			else
 			{
 				BRepExtrema_DistShapeShape distanceCalc(currentFace, otherFace);
 				distanceCalc.Perform();
-				if (distanceCalc.Value() > 1e-4) { continue; }
+				if (distanceCalc.Value() > precisionCoarse) { continue; }
 			}
 			divider.AddTool(otherFace);
 			toolCount++;

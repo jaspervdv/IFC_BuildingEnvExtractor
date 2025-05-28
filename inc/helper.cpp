@@ -136,7 +136,7 @@ struct gp_XYZ_Hash {
 
 struct gp_XYZ_Equal {
 	bool operator()(const gp_XYZ& a, const gp_XYZ& b) const {
-		return a.IsEqual(b, 1e-6); // 1e-6 is a reasonable geometric tolerance
+		return a.IsEqual(b, SettingsCollection::getInstance().precision());
 	}
 };
 
@@ -1141,7 +1141,9 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 	double leftFinal = tVolume(lineStart, triangle);
 	double rightFinal = tVolume(lineEnd, triangle);
 
-	if (abs(leftFinal) < 1e-6 || abs(rightFinal) < 1e-6) { return false; } // if surfaces rest on eachother return 0
+	double precision = SettingsCollection::getInstance().precision();
+
+	if (abs(leftFinal) < precision || abs(rightFinal) < precision) { return false; } // if surfaces rest on eachother return 0
 	if (!hasSameSign(leftFinal, rightFinal)) { return true; }
 	return false;
 }
@@ -1382,6 +1384,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 	if (theFaceList.size() == 1) { return theFaceList; }
 
 	double lowPrecision = SettingsCollection::getInstance().precisionCoarse();
+	double precision = SettingsCollection::getInstance().precision();
 
 	std::vector<gp_Vec> faceNormalList;
 	for (const TopoDS_Face surfacePair : theFaceList)
@@ -1418,7 +1421,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 				if (evalList[j] == 1) { continue; }
 
 				TopoDS_Face otherFace = theFaceList[j];
-				if (!faceNormalList[i].IsParallel(faceNormalList[j], 1e-6)) { continue; }
+				if (!faceNormalList[i].IsParallel(faceNormalList[j], precision)) { continue; }
 
 				// find if the surface shares edge with any of the to merge faces
 				bool toMerge = false;
@@ -1610,9 +1613,10 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 
 TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 {
+	double precision = SettingsCollection::getInstance().precision();
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
-	if (normal.Magnitude() < 1e-6) 	{ return TopoDS_Face(); }
+	if (normal.Magnitude() < precision) 	{ return TopoDS_Face(); }
 
 	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
 	TopoDS_Wire outerWire = BRepTools::OuterWire(theFace);
@@ -1624,7 +1628,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	 
 	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
 	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
-	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, 1e-6);
+	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, precision);
 
 	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 	{
@@ -1718,6 +1722,8 @@ TopoDS_Wire helperFunctions::wipeWireClean(const TopoDS_Wire& theWire)
 
 TopoDS_Wire helperFunctions::projectWireOnPlane(const TopoDS_Wire& wire, const Handle(Geom_Plane)& plane)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	const Handle(Geom_Surface) surface = Handle(Geom_Surface)::DownCast(plane);
 
 	BRepBuilderAPI_MakeWire wireBuilder;
@@ -1737,7 +1743,7 @@ TopoDS_Wire helperFunctions::projectWireOnPlane(const TopoDS_Wire& wire, const H
 
 		// Create new edge
 		TopoDS_Edge newEdge = BRepBuilderAPI_MakeEdge(curve3d, f, l);
-		builder.UpdateEdge(newEdge, curve2d, surface, TopLoc_Location(), 1e-6);
+		builder.UpdateEdge(newEdge, curve2d, surface, TopLoc_Location(), precision);
 		newEdge.Orientation(edge.Orientation()); // preserve orientation
 
 		wireBuilder.Add(newEdge);
@@ -1976,6 +1982,7 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 		allEdges.emplace_back(currentEdge);
 	}
 
+	double precision = SettingsCollection::getInstance().precision();
 
 	TopTools_MapOfShape visited;
 	BRepBuilderAPI_MakeWire wireMaker;
@@ -1988,7 +1995,7 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 
 		gp_Vec currentDir = helperFunctions::computeEdgeDir(currentEdge);
 
-		if (currentDir.Magnitude() < 1e-6) { continue; }
+		if (currentDir.Magnitude() < precision) { continue; }
 
 		// grow forwards
 		TopoDS_Vertex firstVertex = TopExp::FirstVertex(currentEdge, true);
@@ -2002,13 +2009,13 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 				if (visited.Contains(potentialEdge)) { continue; }
 
 				gp_Vec otherDir = helperFunctions::computeEdgeDir(potentialEdge);
-				if (otherDir.Magnitude() < 1e-6) 
+				if (otherDir.Magnitude() < precision) 
 				{ 
 					visited.Add(potentialEdge);
 					continue; 
 				}
 
-				if (!currentDir.IsParallel(otherDir, 1e-6)) { continue; }
+				if (!currentDir.IsParallel(otherDir, precision)) { continue; }
 				colinGroup.insert(colinGroup.begin(), potentialEdge);
 				visited.Add(potentialEdge);
 				firstVertex = TopExp::FirstVertex(potentialEdge, true);
@@ -2030,13 +2037,13 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
 				if (visited.Contains(potentialEdge)) { continue; }
 				gp_Vec otherDir = helperFunctions::computeEdgeDir(potentialEdge);
-				if (otherDir.Magnitude() < 1e-6)
+				if (otherDir.Magnitude() < precision)
 				{
 					visited.Add(potentialEdge);
 					continue;
 				}
 
-				if (!currentDir.IsParallel(otherDir, 1e-6)) { continue; }
+				if (!currentDir.IsParallel(otherDir, precision)) { continue; }
 				colinGroup.emplace_back(potentialEdge);
 				visited.Add(potentialEdge);
 				lastVertex = TopExp::LastVertex(potentialEdge, true);
@@ -2071,11 +2078,13 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 
 TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList) {
 
+	double precision = SettingsCollection::getInstance().precision();
+
 	BRepBuilderAPI_MakeFace faceBuilder;
 	std::vector<TopoDS_Face> faceList;
 	gp_Vec normal = computeFaceNormal(wireList[0]);
 
-	if (normal.Magnitude() < 1e-6) { return TopoDS_Face(); }
+	if (normal.Magnitude() < precision) { return TopoDS_Face(); }
 
 	std::vector<gp_Pnt> pointList = getUniquePoints(wireList[0]);
 	gp_Pnt originPoint = pointList[0];
@@ -2130,7 +2139,6 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 
 	std::vector<int> clipped(areaList.size());
 	std::vector<TopoDS_Face> cleanedFaceList;
-	double precision = SettingsCollection::getInstance().precision();
 
 	TopoDS_Face clippedFace = orderedFootprintList[0];
 	for (size_t i = 1; i < orderedFootprintList.size(); i++)
@@ -2158,13 +2166,15 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 {
 	std::vector<TopoDS_Shape> faceClusterList = planarFaces2Cluster(planarFaces);
 	if (faceClusterList.empty()) { return {}; }
+
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 	std::vector<TopoDS_Face> outputFaceList;
 
 	const TopoDS_Shape& faceCluster = faceClusterList[0];
 
 	// split section face with the merged splitting faces
 	BRepAlgoAPI_Splitter splitter;
-	splitter.SetFuzzyValue(1e-4);
+	splitter.SetFuzzyValue(precisionCoarse);
 	TopTools_ListOfShape toolList;
 	TopTools_ListOfShape argumentList;
 
@@ -2217,7 +2227,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		if (currentNormal.Magnitude() < SettingsCollection::getInstance().precision()) { continue; }
 
 		BRepAlgoAPI_Splitter cleanSplitter;
-		cleanSplitter.SetFuzzyValue(1e-4);
+		cleanSplitter.SetFuzzyValue(precisionCoarse);
 		TopTools_ListOfShape cleanToolList;
 		TopTools_ListOfShape cleanArgumentList;
 
@@ -2295,6 +2305,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 std::vector<TopoDS_Shape> helperFunctions::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)
 {
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
 	std::vector<TopoDS_Shape> clusteredShapeList;
 	FaceComplex faceComplex;
 	faceComplex.faceList_ = planarFaces;
@@ -2305,7 +2317,7 @@ std::vector<TopoDS_Shape> helperFunctions::planarFaces2Cluster(const std::vector
 		// merge the faces
 		BRepAlgoAPI_Fuse fuser;
 		TopTools_ListOfShape mergeList;
-		fuser.SetFuzzyValue(1e-4);
+		fuser.SetFuzzyValue(precisionCoarse);
 		for (const TopoDS_Face splitFace : faceComplex.faceList_)
 		{
 			mergeList.Append(splitFace);
@@ -2803,6 +2815,8 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape, bool force)
 
 TopoDS_Wire helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	Standard_Real first, last;
 	Handle(Geom_Curve) curve = BRep_Tool::Curve(theEdge, first, last);
 
@@ -2818,7 +2832,7 @@ TopoDS_Wire helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
 		gp_Pnt p1 = adaptorCurve.Value(abscissa.Parameter(i));
 		gp_Pnt p2 = adaptorCurve.Value(abscissa.Parameter(i + 1));
 
-		if (p1.IsEqual(p2, 1e-6))
+		if (p1.IsEqual(p2, precision))
 		{ continue;
 		}
 
@@ -2848,7 +2862,7 @@ TopoDS_Wire helperFunctions::replaceCurves(const TopoDS_Wire& theWire)
 			gp_Pnt p1 = getFirstPointShape(currentEdge);
 			gp_Pnt p2 = getLastPointShape(currentEdge);
 
-			if (p1.IsEqual(p2, 1e-6))
+			if (p1.IsEqual(p2, precision))
 			{
 				continue;
 			}
@@ -2971,11 +2985,13 @@ bool helperFunctions::isStraight(const TopoDS_Wire& theWire)
 
 bool helperFunctions::hasVolume(const bg::model::box<BoostPoint3D>& bbox)
 {
+	double precision = SettingsCollection::getInstance().precision();
+
 	const auto& t1 = bbox.min_corner();
 	const auto& t2 = bbox.max_corner();
-	if (abs(t1.get<0>() - t2.get<0>()) < 1e-6 &&
-		abs(t1.get<1>() - t2.get<1>()) < 1e-6 &&
-		abs(t1.get<2>() - t2.get<2>()) < 1e-6)
+	if (abs(t1.get<0>() - t2.get<0>()) < precision &&
+		abs(t1.get<1>() - t2.get<1>()) < precision &&
+		abs(t1.get<2>() - t2.get<2>()) < precision)
 	{
 		return false;
 	}
@@ -3056,7 +3072,7 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 	bgi::rtree<Value, bgi::rstar<25>> spatialIndex;
 	for (const TopoDS_Face& currentFace : inputFaceList)
 	{
-		if (computeArea(currentFace) < 1e-6) { continue; }
+		if (computeArea(currentFace) < precision) { continue; }
 
 		std::vector<Value> qResult;
 		qResult.clear();
