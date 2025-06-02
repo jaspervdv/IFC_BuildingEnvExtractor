@@ -1109,6 +1109,53 @@ bool helperFunctions::faceFaceOverlapping(const TopoDS_Face& upperFace, const To
 	return true;
 }
 
+bool helperFunctions::coplanarOverlapping(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace)
+{
+	// check if endpoint of wire is on face
+
+	for (TopExp_Explorer currentExpl(leftFace, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
+		 
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(currentEdge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(currentEdge);
+		if (pointOnShape(rightFace, p0)) { return true; }
+		if (pointOnShape(rightFace, p1)) { return true; }
+	}
+
+	for (TopExp_Explorer currentExpl(rightFace, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
+	{
+		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
+
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(currentEdge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(currentEdge);
+		if (pointOnShape(leftFace, p0)) { return true; }
+		if (pointOnShape(leftFace, p1)) { return true; }
+	}
+
+	// check if any mesh point is on another face
+
+	for (const gp_Pnt& currentPoint : getPointListOnFace(leftFace))
+	{
+		if (pointOnShape(rightFace, currentPoint)) { return true; }
+	}
+
+	for (const gp_Pnt& currentPoint : getPointListOnFace(rightFace))
+	{
+		if (pointOnShape(leftFace, currentPoint)) { return true; }
+	}
+
+	// check if wire edges intersect
+
+	//TODO: implement
+
+
+
+	return false;
+
+
+}
+
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
 	const gp_Pnt& vert0 = vertices[0];
 	const gp_Pnt& vert1 = vertices[1];
@@ -1379,7 +1426,7 @@ TopoDS_Wire helperFunctions::mergeWireOrientated(const TopoDS_Wire& baseWire, co
 	return TopoDS_Wire();
 }
 
-std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Face>& theFaceList)
+std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Face>& theFaceList) //TODO: inify with planeroutline
 {
 	if (theFaceList.size() == 1) { return theFaceList; }
 
@@ -1427,9 +1474,13 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 				bool toMerge = false;
 				for (const TopoDS_Face& mergingFace : mergingPairList)
 				{
-					if (helperFunctions::shareEdge(otherFace, mergingFace))
+					if (shareEdge(otherFace, mergingFace))
 					{
-
+						toMerge = true;
+						break;
+					}
+					if (coplanarOverlapping(otherFace, mergingFace))
+					{
 						toMerge = true;
 						break;
 					}
@@ -1449,7 +1500,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 			continue;
 		}
 
-		std::vector<TopoDS_Face> mergedFaceList = mergeCoFaces(mergingPairList);
+		std::vector<TopoDS_Face> mergedFaceList = planarFaces2Outline(mergingPairList);
 		for (TopoDS_Face mergedFace : mergedFaceList)
 		{
 			if (fixFace(&mergedFace))
@@ -2285,11 +2336,43 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 {
 	if (planarFaces.size() == 1) { return planarFaces; }
 
+	gp_Trsf transform;
+
+	gp_Vec clusterNormal = computeFaceNormal(planarFaces[0]);
+	gp_Vec horizontalNormal = gp_Vec(0, 0, 1);
+
+	std::vector<TopoDS_Face> flattenedFaceList;
+	flattenedFaceList.reserve(planarFaces.size());
+
+	if (!clusterNormal.IsParallel(horizontalNormal, 1e-6))
+	{
+		std::optional<gp_Pnt> optionalbasePoint = helperFunctions::getPointOnFace(planarFaces[0]);
+		if (optionalbasePoint == std::nullopt) { return {}; }
+
+		gp_Vec normalCrossProduct = clusterNormal ^ horizontalNormal;
+		gp_Ax1 rotationAxis(*optionalbasePoint, normalCrossProduct);
+		Standard_Real rotationAngle = clusterNormal.AngleWithRef(horizontalNormal, rotationAxis.Direction());
+
+		transform.SetRotation(rotationAxis, rotationAngle);
+
+		for (const TopoDS_Face& face : planarFaces) {
+			BRepBuilderAPI_Transform transformer(face, transform);
+			if (transformer.IsDone()) {
+				TopoDS_Face dubface = TopoDS::Face(transformer.Shape());
+				flattenedFaceList.emplace_back(dubface);
+			}
+		}
+	}
+	else
+	{
+		flattenedFaceList = planarFaces;
+	}
+
 	// use the storey approach? 
 	gp_Pnt lll;
 	gp_Pnt urr;
 	// create plane on which the projection has to be made
-	helperFunctions::bBoxDiagonal(planarFaces, &lll, &urr);
+	helperFunctions::bBoxDiagonal(flattenedFaceList, &lll, &urr);
 
 	if (abs(lll.Z() - urr.Z()) > SettingsCollection::getInstance().precision())
 	{
@@ -2300,7 +2383,25 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 	gp_Pnt p1 = gp_Pnt(urr.X() + 10, urr.Y() + 10, urr.Z());
 	TopoDS_Face boundingPlane = helperFunctions::createHorizontalFace(p0, p1, 0, urr.Z());
 
-	return planarFaces2Outline(planarFaces, boundingPlane);
+	std::vector<TopoDS_Face> outlinedFaceList = planarFaces2Outline(flattenedFaceList, boundingPlane);
+	transform.Invert();
+
+	std::vector<TopoDS_Face> orientedFaces;
+	orientedFaces.reserve(outlinedFaceList.size());
+
+	if (!clusterNormal.IsParallel(horizontalNormal, 1e-6))
+	{
+		for (const TopoDS_Face& outlinedFace : outlinedFaceList)
+		{
+			BRepBuilderAPI_Transform transformer(outlinedFace, transform);
+			orientedFaces.emplace_back(TopoDS::Face(transformer.Shape()));
+		}
+	}
+	else
+	{
+		orientedFaces = outlinedFaceList;
+	}
+	return orientedFaces;
 }
 
 std::vector<TopoDS_Shape> helperFunctions::planarFaces2Cluster(const std::vector<TopoDS_Face>& planarFaces)

@@ -179,6 +179,8 @@ struct helperFunctions{
 	static bool faceFaceOverlapping(const TopoDS_Face& upperFace, const TopoDS_Face& lowerFace);
 	/// check if the left face shares at least 1 identical edge with the right face
 	static bool faceFaceNeighbour(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace);
+	/// check if coplanar surfaces overlap based on points
+	static bool coplanarOverlapping(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace);
 
 	/// line surface intersection related code
 
@@ -226,9 +228,9 @@ struct helperFunctions{
 	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
-	/// creates a clean copy of the input face with no curves
+	/// creates a clean copy of the input face with no non-straight curves
 	static TopoDS_Face TessellateFace(const TopoDS_Face& theFace);
-	/// creates a clean copy of the input face with no curves
+	/// creates a clean copy of the input face list with no non-straight curves
 	static std::vector<TopoDS_Face> TessellateFace(const std::vector<TopoDS_Face>& theFaceList);
 	/// fixes face if face is broken
 	static bool fixFace(TopoDS_Face* theFace);

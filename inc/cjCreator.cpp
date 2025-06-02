@@ -198,10 +198,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentCleanFace);
-		//DebugUtils::printFaces(currentCleanFace);
 	}
-
-	//DebugUtils::WriteToSTEP(faceList, "C:/Users/Jasper/Desktop/desk/test.step");
 
 
 	//// group surfaces
@@ -213,7 +210,6 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		evalList[i] = 1;
 
 		const TopoDS_Face& currentFace = faceList[i];
-
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
 
 		std::vector<TopoDS_Face> toBeGroupdSurfaces = {};
@@ -232,6 +228,9 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 				spatialIndex.query(bgi::intersects(helperFunctions::createBBox(evalFace, 0.1)), std::back_inserter(qResult));
 
 				if (qResult.size() == 1) { break; }
+
+				gp_Vec currentNormal = helperFunctions::computeFaceNormal(evalFace);
+
 				for (const Value& qValue : qResult)
 				{
 					int potentialNeigbhbourIdx = qValue.second;
@@ -241,11 +240,27 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 
 					gp_Vec otherNormal = helperFunctions::computeFaceNormal(potentialNeighbourFace);
 
+					// check if shared edge
 					if (helperFunctions::shareEdge(evalFace, potentialNeighbourFace))
 					{
 						bufferList.emplace_back(potentialNeighbourFace);
 						evalList[potentialNeigbhbourIdx] = 1;
+						continue;
 					}
+
+					// check if overlapping
+					if (!currentNormal.IsParallel(otherNormal, 1e-4))
+					{
+						continue;
+					}
+
+					if (!helperFunctions::coplanarOverlapping(evalFace, potentialNeighbourFace))
+					{
+						continue;
+					}
+
+					bufferList.emplace_back(potentialNeighbourFace);
+					evalList[potentialNeigbhbourIdx] = 1;
 				}
 			}
 			if (bufferList.size() == 0) { break; }
@@ -1032,9 +1047,10 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(faceIdx);
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
 	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurface);
+	std::vector<TopoDS_Face> visibleCleanFaceList = helperFunctions::TessellateFace(visibleFaceList);
 
 	//clean the surfaces
-	return  visibleFaceList;
+	return  visibleCleanFaceList;
 }
 
 
