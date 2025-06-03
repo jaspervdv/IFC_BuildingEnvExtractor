@@ -306,7 +306,7 @@ void CJGeoCreator::simpleRaySurfaceCast(
 
 		if (pointQResult.empty()) { continue; }
 
-		bool isExterior = true;
+		int score = 0; // the number of clear lines cast from the surface
 		for (const auto& [voxelBbox, voxel] : pointQResult)
 		{
 			bool clearLine = true;
@@ -327,14 +327,31 @@ void CJGeoCreator::simpleRaySurfaceCast(
 					clearLine = false;
 					break;
 				}
+
+				Handle(Geom_Surface) surface = BRep_Tool::Surface(otherFace);
+				Handle(Geom_Plane) geomPlane = Handle(Geom_Plane)::DownCast(surface);
+				if (geomPlane.IsNull()) { continue; }
+
+				gp_Pln plane = geomPlane->Pln();
+				Standard_Real dist1 = plane.Distance(voxelCore);
+
+				if (dist1 <= 1e-4)
+				{
+					clearLine = false;
+					break;
+				}
 			}
-			if (clearLine)
-			{
+			if (clearLine) {
+				score++; 
+			}
+			if (score > 1) 
+			{ 
 				outList.emplace_back(std::pair(currentFace, currentProduct));
 				break;
 			}
 		}
 	}
+
 	std::cout << "\n";
 	return;
 }
@@ -1646,8 +1663,6 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 }
 
 
-
-
 void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, bgi::rtree<Value, bgi::rstar<treeDepth_>>* shapeIdx, std::vector<std::shared_ptr<SurfaceGridPair>>* shapeList)
 {
 	auto startTime = std::chrono::steady_clock::now();
@@ -1744,6 +1759,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 		}
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+
 	return fineFilteredShapeList;
 }
 
@@ -1780,6 +1796,7 @@ void CJGeoCreator::FinefilterSurface(
 		}
 
 		if (!currentSurfacePair->testIsVisable(potentialBlockingFaces)) { continue; }
+
 		std::lock_guard<std::mutex> faceLock(processMutex);
 		fineFilteredShapeList->emplace_back(currentSurfacePair);
 	}
@@ -3899,15 +3916,17 @@ void CJGeoCreator::getOuterRaySurfaces(
 )
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double precision = settingsCollection.precision();
 	double searchBuffer = settingsCollection.searchBufferLod32();
 	for (const Value& currentValue : valueObjectList)
 	{
 		std::unique_lock<std::mutex> processCountLock(processedObjectmutex);
 		processedObject++;
 		processCountLock.unlock();
+
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(currentValue.second);
-		std::string lookupType = lookup->getProductPtr()->data().type()->name();
-		TopoDS_Shape currentShape = lookup->getProductShape(); 
+		const std::string& lookupType = lookup->getProductPtr()->data().type()->name();
+		const TopoDS_Shape& currentShape = lookup->getProductShape(); 
 
 		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{
@@ -3925,7 +3944,6 @@ void CJGeoCreator::getOuterRaySurfaces(
 			// cast a line from the grid to surrounding voxels
 			for (const gp_Pnt& gridPoint : surfaceGridList)
 			{
-				
 				bg::model::box<BoostPoint3D> pointQuerybox(
 					{ gridPoint.X() - searchBuffer, gridPoint.Y() - searchBuffer, gridPoint.Z() - searchBuffer },
 					{ gridPoint.X() + searchBuffer, gridPoint.Y() + searchBuffer, gridPoint.Z() + searchBuffer }
@@ -3937,7 +3955,8 @@ void CJGeoCreator::getOuterRaySurfaces(
 				for (const auto& [voxelBBox, targetVoxel] : pointQResult)
 				{
 					bool clearLine = true;
-					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetVoxel->getOCCTCenterPoint(), settingsCollection.precision()));
+					const gp_Pnt& targetPoint = targetVoxel->getOCCTCenterPoint();
+					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetPoint, precision));
 					std::vector<std::pair<BoostBox3D, TopoDS_Face>>faceQResult;
 					faceIdx.query(bgi::intersects(productQuerybox), std::back_inserter(faceQResult));
 
@@ -3966,7 +3985,7 @@ void CJGeoCreator::getOuterRaySurfaces(
 								mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
 							};
 
-							if (helperFunctions::triangleIntersecting({ gridPoint, targetVoxel->getOCCTCenterPoint() }, trianglePoints))
+							if (helperFunctions::triangleIntersecting({ gridPoint, targetPoint }, trianglePoints))
 							{
 								clearLine = false;
 								break;
@@ -4448,7 +4467,7 @@ void CJGeoCreator::splitOuterSurfaces(
 		if (faceList.size() <= 1)
 		{
 			helperFunctions::triangulateShape(currentFace);
-
+			//DebugUtils::printFaces(currentFace);
 			const std::lock_guard<std::mutex> lock(untouchedListMutex);
 			untouchedFacesOut.emplace_back(std::pair(currentFace, currentProduct));
 		}

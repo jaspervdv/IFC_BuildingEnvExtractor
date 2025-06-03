@@ -14,7 +14,7 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRep_Builder.hxx>
 #include <TopoDS.hxx>
-
+#include <Geom_TrimmedCurve.hxx>
 
 EvaluationPoint::EvaluationPoint(const gp_Pnt& p)
 {
@@ -186,20 +186,37 @@ void SurfaceGridPair::populateGrid(double distance)
 	// get points on wire (do not use offsetter due to instability issues)
 	for (TopExp_Explorer expl(theFace_, TopAbs_EDGE); expl.More(); expl.Next())
 	{
+		Standard_Real trimOffset = 2* 1e-4;
+
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
 		BRepAdaptor_Curve curve(currentEdge);
 		Standard_Real firstParam = curve.FirstParameter();
 		Standard_Real lastParam = curve.LastParameter();
 		Standard_Real edgeLength = GCPnts_AbscissaPoint::Length(curve, firstParam, lastParam);
-		int stepCount = static_cast<int>(ceil(helperFunctions::getFirstPointShape(currentEdge).Distance(helperFunctions::getLastPointShape(currentEdge))/distance));
-		double localDistance = edgeLength / stepCount;
 
-		if (stepCount < 2)
+		if (edgeLength < 2 * trimOffset) { continue; }
+
+		// shorten the edge
+
+		Standard_Real newFirstParam = firstParam + trimOffset;
+		Standard_Real newLastParam = lastParam - trimOffset;
+
+		Handle(Geom_Curve) baseCurve = BRep_Tool::Curve(currentEdge, firstParam, lastParam);
+		Handle(Geom_TrimmedCurve) currentTrimmedCurve = new Geom_TrimmedCurve(baseCurve, newFirstParam, newLastParam);
+		TopoDS_Edge currentTrimmedEdge = BRepBuilderAPI_MakeEdge(currentTrimmedCurve);
+		BRepAdaptor_Curve shortCurve(currentTrimmedEdge);
+
+		Standard_Real shortEdgeLength = GCPnts_AbscissaPoint::Length(curve, firstParam, lastParam);
+
+		int stepCount = static_cast<int>(ceil(shortEdgeLength /distance));
+		double localDistance = shortEdgeLength / stepCount;
+
+		if (stepCount < 3)
 		{
-			stepCount = 2;
+			stepCount = 3;
 		}
 
-		GCPnts_UniformAbscissa uniformAbscissa(curve, stepCount);
+		GCPnts_UniformAbscissa uniformAbscissa(shortCurve, stepCount);
 
 		if (!uniformAbscissa.IsDone()) { continue; }
 
@@ -208,10 +225,10 @@ void SurfaceGridPair::populateGrid(double distance)
 
 			gp_Pnt point;
 			gp_Vec tangent;
-			curve.D1(param, point, tangent);
+			shortCurve.D1(param, point, tangent);
 
 			tangent.Normalize();
-			tangent = tangent * 0.005;
+			tangent = tangent * trimOffset;
 
 			gp_Vec perp1Vec(tangent.Y(), -tangent.X(), 0);
 			gp_Vec perp2Vec(-tangent.Y(), tangent.X(), 0);
@@ -320,7 +337,7 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 				TopoDS_Edge otherEdge = TopoDS::Edge(expl.Current());
 				BRepExtrema_DistShapeShape distanceCalc(otherEdge, currentEvalPoint->getEvalEdge());
 
-				if (distanceCalc.Value() < 0.001)
+				if (distanceCalc.Value() < 1e-4)
 				{
 					currentEvalPoint->setInvisible();
 					break;

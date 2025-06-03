@@ -374,7 +374,7 @@ Optional:
   * Boolean
   * Toggles IfcSpaces to be exported as interior spaces.
   * Default value = false
-* :ballot_box_with_check: "JSON" "Generate exterior" :ballot_box_with_check:
+* :white_check_mark: "JSON" "Generate exterior" :white_check_mark:
   * Boolean
   * Toggles building's exterior generation
   * Default value = true
@@ -394,11 +394,11 @@ Optional:
   * Boolean
   * Toggles semantic objects to be merged if they have identical attributes.
   * Default value = true
-* :ballot_box_with_check: "Output format" "STEP file" :ballot_box_with_check:
+* :white_check_mark: "Output format" "STEP file" :white_check_mark:
   * Boolean
   * Toggles the copying of the output shaped to a .step file
   * Default value = false
-* :ballot_box_with_check: "Output format" "OBJ file" :ballot_box_with_check:
+* :white_check_mark: "Output format" "OBJ file" :white_check_mark:
   * Boolean
   * Toggles the copying of the output shaped to a .obj file
   * Default value = false

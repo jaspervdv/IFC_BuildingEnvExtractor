@@ -227,7 +227,7 @@ gp_Pnt helperFunctions::rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP,
 	return rotatedP.Translated(gp_Vec(anchorP.X(), anchorP.Y(), anchorP.Z()));
 }
 
-std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface)
+std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface) //TODO: triangles
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precision = settingsCollection.precision();
@@ -286,7 +286,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 	std::vector<gp_Pnt> wirePointList;
 
 	for (TopExp_Explorer exp(theface, TopAbs_EDGE); exp.More(); exp.Next()) {
-		TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+		const TopoDS_Edge& edge = TopoDS::Edge(exp.Current());
 		Standard_Real first, last;
 		Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
 		if (curve.IsNull()) {
@@ -308,7 +308,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 
 	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())
 	{
-		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+		const TopoDS_Edge& currentEdge = TopoDS::Edge(expl.Current());
 		BRepAdaptor_Curve curveAdaptor(currentEdge);
 
 		double uStart = curveAdaptor.Curve().FirstParameter();
@@ -1197,6 +1197,10 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 
 bool helperFunctions::hasSameSign(const double& leftDouble, const double& rightDouble)
 {
+	const bool leftIsZero = std::abs(leftDouble) < 1e-6;
+	const bool rightIsZero = std::abs(rightDouble) < 1e-6;
+
+	if (leftIsZero || rightIsZero) { return false; }
 	if (leftDouble > 0 && rightDouble > 0 || leftDouble < 0 && rightDouble < 0) { return true; }
 	return false;
 }
