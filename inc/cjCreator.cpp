@@ -540,54 +540,97 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	brepBuilder.MakeSolid(solidShape);
 
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
-	int edgeCount = 0;
-	for (TopExp_Explorer edgeExplorer(evalFace, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
-		const TopoDS_Edge& edge = TopoDS::Edge(edgeExplorer.Current());
-		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
-		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
 
-		if (downwards)
-		{
-			if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight) { return TopoDS_Solid(); }
-		}
-		else
-		{
-			if (p0.Z() >= splittingFaceHeight || p1.Z() >= splittingFaceHeight) { return TopoDS_Solid(); }
-		}
-
-		gp_Pnt p2 = gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight);
-		gp_Pnt p3 = gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight);
-		
-		TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p2, p1, p0);
-
-		brepSewer.Add(sideFace);
-		edgeCount++;
-	}
-
-	if (edgeCount <= 2)
+	std::vector<TopoDS_Wire> wireList;
+	TopoDS_Wire outerWire = BRepTools::OuterWire(evalFace);
+	wireList.emplace_back(outerWire);
+	for (TopExp_Explorer wireExplorer(evalFace, TopAbs_WIRE); wireExplorer.More(); wireExplorer.Next())
 	{
-		return TopoDS_Solid();
+		TopoDS_Wire currentWire = TopoDS::Wire(wireExplorer.Current());
+		if (outerWire.IsEqual(currentWire)) { continue; }
+		wireList.emplace_back(currentWire);
 	}
 
-	brepSewer.Add(evalFace);
-	brepSewer.Add(projectedFace.Reversed());
+	std::vector<TopoDS_Wire> wireCopyTop;
+	std::vector<TopoDS_Wire> wireCopyBottom;
+	wireCopyTop.reserve(wireList.size());
+	wireCopyBottom.reserve(wireList.size());
+
+	for (const TopoDS_Wire& currentWire : wireList)
+	{
+		int edgeCount = 0;
+		BRepBuilderAPI_MakeWire wireMakerTop;
+		BRepBuilderAPI_MakeWire wireMakerBottom;
+		for (BRepTools_WireExplorer expl(currentWire); expl.More(); expl.Next())
+		{
+			const TopoDS_Edge& edge = TopoDS::Edge(expl.Current());
+			gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
+			gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+
+			if (downwards)
+			{
+				if (p0.Z() <= splittingFaceHeight || p1.Z() <= splittingFaceHeight) { return TopoDS_Solid(); }
+			}
+			else
+			{
+				if (p0.Z() >= splittingFaceHeight || p1.Z() >= splittingFaceHeight) { return TopoDS_Solid(); }
+			}
+
+			gp_Pnt p2 = gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight);
+			gp_Pnt p3 = gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight);
+
+			TopoDS_Edge topEdge = BRepBuilderAPI_MakeEdge(p0, p1);
+			TopoDS_Edge buttomEdge = BRepBuilderAPI_MakeEdge(p2, p3);
+			TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p2, p1, p0);
+
+			wireMakerTop.Add(topEdge);
+			wireMakerBottom.Add(buttomEdge);
+			brepSewer.Add(sideFace);
+			edgeCount++;
+		}
+
+		if (edgeCount <= 2)
+		{
+			return TopoDS_Solid();
+		}
+
+		if (!wireMakerBottom.IsDone() || !wireMakerTop.IsDone())
+		{
+			return TopoDS_Solid();
+		}
+		wireCopyTop.emplace_back(wireMakerTop.Wire());
+		wireCopyBottom.emplace_back(wireMakerBottom.Wire());
+	}
+
+	gp_Pnt p0 = helperFunctions::getFirstPointShape(evalFace);
+	gp_Vec normal = helperFunctions::computeFaceNormal(evalFace);
+	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
+
+	Handle(Geom_Plane) planeFlat = new Geom_Plane(gp_Pnt(0, 0, splittingFaceHeight), gp_Vec(0, 0, -1));
+
+	BRepBuilderAPI_MakeFace faceMakerTop(plane, wireCopyTop[0], 1e-6);
+	BRepBuilderAPI_MakeFace faceMakerBottom(planeFlat, wireCopyBottom[0], 1e-6);
+
+	for (size_t i = 1; i < wireCopyTop.size(); i++)
+	{
+		faceMakerTop.Add(wireCopyTop[i]);
+		faceMakerBottom.Add(wireCopyBottom[i]);
+	}
+
+	brepSewer.Add(faceMakerTop.Face());
+	brepSewer.Add(faceMakerBottom.Face());
 	brepSewer.Perform();
+
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
 
-	ShapeAnalysis_Shell shellChecker;
-	shellChecker.LoadShells(sewedShape);
 	if (sewedShape.ShapeType() != TopAbs_SHELL)
 	{
 		return solidShape;
 	}
-	else if (sewedShape.Closed() || !shellChecker.HasFreeEdges())
-	{
-		brepBuilder.Add(solidShape, sewedShape);
-	}
-	else
-	{
-		brepBuilder.Add(solidShape, sewedShape); 
-	}
+
+	ShapeAnalysis_Shell shellChecker;
+	shellChecker.LoadShells(sewedShape);
+	brepBuilder.Add(solidShape, sewedShape);
 	return solidShape;
 }
 
@@ -939,7 +982,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 		BoostBox3D flatFaceBox = helperFunctions::createBBox(currentFace);
 		splittingfaceIdx.insert(std::make_pair(flatFaceBox, currentFace));
-
 	}
 
 	// remove dub faces and split them
@@ -949,6 +991,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
+
 		gp_Vec currentVec = helperFunctions::computeFaceNormal(currentFace);
 		if (currentVec.Magnitude() < precision) { continue; }
 		BoostBox3D faceBox = helperFunctions::createBBox(currentFace);
