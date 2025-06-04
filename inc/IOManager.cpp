@@ -587,6 +587,9 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 		}
 	}
 
+	// if not interior is created for the suitable storey object it has to be created, self checks is required
+	geoCreator->store2DStoreyData(internalDataManager_.get(), kernel);
+
 	if (settingsCollection.make00())
 	{
 		processExternalLoD([&]() {
@@ -639,13 +642,31 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoDb0(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoDb0_);
+			}, cityOuterShellObject, ErrorID::failedLoDb0, timeLoDb0_);
 	}
 	if (settingsCollection.makec1())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoDc1(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoDc1_);
+			}, cityOuterShellObject, ErrorID::failedLoDc1, timeLoDc1_);
+	}
+	if (settingsCollection.makec2())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDc2(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoDc2, timeLoDc2_);
+	}
+	if (settingsCollection.maked1())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDd1(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoDd1, timeLoDd1_);
+	}
+	if (settingsCollection.maked2())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDd2(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoDd2, timeLoDd2_);
 	}
 	if (settingsCollection.make32())
 	{

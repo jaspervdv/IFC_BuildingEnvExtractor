@@ -61,8 +61,10 @@ private:
 	std::vector<std::vector<TopoDS_Face>> LoD03RoofFaces_;
 	// list collects the faces from the LoD04 creation to base LoD22 output on
 	std::vector<std::vector<TopoDS_Face>> LoD04RoofFaces_;
-	// list collects the lod02 plates per lvl TODO: make grouped
+	// list collects the lod02 plates per lvl
 	std::map<double, std::vector<TopoDS_Face>> LoD02Plates_;
+	// list collects the lod03 plates per lvl
+	std::map<double, std::vector<TopoDS_Face>> LoD03Plates_;
 	// check if the surfaces that are stored can be discarded.
 	void garbageCollection();
 
@@ -300,7 +302,9 @@ public:
 	void makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);
 	
 	/// adds a storey object to the city object
-	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03);
+	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03, bool output = true);
+
+	void store2DStoreyData(DataManager* h, CJT::Kernel* kernel);
 
 	/// generates an LoD0.0 object
 	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
@@ -324,6 +328,12 @@ public:
 	std::vector< CJT::GeoObject> makeLoDb0(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoDc.1 objects
 	std::vector< CJT::GeoObject> makeLoDc1(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDc.2 objects
+	std::vector< CJT::GeoObject> makeLoDc2(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDd.1 objects
+	std::vector< CJT::GeoObject> makeLoDd1(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDd.2 objects
+	std::vector< CJT::GeoObject> makeLoDd2(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);

@@ -18,14 +18,13 @@ Current possible output shells:
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
 * LoD0.3 - exterior roof structure and interior stories (WIP)
-* LoD0.4 - exterior roof structure (unofficial LoDa, roof structure)
+* LoD0.4 - exterior roof structure (unofficial LoDa.0, roof structure)
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
 * LoD2.2 - exterior and rooms
 * LoD3.2 - exterior and rooms (WIP)
 * LoD5.0 - exterior and interior rooms
-
 * LoDb.0 - exterior (WIP) (hybrid between TUD 2.3 and 3.0)
 * LoDc.1 - exterior (WIP) (extruded LoD0.2 surfaces)
 * LoDc.2 - exterior (planned) (extruded LoD0.2 surfaces with LoD0.4 roofs)

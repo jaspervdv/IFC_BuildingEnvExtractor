@@ -784,7 +784,6 @@ void CJGeoCreator::makeFloorSectionComplex(
 		//TODO: add error
 		return;
 	}
-
 	std::vector<TopoDS_Shape> faceCluster = helperFunctions::planarFaces2Cluster(cleanedFaceList); //TODO: list fix?
 
 
@@ -794,7 +793,6 @@ void CJGeoCreator::makeFloorSectionComplex(
 
 	intFacesOut = helperFunctions::planarFaces2Outline(innerFaces);
 	extFacesOut = helperFunctions::planarFaces2Outline(outerFaces);
-
 	return;
 }
 
@@ -2350,7 +2348,8 @@ void CJGeoCreator::make2DStoreys(
 	CJT::Kernel* kernel, 
 	std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, 
 	int unitScale,
-	bool is03
+	bool is03, 
+	bool output
 ) 
 {
 	auto startTime = std::chrono::steady_clock::now();
@@ -2371,8 +2370,8 @@ void CJGeoCreator::make2DStoreys(
 	std::vector<TopoDS_Shape> copyGeoList;
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
-		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
+		//threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
@@ -2382,6 +2381,8 @@ void CJGeoCreator::make2DStoreys(
 			thread.join();
 		}
 	}
+
+	if (!output) { return; }
 
 	if (SettingsCollection::getInstance().createSTEP())
 	{
@@ -2411,6 +2412,37 @@ void CJGeoCreator::make2DStoreys(
 	return;
 }
 
+void CJGeoCreator::store2DStoreyData(DataManager* h, CJT::Kernel* kernel)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects;
+
+	bool hasOutput = false;
+
+	if (settingsCollection.makec1() && !settingsCollection.make02() ||
+		settingsCollection.makec2() && !settingsCollection.make02())
+	{
+		storeyObjects = makeStoreyObjects(h);
+		make2DStoreys(h, kernel, storeyObjects, 1, false, false);
+		hasOutput = true;
+	}
+
+	if (settingsCollection.maked1() && !settingsCollection.make03() ||
+		settingsCollection.maked2() && !settingsCollection.make03())
+	{
+		if (storeyObjects.empty())
+		{
+			storeyObjects = makeStoreyObjects(h);
+		}
+		make2DStoreys(h, kernel, storeyObjects, 1, true, false);
+		hasOutput = true;
+	}
+	if (hasOutput)
+	{
+		std::cout << "\n";
+	}
+}
+
 void CJGeoCreator::make2DStorey(
 	std::mutex& storeyMutex,
 	DataManager* h,
@@ -2424,10 +2456,13 @@ void CJGeoCreator::make2DStorey(
 {
 	std::string LoDString = "0.2";
 	if (is03) { LoDString = "0.3"; }
-	double storeyUserBuffer = SettingsCollection::getInstance().horizontalSectionOffset();
+
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+	double storeyUserBuffer = settingsCollection.horizontalSectionOffset();
 
 	gp_Trsf trsf;
-	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 
 	std::vector<std::string> storeyGuidList = storeyCityObject->getAttributes()["IFC Guid"];
 	std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList = fetchStoreyObjects(h, storeyGuidList);
@@ -2447,13 +2482,36 @@ void CJGeoCreator::make2DStorey(
 	if (is03)
 	{
 		makeFloorSectionComplex(storeySurfaceList, storeyExternalSurfaceList, h, storeyElevation + storeyUserBuffer, ifcStoreyList);
+
+		if (settingsCollection.maked1() || settingsCollection.maked2())
+		{
+			std::vector<TopoDS_Face> cleanStoreySurfaceList;
+			for (const TopoDS_Face& currentStoreySurface : storeySurfaceList)
+			{
+				TopoDS_Face cleanStoreySurface = eleminateInnerVoids(currentStoreySurface);
+				cleanStoreySurfaceList.emplace_back(cleanStoreySurface);
+			}
+			std::unique_lock<std::mutex> faceLock(storeyMutex);
+			LoD03Plates_.emplace(storeyElevation, cleanStoreySurfaceList);
+			faceLock.unlock();
+		}
 	}
 	else
 	{
 		makeFloorSection(storeySurfaceList, h, storeyElevation + storeyUserBuffer);
-		std::unique_lock<std::mutex> faceLock(storeyMutex);
-		LoD02Plates_.emplace(storeyElevation, storeySurfaceList);
-		faceLock.unlock();
+
+		if (settingsCollection.makec1() || settingsCollection.makec2())
+		{
+			std::vector<TopoDS_Face> cleanStoreySurfaceList;
+			for (const TopoDS_Face& currentStoreySurface : storeySurfaceList)
+			{
+				TopoDS_Face cleanStoreySurface = eleminateInnerVoids(currentStoreySurface);
+				cleanStoreySurfaceList.emplace_back(cleanStoreySurface);
+			}
+			std::unique_lock<std::mutex> faceLock(storeyMutex);
+			LoD02Plates_.emplace(storeyElevation, cleanStoreySurfaceList);
+			faceLock.unlock();
+		}
 	}
 	if (!storeySurfaceList.size())
 	{
@@ -3173,8 +3231,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 	if (LoD02Plates_.empty())
 	{
-		//TODO: fetch this data from somewhere
-		return{};
+		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = makeStoreyObjects(h); //TODO: centralize this
+		make2DStoreys(h, kernel, storeyObjects, 1, false, false);
 	}
 
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
@@ -3332,7 +3390,6 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 	brepSewer.Perform();
 	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
 
-
 	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "c.1");
 	createSemanticData(&geoObject, simplefiedShape);
 	geoObjectList.emplace_back(geoObject);
@@ -3349,6 +3406,30 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc2) << std::endl;
+	std::cout << "[WARNING] LoDc.2 processes are not yet implemented\n";
+	return std::vector<CJT::GeoObject>();
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDd1) << std::endl;
+	std::cout << "[WARNING] LoDd.1 processes are not yet implemented\n";
+	return std::vector<CJT::GeoObject>();
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd2(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	auto startTime = std::chrono::steady_clock::now();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDd2) << std::endl;
+	std::cout << "[WARNING] LoDd.2 processes are not yet implemented\n";
+	return std::vector<CJT::GeoObject>();
 }
 
 

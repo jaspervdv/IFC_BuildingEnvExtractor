@@ -2338,6 +2338,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces)
 {
+	if (planarFaces.empty()) { return {}; }
 	if (planarFaces.size() == 1) { return planarFaces; }
 
 	gp_Trsf transform;
