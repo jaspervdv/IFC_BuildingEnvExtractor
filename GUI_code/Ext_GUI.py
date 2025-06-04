@@ -568,15 +568,6 @@ toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=
                                             lod_settings.lod22.get()
                                        })
                                    ])
-toggle_makelod30 = ttk.Checkbutton(frame_lod_settings3,
-                                   text="LoD3.0",
-                                   variable=lod_settings.lod30
-                                   )
-
-toggle_makelod31 = ttk.Checkbutton(frame_lod_settings3,
-                                   text="LoD3.1",
-                                   variable=lod_settings.lod31
-                                   )
 
 toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoD3.2",
@@ -614,8 +605,6 @@ toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
-toggle_makelod30.pack(side=tkinter.LEFT)
-toggle_makelod31.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 

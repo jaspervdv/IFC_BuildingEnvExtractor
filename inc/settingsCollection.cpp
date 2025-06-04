@@ -225,8 +225,11 @@ void SettingsCollection::generateGeneralSettings()
 			!make12() &&
 			!make13() &&
 			!make22() &&
-			!make30() &&
-			!make31() &&
+			!makeb0() &&
+			!makec1() &&
+			!makec2() &&
+			!maked1() &&
+			!maked2() &&
 			!make32() &&
 			!makeV() &&
 			!summaryVoxels())
@@ -372,66 +375,81 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 		throw std::string(errorWarningStringEnum::getString(ErrorID::errorJsonInvalArray) + lodOutputOName);
 	}
 
-	for (const double& currentLoD : LoDContainer)
+	for (const auto& currentLoD : LoDContainer)
 	{
-		if (currentLoD == 0.0)
+		if (currentLoD == 0.0 || currentLoD == "0.0")
 		{
 			setMake00(true);
 			continue;
 		}
-		if (currentLoD == 0.2)
+		if (currentLoD == 0.2 || currentLoD == "0.2")
 		{
 			setMake02(true);
 			continue;
 		}
-		if (currentLoD == 0.3)
+		if (currentLoD == 0.3 || currentLoD == "0.3")
 		{
 			setMake03(true);
 			continue;
 		}
-		if (currentLoD == 0.4)
+		if (currentLoD == 0.4 || currentLoD == "0.4")
 		{
 			setMake04(true);
 			continue;
 		}
-		if (currentLoD == 1.0)
+		if (currentLoD == 1.0 || currentLoD == "1.0")
 		{
 			setMake10(true);
 			continue;
 		}
-		if (currentLoD == 1.2)
+		if (currentLoD == 1.2 || currentLoD == "1.2")
 		{
 			setMake12(true);
 			continue;
 		}
-		if (currentLoD == 1.3)
+		if (currentLoD == 1.3 || currentLoD == "1.3")
 		{
 			setMake13(true);
 			continue;
 		}
-		if (currentLoD == 2.2)
+		if (currentLoD == 2.2 || currentLoD == "2.2")
 		{
 			setMake22(true);
 			continue;
 		}
-		if (currentLoD == 3.0)
-		{
-			setMake30(true);
-			continue;
-		}
-		if (currentLoD == 3.1)
-		{
-			setMake31(true);
-			continue;
-		}
-		if (currentLoD == 3.2)
+		if (currentLoD == 3.2 || currentLoD == "3.2")
 		{
 			setMake32(true);
 			continue;
 		}
-		if (currentLoD == 5.0)
+		if (currentLoD == 5.0 || currentLoD == "5.0" || currentLoD == "v.0" || currentLoD == "V.0")
 		{
 			setMakeV(true);
+			continue;
+		}
+		if (currentLoD == "b.0" || currentLoD == "B.0")
+		{
+			setMakeb0(true);
+			continue;
+		}
+		if (currentLoD == "c.1" || currentLoD == "C.1")
+		{
+			setMakec1(true);
+			continue;
+		}
+		if (currentLoD == "c.2" || currentLoD == "C.2")
+		{
+			setMakec2(true);
+			continue;
+		}
+		if (currentLoD == "d.1" || currentLoD == "D.1")
+		{
+			setMaked1(true);
+			continue;
+		}
+		if (currentLoD == "d.2" || currentLoD == "D.2")
+		{
+			setMaked2(true);
 			continue;
 		}
 

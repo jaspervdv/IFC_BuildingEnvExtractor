@@ -114,7 +114,11 @@ ErrorCollection::ErrorCollection() {
 		{ErrorID::failedLoD12, ErrorObject("E0012", "LoD1.2 creation failed")},
 		{ErrorID::failedLoD13, ErrorObject("E0013", "LoD1.3 creation failed")},
 		{ErrorID::failedLoD22, ErrorObject("E0022", "LoD2.2 creation failed")},
-		{ErrorID::failedLoD30, ErrorObject("E0030", "LoD3.0 creation failed")},
+		{ErrorID::failedLoDb0, ErrorObject("E0040", "LoDb.0 creation failed")},
+		{ErrorID::failedLoDc1, ErrorObject("E0041", "LoDc.1 creation failed")},
+		{ErrorID::failedLoDc2, ErrorObject("E0042", "LoDc.2 creation failed")},
+		{ErrorID::failedLoDd1, ErrorObject("E0043", "LoDd.1 creation failed")},
+		{ErrorID::failedLoDd2, ErrorObject("E0044", "LoDd.2 creation failed")},
 		{ErrorID::failedLoD32, ErrorObject("E0032", "LoD3.2 creation failed")},
 		{ErrorID::failedLoD50, ErrorObject("E0042", "Voxel shape creation failed")},
 

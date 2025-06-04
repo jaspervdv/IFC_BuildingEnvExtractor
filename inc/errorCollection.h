@@ -77,7 +77,11 @@ enum class ErrorID {
 	failedLoD12, // LoD1.2 creation failed
 	failedLoD13, // LoD1.3 creation failed
 	failedLoD22, // LoD2.2 creation failed
-	failedLoD30, // LoD3.0 creation failed
+	failedLoDb0, // LoDb.0 creation failed
+	failedLoDc1, // LoDc.1 creation failed
+	failedLoDc2, // LoDc.2 creation failed
+	failedLoDd1, // LoDd.1 creation failed
+	failedLoDd2, // LoDd.2 creation failed
 	failedLoD32, // LoD3.2 creation failed
 	failedLoD50, // voxel creation failed
 

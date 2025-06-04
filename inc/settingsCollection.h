@@ -31,10 +31,15 @@ private:
 	bool make12_ = false;
 	bool make13_ = false;
 	bool make22_ = false;
-	bool make30_ = false;
-	bool make31_ = false;
 	bool make32_ = false;
-	bool makeV_ = false;
+	
+    // sets which experimental LoD envelopes are attampted to be created
+    bool makeV_ = false;
+    bool makeb0_ = false;
+    bool makec1_ = false;
+    bool makec2_ = false;
+    bool maked1_ = false;
+    bool maked2_ = false;
 
     bool makeSite_ = false;
 
@@ -197,17 +202,26 @@ public:
     bool make22() const { return make22_; }
     void setMake22(bool value) { make22_ = value; }
 
-    bool make30() const { return make30_; }
-    void setMake30(bool value) { make30_ = value; }
-
-    bool make31() const { return make31_; }
-    void setMake31(bool value) { make31_ = value; }
-
     bool make32() const { return make32_; }
     void setMake32(bool value) { make32_ = value; }
 
     bool makeV() const { return makeV_; }
     void setMakeV(bool value) { makeV_ = value; }
+
+    bool makeb0() const { return makeb0_; }
+    void setMakeb0(bool value) { makeb0_ = value; }
+
+    bool makec1() const { return makec1_; }
+    void setMakec1(bool value) { makec1_ = value; }
+
+    bool makec2() const { return makec2_; }
+    void setMakec2(bool value) { makec2_ = value; }   
+    
+    bool maked1() const { return maked1_; }
+    void setMaked1(bool value) { maked1_ = value; }    
+    
+    bool maked2() const { return maked2_; }
+    void setMaked2(bool value) { maked2_ = value; }    
 
     bool makeSite() const { return makeSite_; }
     void setMakeSite(bool value) { makeSite_ = value; }

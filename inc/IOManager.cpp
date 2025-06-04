@@ -302,8 +302,11 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
 	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
-	if (settingsCollection.make30()) { summaryString += ", 3.0"; }
-	if (settingsCollection.make31()) { summaryString += ", 3.1"; }
+	if (settingsCollection.makeb0()) { summaryString += ", b,0"; }
+	if (settingsCollection.makec1()) { summaryString += ", c.1"; }
+	if (settingsCollection.makec2()) { summaryString += ", c.2"; }
+	if (settingsCollection.maked1()) { summaryString += ", b.1"; }
+	if (settingsCollection.maked2()) { summaryString += ", b.2"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
 
@@ -339,11 +342,17 @@ nlohmann::json IOManager::settingsToJSON()
 	std::vector<std::string> LoDList;
 	if (settingsCollection.make00()) { LoDList.emplace_back("0.0"); }
 	if (settingsCollection.make02()) { LoDList.emplace_back("0.2"); }
+	if (settingsCollection.make03()) { LoDList.emplace_back("0.3"); }
+	if (settingsCollection.make04()) { LoDList.emplace_back("0.4"); }
 	if (settingsCollection.make10()) { LoDList.emplace_back("1.0"); }
 	if (settingsCollection.make12()) { LoDList.emplace_back("1.2"); }
 	if (settingsCollection.make13()) { LoDList.emplace_back("1.3"); }
 	if (settingsCollection.make22()) { LoDList.emplace_back("2.2"); }
-	if (settingsCollection.make30()) { LoDList.emplace_back("3.0"); }
+	if (settingsCollection.makeb0()) { LoDList.emplace_back("b.0"); }
+	if (settingsCollection.makec1()) { LoDList.emplace_back("c.1"); }
+	if (settingsCollection.makec2()) { LoDList.emplace_back("c.2"); }
+	if (settingsCollection.maked1()) { LoDList.emplace_back("d.1"); }
+	if (settingsCollection.maked2()) { LoDList.emplace_back("d.2"); }
 	if (settingsCollection.make32()) { LoDList.emplace_back("3.2"); }
 	if (settingsCollection.makeV()) { LoDList.emplace_back("5.0"); }
 
@@ -564,7 +573,7 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	
 	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || 
 		settingsCollection.footPrintBased() || 
-		settingsCollection.make30()
+		settingsCollection.makeb0()
 		)
 	{
 		try
@@ -594,13 +603,13 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD03(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD03_);
+			}, cityOuterShellObject, ErrorID::failedLoD03, timeLoD03_);
 	}
 	if (settingsCollection.make04())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD04(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD04_);
+			}, cityOuterShellObject, ErrorID::failedLoD04, timeLoD04_);
 	}
 	if (settingsCollection.make10())
 	{
@@ -618,25 +627,25 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD13(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD13_);
+			}, cityOuterShellObject, ErrorID::failedLoD13, timeLoD13_);
 	}
 	if (settingsCollection.make22())
 	{
 		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD22(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD22_);
+			}, cityOuterShellObject, ErrorID::failedLoD22, timeLoD22_);
 	}
-	if (settingsCollection.make30())
+	if (settingsCollection.makeb0())
 	{
 		processExternalLoD([&]() {
-			return std::vector<CJT::GeoObject>{geoCreator->makeLoD30(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD30_);
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDb0(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoDb0_);
 	}
-	if (settingsCollection.make31())
+	if (settingsCollection.makec1())
 	{
 		processExternalLoD([&]() {
-			return std::vector<CJT::GeoObject>{geoCreator->makeLoD31(internalDataManager_.get(), kernel, 1)};
-			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoD31_);
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDc1(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD12, timeLoDc1_);
 	}
 	if (settingsCollection.make32())
 	{
@@ -858,10 +867,13 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoD1.2 generation", timeLoD12_);
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);
 	addTimeToJSON(&timeReport, "LoD2.2 generation", timeLoD22_);
-	addTimeToJSON(&timeReport, "LoD3.0 generation", timeLoD30_);
-	addTimeToJSON(&timeReport, "LoD3.1 generation", timeLoD31_);
 	addTimeToJSON(&timeReport, "LoD3.2 generation", timeLoD32_);
 	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
+	addTimeToJSON(&timeReport, "LoDb.0 generation", timeLoDb0_);
+	addTimeToJSON(&timeReport, "LoDc.1 generation", timeLoDc1_);
+	addTimeToJSON(&timeReport, "LoDc.2 generation", timeLoDc2_);
+	addTimeToJSON(&timeReport, "LoDd.1 generation", timeLoDd1_);
+	addTimeToJSON(&timeReport, "LoDd.2 generation", timeLoDd2_);
 	addTimeToJSON(&timeReport, "Total Processing",
 		timeInternalizing_ +
 		timeVoxel_ +
@@ -873,8 +885,11 @@ bool IOManager::write(bool reportOnly)
 		timeLoD12_ +
 		timeLoD13_ +
 		timeLoD22_ +
-		timeLoD30_ +
-		timeLoD31_ +
+		timeLoDb0_ +
+		timeLoDc1_ +
+		timeLoDc2_ +
+		timeLoDd1_ +
+		timeLoDd2_ +
 		timeLoD32_ +
 		timeV_
 	);

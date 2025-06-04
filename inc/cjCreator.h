@@ -320,10 +320,10 @@ public:
 	std::vector< CJT::GeoObject> makeLoD13(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD2.2 objects
 	std::vector< CJT::GeoObject> makeLoD22(DataManager* h, CJT::Kernel* kernel, int unitScale);
-	/// generates a list of LoD3.0 objects
-	std::vector< CJT::GeoObject> makeLoD30(DataManager* h, CJT::Kernel* kernel, int unitScale);
-	/// generates a list of LoD3.0 objects
-	std::vector< CJT::GeoObject> makeLoD31(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDb.0 objects
+	std::vector< CJT::GeoObject> makeLoDb0(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDc.1 objects
+	std::vector< CJT::GeoObject> makeLoDc1(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);

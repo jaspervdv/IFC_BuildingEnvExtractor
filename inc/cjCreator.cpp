@@ -72,14 +72,17 @@ void CJGeoCreator::garbageCollection()
 	}
 
 	if (!settingsCollection.make22() && 
-		!settingsCollection.make30() && 
-		!settingsCollection.make31() &&
+		!settingsCollection.makeb0() && 
+		!settingsCollection.makec2() &&
+		!settingsCollection.maked2() &&
 		!LoD04RoofFaces_.empty())
 	{
 		std::vector< std::vector<TopoDS_Face>>().swap(LoD04RoofFaces_);
 	}
 
-	if (!settingsCollection.make31() && !LoD02Plates_.empty())
+	if (!settingsCollection.makec1() && 
+		!settingsCollection.maked1() &&
+		!LoD02Plates_.empty())
 	{
 		std::map<double, std::vector<TopoDS_Face>>().swap(LoD02Plates_);
 	}
@@ -3057,21 +3060,21 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 	return geoObjectList;
 }
 
-std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDb0(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD30) << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDb0) << std::endl;
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	if (!hasRoofOutlines()) {
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD3.0");
+		ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoDb.0");
 		return {};
 	}
 	if (!hasFootprints()) {
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoD3.0");
+		ErrorCollection::getInstance().addError(ErrorID::warningNoFootprint, "LoDb.0");
 		return {};
 	}
 
@@ -3117,7 +3120,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel*
 		TopoDS_Shape currentShape = prismList[i];
 		currentShape.Move(trsf);
 		shapeCopyCollection.emplace_back(currentShape);
-		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "3.0");
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "b.0");
 
 		createSemanticData(&geoObject, currentShape);
 		geoObjectList.emplace_back(geoObject);
@@ -3135,7 +3138,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel*
 		}
 		shapeCopyCollection.emplace_back(compound);
 
-		CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "3.0");
+		CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "b.0");
 		geoOverhangObject.appendSurfaceData(semanticRoofData);
 		for (size_t i = 0; i < overhangRoof.size(); i++)
 		{
@@ -3158,10 +3161,10 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD30(DataManager* h, CJT::Kernel*
 	return geoObjectList;
 }
 
-std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel* kernel, int unitScale)
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	auto startTime = std::chrono::steady_clock::now();
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD31) << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc1) << std::endl;
 
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3330,7 +3333,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD31(DataManager* h, CJT::Kernel*
 	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
 
 
-	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "3.1");
+	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "c.1");
 	createSemanticData(&geoObject, simplefiedShape);
 	geoObjectList.emplace_back(geoObject);
 
