@@ -18,15 +18,19 @@ Current possible output shells:
 * Lod0.0 - exterior only
 * Lod0.2 - exterior roof outline, footprint, interior stories and rooms
 * LoD0.3 - exterior roof structure and interior stories (WIP)
-* LoD0.4 - exterior roof structure (unofficial LoD)
+* LoD0.4 - exterior roof structure (unofficial LoDa, roof structure)
 * LoD1.0 - exterior only
 * LoD1.2 - exterior and rooms
 * LoD1.3 - exterior only
 * LoD2.2 - exterior and rooms
-* LoD3.0 - exterior (WIP) (hybrid between TUD 2.3 and 3.0)
-* LoD3.1 - exterior (WIP) (extruded LoD0.2 surfaces)
 * LoD3.2 - exterior and rooms (WIP)
 * LoD5.0 - exterior and interior rooms
+
+* LoDb.0 - exterior (WIP) (hybrid between TUD 2.3 and 3.0)
+* LoDc.1 - exterior (WIP) (extruded LoD0.2 surfaces)
+* LoDc.2 - exterior (planned) (extruded LoD0.2 surfaces with LoD0.4 roofs)
+* LoDb.1 - exterior (planned) (extruded LoD0.3 internal surfaces)
+* LoDb.2 - exterior (planned) (extruded LoD0.3 internal surfaces with LoD0.4 roofs)
 
 Current supported IFC versions:
 
@@ -313,8 +317,8 @@ Mandatory:
   * String
   * The output CityJSON filepath. Folder structure is required to be existing. The file name should end with .json or .city.json/
 * :white_check_mark: "LoD output" :white_check_mark:
-  * Array filled with floats/double, size 1 to ∞
-  * the desired LoD output. The options are 0.0, 0.2, 0.3, 1.0, 1.2, 1.3, 2.2, 3.0, 3.2 and 5.0 (for a voxel shape).
+  * Array filled with floats/double and/or string, size 1 to ∞
+  * the desired LoD output. The options are 0.0, 0.2, 0.3, 0.4, 1.0, 1.2, 1.3, 2.2, 3.2, 5.0 (for a voxel shape) b.0, c.1, c.2, d.1 and d.2.
 
 Optional:
 
