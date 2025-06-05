@@ -2419,24 +2419,29 @@ void CJGeoCreator::store2DStoreyData(DataManager* h, CJT::Kernel* kernel)
 
 	bool hasOutput = false;
 
-	if (settingsCollection.makec1() && !settingsCollection.make02() ||
-		settingsCollection.makec2() && !settingsCollection.make02())
+	if (settingsCollection.makec1() || settingsCollection.makec2())
 	{
-		storeyObjects = makeStoreyObjects(h);
-		make2DStoreys(h, kernel, storeyObjects, 1, false, false);
-		hasOutput = true;
-	}
-
-	if (settingsCollection.maked1() && !settingsCollection.make03() ||
-		settingsCollection.maked2() && !settingsCollection.make03())
-	{
-		if (storeyObjects.empty())
+		if (!settingsCollection.make02() || !settingsCollection.makeInterior())
 		{
 			storeyObjects = makeStoreyObjects(h);
+			make2DStoreys(h, kernel, storeyObjects, 1, false, false);
+			hasOutput = true;
 		}
-		make2DStoreys(h, kernel, storeyObjects, 1, true, false);
-		hasOutput = true;
 	}
+
+	if (settingsCollection.maked1() || settingsCollection.maked2())
+	{
+		if (!settingsCollection.make03() || !settingsCollection.makeInterior())
+		{
+			if (storeyObjects.empty())
+			{
+				storeyObjects = makeStoreyObjects(h);
+			}
+			make2DStoreys(h, kernel, storeyObjects, 1, true, false);
+			hasOutput = true;
+		}
+	}
+
 	if (hasOutput)
 	{
 		std::cout << "\n";
@@ -2509,7 +2514,7 @@ void CJGeoCreator::make2DStorey(
 				cleanStoreySurfaceList.emplace_back(cleanStoreySurface);
 			}
 			std::unique_lock<std::mutex> faceLock(storeyMutex);
-			LoD02Plates_.emplace(storeyElevation, cleanStoreySurfaceList);
+			LoD02Plates_.emplace(storeyElevation, cleanStoreySurfaceList); 
 			faceLock.unlock();
 		}
 	}
@@ -3207,12 +3212,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDb0(DataManager* h, CJT::Kernel*
 
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD30));
+		helperFunctions::writeToOBJ(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDb));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD30));
+		helperFunctions::writeToSTEP(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDb));
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3227,112 +3232,22 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	double precision = settingsCollection.precision();
-
-	if (LoD02Plates_.empty())
-	{
-		std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = makeStoreyObjects(h); //TODO: centralize this
-		make2DStoreys(h, kernel, storeyObjects, 1, false, false);
-	}
-
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
-	// get all the height data
-	std::vector<double> heightList;
-	heightList.reserve(LoD02Plates_.size());
-	for (const auto& [height, storeys] : LoD02Plates_)
-	{
-		heightList.emplace_back(height);
-	}
-
 	std::vector<TopoDS_Face> outerShapeFaces;
+	std::map<double, std::vector<TopoDS_Face>> horizontalStoreyFaces;
+	extrudeStoreyGeometry(h, outerShapeFaces, horizontalStoreyFaces);
+	
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> horizontalFaceIndex;
-	double topHeight = h->getUrrPoint().Z();
-	for (size_t i = 0; i < heightList.size(); i++)
+	for (const std::pair<double, std::vector<TopoDS_Face>>& currentFacePair : horizontalStoreyFaces)
 	{
-		double nextHeight = topHeight;
-		double currentHeight = heightList[i];
-		if (i + 1 != heightList.size())
+		for (const TopoDS_Face& currentFace : currentFacePair.second)
 		{
-			nextHeight = heightList[i + 1];
-		}
-		if (nextHeight < currentHeight)
-		{
-			continue;
-		}
-
-		std::vector<TopoDS_Face> currentStoreyFaceList = LoD02Plates_[currentHeight];
-		std::vector<TopoDS_Face> nextStoreyFaceList = LoD02Plates_[nextHeight];
-
-		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
-		{
-			// get the surface that is compliant with the current storey face and the face of the storey above it
-			if (helperFunctions::computeArea(currentStoryFace) < precisionCoarse) { continue; }
-
-			TopTools_ListOfShape toolList;
-			for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
-			{
-				toolList.Append(helperFunctions::projectFaceFlat(otherStoryFace, currentHeight));
-			}
-
-			TopTools_ListOfShape argumentList;
-			argumentList.Append(currentStoryFace);
-
-			BRepAlgoAPI_Splitter splitter;
-			splitter.SetFuzzyValue(precisionCoarse);
-			splitter.SetArguments(argumentList);
-			splitter.SetTools(toolList);
-			splitter.Build();
-
-			std::vector<TopoDS_Face> toBeExtrudedFaces;
-			for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
-			{
-				const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-
-				std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
-				if (optionalPoint == std::nullopt) { continue; }
-
-				for (const TopoDS_Shape& otherStoryFace : toolList)
-				{
-					if (!helperFunctions::pointOnShape(otherStoryFace, *optionalPoint))
-					{
-						continue;
-					}
-					toBeExtrudedFaces.emplace_back(currentFace);
-					break;
-				}
-
-			}
-
-			if (toBeExtrudedFaces.empty())
-			{
-				toBeExtrudedFaces = { currentStoryFace };
-			}
-
-			// extrude the surface and split to filter further
-			for (const TopoDS_Face currentFace : toBeExtrudedFaces)
-			{
-				TopoDS_Solid currentSolid = extrudeFace(currentFace, false, nextHeight);
-				if (currentSolid.IsNull())
-				{
-					//TODO: add error
-					continue;
-				}
-
-				for (TopExp_Explorer explorer(currentSolid, TopAbs_FACE); explorer.More(); explorer.Next())
-				{
-					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-					if (abs(helperFunctions::computeFaceNormal(currentFace).Z()) < settingsCollection.precisionCoarse())
-					{
-						outerShapeFaces.emplace_back(currentFace);
-						continue;
-					}
-					horizontalFaceIndex.insert(std::make_pair(helperFunctions::createBBox(currentFace), currentFace));
-				}
-			}
+			horizontalFaceIndex.insert(std::make_pair(helperFunctions::createBBox(currentFace), currentFace));
 		}
 	}
 
+	// split and filter out the repeating horizontal faces
 	for (const auto& [boundingBox, horizontalFace] : horizontalFaceIndex)
 	{
 		TopTools_ListOfShape fuseFaces;
@@ -3358,7 +3273,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 		for (TopExp_Explorer explorer(fuser.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			const TopoDS_Face& currentSplitFace = TopoDS::Face(explorer.Current());
-			std::optional<gp_Pnt> currentCenterPoint = helperFunctions::getPointOnFace(currentSplitFace);
+			TopoDS_Face tesselatedFace = helperFunctions::TessellateFace(currentSplitFace);
+			std::optional<gp_Pnt> currentCenterPoint = helperFunctions::getPointOnFace(tesselatedFace);
 
 			if (currentCenterPoint == std::nullopt) { continue; }
 
@@ -3376,7 +3292,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 			if (!found)
 			{
-				outerShapeFaces.emplace_back(currentSplitFace);
+				outerShapeFaces.emplace_back(tesselatedFace);
 			}
 		}
 	}
@@ -3396,12 +3312,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD31));
+		helperFunctions::writeToOBJ(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDc1));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD31));
+		helperFunctions::writeToSTEP(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDc1));
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -4329,6 +4245,103 @@ std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(D
 		}
 	}
 	return roomObjects;
+}
+
+void CJGeoCreator::extrudeStoreyGeometry(DataManager* h, std::vector<TopoDS_Face>& outVerticalextFaces, std::map<double, std::vector<TopoDS_Face>>& outHorizontalStoreyFaces)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double precision = settingsCollection.precision();
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
+	std::vector<double> heightList;
+	heightList.reserve(LoD02Plates_.size());
+	for (const auto& [height, storeys] : LoD02Plates_)
+	{
+		heightList.emplace_back(height);
+	}
+
+	double topHeight = h->getUrrPoint().Z();
+	for (size_t i = 0; i < LoD02Plates_.size(); i++)
+	{
+		double nextHeight = topHeight;
+		double currentHeight = heightList[i];
+		if (i + 1 != heightList.size())
+		{
+			nextHeight = heightList[i + 1];
+		}
+		if (nextHeight < currentHeight) { continue; }
+
+		std::vector<TopoDS_Face> currentStoreyFaceList = LoD02Plates_[currentHeight];
+		std::vector<TopoDS_Face> nextStoreyFaceList = LoD02Plates_[nextHeight];
+
+		std::vector<TopoDS_Face> horizontalFaces;
+		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
+		{
+			// get the surface that is compliant with the current storey face and the face of the storey above it
+			if (helperFunctions::computeArea(currentStoryFace) < precisionCoarse) { continue; }
+
+			TopTools_ListOfShape toolList;
+			for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
+			{
+				toolList.Append(helperFunctions::projectFaceFlat(otherStoryFace, currentHeight));
+			}
+
+			TopTools_ListOfShape argumentList;
+			argumentList.Append(currentStoryFace);
+
+			BRepAlgoAPI_Splitter splitter;
+			splitter.SetFuzzyValue(precisionCoarse);
+			splitter.SetArguments(argumentList);
+			splitter.SetTools(toolList);
+			splitter.Build();
+
+			std::vector<TopoDS_Face> toBeExtrudedFaces;
+			for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
+			{
+				const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+				std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+				if (optionalPoint == std::nullopt) { continue; }
+
+				for (const TopoDS_Shape& otherStoryFace : toolList)
+				{
+					if (!helperFunctions::pointOnShape(otherStoryFace, *optionalPoint)) { continue; }
+					toBeExtrudedFaces.emplace_back(currentFace);
+					break;
+				}
+			}
+
+			if (toBeExtrudedFaces.empty())
+			{
+				toBeExtrudedFaces = { currentStoryFace };
+			}
+
+			// extrude the surface and split to filter further
+			for (const TopoDS_Face currentFace : toBeExtrudedFaces)
+			{
+				TopoDS_Solid currentSolid = extrudeFace(currentFace, false, nextHeight);
+				if (currentSolid.IsNull())
+				{
+					//TODO: add error
+					continue;
+				}
+
+				for (TopExp_Explorer explorer(currentSolid, TopAbs_FACE); explorer.More(); explorer.Next())
+				{
+					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+					TopoDS_Face tesselatedFace = helperFunctions::TessellateFace(currentFace);
+					if (abs(helperFunctions::computeFaceNormal(tesselatedFace).Z()) < settingsCollection.precisionCoarse())
+					{
+						outVerticalextFaces.emplace_back(currentFace);
+						continue;
+					}
+					horizontalFaces.emplace_back(tesselatedFace);
+				}
+			}
+		}
+		outHorizontalStoreyFaces[currentHeight] = horizontalFaces;
+	}
+	return;
 }
 
 

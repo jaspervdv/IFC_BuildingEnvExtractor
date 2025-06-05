@@ -147,8 +147,8 @@ enum class fileExtensionID {
 	OBJLoD12,
 	OBJLoD13,
 	OBJLoD22,
-	OBJLoD30,
-	OBJLoD31,
+	OBJLoDb,
+	OBJLoDc1,
 	OBJLoD32,
 	OBJLoD50,
 
@@ -160,8 +160,8 @@ enum class fileExtensionID {
 	STEPLoD12,
 	STEPLoD13,
 	STEPLoD22,
-	STEPLoD30,
-	STEPLoD31,
+	STEPLoDb,
+	STEPLoDc1,
 	STEPLoD32,
 	STEPLoD50,
 

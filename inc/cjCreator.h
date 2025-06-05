@@ -284,6 +284,9 @@ private:
 	// fetches the room related data from the ifc model
 	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
 
+	// extruded storey code
+	void extrudeStoreyGeometry(DataManager* h, std::vector<TopoDS_Face>& outVerticalextFaces, std::map<double, std::vector<TopoDS_Face>>& outHorizontalStoreyFaces);
+
 public:
 	explicit CJGeoCreator(DataManager* h, double vSize);
 
