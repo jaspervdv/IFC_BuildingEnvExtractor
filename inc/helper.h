@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -147,6 +147,10 @@ struct helperFunctions{
 	static gp_Pnt getLastPointShape(const TopoDS_Shape& shape);
 	/// check if point is on shape
 	static bool pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& thePoint, double precision = 0.0);
+	/// check if point is on face
+	static bool pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision = 0.0);
+	/// check if point is on face
+	static bool pointOnFace(const std::vector<TopoDS_Face>& theFace, const gp_Pnt& thePoint, double precision = 0.0);
 	/// check if point is on edge
 	static bool pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint);
 	/// check if point is on edge
@@ -326,8 +330,10 @@ struct helperFunctions{
 	static bool isSame(const bg::model::box <BoostPoint3D>& bboxL, const bg::model::box <BoostPoint3D>& bboxR);
 	/// checks if two face have the same geo
 	static bool isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR);
-	/// returns list where dubs have been removed
+	/// returns list of unique faces where dubs have been removed
 	static std::vector<TopoDS_Face> removeDubFaces(const std::vector<TopoDS_Face>& inputFaceList, bool fullProcessing = false);
+	/// returns list of the non repeating surfaces in aa list
+	static std::vector<TopoDS_Face> getUniqueFaces(const std::vector<TopoDS_Face>& inputFaceList);
 	/// returns a square face with the characteristics of the input plane
 	static TopoDS_Face plane2Face(const Handle(Geom_Plane)& geoPlane, const double& planeSize);
 

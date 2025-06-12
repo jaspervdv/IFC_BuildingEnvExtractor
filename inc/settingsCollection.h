@@ -40,6 +40,8 @@ private:
     bool makec2_ = false;
     bool maked1_ = false;
     bool maked2_ = false;
+    bool makee0_ = false;
+    bool makee1_ = false;
 
     bool makeSite_ = false;
 
@@ -221,7 +223,13 @@ public:
     void setMaked1(bool value) { maked1_ = value; }    
     
     bool maked2() const { return maked2_; }
-    void setMaked2(bool value) { maked2_ = value; }    
+    void setMaked2(bool value) { maked2_ = value; }
+
+    bool makee0() const { return makee0_; }
+    void setMakee0(bool value) { makee0_ = value; }
+
+    bool makee1() const { return makee1_; }
+    void setMakee1(bool value) { makee1_ = value; }
 
     bool makeSite() const { return makeSite_; }
     void setMakeSite(bool value) { makeSite_ = value; }

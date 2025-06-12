@@ -776,37 +776,56 @@ bool helperFunctions::pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& theP
 	for (TopExp_Explorer faceExpl(shape, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
 	{
 		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-		
-		TopLoc_Location loc;
-		auto mesh = BRep_Tool::Triangulation(currentFace, loc);
+		if (pointOnFace(currentFace, thePoint, precision)) { return true; }
+	}
+	return false;
+}
 
-		if (mesh.IsNull())
+bool helperFunctions::pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision)
+{
+	if (precision == 0.0) { precision = SettingsCollection::getInstance().precision(); }
+
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
+
+	if (mesh.IsNull())
+	{
+		helperFunctions::triangulateShape(theFace);
+		mesh = BRep_Tool::Triangulation(theFace, loc);
+	}
+	if (mesh.IsNull()) { return false; }
+
+	for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		double baseArea = computeArea(p1, p2, p3);
+
+		double area1 = computeArea(thePoint, p1, p2);
+		if (area1 - baseArea > precision) { continue; }
+
+		double area2 = computeArea(thePoint, p1, p3);
+		if (area2 - baseArea > precision) { continue; }
+
+		double area3 = computeArea(thePoint, p2, p3);
+		if (area3 - baseArea > precision) { continue; }
+
+		if (abs(baseArea - (area1 + area2 + area3)) > precision * baseArea) { continue; }
+		return true;
+	}
+	return false;
+}
+
+bool helperFunctions::pointOnFace(const std::vector<TopoDS_Face>& theFace, const gp_Pnt& thePoint, double precision)
+{
+	for (const TopoDS_Face& currentFace : theFace)
+	{
+		if (pointOnFace(currentFace, thePoint, precision))
 		{
-			helperFunctions::triangulateShape(currentFace);
-			mesh = BRep_Tool::Triangulation(currentFace, loc);
-		}
-		if (mesh.IsNull()) { continue; }
-
-		for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
-		{
-			const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
-			gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-			gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-			gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
-
-			double baseArea = computeArea(p1, p2, p3);
-
-			double area1 = computeArea(thePoint, p1, p2);
-			if (area1 - baseArea > precision) { continue; }
-
-			double area2 = computeArea(thePoint, p1, p3);
-			if (area2 - baseArea > precision) { continue; }
-
-			double area3 = computeArea(thePoint, p2, p3);
-			if (area3 - baseArea > precision) { continue; }
-
-			if (abs(baseArea - (area1 + area2 + area3)) > precision * baseArea ) { continue; }
 			return true;
 		}
 	}
@@ -2541,16 +2560,21 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 		IfcSchema::IfcPropertySetDefinition* propertyDef = relDefItem->RelatingPropertyDefinition();
 #endif
 		if (propertyDef == nullptr) { continue; }
-
 		if (propertyDef->data().type()->name() != "IfcPropertySet") { continue; }
 		IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
 		IfcSchema::IfcProperty::list::ptr propertyList = propertySet->HasProperties();
+
 		for (auto propertyIt = propertyList->begin(); propertyIt != propertyList->end(); propertyIt++)
 		{
 			if (*propertyIt == nullptr) { continue; }
-			IfcSchema::IfcPropertySingleValue* propertyItem = (*propertyIt)->as<IfcSchema::IfcPropertySingleValue>();
 
-			IfcSchema::IfcValue* ifcValue = propertyItem->NominalValue();
+			if ((*propertyIt)->data().type()->name() != "IfcPropertySingleValue") //TODO: implement IfcPropertyEnumeratedValue
+			{
+				continue;
+			}
+
+			IfcSchema::IfcPropertySingleValue* propertyItem = (*propertyIt)->as<IfcSchema::IfcPropertySingleValue>();
+			IfcSchema::IfcValue* ifcValue = ifcValue = propertyItem->NominalValue();
 			if (ifcValue == nullptr) { continue; }
 
 			std::string propertyIdName = ifcValue->data().type()->name();
@@ -3119,7 +3143,8 @@ bool helperFunctions::isSame(const bg::model::box<BoostPoint3D>& bboxL, const bg
 bool helperFunctions::isSame(const TopoDS_Face& faceL, const TopoDS_Face& faceR)
 {
 	double precision = SettingsCollection::getInstance().precision();
-	if (abs(computeArea(faceL) - computeArea(faceR)) > precision)
+	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+	if (abs(computeArea(faceL) - computeArea(faceR)) > precisionCoarse)
 	{
 		return false;
 	}
@@ -3242,6 +3267,43 @@ std::vector<TopoDS_Face> helperFunctions::removeDubFaces(const std::vector<TopoD
 		filteredFaceList.emplace_back(currentFace);
 	}
 	return filteredFaceList;
+}
+
+std::vector<TopoDS_Face> helperFunctions::getUniqueFaces(const std::vector<TopoDS_Face>& inputFaceList)
+{
+	std::vector<TopoDS_Face> cleanedFaceList;
+	double precision = SettingsCollection::getInstance().precisionCoarse();
+	bgi::rtree<Value, bgi::rstar<25>> spatialIndex;
+	for (const TopoDS_Face& currentFace : inputFaceList)
+	{
+		if (computeArea(currentFace) < precision) { continue; }
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		spatialIndex.insert(std::make_pair(bbox, spatialIndex.size()));
+	}
+
+	for (const TopoDS_Face& currentFace : inputFaceList)
+	{
+		std::vector<Value> qResult;
+		qResult.clear();
+		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentFace);
+		spatialIndex.query(bgi::intersects(
+			bbox), std::back_inserter(qResult));
+
+		bool isDub = false;
+		for (const auto& [otherBox, faceIndx] : qResult)
+		{
+			const TopoDS_Face& otherFace = inputFaceList[faceIndx];;
+			if (currentFace.IsSame(otherFace)) { continue; }
+			if (!isSame(currentFace, otherFace)) { continue; }
+			isDub = true;
+			break;
+
+		}
+		if (isDub) { continue; }
+		cleanedFaceList.emplace_back(currentFace);
+
+	}
+	return cleanedFaceList;
 }
 
 TopoDS_Face helperFunctions::plane2Face(const Handle(Geom_Plane)& geoPlane, const double& planeSize)

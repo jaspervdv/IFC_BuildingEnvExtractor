@@ -19,8 +19,7 @@ class LoDSettings:
         self.lod12 = tkinter.IntVar(value=1)
         self.lod13 = tkinter.IntVar(value=1)
         self.lod22 = tkinter.IntVar(value=1)
-        self.lod30 = tkinter.IntVar(value=0)
-        self.lod31 = tkinter.IntVar(value=0)
+        self.lod32r = tkinter.IntVar(value=0)
         self.lod32 = tkinter.IntVar(value=0)
         self.lod50 = tkinter.IntVar(value=0)
 
@@ -28,7 +27,7 @@ class LoDSettings:
         return any(lod.get() for lod in [
             self.lod00, self.lod02, self.lod03, self.lod04,
             self.lod10, self.lod12, self.lod13, self.lod22,
-            self.lod30, self.lod31, self.lod32, self.lod50
+            self.lod32r, self.lod32, self.lod50
         ])
 
 class FootprintSettings:
@@ -113,15 +112,48 @@ def toggleEnableDiv(widget, default_toggle, proxy_toggle, default_bool, proxy_bo
 
     return
 
+def toggleMakeInterior(interior_widget):
+    # the relevant bools:
+    rel_lod = {lod_settings.lod02.get(),
+                    lod_settings.lod03.get(),
+                    lod_settings.lod12.get(),
+                    lod_settings.lod22.get(),
+                    lod_settings.lod32.get(),
+                    lod_settings.lod50.get()}
 
-def toggleEnableEntry(entry_widget, additional_bool_list):
-    for additional_bool in additional_bool_list:
-        if  additional_bool:
-            entry_widget['state'] = tkinter.NORMAL
-            return
-    entry_widget['state'] = tkinter.DISABLED
-    return
+    if any ( b == True for b in rel_lod):
+        interior_widget['state'] = tkinter.NORMAL
+    else:
+        interior_widget['state'] = tkinter.DISABLED
 
+
+def toggleMakeFootprint(footprint_widges):
+    # the relevant bools:
+    rel_lod = {lod_settings.lod02.get()}
+
+    if any ( b == True for b in rel_lod):
+        footprint_widges['state'] = tkinter.NORMAL
+    else:
+        footprint_widges['state'] = tkinter.DISABLED
+
+def toggleMakeRoofOutline(roofPrint_widges):
+    # the relevant bools:
+    rel_lod = {lod_settings.lod02.get()}
+
+    if any ( b == True for b in rel_lod):
+        roofPrint_widges['state'] = tkinter.NORMAL
+    else:
+        roofPrint_widges['state'] = tkinter.DISABLED
+def toggleMakeFootprintBased(footprint_widges):
+    # the relevant bools:
+    rel_lod = {lod_settings.lod12.get(),
+                    lod_settings.lod13.get(),
+                    lod_settings.lod22.get()}
+
+    if any ( b == True for b in rel_lod):
+        footprint_widges['state'] = tkinter.NORMAL
+    else:
+        footprint_widges['state'] = tkinter.DISABLED
 
 def runCode(input_path,
             output_path,
@@ -241,10 +273,8 @@ def runCode(input_path,
     if (lod_settings.lod22).get():
         lod_list.append(2.2)
         json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
-    if (lod_settings.lod30.get()):
-        lod_list.append(3.0)
-    if (lod_settings.lod31.get()):
-        lod_list.append(3.1)
+    if (lod_settings.lod32r.get()):
+        lod_list.append("e.1")
     if (lod_settings.lod32.get()):
         lod_list.append(3.2)
     if (lod_settings.lod50.get()):
@@ -496,105 +526,87 @@ frame_lod_settings2.pack()
 frame_lod_settings3 = tkinter.Frame(frame_lod_settings_gen)
 frame_lod_settings3.pack()
 
-toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=lod_settings.lod00)
-toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1,
-                                   text="LoD0.2",
-                                   variable=lod_settings.lod02,
-                                   command= lambda : [toggleEnableEntry(toggle_makefootprint, {lod_settings.lod02.get()}),
-                                                      toggleEnableEntry(toggle_makeroofprint, {lod_settings.lod02.get()}),
-                                                      toggleEnableEntry(toggle_makeinterior, {
-                                                          lod_settings.lod02.get(),
-                                                          lod_settings.lod03.get(),
-                                                          lod_settings.lod12.get(),
-                                                          lod_settings.lod22.get(),
-                                                          lod_settings.lod32.get(),
-                                                          lod_settings.lod50.get()
-                                                      })]
-                                   )
+toggle_makelod00 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.0", variable=lod_settings.lod00,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
+toggle_makelod02 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.2", variable=lod_settings.lod02,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
 toggle_makelod03 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.3", variable=lod_settings.lod03,
                                    command=lambda: [
-                                       toggleEnableEntry(toggle_makeinterior, {
-                                           lod_settings.lod02.get(),
-                                           lod_settings.lod03.get(),
-                                           lod_settings.lod12.get(),
-                                           lod_settings.lod22.get(),
-                                           lod_settings.lod32.get(),
-                                           lod_settings.lod50.get()
-                                       })
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
 toggle_makelod04 = ttk.Checkbutton(frame_lod_settings1, text="LoD0.4", variable=lod_settings.lod04,
-                                   command=lambda: [])
-toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=lod_settings.lod10)
-toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2,
-                                   text="LoD1.2",
-                                   variable=lod_settings.lod12,
                                    command=lambda: [
-                                       toggleEnableEntry(toggle_makeinterior, {
-                                           lod_settings.lod02.get(),
-                                           lod_settings.lod03.get(),
-                                           lod_settings.lod12.get(),
-                                           lod_settings.lod22.get(),
-                                           lod_settings.lod32.get(),
-                                           lod_settings.lod50.get()
-                                       }),
-                                       toggleEnableEntry(toggle_footprint, {
-                                            lod_settings.lod12.get(),
-                                            lod_settings.lod13.get(),
-                                            lod_settings.lod22.get()
-                                       })
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
 
+toggle_makelod10 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.0", variable=lod_settings.lod10,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
+toggle_makelod12 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.2", variable=lod_settings.lod12,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
 toggle_makelod13 = ttk.Checkbutton(frame_lod_settings2, text="LoD1.3", variable=lod_settings.lod13,
-                                   command=lambda: [ toggleEnableEntry(toggle_footprint, {
-                                            lod_settings.lod12.get(),
-                                            lod_settings.lod13.get(),
-                                            lod_settings.lod22.get()
-                                       })
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
-
 toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=lod_settings.lod22,
                                    command=lambda: [
-                                       toggleEnableEntry(toggle_makeinterior, {
-                                           lod_settings.lod02.get(),
-                                           lod_settings.lod03.get(),
-                                           lod_settings.lod12.get(),
-                                           lod_settings.lod22.get(),
-                                           lod_settings.lod32.get(),
-                                           lod_settings.lod50.get()
-                                       }),
-                                       toggleEnableEntry(toggle_footprint, {
-                                            lod_settings.lod12.get(),
-                                            lod_settings.lod13.get(),
-                                            lod_settings.lod22.get()
-                                       })
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
 
-toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3,
-                                   text="LoD3.2",
-                                   variable=lod_settings.lod32,
+toggle_makelode1 = ttk.Checkbutton(frame_lod_settings3, text="LoDe.1",  variable=lod_settings.lod32r,
                                    command=lambda: [
-                                       toggleEnableEntry(toggle_makeinterior, {
-                                           lod_settings.lod02.get(),
-                                           lod_settings.lod03.get(),
-                                           lod_settings.lod12.get(),
-                                           lod_settings.lod22.get(),
-                                           lod_settings.lod32.get(),
-                                           lod_settings.lod50.get()
-                                       })
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
 
+toggle_makelod32 = ttk.Checkbutton(frame_lod_settings3, text="LoD3.2", variable=lod_settings.lod32,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
 toggle_makelod50 = ttk.Checkbutton(frame_lod_settings3,
                                    text="LoDV.0",
                                    variable=lod_settings.lod50,
                                    command=lambda: [
-                                       toggleEnableEntry(toggle_makeinterior, {
-                                           lod_settings.lod02.get(),
-                                           lod_settings.lod03.get(),
-                                           lod_settings.lod12.get(),
-                                           lod_settings.lod22.get(),
-                                           lod_settings.lod32.get(),
-                                           lod_settings.lod50.get()
-                                       })
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
                                    ])
 
 toggle_makelod00.pack(side=tkinter.LEFT)
@@ -605,6 +617,7 @@ toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
+toggle_makelode1.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
 
@@ -639,14 +652,14 @@ toggle_makeexterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate ex
 toggle_makeinterior = ttk.Checkbutton(frame_lod_settings_foot, text="Generate interiors", variable=other_settings.make_interior)
 toggle_makefootprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export footprint", variable=footprint_settings.make_footprint)
 toggle_makeroofprint = ttk.Checkbutton(frame_lod_settings_foot, text="Export roof outline", variable=footprint_settings.make_roofprint)
-toggle_footprint = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction", variable=footprint_settings.footprint_based)
+toggle_footprint_based = ttk.Checkbutton(frame_lod_settings_foot, text="Footprint based abstraction", variable=footprint_settings.footprint_based)
 toggle_summaryvoxel = ttk.Checkbutton(frame_lod_settings_foot, text="Approximate areas and volumes", variable=other_settings.summary_voxels)
 
 toggle_makeexterior.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeinterior.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makefootprint.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_makeroofprint.pack(side=tkinter.TOP, fill=tkinter.X)
-toggle_footprint.pack(side=tkinter.TOP, fill=tkinter.X)
+toggle_footprint_based.pack(side=tkinter.TOP, fill=tkinter.X)
 toggle_summaryvoxel.pack(side=tkinter.TOP, fill=tkinter.X)
 
 separator2 = ttk.Separator(main_window, orient='horizontal')
@@ -797,10 +810,10 @@ Tooltip(toggle_make_step, "If active output is copied to .STEP (ISO 10303) file(
 
 Tooltip(toggle_makefootprint, "If active a footprint will be created at the footprint elevation (lod0.2 only)")
 Tooltip(toggle_makeroofprint, "If active a roof outline will be created (lod0.2 only)")
-Tooltip(toggle_footprint, "If active the footprint will be used to restrict the output (LoD1.2, 1.3 & 2.2)")
+Tooltip(toggle_footprint_based, "If active the footprint will be used to restrict the output (LoD1.2, 1.3 & 2.2)")
 Tooltip(toggle_makeexterior, "If active exterior shells will be stored")
-Tooltip(toggle_makeinterior, "If active spaces will be stored (Lod0.2, 1.2, 2.2, 3.2 & 3.2) and storey "
-                             "objects will be created (loD0.2 only)")
+Tooltip(toggle_makeinterior, "If active spaces will be stored (Lod0.2, 1.2, 2.2, 3.2 & voxels) and storey "
+                             "objects will be created (loD0.2 and 0.3 )")
 Tooltip(toggle_summaryvoxel, "If active volumes and areas of the shells, storey and spaces are approximated using the voxel grid")
 
 Tooltip(entry_voxelsize, "Voxel size to be used for the analysis")

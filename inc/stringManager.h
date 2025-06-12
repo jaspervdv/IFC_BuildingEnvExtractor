@@ -96,6 +96,7 @@ enum class CommunicationStringID {
 	infoComputingLoDc2,
 	infoComputingLoDd1,
 	infoComputingLoDd2,
+	infoComputingLoDe1,
 	infoComputingLoD32,
 	infoComputingLoD50,
 
@@ -149,6 +150,7 @@ enum class fileExtensionID {
 	OBJLoD22,
 	OBJLoDb,
 	OBJLoDc1,
+	OBJLoDe1,
 	OBJLoD32,
 	OBJLoD50,
 
@@ -162,6 +164,7 @@ enum class fileExtensionID {
 	STEPLoD22,
 	STEPLoDb,
 	STEPLoDc1,
+	STEPLoDe1,
 	STEPLoD32,
 	STEPLoD50,
 

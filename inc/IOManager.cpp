@@ -307,6 +307,7 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.makec2()) { summaryString += ", c.2"; }
 	if (settingsCollection.maked1()) { summaryString += ", b.1"; }
 	if (settingsCollection.maked2()) { summaryString += ", b.2"; }
+	if (settingsCollection.makee1()) { summaryString += ", e.1"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
 
@@ -353,6 +354,7 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.makec2()) { LoDList.emplace_back("c.2"); }
 	if (settingsCollection.maked1()) { LoDList.emplace_back("d.1"); }
 	if (settingsCollection.maked2()) { LoDList.emplace_back("d.2"); }
+	if (settingsCollection.makee1()) { LoDList.emplace_back("e.1"); }
 	if (settingsCollection.make32()) { LoDList.emplace_back("3.2"); }
 	if (settingsCollection.makeV()) { LoDList.emplace_back("5.0"); }
 
@@ -668,9 +670,9 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoDd2(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoDd2, timeLoDd2_);
 	}
-	if (settingsCollection.make32())
+	if (settingsCollection.make32() || settingsCollection.makee1())
 	{
-		processExternalLoD([&]() {
+		processExternalLoD([&]() { //TODO: split e1 and 32
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD32(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoD32, timeLoD32_);
 	}
@@ -888,7 +890,7 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoD1.2 generation", timeLoD12_);
 	addTimeToJSON(&timeReport, "LoD1.3 generation", timeLoD13_);
 	addTimeToJSON(&timeReport, "LoD2.2 generation", timeLoD22_);
-	addTimeToJSON(&timeReport, "LoD3.2 generation", timeLoD32_);
+	addTimeToJSON(&timeReport, "LoDe.1/3.2 generation", timeLoD32_);
 	addTimeToJSON(&timeReport, "LoD5.0 (V) generation", timeV_);
 	addTimeToJSON(&timeReport, "LoDb.0 generation", timeLoDb0_);
 	addTimeToJSON(&timeReport, "LoDc.1 generation", timeLoDc1_);

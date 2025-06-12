@@ -231,6 +231,7 @@ void SettingsCollection::generateGeneralSettings()
 			!maked1() &&
 			!maked2() &&
 			!make32() &&
+			!makee1() &&
 			!makeV() &&
 			!summaryVoxels())
 		{
@@ -238,7 +239,9 @@ void SettingsCollection::generateGeneralSettings()
 		}
 	}
 
-	if (!make32() && !makeV() && !summaryVoxels())
+	if (!make32() && !makeV() && !summaryVoxels() &&
+		!makec1() && !makec2() && !maked1() && !maked2() &&
+		!makee1())
 	{
 		if (!makeFootPrint() && !makeInterior() && !footPrintBased())
 		{
@@ -452,6 +455,16 @@ void SettingsCollection::setLoD(const nlohmann::json& json)
 			setMaked2(true);
 			continue;
 		}
+		if (currentLoD == "e.0" || currentLoD == "E.0")
+		{
+			setMakee0(true);
+			continue;
+		}
+		if (currentLoD == "e.1" || currentLoD == "E.1")
+		{
+			setMakee1(true);
+			continue;
+		}
 
 		//if this is reached an unexpected value has been encountered
 		std::stringstream lodStringStream;
@@ -491,7 +504,9 @@ void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 		!make04() &&
 		!make12() &&
 		!make13() &&
-		!make22() 
+		!make22() &&
+		!makec2() &&
+		!maked2()
 		)
 	{
 		return;

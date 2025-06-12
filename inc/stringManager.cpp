@@ -131,6 +131,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD d.1 Model";
 	case CommunicationStringID::infoComputingLoDd2:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD d.2 Model";
+	case CommunicationStringID::infoComputingLoDe1:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD e.1 Model";
 	case CommunicationStringID::infoComputingLoD32:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 3.2 Model";
 	case CommunicationStringID::infoComputingLoD50:
@@ -441,7 +443,9 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 	case fileExtensionID::OBJLoDb:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDb" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoDc1:
-		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::OBJ);
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::OBJ);	
+	case fileExtensionID::OBJLoDe1:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoD32:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD32" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoD50:
@@ -467,6 +471,8 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDb" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoDc1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoDe1:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoD32:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoD32" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoD50:

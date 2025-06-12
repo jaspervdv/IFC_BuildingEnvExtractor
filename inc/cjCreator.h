@@ -287,6 +287,8 @@ private:
 	// extruded storey code
 	void extrudeStoreyGeometry(DataManager* h, std::vector<TopoDS_Face>& outVerticalextFaces, std::map<double, std::vector<TopoDS_Face>>& outHorizontalStoreyFaces);
 
+	std::vector<TopoDS_Face> TrimHStoreyFaces(const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>>& horizontalFaceIndex);
+
 public:
 	explicit CJGeoCreator(DataManager* h, double vSize);
 
