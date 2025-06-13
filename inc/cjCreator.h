@@ -140,7 +140,7 @@ private:
 
 	void makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataManager* h, double sectionHeight);
 
-	void makeFloorSectionComplex(std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
+	void makeFloorSectionComplex(bool horizontalSection, std::vector<TopoDS_Face>& intFacesOut, std::vector<TopoDS_Face>& extFacesOut, DataManager* h, double sectionHeight, const std::vector<IfcSchema::IfcBuildingStorey*>& buildingStoreyObjectList);
 
 	//eliminates the inner voids of a face based on the voxelgrid
 	TopoDS_Face eleminateInnerVoids(const TopoDS_Face& theFace);
@@ -285,7 +285,14 @@ private:
 	std::vector < std::shared_ptr<CJT::CityObject >> fetchRoomObject(DataManager* h, const std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int roomNum);
 
 	// extruded storey code
-	void extrudeStoreyGeometry(DataManager* h, std::vector<TopoDS_Face>& outVerticalextFaces, std::map<double, std::vector<TopoDS_Face>>& outHorizontalStoreyFaces);
+	void extrudeStoreyGeometry(
+		bool refine,
+		bool useTopHeight,
+		DataManager* h, 
+		const std::map<double, std::vector<TopoDS_Face>>& inHorizontalStoreyPlates, 
+		std::vector<TopoDS_Face>& outVerticalextFaces, 
+		std::map<double, std::vector<TopoDS_Face>>& outHorizontalStoreyFaces
+	);
 
 	std::vector<TopoDS_Face> TrimHStoreyFaces(const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>>& horizontalFaceIndex);
 

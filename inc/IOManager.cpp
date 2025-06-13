@@ -302,11 +302,11 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.make12()) { summaryString += ", 1.2"; }
 	if (settingsCollection.make13()) { summaryString += ", 1.3"; }
 	if (settingsCollection.make22()) { summaryString += ", 2.2"; }
-	if (settingsCollection.makeb0()) { summaryString += ", b,0"; }
+	if (settingsCollection.makeb0()) { summaryString += ", b.0"; }
 	if (settingsCollection.makec1()) { summaryString += ", c.1"; }
 	if (settingsCollection.makec2()) { summaryString += ", c.2"; }
-	if (settingsCollection.maked1()) { summaryString += ", b.1"; }
-	if (settingsCollection.maked2()) { summaryString += ", b.2"; }
+	if (settingsCollection.maked1()) { summaryString += ", d.1"; }
+	if (settingsCollection.maked2()) { summaryString += ", d.2"; }
 	if (settingsCollection.makee1()) { summaryString += ", e.1"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }

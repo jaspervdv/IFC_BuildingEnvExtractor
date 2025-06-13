@@ -444,6 +444,8 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDb" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoDc1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::OBJ);	
+	case fileExtensionID::OBJLoDd1:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDd1" + getString(fileExtensionID::OBJ);	
 	case fileExtensionID::OBJLoDe1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoD32:
@@ -471,6 +473,8 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDb" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoDc1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoDd1:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDd1" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoDe1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoD32:
