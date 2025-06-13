@@ -3299,7 +3299,6 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 	std::vector<TopoDS_Face> outerShapeFaces;
 	std::map<double, std::vector<TopoDS_Face>> horizontalStoreyFaces;
 	extrudeStoreyGeometry(true, true, h, LoD02Plates_, outerShapeFaces, horizontalStoreyFaces);
-
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> horizontalFaceIndex;
 	for (const std::pair<double, std::vector<TopoDS_Face>>& currentFacePair : horizontalStoreyFaces)
 	{
@@ -3562,7 +3561,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 	{
 		helperFunctions::writeToSTEP(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDb));
 	}
-
+	printTime(startTime, std::chrono::steady_clock::now());
 	return geoObjectList;
 }
 
@@ -4602,19 +4601,24 @@ void CJGeoCreator::extrudeStoreyGeometry(
 		topHeight = heightList.back();
 	}
 
+
 	for (size_t i = 0; i < heightList.size(); i++)
 	{
 		double nextHeight = topHeight;
 		double currentHeight = heightList[i];
+
+		std::vector<TopoDS_Face> currentStoreyFaceList = inHorizontalStoreyPlates.at(currentHeight);
+		std::vector<TopoDS_Face> nextStoreyFaceList;
+
 		if (i + 1 != heightList.size())
 		{
 			nextHeight = heightList[i + 1];
+			nextStoreyFaceList = inHorizontalStoreyPlates.at(nextHeight);
 		}
 		if (nextHeight - currentHeight < 1e-6) { continue; }
 
-		std::vector<TopoDS_Face> currentStoreyFaceList = inHorizontalStoreyPlates.at(currentHeight);
-		std::vector<TopoDS_Face> nextStoreyFaceList = inHorizontalStoreyPlates.at(nextHeight);
 		std::vector<TopoDS_Face> horizontalFaces;
+
 		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
 		{	
 			if (helperFunctions::computeArea(currentStoryFace) < precisionCoarse) { continue; }
