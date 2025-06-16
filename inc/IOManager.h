@@ -70,6 +70,8 @@ private:
 	void setComputedSemantic(CJGeoCreator* geoCreator, CJT::CityObject& cityBuildingObject, CJT::CityObject& cityOuterShellObject, CJT::CityObject& cityInnerShellObject);
 	/// compute the storeys that are equal or above ground level and the storeys that are below ground level
 	void ComputeStoreysAboveGround(int* storeysAboveGround, int* storeysBelowGround);
+	/// fetch main entrance location
+	std::unique_ptr <gp_Pnt> FetchMainEntranceLocation(std::unique_ptr<gp_Pnt> location);
 
 	/// process, collect errors and clock all the geocreating functions
 	void processExternalLoD(

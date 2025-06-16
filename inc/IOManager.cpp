@@ -514,6 +514,17 @@ void IOManager::setComputedSemantic(CJGeoCreator* geoCreator, CJT::CityObject& c
 	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysAboveGround", storeyFloors);
 	cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "storeysBelowGround", basementFloors);
 
+	// find location of main entrance (CHEK related code)
+	std::unique_ptr<gp_Pnt> entranceCoord = nullptr;
+	entranceCoord = FetchMainEntranceLocation(std::move(entranceCoord)); //TODO: make this triggerable
+	if (entranceCoord != nullptr)
+	{
+		cityBuildingObject.addAttribute(sourceIdentifierEnum::getString(sourceIdentifierID::envExtractor) + "Main Entrance coordinate", 
+			std::to_string(entranceCoord->X()) + ", " + 
+			std::to_string(entranceCoord->Y()) + ", " +
+			std::to_string(entranceCoord->Z()));
+	}
+
 	if (settingsCollection.summaryVoxels())
 	{
 		geoCreator->extractOuterVoxelSummary(
@@ -565,6 +576,45 @@ void IOManager::ComputeStoreysAboveGround(int* storeysAboveGround, int* storeysB
 	*storeysBelowGround = basementFloors;
 
 	return;
+}
+
+std::unique_ptr<gp_Pnt> IOManager::FetchMainEntranceLocation(std::unique_ptr<gp_Pnt> location)
+{
+	for (size_t i = 0; i < internalDataManager_->getSourceFileCount(); i++)
+	{
+		IfcParse::IfcFile* currentFile = internalDataManager_->getSourceFile(i);
+		IfcSchema::IfcDoor::list::ptr doorlist  = currentFile->instances_by_type<IfcSchema::IfcDoor>();
+
+		for (auto it = doorlist->begin(); it != doorlist->end(); ++it)
+		{
+			IfcSchema::IfcDoor* currentDoor = *it;
+
+			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
+
+			for (const nlohmann::json& currentAttribute : attributeList)
+			{
+				if (!currentAttribute.contains("CHEK_IsMainEntrance"))
+				{
+					continue;
+				}
+
+				// if is mainentrance
+				TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
+				gp_Pnt lll;
+				gp_Pnt urr;
+				helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
+
+				gp_Pnt centerPoint = gp_Pnt(
+					(lll.X() - urr.X()) / 2,
+					(lll.Y() - urr.Y()) / 2,
+					lll.Z());
+
+				location = std::make_unique<gp_Pnt>(centerPoint);
+				return location;
+			}
+		}
+	}
+	return nullptr;
 }
 
 
