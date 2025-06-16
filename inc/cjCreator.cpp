@@ -3361,7 +3361,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 	// split roof surfaces over the storey elevations
 	if (!hasRoofOutlines()) {
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentUnsuccesful) << std::endl;
-		ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoD2.2");
+		ErrorCollection::getInstance().addError(ErrorID::warningNoRoofOutline, "LoDc.2");
 		return {};
 	}
 
@@ -3524,8 +3524,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 			brepSewer.Add(face);
 		}
 		brepSewer.Perform();
-		TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
 
+		TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
 		gp_Trsf trsf;
 		trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
@@ -3533,23 +3533,26 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 		createSemanticData(&geoObject, simplefiedShape);
 		geoObjectList.emplace_back(geoObject);
 
-		BRep_Builder builder;
-		TopoDS_Compound compound;
-		builder.MakeCompound(compound);
-		for (auto face : roofOverhangSurfaceList)
+		if (!roofOverhangSurfaceList.empty())
 		{
-			face.Move(trsf);
-			builder.Add(compound, face);
-		}
-		shapeCopyCollection.emplace_back(compound);
+			BRep_Builder builder;
+			TopoDS_Compound compound;
+			builder.MakeCompound(compound);
+			for (auto face : roofOverhangSurfaceList)
+			{
+				face.Move(trsf);
+				builder.Add(compound, face);
+			}
+			shapeCopyCollection.emplace_back(compound);
 
-		CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "c.2");
-		geoOverhangObject.appendSurfaceData(semanticRoofData);
-		for (size_t i = 0; i < roofOverhangSurfaceList.size(); i++)
-		{
-			geoOverhangObject.appendSurfaceTypeValue(0);
-		}
-		geoObjectList.emplace_back(geoOverhangObject);
+			CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "c.2");
+			geoOverhangObject.appendSurfaceData(semanticRoofData);
+			for (size_t i = 0; i < roofOverhangSurfaceList.size(); i++)
+			{
+				geoOverhangObject.appendSurfaceTypeValue(0);
+			}
+			geoObjectList.emplace_back(geoOverhangObject);
+		}	
 	}
 
 	if (settingsCollection.createOBJ())
@@ -4600,7 +4603,6 @@ void CJGeoCreator::extrudeStoreyGeometry(
 	{
 		topHeight = heightList.back();
 	}
-
 
 	for (size_t i = 0; i < heightList.size(); i++)
 	{
