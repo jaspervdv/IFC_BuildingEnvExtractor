@@ -2530,9 +2530,12 @@ void CJGeoCreator::make2DStorey(
 	std::vector<TopoDS_Face> storeyExternalSurfaceList;
 	if (is03)
 	{
-		if (settingsCollection.make03())
+		makeFloorSectionComplex(false, storeySurfaceList, storeyExternalSurfaceList, h, storeyElevation + storeyUserBuffer, ifcStoreyList);
+		if (settingsCollection.maked1() || settingsCollection.maked2())
 		{
-			makeFloorSectionComplex(false, storeySurfaceList, storeyExternalSurfaceList, h, storeyElevation + storeyUserBuffer, ifcStoreyList);
+			std::unique_lock<std::mutex> faceLock(storeyMutex);
+			LoD03ExtriorHFaces_.emplace(storeyElevation, storeyExternalSurfaceList);
+			faceLock.unlock();
 		}
 
 		if (settingsCollection.maked1() || settingsCollection.maked2())
@@ -3595,6 +3598,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 		outerShapeFaces.emplace_back(currentFace);
 	}
 
+	std::vector<TopoDS_Shape> shapeCopyCollection;
 	gp_Trsf trsf;
 	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	BRepBuilderAPI_Sewing brepSewer;
@@ -3608,14 +3612,47 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 	createSemanticData(&geoObject, simplefiedShape);
 	geoObjectList.emplace_back(geoObject);
 
+	shapeCopyCollection.emplace_back(simplefiedShape);
+
+	std::map<std::string, std::string> semanticRoofData;
+	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	for (const auto& [elevation, surfaceList] : LoD03ExtriorHFaces_)
+	{
+		BRep_Builder builder;
+		TopoDS_Compound compound;
+		builder.MakeCompound(compound);
+
+		bool hasFaces = false;
+		for (auto face : surfaceList)
+		{
+			face.Move(trsf);
+			builder.Add(compound, face);
+			hasFaces = true;
+		}
+		shapeCopyCollection.emplace_back(compound);
+
+		if (!hasFaces)
+		{
+			continue;
+		}
+
+		CJT::GeoObject geoOverhangObject = kernel->convertToJSON(compound, "d.1");
+		geoOverhangObject.appendSurfaceData(semanticRoofData);
+		for (size_t i = 0; i < surfaceList.size(); i++)
+		{
+			geoOverhangObject.appendSurfaceTypeValue(0);
+		}
+		geoObjectList.emplace_back(geoOverhangObject);
+	}
+
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDd1));
+		helperFunctions::writeToOBJ(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDd1));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(simplefiedShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDd1));
+		helperFunctions::writeToSTEP(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDd1));
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());

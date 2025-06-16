@@ -65,6 +65,8 @@ private:
 	std::map<double, std::vector<TopoDS_Face>> LoD02Plates_;
 	// list collects the lod03 plates per lvl
 	std::map<double, std::vector<TopoDS_Face>> LoD03Plates_;
+	// list collects the lod03 plates per lvl
+	std::map<double, std::vector<TopoDS_Face>> LoD03ExtriorHFaces_;
 	// check if the surfaces that are stored can be discarded.
 	void garbageCollection();
 
