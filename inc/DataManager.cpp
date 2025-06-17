@@ -330,7 +330,7 @@ gp_Vec DataManager::computeObjectTranslation()
 		gp_Pnt urrPoint;
 		TopoDS_Shape slabShape = getObjectShape(slab, true);
 		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
-		return gp_Vec(-lllPoint.X(), -lllPoint.Y(), 0);
+		return gp_Vec(-lllPoint.X(), -lllPoint.Y(), -lllPoint.Z());
 	}
 	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
 	std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab) << std::endl;
@@ -1056,26 +1056,29 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 #else
 	IfcSchema::IfcSite::list::ptr ifcSiteList = fileObject->instances_by_type<IfcSchema::IfcSite>();
 
-	if (ifcSiteList->size() == 0) { return; }
-	if (ifcSiteList->size() > 1) { std::cout << "[WARNING] multiple sites detected" << std::endl; }
+	if (ifcSiteList->size() != 0) {
+		if (ifcSiteList->size() > 1) { std::cout << "[WARNING] multiple sites detected" << std::endl; }
 
-	IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
-	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
+		IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
+		IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
 
-	IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
-	if (sitePropertySet == nullptr) { return; }
-	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return; }
+		IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
+		if (sitePropertySet != nullptr) {
+			if (sitePropertySet->Name().get() == "ePSet_MapConversion") { //TODO: check this, seems wrong that it is no list
 
-	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
-	if (!validateProjectionData(psetMap)) { return; }
+				std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
+				if (!validateProjectionData(psetMap)) { return; }
 
-	if (auto search = psetMap.find("IFC TargetCRS"); search != psetMap.end())
-	{
-		metaData->setReferenceSystem(psetMap["IFC TargetCRS"]);
-	}
-	if (auto search = psetMap.find("IFC Scale"); search != psetMap.end())
-	{
-		transformation->setScale(transformation->getScale()[0] * std::stod(psetMap["IFC Scale"]));
+				if (auto search = psetMap.find("IFC TargetCRS"); search != psetMap.end())
+				{
+					metaData->setReferenceSystem(psetMap["IFC TargetCRS"]);
+				}
+				if (auto search = psetMap.find("IFC Scale"); search != psetMap.end())
+				{
+					transformation->setScale(transformation->getScale()[0] * std::stod(psetMap["IFC Scale"]));
+				}
+			}
+		}
 	}
 	
 	gp_XYZ invertedObjectTrsf = objectIfcTranslation_.TranslationPart();
