@@ -545,7 +545,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid solidShape;
 	brepBuilder.MakeSolid(solidShape);
-
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
 
 	std::vector<TopoDS_Wire> wireList;
@@ -623,8 +622,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 				TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p2, p1, p0);
 				brepSewer.Add(sideFace);
 			}
-	
-
 		}
 
 		if (edgeCount <= 2)
@@ -2898,6 +2895,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
+	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (const std::vector<TopoDS_Face>& faceCluster : LoD03RoofFaces_)
 	{
 		for (TopoDS_Face currentShape : faceCluster)
@@ -2905,6 +2903,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 			gp_Trsf localRotationTrsf;
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
+			faceCopyCollection.emplace_back(currentShape);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.3");
 			geoObject.appendSurfaceData(semanticRoofData);
@@ -2913,14 +2912,37 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 		}
 	}
 
+	if (hasFootprints_)
+	{
+		std::map<std::string, std::string> semanticFootData;
+		semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+
+		// make the footprint
+		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
+		{
+			TopoDS_Shape footprint = buildingSurfaceData.getFootPrint();
+			if (footprint.IsNull()) { continue; }
+
+			gp_Trsf trsf;
+			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+			footprint.Move(trsf);
+			faceCopyCollection.emplace_back(footprint);
+
+			CJT::GeoObject geoObject = kernel->convertToJSON(footprint, "0.3");
+			geoObject.appendSurfaceData(semanticFootData);
+			geoObject.appendSurfaceTypeValue(0);
+			geoObjectCollection.emplace_back(geoObject);
+		}
+	}
+
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(LoD03RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD03));
+		helperFunctions::writeToOBJ(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD03));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(LoD03RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD03));
+		helperFunctions::writeToSTEP(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD03));
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -2941,6 +2963,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 	std::map<std::string, std::string> semanticRoofData;
 	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
 
+	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (std::vector<TopoDS_Face> faceCluster : LoD04RoofFaces_)
 	{
 		for (TopoDS_Face currentShape : faceCluster)
@@ -2948,6 +2971,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 			gp_Trsf localRotationTrsf;
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
+			faceCopyCollection.emplace_back(currentShape);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.4");
 			geoObject.appendSurfaceData(semanticRoofData);
@@ -2956,14 +2980,37 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 		}
 	}
 
+	if (hasFootprints_)
+	{
+		std::map<std::string, std::string> semanticFootData;
+		semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+
+		// make the footprint
+		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
+		{
+			TopoDS_Shape footprint = buildingSurfaceData.getFootPrint();
+			if (footprint.IsNull()) { continue; }
+
+			gp_Trsf trsf;
+			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+			footprint.Move(trsf);
+			faceCopyCollection.emplace_back(footprint);
+
+			CJT::GeoObject geoObject = kernel->convertToJSON(footprint, "0.4");
+			geoObject.appendSurfaceData(semanticFootData);
+			geoObject.appendSurfaceTypeValue(0);
+			geoObjectCollection.emplace_back(geoObject);
+		}
+	}
+
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(LoD04RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD04));
+		helperFunctions::writeToOBJ(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD04));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(LoD04RoofFaces_, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD04));
+		helperFunctions::writeToSTEP(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD04));
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -4660,15 +4707,18 @@ void CJGeoCreator::extrudeStoreyGeometry(
 
 		for (const TopoDS_Face& currentStoryFace : currentStoreyFaceList)
 		{	
+			if (currentStoryFace.IsNull()) { continue; }
 			if (helperFunctions::computeArea(currentStoryFace) < precisionCoarse) { continue; }
 			std::vector<TopoDS_Face> toBeExtrudedFaces;
 
 			if (refine)// get the surface that is compliant with the current storey face and the face of the storey above it
 			{
+
 				TopTools_ListOfShape toolList;
 				for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
 				{
-					toolList.Append(helperFunctions::projectFaceFlat(otherStoryFace, currentHeight));
+					TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(otherStoryFace, currentHeight);
+					toolList.Append(flattenedFace);
 				}
 
 				TopTools_ListOfShape argumentList;
@@ -4679,7 +4729,7 @@ void CJGeoCreator::extrudeStoreyGeometry(
 				splitter.SetArguments(argumentList);
 				splitter.SetTools(toolList);
 				splitter.Build();
-				
+
 				for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
 				{
 					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
@@ -4705,6 +4755,7 @@ void CJGeoCreator::extrudeStoreyGeometry(
 			for (const TopoDS_Face currentFace : toBeExtrudedFaces)
 			{
 				TopoDS_Solid currentSolid = extrudeFace(currentFace, false, nextHeight);
+
 				if (currentSolid.IsNull())
 				{
 					//TODO: add error

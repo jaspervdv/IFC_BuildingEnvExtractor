@@ -129,7 +129,9 @@ def toggleMakeInterior(interior_widget):
 
 def toggleMakeFootprint(footprint_widges):
     # the relevant bools:
-    rel_lod = {lod_settings.lod02.get()}
+    rel_lod = {lod_settings.lod02.get(),
+               lod_settings.lod03.get(),
+               lod_settings.lod04.get(),}
 
     if any ( b == True for b in rel_lod):
         footprint_widges['state'] = tkinter.NORMAL
@@ -260,8 +262,12 @@ def runCode(input_path,
         json_dictionary["JSON"]["Generate roof outline"] = footprint_settings.make_roofprint.get()
     if(lod_settings.lod03.get()):
         lod_list.append(0.3)
+        json_dictionary["JSON"]["Generate footprint"] = footprint_settings.make_footprint.get()
+        json_dictionary["JSON"]["Generate roof outline"] = footprint_settings.make_roofprint.get()
     if (lod_settings.lod04.get()):
         lod_list.append(0.4)
+        json_dictionary["JSON"]["Generate footprint"] = footprint_settings.make_footprint.get()
+        json_dictionary["JSON"]["Generate roof outline"] = footprint_settings.make_roofprint.get()
     if (lod_settings.lod10.get()):
         lod_list.append(1.0)
     if (lod_settings.lod12.get()):

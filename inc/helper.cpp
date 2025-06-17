@@ -1671,16 +1671,38 @@ TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1
 }
 
 TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double height) {
-	gp_GTrsf trsf;
-	trsf.SetVectorialPart(
-		gp_Mat(
-			1.0, 0.0, 0.0,
-			0.0, 1.0, 0.0, 
-			0.0, 0.0, 0.0
-		)
-	);
-	trsf.SetTranslationPart(gp_XYZ(0, 0, height));
-	TopoDS_Face flatFace = TopoDS::Face(BRepBuilderAPI_GTransform(theFace, trsf, true).Shape());
+
+	// check if face is flat
+	gp_Vec faceNormal = computeFaceNormal(theFace);
+	if (abs(faceNormal.Z()) < 1e-4) { return TopoDS_Face(); }
+	
+	TopoDS_Face flatFace;
+	if (abs(faceNormal.X()) < 1e-4 && abs(faceNormal.Y()) < 1e-4)
+	{
+		gp_Trsf trsf;
+		double faceHeight = getLowestZ(theFace);
+		if (abs(height - faceHeight) < 1e-6) { return theFace; }
+
+		trsf.SetTranslationPart(gp_XYZ(0, 0, height - faceHeight));
+		BRepBuilderAPI_Transform transformer(theFace, trsf);
+		if (!transformer.IsDone()) { return TopoDS_Face(); }
+
+		flatFace = TopoDS::Face(transformer.Shape());
+	}
+	else
+	{
+		// this transform can be buggy, find an alternative approach
+		gp_GTrsf trsf;
+		trsf.SetVectorialPart(
+			gp_Mat(
+				1.0, 0.0, 0.0,
+				0.0, 1.0, 0.0,
+				0.0, 0.0, 0.0
+			)
+		);
+		trsf.SetTranslationPart(gp_XYZ(0, 0, height));
+		flatFace = TopoDS::Face(BRepBuilderAPI_GTransform(theFace, trsf, false).Shape());
+	}
 	fixFace(&flatFace);
 	return flatFace;
 }

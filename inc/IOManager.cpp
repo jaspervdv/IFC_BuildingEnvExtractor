@@ -624,6 +624,8 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	
 	if (settingsCollection.make02() && settingsCollection.makeFootPrint() || 
+		settingsCollection.make03() && settingsCollection.makeFootPrint() ||
+		settingsCollection.make04() && settingsCollection.makeFootPrint() ||
 		settingsCollection.footPrintBased() || 
 		settingsCollection.makeb0()
 		)
