@@ -697,7 +697,7 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 	try
 	{
 		std::vector<TopoDS_Face> footprintList;
-		makeFloorSection(footprintList, h, floorlvl + storeyBuffer);
+		makeFloorSection(footprintList, h, floorlvl + storeyBuffer + h->getObjectTranslation().TranslationPart().Z());
 		for (TopoDS_Face& footprintItem : footprintList) { footprintItem.Move(translation); }
 
 		for (BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
@@ -1113,7 +1113,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 {
 	double precision = SettingsCollection::getInstance().precision();
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
-
 	// extrude the surfaces and collect their faces
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIdx; // pair bbox | extruded shape faces
 	for (const TopoDS_Face& currentTopFace : inputFaceList)
@@ -1121,7 +1120,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		TopoDS_Solid extrudedShape = extrudeFace(currentTopFace, true, lowestZ);
 		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
-
 			// ignore if not vertical face
 			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
 			if (abs(currentNormal.Z()) > precisionCoarse) { continue; };
@@ -2515,7 +2513,7 @@ void CJGeoCreator::make2DStorey(
 
 	IfcSchema::IfcBuildingStorey* ifcStorey = ifcStoreyList[0];
 	IfcSchema::IfcObjectPlacement* storeyObjectPlacement = ifcStorey->ObjectPlacement();
-	double storeyElevation = roundDoubleToPrecision((helperFunctions::getObjectZOffset(storeyObjectPlacement, false) * h->getScaler(0)), 1e-6);
+	double storeyElevation = roundDoubleToPrecision((helperFunctions::getObjectZOffset(storeyObjectPlacement, false) * h->getScaler(0) + h->getObjectTranslation().TranslationPart().Z()), 1e-6);
 	double userStoreyElevation = ifcStorey->Elevation().get() * h->getScaler(0);
 
 	std::unique_lock<std::mutex> faceLock(storeyMutex);
@@ -2876,7 +2874,6 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 			std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z());
 			nestedFaceList.emplace_back(faceList);
 		}
-
 	}
 
 	return nestedFaceList;
@@ -2906,6 +2903,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 			faceCopyCollection.emplace_back(currentShape);
 
 			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.3");
+
 			geoObject.appendSurfaceData(semanticRoofData);
 			geoObject.appendSurfaceTypeValue(0);
 			geoObjectCollection.emplace_back(geoObject);
