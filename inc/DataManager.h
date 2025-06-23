@@ -193,10 +193,7 @@ private:
 	// update the lll and urr point
 	void updateBoudingData(const bg::model::box <BoostPoint3D>& box);
 
-	/// search for related propertysets by matching the Guid
-	IfcSchema::IfcPropertySet* getRelatedPset(const std::string& objectGuid, int fileInt);
-
-	bool validateProjectionData(const std::map<std::string, std::string>& psetMap);
+	bool validateProjectionData(const nlohmann::json& sitePropertySetData);
 
 public:
 	/*
@@ -213,6 +210,8 @@ public:
 	bool hasSetUnits();
 	/// returns a pointer to the sourcefile
 	IfcParse::IfcFile* getSourceFile(int i) const { return datacollection_[i].get()->getFilePtr(); }
+	/// returns a vector of pointers to the sourcefiles
+	std::vector<IfcParse::IfcFile*> getSourceFiles() const;
 	/// get the total amount of items in the datacollection
 	int getSourceFileCount() { return dataCollectionSize_; }
 	/// get the length multiplier of a sourcefile
@@ -251,12 +250,10 @@ public:
 	/// gets the object name or long name
 	template <typename T>
 	std::string getIfcObjectName(const std::string& objectTypeName, IfcParse::IfcFile* filePtr, bool isLong);
-	/// returns a map with all the single value properties linked by the pset
-	std::map<std::string, std::string> getPsetData(IfcSchema::IfcPropertySet* propertyset);
-	/// returns a map with all the single value properties related to the product
-	std::map<std::string, std::string> getProductPsetData(const std::string& productGui, int fileNum);
-	/// returns a string pair based on a proprtysinglevalue
-	std::pair<std::string, std::string> getSinglePsetValue(IfcSchema::IfcPropertySingleValue* propertyValue);
+
+	/// collects the non-standard property data in the ifc file of an object 
+	nlohmann::json collectPropertyValues(const std::string& objectId, const std::string& psetName = "");
+
 	/// search the object shape from memory only
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);
 

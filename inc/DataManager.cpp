@@ -814,62 +814,87 @@ void DataManager::updateBoudingData(const bg::model::box<BoostPoint3D>& box)
 }
 
 
-IfcSchema::IfcPropertySet* DataManager::getRelatedPset(const std::string& objectGuid, int fileInt)
-{
-	IfcParse::IfcFile* fileObject = datacollection_[fileInt]->getFilePtr();
-	IfcSchema::IfcRelDefinesByProperties::list::ptr propteriesRels = fileObject->instances_by_type<IfcSchema::IfcRelDefinesByProperties>();
-
-	for (auto it = propteriesRels->begin(); it != propteriesRels->end(); ++it) {
-		IfcSchema::IfcRelDefinesByProperties* propteriesRel = *it;
-
-		auto relatedObjects = propteriesRel->RelatedObjects();
-		bool isBuilding = false;
-
-		for (auto et = relatedObjects->begin(); et != relatedObjects->end(); ++et) {
-
-			auto* relatedObject = *et;
-
-			if (relatedObject->GlobalId() != objectGuid) { continue; }
-			if (propteriesRel->RelatingPropertyDefinition()->data().type()->name() != "IfcPropertySet") { continue; }
-			return propteriesRel->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
-		}
-	}
-	return nullptr;
-}
-
-bool DataManager::validateProjectionData(const std::map<std::string, std::string>& psetMap)
+bool DataManager::validateProjectionData(const nlohmann::json& sitePropertySetData)
 {
 	std::vector<std::string> missingObjects;
-	if (psetMap.count("IFC TargetCRS") != 1)
+
+	if (!sitePropertySetData.contains("TargetCRS"))
 	{
 		missingObjects.emplace_back("TargetCRS");
 	}
-	if (psetMap.count("IFC Scale") != 1)
+	else if (!sitePropertySetData["TargetCRS"].is_string())
+	{
+		missingObjects.emplace_back("TargetCRS");
+	}
+
+	if (!sitePropertySetData.count("Scale"))
 	{
 		missingObjects.emplace_back("Scale");
 	}
-	if (psetMap.count("IFC Eastings") != 1)
+	else if (!sitePropertySetData["Scale"].is_number())
+	{
+		missingObjects.emplace_back("Scale");
+	}
+
+	if (!sitePropertySetData.contains("Eastings"))
 	{
 		missingObjects.emplace_back("Eastings");
 	}
-	if (psetMap.count("IFC Northings") != 1)
+	else if (!sitePropertySetData["Eastings"].contains("value"))
+	{
+		missingObjects.emplace_back("Eastings");
+	}
+	else if (!sitePropertySetData["Eastings"]["value"].is_number())
+	{
+		missingObjects.emplace_back("Eastings");
+	}
+
+	if (!sitePropertySetData.contains("Northings"))
 	{
 		missingObjects.emplace_back("Northings");
 	}
-	if (psetMap.count("IFC OrthogonalHeight") != 1)
+	else if (!sitePropertySetData["Northings"].contains("value"))
+	{
+		missingObjects.emplace_back("Northings");
+	}
+	else if (!sitePropertySetData["Northings"]["value"].is_number())
+	{
+		missingObjects.emplace_back("Northings");
+	}
+
+	if (!sitePropertySetData.contains("OrthogonalHeight"))
 	{
 		missingObjects.emplace_back("OrthogonalHeight");
 	}
-	if (psetMap.count("IFC XAxisAbscissa") != 1)
+	else if (!sitePropertySetData["OrthogonalHeight"].contains("value"))
+	{
+		missingObjects.emplace_back("OrthogonalHeight");
+	}
+	else if (!sitePropertySetData["OrthogonalHeight"]["value"].is_number())
+	{
+		missingObjects.emplace_back("OrthogonalHeight");
+	}
+
+	if (!sitePropertySetData.count("XAxisAbscissa"))
 	{
 		missingObjects.emplace_back("XAxisAbscissa");
 	}
-	if (psetMap.count("IFC XAxisOrdinate") != 1)
+	else if (!sitePropertySetData["XAxisAbscissa"].is_number())
+	{
+		missingObjects.emplace_back("XAxisAbscissa");
+	}
+
+
+	if (!sitePropertySetData.count("XAxisOrdinate"))
+	{
+		missingObjects.emplace_back("XAxisOrdinate");
+	}
+	else if (!sitePropertySetData["XAxisOrdinate"].is_number())
 	{
 		missingObjects.emplace_back("XAxisOrdinate");
 	}
 
-	if (!missingObjects.size())
+	if (!missingObjects.empty())
 	{
 		return true;
 	}
@@ -884,6 +909,14 @@ bool DataManager::hasSetUnits() {
 		if (!datacollection_[i]->getLengthMultiplier()) { return false; }
 	}
 	return true; 
+}
+
+std::vector<IfcParse::IfcFile*> DataManager::getSourceFiles() const
+{
+	std::vector<IfcParse::IfcFile*> ptrList;
+	ptrList.reserve(dataCollectionSize_);
+	for (int i = 0; 1 < dataCollectionSize_; i ++) { ptrList.emplace_back(datacollection_[i].get()->getFilePtr()); }
+	return ptrList;
 }
 
 
@@ -995,18 +1028,15 @@ gp_Trsf DataManager::getProjectionTransformation()
 	IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
 	IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
 
-	IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
-	if (sitePropertySet == nullptr) { return gp_Trsf(); }
-	if (sitePropertySet->Name().get() != "ePSet_MapConversion") { return gp_Trsf(); }
+	nlohmann::json sitePropertySetData = collectPropertyValues(ifcSite->GlobalId(), "ePSet_MapConversion");
+	if (sitePropertySetData.empty()) { return gp_Trsf(); }
+	if (validateProjectionData(sitePropertySetData)) { return gp_Trsf(); }
 
-	std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
-	if (!validateProjectionData(psetMap)) { return gp_Trsf(); }
-
-	double Eastings = std::stod(psetMap["IFC Eastings"]);
-	double Northings = std::stod(psetMap["IFC Northings"]);
-	double OrthogonalHeight = std::stod(psetMap["IFC OrthogonalHeight"]);
-	double XAA = std::stod(psetMap["IFC XAxisAbscissa"]);
-	double XAO = std::stod(psetMap["IFC XAxisOrdinate"]);
+	double Eastings = sitePropertySetData["Eastings"]["value"];
+	double Northings = sitePropertySetData["Northings"]["value"];
+	double OrthogonalHeight = sitePropertySetData["OrthogonalHeight"]["value"];
+	double XAA = sitePropertySetData["XAxisAbscissa"];
+	double XAO = sitePropertySetData["XAxisOrdinate"];
 
 	gp_Trsf trsf;
 	trsf.SetValues(
@@ -1062,22 +1092,22 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 		IfcSchema::IfcSite* ifcSite = *ifcSiteList->begin();
 		IfcSchema::IfcRelDefines::list::ptr relDefinesList = ifcSite->IsDefinedBy();
 
-		IfcSchema::IfcPropertySet* sitePropertySet = getRelatedPset(ifcSite->GlobalId(), 0);
-		if (sitePropertySet != nullptr) {
-			if (sitePropertySet->Name().get() == "ePSet_MapConversion") { //TODO: check this, seems wrong that it is no list
+		nlohmann::json sitePropertySetData = collectPropertyValues(ifcSite->GlobalId(), "ePSet_MapConversion");
+		if (sitePropertySetData.empty()) { return; }
 
-				std::map<std::string, std::string> psetMap = getPsetData(sitePropertySet);
-				if (!validateProjectionData(psetMap)) { return; }
-
-				if (auto search = psetMap.find("IFC TargetCRS"); search != psetMap.end())
-				{
-					metaData->setReferenceSystem(psetMap["IFC TargetCRS"]);
-				}
-				if (auto search = psetMap.find("IFC Scale"); search != psetMap.end())
-				{
-					transformation->setScale(transformation->getScale()[0] * std::stod(psetMap["IFC Scale"]));
-				}
+		if (sitePropertySetData.contains("TargetCRS"))
+		{
+			if (sitePropertySetData["TargetCRS"].is_string())
+			{
+				metaData->setReferenceSystem(sitePropertySetData["TargetCRS"]);
 			}
+		}
+		if (sitePropertySetData.contains("Scale"))
+		{
+			if (sitePropertySetData["Scale"].is_number())
+			{
+				transformation->setScale(transformation->getScale()[0] * sitePropertySetData["Scale"]);
+			}	
 		}
 	}
 	
@@ -1105,12 +1135,13 @@ std::map<std::string, std::string> DataManager::getBuildingInformation()
 		if (building->ObjectType().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcObjectType), building->ObjectType().get()); }
 		if (building->Name().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcName), building->Name().get()); }
 		if (building->LongName().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcLongName), building->LongName().get()); }
-	}
 
-	IfcSchema::IfcPropertySet* buildingPropertySet = getRelatedPset((*buildingList->begin())->GlobalId(), 0);	
-	if (buildingPropertySet == nullptr) { return dictionary; }
-	std::map<std::string, std::string> psetMap = getPsetData(buildingPropertySet);
-	dictionary.insert(psetMap.begin(), psetMap.end());
+		nlohmann::json psetMapList = collectPropertyValues(building->GlobalId());
+
+		for (auto jsonObIt = psetMapList.begin(); jsonObIt != psetMapList.end(); ++jsonObIt) {
+			dictionary[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
+		}
+	}
 	return dictionary;
 }
 
@@ -1171,68 +1202,21 @@ std::string DataManager::getIfcObjectName(const std::string& objectTypeName, Ifc
 	return "";
 }
 
-std::map<std::string, std::string> DataManager::getProductPsetData(const std::string& productGui, int fileNum)
+nlohmann::json DataManager::collectPropertyValues(const std::string& objectId, const std::string& psetName)
 {
-	IfcSchema::IfcPropertySet* buildingPropertySet = getRelatedPset(productGui, fileNum);
-	if (buildingPropertySet == nullptr)
+	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		return std::map<std::string, std::string>();
-	}
-	return getPsetData(buildingPropertySet);
-}
-
-std::map<std::string, std::string> DataManager::getPsetData(IfcSchema::IfcPropertySet* propertyset)
-{
-	auto relAssociations = propertyset->data().getArgument(4);
-	auto relatedObjectList = relAssociations->operator aggregate_of_instance::ptr();
-
-	std::map<std::string, std::string> dictionary;
-	for (auto et = relatedObjectList->begin(); et != relatedObjectList->end(); ++et) {
-		auto* propertyBaseValue = *et;
-		IfcSchema::IfcPropertySingleValue* propertyValue = propertyBaseValue->as<IfcSchema::IfcPropertySingleValue>();
-		std::pair<std::string, std::string> propertyPair = getSinglePsetValue(propertyValue);
-		if (propertyPair.first == "")
+		try
+		{
+			datacollection_[i]->getFilePtr()->instance_by_guid(objectId);
+			return helperFunctions::collectPropertyValues(objectId, getSourceFile(i), psetName);
+		}
+		catch (const std::exception&)
 		{
 			continue;
 		}
-		dictionary.emplace(propertyPair);
 	}
-	return dictionary;
-}
-
-std::pair<std::string, std::string> DataManager::getSinglePsetValue(IfcSchema::IfcPropertySingleValue* propertyValue)
-{
-	IfcUtil::ArgumentType dataType = propertyValue->NominalValue()->data().getArgument(0)->type();
-	std::string stringValue = propertyValue->NominalValue()->data().getArgument(0)->toString();
-	if (stringValue.size() == 0) { return std::pair<std::string, std::string>(); }
-
-	std::string propertyValueName = sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + propertyValue->Name().c_str();
-	if (dataType == IfcUtil::ArgumentType::Argument_BOOL)
-	{
-		if (propertyValue->NominalValue()->data().getArgument(0)->toString() == ".T.")
-		{
-			return std::pair<std::string, std::string>(propertyValueName, CJObjectEnum::getString(CJObjectID::True));
-		}
-		return std::pair<std::string, std::string>(propertyValueName, CJObjectEnum::getString(CJObjectID::False));
-	}
-	if (dataType == IfcUtil::ArgumentType::Argument_DOUBLE) // If Area
-	{
-		if (stringValue[stringValue.size() - 1] == '.')
-		{
-			stringValue = stringValue.substr(0, stringValue.size() - 1);
-		}
-		return std::pair<std::string, std::string>(propertyValueName, stringValue);
-	}
-	if (dataType == IfcUtil::ArgumentType::Argument_STRING)
-	{
-		stringValue = stringValue.substr(1, stringValue.size() - 2);
-		return std::pair<std::string, std::string>(propertyValueName, stringValue);
-	}
-	if (propertyValue->NominalValue()->data().getArgument(0)->toString().size() != 0)
-	{
-		return std::pair<std::string, std::string>(propertyValueName, stringValue);
-	}
-	return std::pair<std::string, std::string>();
+	return {};
 }
 
 TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple)

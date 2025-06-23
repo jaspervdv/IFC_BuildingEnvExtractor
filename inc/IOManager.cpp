@@ -589,29 +589,26 @@ std::unique_ptr<gp_Pnt> IOManager::FetchMainEntranceLocation(std::unique_ptr<gp_
 		{
 			IfcSchema::IfcDoor* currentDoor = *it;
 
-			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
+			nlohmann::json attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
 
-			for (const nlohmann::json& currentAttribute : attributeList)
+			if (!attributeList.contains("CHEK_IsMainEntrance"))
 			{
-				if (!currentAttribute.contains("CHEK_IsMainEntrance"))
-				{
-					continue;
-				}
-
-				// if is mainentrance
-				TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
-				gp_Pnt lll;
-				gp_Pnt urr;
-				helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
-
-				gp_Pnt centerPoint = gp_Pnt(
-					(lll.X() - urr.X()) / 2,
-					(lll.Y() - urr.Y()) / 2,
-					lll.Z());
-
-				location = std::make_unique<gp_Pnt>(centerPoint);
-				return location;
+				continue;
 			}
+
+			// if is mainentrance
+			TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
+			gp_Pnt lll;
+			gp_Pnt urr;
+			helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
+
+			gp_Pnt centerPoint = gp_Pnt(
+				(lll.X() - urr.X()) / 2,
+				(lll.Y() - urr.Y()) / 2,
+				lll.Z());
+
+			location = std::make_unique<gp_Pnt>(centerPoint);
+			return location;
 		}
 	}
 	return nullptr;
@@ -826,7 +823,6 @@ void IOManager::processSitelod(CJGeoCreator* geoCreator, std::shared_ptr<CJT::Ci
 
 bool IOManager::init(const std::vector<std::string>& inputPathList)
 {
-	//TODO: check if silent how to deal with this
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::seperator) << std::endl;
 	std::cout << "		IFC_BuildingEnvExtractor " << buildVersion << std::endl;
 	std::cout << "    Experimental building shell extractor/approximation\n" << std::endl;
@@ -896,7 +892,7 @@ bool IOManager::run()
 	{
 		processExternalLoD(&geoCreator, cityOuterShellObject, &kernel);
 	}
-	if (settingsCollection.makeSite()) //TODO: store the site
+	if (settingsCollection.makeSite())
 	{
 		processSitelod(&geoCreator, collection, &cityBuildingObject, &kernel);
 	}

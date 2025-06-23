@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -267,7 +267,7 @@ struct helperFunctions{
 	/// IFC related code
 
 	/// collects the non-standard property data in the ifc file of an object 
-	static std::vector<nlohmann::json> collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile);
+	static nlohmann::json collectPropertyValues(const std::string& objectId, IfcParse::IfcFile* ifcFile, const std::string& psetName = "");
 	/// get the z value stored in the IfcObjectPlacement 
 	static double getObjectZOffset(IfcSchema::IfcObjectPlacement* objectPlacement, bool deepOnly);
 	/// evaluates if product has glass material related to it

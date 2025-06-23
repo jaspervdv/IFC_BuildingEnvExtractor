@@ -2554,11 +2554,13 @@ std::vector<TopoDS_Face> helperFunctions::invertFace(const TopoDS_Face& inputFac
 }
 
 
-std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string objectId, IfcParse::IfcFile* ifcFile)
+nlohmann::json helperFunctions::collectPropertyValues(const std::string& objectId, IfcParse::IfcFile* ifcFile, const std::string& psetName) //TODO: implement bool
 {
-	std::vector<nlohmann::json> attributesList;
-
+	nlohmann::json attributesList;
 	IfcSchema::IfcRelDefinesByProperties::list::ptr relDefList = ifcFile->instances_by_type <IfcSchema::IfcRelDefinesByProperties>();
+
+	bool searchName = true;
+	if (psetName == "") { searchName = false; }
 
 	for (auto reldefIt = relDefList->begin(); reldefIt != relDefList->end(); reldefIt++)
 	{
@@ -2586,6 +2588,12 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 		IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
 		IfcSchema::IfcProperty::list::ptr propertyList = propertySet->HasProperties();
 
+		if (searchName)
+		{
+			if (!propertySet->Name()) { continue; }
+			if (*propertySet->Name() != psetName) { continue; }
+		}
+
 		for (auto propertyIt = propertyList->begin(); propertyIt != propertyList->end(); propertyIt++)
 		{
 			if (*propertyIt == nullptr) { continue; }
@@ -2604,64 +2612,53 @@ std::vector<nlohmann::json> helperFunctions::collectPropertyValues(std::string o
 			if (propertyIdName == "IfcIdentifier")
 			{
 				IfcSchema::IfcIdentifier* propertyValueContainer = ifcValue->as<IfcSchema::IfcIdentifier>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator std::string();
 			}
 			else if (propertyIdName == "IfcText")
 			{
 				IfcSchema::IfcText* propertyValueContainer = ifcValue->as<IfcSchema::IfcText>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator std::string();
 			}
 			else if (propertyIdName == "IfcLabel")
 			{
 				IfcSchema::IfcLabel* propertyValueContainer = ifcValue->as<IfcSchema::IfcLabel>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator std::string();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator std::string();
 			}
 			else if (propertyIdName == "IfcLengthMeasure")
 			{
 				IfcSchema::IfcLengthMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcLengthMeasure>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = {
+				attributesList[propertyItem->Name()] = {
 					{CJObjectEnum::getString(CJObjectID::jsonValue), propertyValueContainer->operator double() },
 					{CJObjectEnum::getString(CJObjectID::jsonUom) , UnitStringEnum::getString(UnitStringID::meter) } //TODO: update to unit?
 				};
-				attributesList.emplace_back(attributeItem);
 			}
 			else if (propertyIdName == "IfcAreaMeasure")
 			{
 				IfcSchema::IfcAreaMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcAreaMeasure>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = {
+				attributesList[propertyItem->Name()] = {
 					{CJObjectEnum::getString(CJObjectID::jsonValue), propertyValueContainer->operator double() },
 					{CJObjectEnum::getString(CJObjectID::jsonUom) , UnitStringEnum::getString(UnitStringID::sqrMeter) } //TODO: update to set unit?
 				};
-				attributesList.emplace_back(attributeItem);
 			}
 			else if (propertyIdName == "IfcReal")
 			{
 				IfcSchema::IfcReal* propertyValueContainer = ifcValue->as<IfcSchema::IfcReal>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator double();
 			}
 			else if (propertyIdName == "IfcPowerMeasure")
 			{
 				IfcSchema::IfcPowerMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcPowerMeasure>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator double();
 			}
 			else if (propertyIdName == "IfcThermalTransmittanceMeasure")
 			{
 				IfcSchema::IfcThermalTransmittanceMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcThermalTransmittanceMeasure>();
-				nlohmann::json attributeItem;
-				attributeItem[propertyItem->Name()] = propertyValueContainer->operator double();
-				attributesList.emplace_back(attributeItem);
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator double();
+			}
+			else if (propertyIdName == "IfcBoolean")
+			{
+				IfcSchema::IfcBoolean* propertyValueContainer = ifcValue->as<IfcSchema::IfcBoolean>();
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator bool();
 			}
 			else
 			{

@@ -378,7 +378,7 @@ void CJGeoCreator::initializeBasic(DataManager* cluster)
 	reduceSurfaces(filteredObjects, &shapeIdx, &shapeList);
 
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoFineFiltering) << std::endl;
-	std::vector<std::shared_ptr<SurfaceGridPair>> fineFilteredShapeList = FinefilterSurfaces(shapeList); //TODO: apply the shape idx
+	std::vector<std::shared_ptr<SurfaceGridPair>> fineFilteredShapeList = FinefilterSurfaces(shapeList);
 	shapeIdx.clear();
 	shapeList.clear();
 	shapeList.shrink_to_fit();
@@ -2051,7 +2051,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 		if (spaceObject->CompositionType() == IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT)
 		{
 			std::shared_ptr<CJT::CityObject> cjRoomObject = std::make_unique<CJT::CityObject>();
-			 
+
 			// store generic data
 			if (spaceObject->Name().has_value())
 			{
@@ -2066,12 +2066,9 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
 
 			//store added data
-			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(spaceObject->GlobalId(), h->getSourceFile(0));	
-			for (nlohmann::json attributeObject : attributeList)
-			{
-				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
-					cjRoomObject->addAttribute(jsonObIt.key(), jsonObIt.value());
-				}
+			nlohmann::json attributeList = h->collectPropertyValues(spaceObject->GlobalId());
+			for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
+				cjRoomObject->addAttribute(jsonObIt.key(), jsonObIt.value());
 			}
 
 			// get rooms storey
@@ -2193,15 +2190,12 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 			{
 				objectMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeDoor);
 			}
-			
-			std::vector<nlohmann::json> attributeList = helperFunctions::collectPropertyValues(product->GlobalId(), h->getSourceFile(0)); //TODO: this worries me
 
-			for (nlohmann::json attributeObject : attributeList)
-			{
-				for (auto jsonObIt = attributeObject.begin(); jsonObIt != attributeObject.end(); ++jsonObIt) {
-					objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
-				}
+			nlohmann::json attributeList = h->collectPropertyValues(product->GlobalId());
+			for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
+				objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
 			}
+
 			attributeLookup[product->GlobalId()] = outSurfaceTypeCollection.size();
 			outTypeValueList.emplace_back(outSurfaceTypeCollection.size());
 			outSurfaceTypeCollection.emplace_back(objectMap);

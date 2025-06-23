@@ -693,7 +693,7 @@ std::string CJObjectEnum::getString(CJObjectID id)
 	case CJObjectID::jsonUom:
 		return "uom";
 	case CJObjectID::jsonValue:
-		return "vale";
+		return "value";
 
 	case CJObjectID::ifcDescription:
 		return sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + "Description";
