@@ -2124,7 +2124,7 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 }
 
 void CJGeoCreator::setLoD32SurfaceAttributes(
-	std::vector<std::map<std::string, std::string>>& outSurfaceTypeCollection, 
+	std::vector<nlohmann::json>& outSurfaceTypeCollection, 
 	std::vector<int>& outTypeValueList, 
 	const std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& surfacePairList,
 	DataManager* h
@@ -2132,12 +2132,12 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	std::map<std::string, std::string> grMap;
-	grMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
-	std::map<std::string, std::string> wMap;
-	wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeWallSurface));
-	std::map<std::string, std::string> rMap;
-	rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+	nlohmann::json grMap;
+	grMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface);
+	nlohmann::json wMap;
+	wMap[CJObjectEnum::getString(CJObjectID::CJType)] =  CJObjectEnum::getString(CJObjectID::CJTypeWallSurface);
+	nlohmann::json rMap;
+	rMap[CJObjectEnum::getString(CJObjectID::CJType)] = CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface);
 
 	outSurfaceTypeCollection.emplace_back(grMap);
 	outSurfaceTypeCollection.emplace_back(wMap);
@@ -2175,7 +2175,7 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 				outTypeValueList.emplace_back(attributeLookup[product->GlobalId()]);
 				continue;
 			}
-			std::map<std::string, std::string> objectMap;
+			nlohmann::json objectMap;
 			if (product->Name().has_value())
 			{
 				objectMap[CJObjectEnum::getString(CJObjectID::ifcName)] = product->Name().get();
@@ -2193,7 +2193,7 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 
 			nlohmann::json attributeList = h->collectPropertyValues(product->GlobalId());
 			for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
-				objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
+				objectMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value();
 			}
 
 			attributeLookup[product->GlobalId()] = outSurfaceTypeCollection.size();
@@ -3776,7 +3776,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		TopoDS_Compound collectionShape;
 		builder.MakeCompound(collectionShape);
 
-		std::vector<std::map<std::string, std::string>> SurfaceTypeCollection;
+		std::vector<nlohmann::json> SurfaceTypeCollection;
 		std::vector<int> typeValueList;
 		setLoD32SurfaceAttributes(SurfaceTypeCollection, typeValueList, outerSurfacePairList, h);
 		for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : outerSurfacePairList)
@@ -3789,11 +3789,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "e.1");
 		geoObject.setSurfaceTypeValues(typeValueList);
 
-		for (const auto& surfaceAttMap : SurfaceTypeCollection)
-		{
-			geoObject.appendSurfaceData(surfaceAttMap);
-		}
-
+		geoObject.setSurfaceData(SurfaceTypeCollection);
 		geoObjectList.emplace_back(geoObject);
 
 		if (settingsCollection.createOBJ())
@@ -3851,7 +3847,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	TopoDS_Compound collectionShape;
 	builder.MakeCompound(collectionShape);
 
-	std::vector<std::map<std::string, std::string>> SurfaceTypeCollection;
+	std::vector<nlohmann::json> SurfaceTypeCollection;
 	std::vector<int> typeValueList;
 	setLoD32SurfaceAttributes(SurfaceTypeCollection, typeValueList, cleanedOuterSurfacePairList, h);
 	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : cleanedOuterSurfacePairList)
@@ -3862,13 +3858,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	collectionShape.Move(localRotationTrsf);
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "3.2");
-
-	for (const auto& surfaceAttMap : SurfaceTypeCollection)
-	{
-		geoObject.appendSurfaceData(surfaceAttMap);
-	}
-
-	// create semantic data map
+	geoObject.setSurfaceData(SurfaceTypeCollection);
 	geoObject.setSurfaceTypeValues(typeValueList);
 
 	if (settingsCollection.createOBJ())

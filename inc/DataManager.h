@@ -243,7 +243,7 @@ public:
 	/// gets the projectiodata if present
 	void getProjectionData(CJT::ObjectTransformation* transformation, CJT::metaDataObject* metaData);
 	/// gets the generic building information
-	std::map<std::string, std::string> getBuildingInformation();
+	nlohmann::json getBuildingInformation();
 	/// gets the object list name or long name
 	template <typename T>
 	std::string getIfcObjectName(const std::string& objectTypeName, bool isLong);

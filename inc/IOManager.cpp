@@ -484,8 +484,8 @@ void IOManager::setDefaultSemantic(CJT::CityObject& cityBuildingObject, CJT::Cit
 	// Set up objects and their relationships
 	std::string BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcBuilding>("IfcBuilding", false);
 	if (BuildingName == "") { BuildingName = internalDataManager_.get()->getIfcObjectName<IfcSchema::IfcSite>("IfcSite", false); }
-	std::map<std::string, std::string> buildingAttributes = internalDataManager_.get()->getBuildingInformation();
-	for (std::map<std::string, std::string>::iterator iter = buildingAttributes.begin(); iter != buildingAttributes.end(); ++iter) { cityBuildingObject.addAttribute(iter->first, iter->second); }
+	nlohmann::json buildingAttributes = internalDataManager_.get()->getBuildingInformation();
+	cityBuildingObject.addAttributes(buildingAttributes);
 
 	cityBuildingObject.setName(BuildingName);
 	cityBuildingObject.setType(CJT::Building_Type::Building);

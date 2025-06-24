@@ -1121,25 +1121,29 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 	return;
 }
 
-std::map<std::string, std::string> DataManager::getBuildingInformation()
+nlohmann::json DataManager::getBuildingInformation()
 {
-	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
+	nlohmann::json dictionary;
 
-	std::map<std::string, std::string> dictionary;
-	IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		IfcParse::IfcFile* fileObject = datacollection_[i]->getFilePtr();
 
-	for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
-		IfcSchema::IfcBuilding* building = *it;
+		IfcSchema::IfcBuilding::list::ptr buildingList = fileObject->instances_by_type<IfcSchema::IfcBuilding>();
 
-		if (building->Description().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcDescription), building->Description().get()); }
-		if (building->ObjectType().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcObjectType), building->ObjectType().get()); }
-		if (building->Name().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcName), building->Name().get()); }
-		if (building->LongName().has_value()) { dictionary.emplace(CJObjectEnum::getString(CJObjectID::ifcLongName), building->LongName().get()); }
+		for (auto it = buildingList->begin(); it != buildingList->end(); ++it) {
+			IfcSchema::IfcBuilding* building = *it;
 
-		nlohmann::json psetMapList = collectPropertyValues(building->GlobalId());
+			if (building->Description().has_value()) { dictionary[CJObjectEnum::getString(CJObjectID::ifcDescription)] = building->Description().get(); }
+			if (building->ObjectType().has_value()) { dictionary[CJObjectEnum::getString(CJObjectID::ifcObjectType)] = building->ObjectType().get(); }
+			if (building->Name().has_value()) { dictionary[CJObjectEnum::getString(CJObjectID::ifcName)] = building->Name().get(); }
+			if (building->LongName().has_value()) { dictionary[CJObjectEnum::getString(CJObjectID::ifcLongName)] = building->LongName().get(); }
 
-		for (auto jsonObIt = psetMapList.begin(); jsonObIt != psetMapList.end(); ++jsonObIt) {
-			dictionary[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value().dump();
+			nlohmann::json psetMapList = collectPropertyValues(building->GlobalId());
+
+			for (auto jsonObIt = psetMapList.begin(); jsonObIt != psetMapList.end(); ++jsonObIt) {
+				dictionary[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value();
+			}
 		}
 	}
 	return dictionary;
