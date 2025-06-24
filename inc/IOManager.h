@@ -33,6 +33,7 @@ private:
 	long long timeLoDc2_ = 0;
 	long long timeLoDd1_ = 0;
 	long long timeLoDd2_ = 0;
+	long long timeLoDe1_ = 0;
 	long long timeV_ = 0;
 
 	// 1 is all the geocreation functions were succesfull

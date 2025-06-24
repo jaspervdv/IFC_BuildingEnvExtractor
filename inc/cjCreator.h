@@ -57,6 +57,16 @@ private:
 
 	// surface collecting code
 
+	bool finishedLoD13_ = false;
+	bool finishedLoD22_ = false;
+	bool finishedLoD32_ = false;
+	bool finishedLoDb0_ = false;
+	bool finishedLoDc1_ = false;
+	bool finishedLoDc2_ = false;
+	bool finishedLoDd1_ = false;
+	bool finishedLoDd2_ = false;
+
+
 	// list collects the faces from the LoD03 creation to base LoD13 output on
 	std::vector<std::vector<TopoDS_Face>> LoD03RoofFaces_;
 	// list collects the faces from the LoD04 creation to base LoD22 output on
@@ -67,6 +77,8 @@ private:
 	std::map<double, std::vector<TopoDS_Face>> LoD03Plates_;
 	// list collects the lod03 plates per lvl
 	std::map<double, std::vector<TopoDS_Face>> LoD03ExtriorHFaces_;
+	// list collects the lode1 surfaces and their product ptr
+	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> LoDE1Faces_;
 	// check if the surfaces that are stored can be discarded.
 	void garbageCollection();
 
@@ -207,9 +219,16 @@ private:
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	void processDirectionalFaces(int direction, int roomNum, std::mutex& faceListMutex, std::vector<std::pair<TopoDS_Face, CJObjectID>>& collectionList);
 
-	// LoD32 ray casting related code
+	// LoD32 related code
 
-		// get the outer surface by raycasting against exterior voxels
+	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> getE1Faces(
+		DataManager* h, 
+		CJT::Kernel* kernel, 
+		int unitScale, 
+		const std::vector < std::shared_ptr<voxel>>& intersectingVoxels, 
+		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIdx);
+
+	// get the outer surface by raycasting against exterior voxels
 	void getOuterRaySurfaces(
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList,
 		const std::vector<Value>& totalValueObjectList,
@@ -348,6 +367,8 @@ public:
 	std::vector< CJT::GeoObject> makeLoDd1(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoDd.2 objects
 	std::vector< CJT::GeoObject> makeLoDd2(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDe.1 objects
+	std::vector< CJT::GeoObject> makeLoDe1(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects
 	std::vector< CJT::GeoObject> makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	void makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int unitScale);

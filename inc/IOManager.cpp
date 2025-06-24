@@ -719,9 +719,15 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoDd2(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoDd2, timeLoDd2_);
 	}
-	if (settingsCollection.make32() || settingsCollection.makee1())
+	if (settingsCollection.makee1())
 	{
-		processExternalLoD([&]() { //TODO: split e1 and 32
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDe1(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD32, timeLoDe1_);
+	}
+	if (settingsCollection.make32())
+	{
+		processExternalLoD([&]() {
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoD32(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoD32, timeLoD32_);
 	}
@@ -945,6 +951,7 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoDc.2 generation", timeLoDc2_);
 	addTimeToJSON(&timeReport, "LoDd.1 generation", timeLoDd1_);
 	addTimeToJSON(&timeReport, "LoDd.2 generation", timeLoDd2_);
+	addTimeToJSON(&timeReport, "LoDe.1 generation", timeLoDe1_);
 	addTimeToJSON(&timeReport, "Total Processing",
 		timeInternalizing_ +
 		timeVoxel_ +
@@ -961,6 +968,7 @@ bool IOManager::write(bool reportOnly)
 		timeLoDc2_ +
 		timeLoDd1_ +
 		timeLoDd2_ +
+		timeLoDe1_ +
 		timeLoD32_ +
 		timeV_
 	);

@@ -69,26 +69,70 @@ void CJGeoCreator::garbageCollection()
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-	//TODO: check if all uses have been exhausted
-	if (!settingsCollection.make13() && !LoD03RoofFaces_.empty())
+	// check if LoD03 roofs can be released
+	bool LoD03RoofsRequired = false;
+	if (!finishedLoD13_ && settingsCollection.make13())
+	{
+		LoD03RoofsRequired = true;
+	}
+
+	if (!LoD03RoofsRequired && !LoD03RoofFaces_.empty())
 	{
 		std::vector< std::vector<TopoDS_Face>>().swap(LoD03RoofFaces_);
 	}
 
-	if (!settingsCollection.make22() && 
-		!settingsCollection.makeb0() && 
-		!settingsCollection.makec2() &&
-		!settingsCollection.maked2() &&
-		!LoD04RoofFaces_.empty())
+	// check if LoD04 roofs can be released
+	bool LoD04RoofsRequired = false;
+	if (!finishedLoD22_ && settingsCollection.make22() ||
+		!finishedLoDb0_ && settingsCollection.makeb0() ||
+		!finishedLoDc2_ && settingsCollection.makec2() ||
+		!finishedLoDd2_ && settingsCollection.maked2() )
+	{
+		LoD04RoofsRequired = true;
+	}
+
+	if (!LoD04RoofsRequired && !LoD04RoofFaces_.empty())
 	{
 		std::vector< std::vector<TopoDS_Face>>().swap(LoD04RoofFaces_);
 	}
 
-	if (!settingsCollection.makec1() && 
-		!settingsCollection.makec2() &&
-		!LoD02Plates_.empty())
+	// check if LoD02 plates can be released
+	bool LoD02PLatesRequired = false;
+	if (!finishedLoDc1_ && settingsCollection.makec1() ||
+		!finishedLoDc2_ && settingsCollection.makec2())
+	{
+		LoD02PLatesRequired = true;
+	}
+
+	if (!LoD02PLatesRequired && !LoD02Plates_.empty())
 	{
 		std::map<double, std::vector<TopoDS_Face>>().swap(LoD02Plates_);
+	}
+
+	// check if LoD03 plates and exterior faces can be released
+	bool LoD03PlatesRequired = false;
+	if (!finishedLoDd1_ && settingsCollection.maked1() ||
+		!finishedLoDd2_ && settingsCollection.maked2())
+	{
+		LoD03PlatesRequired = true;
+	}
+
+	if (!LoD02PLatesRequired && !LoD03Plates_.empty())
+	{
+		std::map<double, std::vector<TopoDS_Face>>().swap(LoD03Plates_);
+		std::map<double, std::vector<TopoDS_Face>>().swap(LoD03ExtriorHFaces_);
+	}
+
+	// check if e.1 surfaces can be released
+	bool LoDe1FacesRequired = false;
+	if (!finishedLoD32_ && settingsCollection.make32())
+	{
+		LoDe1FacesRequired = true;
+	}
+
+	if (!LoDe1FacesRequired && !LoDE1Faces_.empty()) //TODO: release
+	{
+		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(LoDE1Faces_);
 	}
 	return;
 }
@@ -2268,6 +2312,7 @@ CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int 
 	geoObject.appendSurfaceData(semanticData);
 	geoObject.appendSurfaceTypeValue(0);
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObject;
 }
 
@@ -2341,6 +2386,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectCollection;
 }
 
@@ -2821,6 +2867,7 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 	}
 	 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObject;
 }
 
@@ -3071,6 +3118,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD12(DataManager* h, CJT::Kernel
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3079,6 +3127,8 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, CJT::Kernel
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD13) << std::endl;
+	finishedLoD13_ = true;
+
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	if (!settingsCollection.footPrintBased())
@@ -3147,6 +3197,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, CJT::Kernel
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3155,6 +3206,8 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD22) << std::endl;
+	finishedLoD22_ = true;
+
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3224,6 +3277,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD22(DataManager* h, CJT::Kernel
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3231,6 +3285,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDb0(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDb0) << std::endl;
+	finishedLoDb0_ = true;
+
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3325,6 +3381,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDb0(DataManager* h, CJT::Kernel*
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3332,6 +3389,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc1) << std::endl;
+	finishedLoDc1_ = true;
 
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3379,6 +3437,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3386,6 +3445,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc2) << std::endl;
+	finishedLoDc2_ = true;
 
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3607,6 +3667,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 		helperFunctions::writeToSTEP(shapeCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDb));
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3614,6 +3675,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDd1) << std::endl;
+	finishedLoDd1_ = true;
+
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -3695,6 +3758,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 	}
 
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -3702,22 +3766,72 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd2(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDd2) << std::endl;
+	finishedLoDd2_ = true;
+
 	std::cout << "[WARNING] LoDd.2 processes are not yet implemented\n";
 	return std::vector<CJT::GeoObject>();
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe1(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe1) << std::endl;
+	auto startTime = std::chrono::steady_clock::now();
+
+	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>> voxelIndex;
+	// collect and index the voxels to which rays are cast
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
+	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
+	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
+	populateVoxelIndex(&voxelIndex, intersectingVoxels);
+	LoDE1Faces_ = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
+
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+
+	BRep_Builder builder;
+	TopoDS_Compound collectionShape;
+	builder.MakeCompound(collectionShape);
+
+	std::vector<nlohmann::json> SurfaceTypeCollection;
+	std::vector<int> typeValueList;
+	setLoD32SurfaceAttributes(SurfaceTypeCollection, typeValueList, LoDE1Faces_, h);
+	for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : LoDE1Faces_)
+	{
+		const TopoDS_Face& currentFace = currentFacePair.first;
+		builder.Add(collectionShape, currentFace);
+	}
+	collectionShape.Move(localRotationTrsf);
+
+	CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "e.1");
+	geoObject.setSurfaceTypeValues(typeValueList);
+
+	geoObject.setSurfaceData(SurfaceTypeCollection);
+	geoObjectList.emplace_back(geoObject);
+
+	if (settingsCollection.createOBJ())
+	{
+		helperFunctions::writeToOBJ(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDe1));
+	}
+
+	if (settingsCollection.createSTEP())
+	{
+		helperFunctions::writeToSTEP(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDe1));
+	}
+
+	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
+	return geoObjectList;
 }
 
 
 std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	if (settingsCollection.makee1())
-	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe1) << std::endl;
-	}
-	else
-	{
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
-	}
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
+
+	finishedLoD32_ = true;
 
 	auto startTime = std::chrono::steady_clock::now();
 	gp_Trsf localRotationTrsf;
@@ -3725,90 +3839,22 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>> voxelIndex;
-
 	// collect and index the voxels to which rays are cast
 	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
 	populateVoxelIndex(&voxelIndex, intersectingVoxels);
 
-	// collect and index the products which are presumed to be part of the exterior
-	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
-	if (productLookupValues.size() <= 0)
-	{
-		throw ErrorID::failedLoD32;
-		return{};
-	}
-
-	std::vector<int> scoreList;
-	std::vector<Value> cleanedProductLookupValues;
-	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIndx;	
-	double searchBuffer = settingsCollection.searchBufferLod32();
-	for (size_t i = 0; i < productLookupValues.size(); i++)
-	{
-		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
-		std::string lookupType = lookup->getProductPtr()->data().type()->name();
-		TopoDS_Shape currentShape = lookup->getProductShape();
-
-		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer);
-		int score = static_cast<int>(std::distance(voxelIndex.qbegin(bgi::intersects(totalBox)), voxelIndex.qend()));
-		if (score == 0) { continue; }
-
-		scoreList.emplace_back(score);
-		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
-		{
-			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-			BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
-			faceIndx.insert(std::make_pair(currentBox, currentFace));
-		}
-		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
-	}
-	std::vector<Value>().swap(productLookupValues);
-
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> outerSurfacePairList;
-	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIndex);
-	std::vector<int>().swap(scoreList);
-
-	if (settingsCollection.makee1())
+	if (!LoDE1Faces_.empty())
 	{
-		BRep_Builder builder;
-		TopoDS_Compound collectionShape;
-		builder.MakeCompound(collectionShape);
-
-		std::vector<nlohmann::json> SurfaceTypeCollection;
-		std::vector<int> typeValueList;
-		setLoD32SurfaceAttributes(SurfaceTypeCollection, typeValueList, outerSurfacePairList, h);
-		for (const std::pair<TopoDS_Face, IfcSchema::IfcProduct*>& currentFacePair : outerSurfacePairList)
-		{
-			const TopoDS_Face& currentFace = currentFacePair.first;
-			builder.Add(collectionShape, currentFace);
-		}
-		collectionShape.Move(localRotationTrsf);
-
-		CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "e.1");
-		geoObject.setSurfaceTypeValues(typeValueList);
-
-		geoObject.setSurfaceData(SurfaceTypeCollection);
-		geoObjectList.emplace_back(geoObject);
-
-		if (settingsCollection.createOBJ())
-		{
-			helperFunctions::writeToOBJ(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDe1));
-		}
-
-		if (settingsCollection.createSTEP())
-		{
-			helperFunctions::writeToSTEP(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDe1));
-		}
-
-		printTime(startTime, std::chrono::steady_clock::now());
-		if (!settingsCollection.make32()) { return geoObjectList; }
-		startTime = std::chrono::steady_clock::now();
-		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD32) << std::endl;
-		startTime = std::chrono::steady_clock::now();
+		outerSurfacePairList = LoDE1Faces_;
 	}
-	
+	else
+	{
+		outerSurfacePairList = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
+	}
 
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> splitOuterSurfacePairList;
@@ -3873,6 +3919,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 
 	geoObjectList.emplace_back(geoObject);
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -4018,6 +4065,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeV(DataManager* h, CJT::Kernel* ker
 		geoObjectList.emplace_back(geoObject);
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
 	return geoObjectList;
 }
 
@@ -4283,6 +4331,58 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mute
 		listLock.unlock();
 	}
 	return;
+}
+
+std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> CJGeoCreator::getE1Faces(
+	DataManager* h,
+	CJT::Kernel* kernel, 
+	int unitScale, 
+	const std::vector < std::shared_ptr<voxel>>& intersectingVoxels,
+	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIdx)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
+
+	// collect and index the products which are presumed to be part of the exterior
+	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
+	if (productLookupValues.size() <= 0)
+	{
+		throw ErrorID::failedLoD32;
+		return{};
+	}
+
+	std::vector<int> scoreList;
+	std::vector<Value> cleanedProductLookupValues;
+	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIndx;
+	double searchBuffer = settingsCollection.searchBufferLod32();
+	for (size_t i = 0; i < productLookupValues.size(); i++)
+	{
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(productLookupValues[i].second);
+		std::string lookupType = lookup->getProductPtr()->data().type()->name();
+		TopoDS_Shape currentShape = lookup->getProductShape();
+
+		BoostBox3D totalBox = helperFunctions::createBBox(currentShape, searchBuffer);
+		int score = static_cast<int>(std::distance(voxelIdx.qbegin(bgi::intersects(totalBox)), voxelIdx.qend()));
+		if (score == 0) { continue; }
+
+		scoreList.emplace_back(score);
+		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next())
+		{
+			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+			BoostBox3D currentBox = helperFunctions::createBBox(currentFace);
+			faceIndx.insert(std::make_pair(currentBox, currentFace));
+		}
+		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
+	}
+	std::vector<Value>().swap(productLookupValues);
+
+	// evaluate which surfaces are visible from the exterior
+	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> outerSurfacePairList;
+	getOuterRaySurfaces(outerSurfacePairList, cleanedProductLookupValues, scoreList, h, faceIndx, voxelIdx);
+	std::vector<int>().swap(scoreList);
+
+	return outerSurfacePairList;
+	
 }
 
 void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList, const std::vector<Value>& totalValueObjectList, const std::vector<int>& scoreList, DataManager* h, const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx, const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex)
