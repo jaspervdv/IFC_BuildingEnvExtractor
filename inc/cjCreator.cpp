@@ -134,6 +134,24 @@ void CJGeoCreator::garbageCollection()
 	{
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(LoDE1Faces_);
 	}
+
+	// check if storey objects can be released
+	bool requireStoreyObjects = false;
+	if (!finishedLoDc1_ && settingsCollection.makec1() ||
+		!finishedLoDc2_ && settingsCollection.makec2() ||
+		!finishedLoDd1_ && settingsCollection.maked1() ||
+		!finishedLoDd2_ && settingsCollection.maked2() ||
+		!finishedLoDe0_ && settingsCollection.makee0())
+	{
+		requireStoreyObjects = true;
+		
+	}
+
+	if (!requireStoreyObjects && !storeyObjects_.empty())
+	{
+		std::vector<std::shared_ptr<CJT::CityObject>>().swap(storeyObjects_);
+	}
+
 	return;
 }
 
@@ -2067,6 +2085,8 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeStoreyObjects(Da
 			elevList.emplace_back(storeyElevation);
 		}
 	}
+	storeyObjects_ = cityStoreyObjects;
+	garbageCollection();
 	return cityStoreyObjects;
 }
 
@@ -2501,29 +2521,28 @@ void CJGeoCreator::store2DStoreyData(DataManager* h, CJT::Kernel* kernel)
 
 	bool hasOutput = false;
 
-	if (settingsCollection.makec1() || settingsCollection.makec2())
+	if (settingsCollection.makec1() || settingsCollection.makec2() ||
+		settingsCollection.maked1() || settingsCollection.maked2() ||
+		settingsCollection.makee0())
 	{
-		if (!settingsCollection.make02() || !settingsCollection.makeInterior())
+		if (storeyObjects_.empty())
 		{
 			storeyObjects = makeStoreyObjects(h);
+		}
+
+		if (!settingsCollection.make02() && settingsCollection.makec1() || 
+			!settingsCollection.make02() && settingsCollection.makec2())
+		{
 			make2DStoreys(h, kernel, storeyObjects, 1, false, false);
 			hasOutput = true;
 		}
-	}
 
-	if (settingsCollection.maked1() || settingsCollection.maked2())
-	{
-		if (!settingsCollection.make02() || !settingsCollection.makeInterior())
+		if (!settingsCollection.make03() && settingsCollection.maked1() ||
+			!settingsCollection.make03() && settingsCollection.maked2())
 		{
-			storeyObjects = makeStoreyObjects(h);
 			make2DStoreys(h, kernel, storeyObjects, 1, true, false);
 			hasOutput = true;
 		}
-	}
-
-	if (hasOutput)
-	{
-		std::cout << "\n";
 	}
 }
 
@@ -3770,6 +3789,42 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd2(DataManager* h, CJT::Kernel*
 
 	std::cout << "[WARNING] LoDd.2 processes are not yet implemented\n";
 	return std::vector<CJT::GeoObject>();
+}
+
+std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel* kernel, int unitScale)
+{
+	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe0) << std::endl;
+	auto startTime = std::chrono::steady_clock::now();
+	finishedLoDe0_ = true;
+
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
+	for (const std::shared_ptr<CJT::CityObject>& storeyObject: storeyObjects_)
+	{
+		std::vector<std::string> storeyGuidList = storeyObject->getAttributes()["IFC Guid"];
+		std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList = fetchStoreyObjects(h, storeyGuidList);
+
+		for (IfcSchema::IfcBuildingStorey* currentStorey : ifcStoreyList)
+		{
+			IfcSchema::IfcRelContainedInSpatialStructure::list::ptr containedStructure = currentStorey->ContainsElements()->as<IfcSchema::IfcRelContainedInSpatialStructure>();
+			for (auto csit = containedStructure->begin(); csit != containedStructure->end(); ++csit)
+			{
+				IfcSchema::IfcProduct::list::ptr storeyRelatedProducts = (*csit)->RelatedElements();
+				for (auto srit = storeyRelatedProducts->begin(); srit != storeyRelatedProducts->end(); ++srit)
+				{
+					IfcSchema::IfcProduct* currentProduct = *srit;
+					TopoDS_Shape currentShape = h->getObjectShapeFromMem(currentProduct, true);
+
+					if (currentShape.IsNull()) { continue; }
+					CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "e.0");
+					geoObjectList.emplace_back(geoObject);
+				}
+			}
+		}
+	}
+	printTime(startTime, std::chrono::steady_clock::now());
+	garbageCollection();
+	return geoObjectList;
 }
 
 std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe1(DataManager* h, CJT::Kernel* kernel, int unitScale)

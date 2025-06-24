@@ -30,7 +30,7 @@ Current possible output shells:
 * LoDc.2 - exterior only (WIP) (extruded LoD0.2 surfaces with LoD0.4 roofs)
 * LoDd.1 - exterior only (WIP) (extruded LoD0.3 internal surfaces)
 * LoDd.2 - exterior only (planned) (extruded LoD0.3 internal surfaces with LoD0.4 roofs)
-* LoDe.0 - all relevant geometry (planned) (full 1:1 conversion of geometry)
+* LoDe.0 - all relevant geometry (WIP) (full 1:1 conversion of geometry)
 * LoDe.1 - exterior unrefined LoD3.2
 
 Current supported IFC versions:

@@ -65,6 +65,7 @@ private:
 	bool finishedLoDc2_ = false;
 	bool finishedLoDd1_ = false;
 	bool finishedLoDd2_ = false;
+	bool finishedLoDe0_ = false;
 
 
 	// list collects the faces from the LoD03 creation to base LoD13 output on
@@ -79,6 +80,8 @@ private:
 	std::map<double, std::vector<TopoDS_Face>> LoD03ExtriorHFaces_;
 	// list collects the lode1 surfaces and their product ptr
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> LoDE1Faces_;
+	// list collects the storey city Pointers
+	std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects_;
 	// check if the surfaces that are stored can be discarded.
 	void garbageCollection();
 
@@ -367,6 +370,8 @@ public:
 	std::vector< CJT::GeoObject> makeLoDd1(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoDd.2 objects
 	std::vector< CJT::GeoObject> makeLoDd2(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	/// generates a list of LoDe.0 objects
+	std::vector< CJT::GeoObject> makeLoDe0(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoDe.1 objects
 	std::vector< CJT::GeoObject> makeLoDe1(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD3.2 objects

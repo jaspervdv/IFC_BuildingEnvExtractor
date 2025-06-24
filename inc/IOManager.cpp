@@ -307,6 +307,7 @@ std::string IOManager::getLoDEnabled()
 	if (settingsCollection.makec2()) { summaryString += ", c.2"; }
 	if (settingsCollection.maked1()) { summaryString += ", d.1"; }
 	if (settingsCollection.maked2()) { summaryString += ", d.2"; }
+	if (settingsCollection.makee0()) { summaryString += ", e.0"; }
 	if (settingsCollection.makee1()) { summaryString += ", e.1"; }
 	if (settingsCollection.make32()) { summaryString += ", 3.2"; }
 	if (settingsCollection.makeV()) { summaryString += ", 5.0 (V)"; }
@@ -719,6 +720,12 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 			return std::vector<CJT::GeoObject>{geoCreator->makeLoDd2(internalDataManager_.get(), kernel, 1)};
 			}, cityOuterShellObject, ErrorID::failedLoDd2, timeLoDd2_);
 	}
+	if (settingsCollection.makee0())
+	{
+		processExternalLoD([&]() {
+			return std::vector<CJT::GeoObject>{geoCreator->makeLoDe0(internalDataManager_.get(), kernel, 1)};
+			}, cityOuterShellObject, ErrorID::failedLoD32, timeLoDe0_);
+	}
 	if (settingsCollection.makee1())
 	{
 		processExternalLoD([&]() {
@@ -951,6 +958,7 @@ bool IOManager::write(bool reportOnly)
 	addTimeToJSON(&timeReport, "LoDc.2 generation", timeLoDc2_);
 	addTimeToJSON(&timeReport, "LoDd.1 generation", timeLoDd1_);
 	addTimeToJSON(&timeReport, "LoDd.2 generation", timeLoDd2_);
+	addTimeToJSON(&timeReport, "LoDe.0 generation", timeLoDe0_);
 	addTimeToJSON(&timeReport, "LoDe.1 generation", timeLoDe1_);
 	addTimeToJSON(&timeReport, "Total Processing",
 		timeInternalizing_ +
@@ -968,6 +976,7 @@ bool IOManager::write(bool reportOnly)
 		timeLoDc2_ +
 		timeLoDd1_ +
 		timeLoDd2_ +
+		timeLoDe0_ +
 		timeLoDe1_ +
 		timeLoD32_ +
 		timeV_
