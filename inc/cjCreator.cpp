@@ -3817,6 +3817,20 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 
 					if (currentShape.IsNull()) { continue; }
 					CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "e.0");
+
+					nlohmann::json attributeMap;
+					attributeMap[CJObjectEnum::getString(CJObjectID::CJType)] = "+" + currentProduct->data().type()->name();
+					nlohmann::json attributeList = h->collectPropertyValues(currentProduct->GlobalId());
+					for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
+						attributeMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value();
+					}
+
+					int faceCount = 0;
+					for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) { faceCount++; }
+					std::vector<int>TypeValueList(faceCount, 0);
+
+					geoObject.setSurfaceTypeValues(TypeValueList);
+					geoObject.appendSurfaceData(attributeMap);
 					geoObjectList.emplace_back(geoObject);
 				}
 			}
