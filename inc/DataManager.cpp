@@ -1106,7 +1106,7 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 		{
 			if (sitePropertySetData["Scale"].is_number())
 			{
-				transformation->setScale(transformation->getScale()[0] * sitePropertySetData["Scale"]);
+				transformation->setScale(transformation->getScale()[0] * sitePropertySetData["Scale"].get<float>());
 			}	
 		}
 	}
