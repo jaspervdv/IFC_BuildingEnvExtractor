@@ -3816,7 +3816,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 					TopoDS_Shape currentShape = h->getObjectShapeFromMem(currentProduct, true);
 
 					if (currentShape.IsNull()) { continue; }
-					CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "e.0");
+					CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
 
 					nlohmann::json attributeMap;
 					attributeMap[CJObjectEnum::getString(CJObjectID::CJType)] = "+" + currentProduct->data().type()->name();
