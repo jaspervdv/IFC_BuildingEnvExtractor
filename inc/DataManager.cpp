@@ -902,6 +902,52 @@ bool DataManager::validateProjectionData(const nlohmann::json& sitePropertySetDa
 	return false;
 }
 
+void DataManager::populateAttributeLookup()
+{
+	for (size_t i = 0; i < dataCollectionSize_; i++)
+	{
+		IfcSchema::IfcRelDefinesByProperties::list::ptr relDefList = datacollection_[i]->getFilePtr()->instances_by_type <IfcSchema::IfcRelDefinesByProperties>();
+		for (auto reldefIt = relDefList->begin(); reldefIt != relDefList->end(); reldefIt++)
+		{
+			IfcSchema::IfcRelDefinesByProperties* relDefItem = *reldefIt;
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+			IfcSchema::IfcObjectDefinition::list::ptr relatedObjectList = relDefItem->RelatedObjects();
+#else
+			IfcSchema::IfcObject::list::ptr relatedObjectList = relDefItem->RelatedObjects();
+#endif
+
+			std::vector<std::string> GuidList;
+			GuidList.reserve(relatedObjectList->size());
+			for (auto objectIt = relatedObjectList->begin(); objectIt != relatedObjectList->end(); objectIt++)
+			{
+				GuidList.emplace_back((*objectIt)->GlobalId());
+			}
+
+#if defined(USE_IFC4) || defined(USE_IFC4x3)
+			IfcSchema::IfcPropertySetDefinitionSelect* propertyDef = relDefItem->RelatingPropertyDefinition();
+#else
+			IfcSchema::IfcPropertySetDefinition* propertyDef = relDefItem->RelatingPropertyDefinition();
+#endif
+			if (propertyDef == nullptr) { continue; }
+			if (propertyDef->data().type()->name() != "IfcPropertySet") { continue; }
+			IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
+
+			for (const std::string currentGuid : GuidList)
+			{
+				if (attributeLookup_.find(currentGuid) != attributeLookup_.end())
+				{
+					attributeLookup_[currentGuid].emplace_back(propertySet);
+					continue;
+				}
+
+				std::vector< IfcSchema::IfcPropertySet*> propertySetList = { propertySet };
+				attributeLookup_.emplace(std::make_pair(currentGuid, propertySetList));
+			}
+		}
+	}
+	return;
+}
+
 
 bool DataManager::hasSetUnits() {
 	for (size_t i = 0; i < dataCollectionSize_; i++)
@@ -1230,53 +1276,12 @@ nlohmann::json DataManager::collectPropertyValues(const std::string& objectId, i
 
 nlohmann::json DataManager::collectPropertyValues(const std::string& objectId, IfcParse::IfcFile* ifcFile, const std::string& psetName)
 {
-	nlohmann::json attributesList;
-	IfcSchema::IfcRelDefinesByProperties::list::ptr relDefList = ifcFile->instances_by_type <IfcSchema::IfcRelDefinesByProperties>();
+	if (attributeLookup_.empty()) { populateAttributeLookup(); }
 
 	bool searchName = true;
 	if (psetName == "") { searchName = false; }
 
-	if (attributeLookup_.empty())
-	{
-		for (auto reldefIt = relDefList->begin(); reldefIt != relDefList->end(); reldefIt++) //TODO: this does not scale well
-		{
-			IfcSchema::IfcRelDefinesByProperties* relDefItem = *reldefIt;
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-			IfcSchema::IfcObjectDefinition::list::ptr relatedObjectList = relDefItem->RelatedObjects();
-#else
-			IfcSchema::IfcObject::list::ptr relatedObjectList = relDefItem->RelatedObjects();
-#endif
-
-			std::vector<std::string> GuidList;
-			GuidList.reserve(relatedObjectList->size());
-			for (auto objectIt = relatedObjectList->begin(); objectIt != relatedObjectList->end(); objectIt++)
-			{
-				GuidList.emplace_back((*objectIt)->GlobalId());
-			}
-
-#if defined(USE_IFC4) || defined(USE_IFC4x3)
-			IfcSchema::IfcPropertySetDefinitionSelect* propertyDef = relDefItem->RelatingPropertyDefinition();
-#else
-			IfcSchema::IfcPropertySetDefinition* propertyDef = relDefItem->RelatingPropertyDefinition();
-#endif
-			if (propertyDef == nullptr) { continue; }
-			if (propertyDef->data().type()->name() != "IfcPropertySet") { continue; }
-			IfcSchema::IfcPropertySet* propertySet = relDefItem->RelatingPropertyDefinition()->as<IfcSchema::IfcPropertySet>();
-
-			for (const std::string currentGuid : GuidList)
-			{
-				if (attributeLookup_.find(currentGuid) != attributeLookup_.end())
-				{
-					attributeLookup_[currentGuid].emplace_back(propertySet);
-					continue;
-				}
-
-				std::vector< IfcSchema::IfcPropertySet*> propertySetList = { propertySet };
-				attributeLookup_.emplace(std::make_pair(currentGuid, propertySetList));
-			}
-		}
-	}
-
+	nlohmann::json attributesList;
 	if (attributeLookup_.find(objectId) == attributeLookup_.end()) { return attributesList; }
 
 	std::vector<IfcSchema::IfcPropertySet*> relatedProperties = attributeLookup_[objectId];

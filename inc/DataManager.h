@@ -138,7 +138,7 @@ private:
 
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
-	std::map<std::string, std::vector<IfcSchema::IfcPropertySet*>> attributeLookup_;
+	std::unordered_map<std::string, std::vector<IfcSchema::IfcPropertySet*>> attributeLookup_;
 
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
@@ -196,6 +196,8 @@ private:
 	void updateBoudingData(const bg::model::box <BoostPoint3D>& box);
 
 	bool validateProjectionData(const nlohmann::json& sitePropertySetData);
+
+	void populateAttributeLookup();
 
 public:
 	/*
