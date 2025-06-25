@@ -590,26 +590,28 @@ std::unique_ptr<gp_Pnt> IOManager::FetchMainEntranceLocation(std::unique_ptr<gp_
 		{
 			IfcSchema::IfcDoor* currentDoor = *it;
 
-			nlohmann::json attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
+			//TODO: implement again
 
-			if (!attributeList.contains("CHEK_IsMainEntrance"))
-			{
-				continue;
-			}
+			//nlohmann::json attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
 
-			// if is mainentrance
-			TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
-			gp_Pnt lll;
-			gp_Pnt urr;
-			helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
+			//if (!attributeList.contains("CHEK_IsMainEntrance"))
+			//{
+			//	continue;
+			//}
 
-			gp_Pnt centerPoint = gp_Pnt(
-				(lll.X() - urr.X()) / 2,
-				(lll.Y() - urr.Y()) / 2,
-				lll.Z());
+			//// if is mainentrance
+			//TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
+			//gp_Pnt lll;
+			//gp_Pnt urr;
+			//helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
 
-			location = std::make_unique<gp_Pnt>(centerPoint);
-			return location;
+			//gp_Pnt centerPoint = gp_Pnt(
+			//	(lll.X() - urr.X()) / 2,
+			//	(lll.Y() - urr.Y()) / 2,
+			//	lll.Z());
+
+			//location = std::make_unique<gp_Pnt>(centerPoint);
+			//return location;
 		}
 	}
 	return nullptr;
@@ -638,9 +640,6 @@ void IOManager::processExternalLoD(CJGeoCreator* geoCreator, CJT::CityObject& ci
 			succesfullExit_ = 0;
 		}
 	}
-
-	// if not interior is created for the suitable storey object it has to be created, self checks is required
-	geoCreator->store2DStoreyData(internalDataManager_.get(), kernel);
 
 	if (settingsCollection.make00())
 	{

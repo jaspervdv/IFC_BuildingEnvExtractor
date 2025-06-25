@@ -138,6 +138,8 @@ private:
 
 	std::map <std::string, std::unordered_map < std::string, int >> productIndxLookup_;
 
+	std::map<std::string, std::vector<IfcSchema::IfcPropertySet*>> attributeLookup_;
+
 	/// finds the ifc schema that is used in the supplied file
 	bool findSchema(const std::string& path, bool quiet = false);
 	/// count the elements in the file and set the related bools
@@ -253,6 +255,10 @@ public:
 
 	/// collects the non-standard property data in the ifc file of an object 
 	nlohmann::json collectPropertyValues(const std::string& objectId, const std::string& psetName = "");
+	/// collects the non-standard property data in the ifc file of an object 
+	nlohmann::json collectPropertyValues(const std::string& objectId, int location, const std::string& psetName = "");
+	/// collects the non-standard property data in the ifc file of an object 
+	nlohmann::json collectPropertyValues(const std::string& objectId, IfcParse::IfcFile* ifcFile, const std::string& psetName = "");
 
 	/// search the object shape from memory only
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);

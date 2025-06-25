@@ -340,8 +340,6 @@ public:
 	/// adds a storey object to the city object
 	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03, bool output = true);
 
-	void store2DStoreyData(DataManager* h, CJT::Kernel* kernel);
-
 	/// generates an LoD0.0 object
 	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects

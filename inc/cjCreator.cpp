@@ -144,7 +144,6 @@ void CJGeoCreator::garbageCollection()
 		!finishedLoDe0_ && settingsCollection.makee0())
 	{
 		requireStoreyObjects = true;
-		
 	}
 
 	if (!requireStoreyObjects && !storeyObjects_.empty())
@@ -629,6 +628,7 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		int edgeCount = 0;
 		BRepBuilderAPI_MakeWire wireMakerTop;
 		BRepBuilderAPI_MakeWire wireMakerBottom;
+		std::vector<TopoDS_Face> TempFaceList;
 		for (BRepTools_WireExplorer expl(currentWire); expl.More(); expl.Next())
 		{
 			const TopoDS_Edge& edge = TopoDS::Edge(expl.Current());
@@ -672,23 +672,23 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 			if (p0Flat)
 			{
 				TopoDS_Face sideFace = helperFunctions::createPlanarFace(p2, p1, p0);
-				brepSewer.Add(sideFace);
+				TempFaceList.emplace_back(sideFace);
 			}
 			else if (p1Flat)
 			{
 				TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p1, p0);
-				brepSewer.Add(sideFace);
+				TempFaceList.emplace_back(sideFace);
 			}
 			else
 			{
 				TopoDS_Face sideFace = helperFunctions::createPlanarFace(p3, p2, p1, p0);
-				brepSewer.Add(sideFace);
+				TempFaceList.emplace_back(sideFace);
 			}
 		}
 
 		if (edgeCount <= 2)
 		{
-			return TopoDS_Solid();
+			continue;
 		}
 
 		if (!wireMakerBottom.IsDone() || !wireMakerTop.IsDone())
@@ -697,6 +697,11 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		}
 		wireCopyTop.emplace_back(wireMakerTop.Wire());
 		wireCopyBottom.emplace_back(wireMakerBottom.Wire());
+
+		for (const TopoDS_Face& currentSideFace : TempFaceList)
+		{
+			brepSewer.Add(currentSideFace);
+		}
 	}
 
 	gp_Pnt p0 = helperFunctions::getFirstPointShape(evalFace);
@@ -719,7 +724,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	brepSewer.Perform();
 
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
-
 	if (sewedShape.ShapeType() != TopAbs_SHELL)
 	{
 		return solidShape;
@@ -2094,22 +2098,23 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 {
 	std::vector<std::shared_ptr<CJT::CityObject>> cityRoomObjects;
 
-
-	IfcSchema::IfcSpace::list spaceList;
-
+	std::vector<std::pair<int, IfcSchema::IfcSpace*>> spacePairList;
 	for (size_t i = 0; i < h->getSourceFileCount(); i++)
 	{
 		IfcSchema::IfcSpace::list::ptr sourceSpaceList = h->getSourceFile(i)->instances_by_type<IfcSchema::IfcSpace>();
 
 		for (auto spaceIt = sourceSpaceList->begin(); spaceIt != sourceSpaceList->end(); ++spaceIt)
 		{
-			spaceList.push(*spaceIt);
+			spacePairList.emplace_back(std::make_pair(i, *spaceIt));
 		}
 	}
 
-	for (auto spaceIt = spaceList.begin(); spaceIt != spaceList.end(); ++spaceIt)
+
+	for (const std::pair<int, IfcSchema::IfcSpace*>& currentSpacePair : spacePairList)
 	{
-		IfcSchema::IfcSpace* spaceObject = *spaceIt;
+
+
+		IfcSchema::IfcSpace* spaceObject = currentSpacePair.second;
 
 		// check if proper kind of room object
 		if (spaceObject->CompositionType() == IfcSchema::IfcElementCompositionEnum::IfcElementComposition_ELEMENT)
@@ -2130,11 +2135,10 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
 
 			//store added data
-			nlohmann::json attributeList = h->collectPropertyValues(spaceObject->GlobalId());
+			nlohmann::json attributeList = h->collectPropertyValues(spaceObject->GlobalId(), currentSpacePair.first);
 			for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
 				cjRoomObject->addAttribute(jsonObIt.key(), jsonObIt.value());
 			}
-
 			// get rooms storey
 			bool storeyFound = false;
 
@@ -2514,37 +2518,6 @@ void CJGeoCreator::make2DStoreys(
 	return;
 }
 
-void CJGeoCreator::store2DStoreyData(DataManager* h, CJT::Kernel* kernel)
-{
-	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
-	std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects;
-
-	bool hasOutput = false;
-
-	if (settingsCollection.makec1() || settingsCollection.makec2() ||
-		settingsCollection.maked1() || settingsCollection.maked2() ||
-		settingsCollection.makee0())
-	{
-		if (storeyObjects_.empty())
-		{
-			storeyObjects = makeStoreyObjects(h);
-		}
-
-		if (!settingsCollection.make02() && settingsCollection.makec1() || 
-			!settingsCollection.make02() && settingsCollection.makec2())
-		{
-			make2DStoreys(h, kernel, storeyObjects, 1, false, false);
-			hasOutput = true;
-		}
-
-		if (!settingsCollection.make03() && settingsCollection.maked1() ||
-			!settingsCollection.make03() && settingsCollection.maked2())
-		{
-			make2DStoreys(h, kernel, storeyObjects, 1, true, false);
-			hasOutput = true;
-		}
-	}
-}
 
 void CJGeoCreator::make2DStorey(
 	std::mutex& storeyMutex,
@@ -3408,7 +3381,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc1) << std::endl;
-	finishedLoDc1_ = true;
+
 
 	std::vector< CJT::GeoObject> geoObjectList;
 
@@ -3417,6 +3390,15 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 	std::vector<TopoDS_Face> outerShapeFaces;
 	std::map<double, std::vector<TopoDS_Face>> horizontalStoreyFaces;
+
+	if (LoD02Plates_.empty())
+	{
+		//TODO: add line stating that plates are required
+		if (storeyObjects_.empty()) {makeStoreyObjects(h); }
+		make2DStoreys(h, kernel, storeyObjects_, 1, false, false);
+	}	
+	finishedLoDc1_ = true;
+
 	extrudeStoreyGeometry(true, true, h, LoD02Plates_, outerShapeFaces, horizontalStoreyFaces);
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<treeDepth_>> horizontalFaceIndex;
 	for (const std::pair<double, std::vector<TopoDS_Face>>& currentFacePair : horizontalStoreyFaces)
@@ -3464,10 +3446,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDc2) << std::endl;
-	finishedLoDc2_ = true;
 
 	std::vector< CJT::GeoObject> geoObjectList;
-
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
@@ -3486,6 +3466,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 		return {};
 	}
 
+	if (LoD02Plates_.empty())
+	{
+		if (storeyObjects_.empty()) { makeStoreyObjects(h); }
+		make2DStoreys(h, kernel, storeyObjects_, 1, false, false);
+	}
+
 	std::vector<std::vector<TopoDS_Face>> roofList;
 	if (LoD04RoofFaces_.size() == 0) {
 		roofList = makeRoofFaces(h, kernel, 1, false, false);
@@ -3494,6 +3480,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 	{
 		roofList = LoD04RoofFaces_;
 	}
+	finishedLoDc2_ = true;
 
 	std::vector<TopoDS_Face> roofOverhangSurfaceList;
 	for (const std::vector<TopoDS_Face>& currentRoofFaceList : roofList)
@@ -3694,12 +3681,19 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 {
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDd1) << std::endl;
-	finishedLoDd1_ = true;
+
 
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
+
+	if (LoD03Plates_.empty())
+	{
+		if (storeyObjects_.empty()) { makeStoreyObjects(h); }
+		make2DStoreys(h, kernel, storeyObjects_, 1, true, false);
+	}
+	finishedLoDd1_ = true;
 
 	std::vector<TopoDS_Face> outerShapeFaces;
 	std::map<double, std::vector<TopoDS_Face>> horizontalStoreyFaces;
