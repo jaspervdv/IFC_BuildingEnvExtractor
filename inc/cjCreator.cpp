@@ -1858,8 +1858,8 @@ void CJGeoCreator::reduceSurface(const std::vector<TopoDS_Shape>& inputShapes, s
 		std::vector<std::shared_ptr<SurfaceGridPair>> coarseFilteredTopSurfacePairList = getObjectTopSurfaces(inputShapes[i]);
 		for (const auto& coarseFilteredTopSurfacePair : coarseFilteredTopSurfacePairList)
 		{
-			std::unique_lock<std::mutex> rtreeLock(processMutex);
 			auto rtreePair = std::make_pair(helperFunctions::createBBox(coarseFilteredTopSurfacePair->getFace()), static_cast<int>(shapeList->size()));
+			std::unique_lock<std::mutex> rtreeLock(processMutex);
 			shapeIdx->insert(rtreePair);
 			shapeList->emplace_back(coarseFilteredTopSurfacePair);
 			rtreeLock.unlock();
@@ -1890,6 +1890,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 	{
 		while (coreUse > shapeList.size()) { coreUse /=2; }
 	}
+
 	int splitListSize = static_cast<int>(floor(shapeList.size() / coreUse));
 
 	std::vector<std::thread> threadList;
@@ -1965,7 +1966,6 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 
 	double precision = SettingsCollection::getInstance().precision();
-
 	// index the valid surfaces
 	for (TopExp_Explorer expl(shape, TopAbs_FACE); expl.More(); expl.Next()) {
 		TopoDS_Face face = TopoDS::Face(expl.Current());
@@ -1999,7 +1999,6 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 		qResult.clear();
 		spatialIndex.query(bgi::intersects(
 			bbox), std::back_inserter(qResult));
-
 		// cull faces completely overlapped by one other face
 		for (size_t j = 0; j < qResult.size(); j++)
 		{
@@ -2035,6 +2034,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 			visibleSurfaces.emplace_back(currentGroup);
 		}
 	}
+
 	return visibleSurfaces;
 }
 

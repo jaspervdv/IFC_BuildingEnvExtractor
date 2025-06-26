@@ -1516,7 +1516,7 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 			}
 			if (originalMergeSize == mergingPairList.size()) { break; }
 		}
-
+		
 		if (mergingPairList.size() == 1)
 		{
 			cleanedFaceCollection.emplace_back(currentFace);
@@ -1524,6 +1524,16 @@ std::vector<TopoDS_Face> helperFunctions::mergeFaces(const std::vector<TopoDS_Fa
 		}
 
 		std::vector<TopoDS_Face> mergedFaceList = planarFaces2Outline(mergingPairList);
+
+		if (mergedFaceList.empty())
+		{
+			for (const TopoDS_Face& mergedFace : mergingPairList)
+			{
+				cleanedFaceCollection.emplace_back(mergedFace);
+			}
+			continue;
+		}
+
 		for (TopoDS_Face mergedFace : mergedFaceList)
 		{
 			if (fixFace(&mergedFace))

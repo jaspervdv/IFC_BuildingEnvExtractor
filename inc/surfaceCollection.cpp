@@ -309,8 +309,6 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 		gp_Pnt otherURRPoint = otherGroup->getURRPoint();
 
 		if (theFace_.IsEqual(otherFace)) { continue; }
-		IntCurvesFace_Intersector intersector(otherFace, precision);
-
 		for (const std::shared_ptr<EvaluationPoint>& currentEvalPoint: pointGrid_)
 		{
 			if (!currentEvalPoint->isVisible()) { continue; }
@@ -321,24 +319,30 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 			if (evalPoint.Y() - otherLLLPoint.Y() < -0.1 || evalPoint.Y() - otherURRPoint.Y() > 0.1) { continue; }
 			if (evalPoint.Z() - urrPoint_.Z() > 0.1) { continue; }
 
-			intersector.Perform( //TODO: find a smarter way to proccess
-				currentEvalPoint->getEvalLine(),
-				-0,
-				+INFINITY);
-
-			if (intersector.NbPnt() > 0)
+			gp_Pnt offsetPoint = currentEvalPoint->getPoint();
+			offsetPoint.SetZ(offsetPoint.Z() + 1000);
+			
+			if (helperFunctions::LineShapeIntersection(otherFace, currentEvalPoint->getPoint(), offsetPoint))
 			{
 				currentEvalPoint->setInvisible();
 				continue;
 			}
 
+			
+			gp_Pnt projectedPoint = currentEvalPoint->getPoint();
+			projectedPoint.SetZ(0);
 			for (TopExp_Explorer expl(otherFace, TopAbs_EDGE); expl.More(); expl.Next())
 			{
 				TopoDS_Edge otherEdge = TopoDS::Edge(expl.Current());
-				BRepExtrema_DistShapeShape distanceCalc(otherEdge, currentEvalPoint->getEvalEdge());
+				gp_Pnt p0 = helperFunctions::getFirstPointShape(otherEdge);
+				gp_Pnt p1 = helperFunctions::getLastPointShape(otherEdge);
+				p0.SetZ(0);
+				p1.SetZ(0);
 
-				if (distanceCalc.Value() < 1e-4)
+				if (p0.Distance(p1) < 1e-6) { continue; }
+				if (helperFunctions::pointOnEdge(BRepBuilderAPI_MakeEdge(p0, p1), projectedPoint))
 				{
+
 					currentEvalPoint->setInvisible();
 					break;
 				}
