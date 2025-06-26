@@ -592,26 +592,26 @@ std::unique_ptr<gp_Pnt> IOManager::FetchMainEntranceLocation(std::unique_ptr<gp_
 
 			//TODO: implement again
 
-			//nlohmann::json attributeList = helperFunctions::collectPropertyValues(currentDoor->GlobalId(), currentFile);
+			nlohmann::json attributeList = internalDataManager_->collectPropertyValues(currentDoor->GlobalId(), currentFile);
 
-			//if (!attributeList.contains("CHEK_IsMainEntrance"))
-			//{
-			//	continue;
-			//}
+			if (!attributeList.contains("CHEK_IsMainEntrance"))
+			{
+				continue;
+			}
 
-			//// if is mainentrance
-			//TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
-			//gp_Pnt lll;
-			//gp_Pnt urr;
-			//helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
+			// if is main entrance
+			TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
+			gp_Pnt lll;
+			gp_Pnt urr;
+			helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);
 
-			//gp_Pnt centerPoint = gp_Pnt(
-			//	(lll.X() - urr.X()) / 2,
-			//	(lll.Y() - urr.Y()) / 2,
-			//	lll.Z());
+			gp_Pnt centerPoint = gp_Pnt(
+			(lll.X() - urr.X()) / 2,
+			(lll.Y() - urr.Y()) / 2,
+			lll.Z());
 
-			//location = std::make_unique<gp_Pnt>(centerPoint);
-			//return location;
+			location = std::make_unique<gp_Pnt>(centerPoint);
+			return location;
 		}
 	}
 	return nullptr;
