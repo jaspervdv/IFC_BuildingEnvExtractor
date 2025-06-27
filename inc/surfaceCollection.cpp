@@ -342,7 +342,6 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 				if (p0.Distance(p1) < 1e-6) { continue; }
 				if (helperFunctions::pointOnEdge(BRepBuilderAPI_MakeEdge(p0, p1), projectedPoint))
 				{
-
 					currentEvalPoint->setInvisible();
 					break;
 				}
@@ -424,7 +423,11 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 		));
 	}
 
+	std::cout << "x1" << std::endl;
+
 	std::vector<TopoDS_Face> flatFaceList = helperFunctions::planarFaces2Outline(projectedFaces);
+
+	std::cout << "x2" << std::endl;
 
 	if (flatFaceList.size() < 1)
 	{

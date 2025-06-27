@@ -1692,29 +1692,90 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		gp_Trsf trsf;
 		double faceHeight = getLowestZ(theFace);
 		if (abs(height - faceHeight) < 1e-6) { return theFace; }
-
 		trsf.SetTranslationPart(gp_XYZ(0, 0, height - faceHeight));
 		BRepBuilderAPI_Transform transformer(theFace, trsf);
-		if (!transformer.IsDone()) { return TopoDS_Face(); }
-
+		if (!transformer.IsDone()) {  return TopoDS_Face(); }
 		flatFace = TopoDS::Face(transformer.Shape());
 	}
 	else
 	{
-		// this transform can be buggy, find an alternative approach
-		gp_GTrsf trsf;
-		trsf.SetVectorialPart(
-			gp_Mat(
-				1.0, 0.0, 0.0,
-				0.0, 1.0, 0.0,
-				0.0, 0.0, 0.0
-			)
-		);
-		trsf.SetTranslationPart(gp_XYZ(0, 0, height));
-		flatFace = TopoDS::Face(BRepBuilderAPI_GTransform(theFace, trsf, false).Shape());
+		double precision = SettingsCollection::getInstance().precision();
+
+		gp_Pnt p0 = getFirstPointShape(theFace);
+		p0.SetZ(height);
+		gp_Vec normal(0, 0, 1);
+		Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
+
+		TopoDS_Wire outerWire = BRepTools::OuterWire(theFace);
+		if (outerWire.IsNull()) { return TopoDS_Face(); }
+		if (!outerWire.Closed()) { return TopoDS_Face(); }
+
+		TopoDS_Wire flattenedWire = projectWireFlat(outerWire, height);
+		flattenedWire.Orientation(TopAbs_FORWARD);
+
+		BRepBuilderAPI_MakeFace faceMaker(plane, flattenedWire, precision);
+		for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
+		{
+			TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
+			if (currentWire.IsEqual(outerWire)) { continue; }
+			TopoDS_Wire currentFlatWire = projectWireFlat(currentWire, height);
+			currentFlatWire.Orientation(TopAbs_REVERSED);
+
+			BRepBuilderAPI_MakeFace faceMaker2(currentFlatWire);
+			TopoDS_Face innerFace = faceMaker2.Face();
+			if (innerFace.IsNull()) { continue; }
+			if (computeArea(innerFace) < 0.001) { continue; }
+			faceMaker.Add(currentFlatWire);
+		}
+
+		if (!faceMaker.IsDone())
+		{
+			return TopoDS_Face();
+		}
+		flatFace = faceMaker.Face();
 	}
 	fixFace(&flatFace);
 	return flatFace;
+}
+
+TopoDS_Wire helperFunctions::projectWireFlat(const TopoDS_Wire& theWire, double height)
+{
+	BRepBuilderAPI_MakeWire builder;
+	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
+
+		TopoDS_Edge edge = TopoDS::Edge(expl.Current());
+		gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
+		gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+
+		p0.SetZ(height);
+		p1.SetZ(height);
+
+		if (p0.IsEqual(p1, 1e-6))
+		{
+			continue;
+		}
+
+		BRepBuilderAPI_MakeEdge edgeMaker(p0, p1);
+		if (!edgeMaker.IsDone())
+		{
+			continue;
+		}
+		builder.Add(edgeMaker.Edge());
+	}
+
+	if (!builder.IsDone())
+	{
+		return TopoDS_Wire();
+	}
+
+	TopoDS_Wire flattenedWire = builder.Wire();
+
+	if (theWire.Closed() != flattenedWire.Closed())
+	{
+		return TopoDS_Wire();
+	}
+
+	return flattenedWire;
 }
 
 TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
@@ -1728,14 +1789,11 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 	TopoDS_Wire outerWire = BRepTools::OuterWire(theFace);
 	if (outerWire.IsNull()) { return TopoDS_Face(); }
 	if (!outerWire.Closed()) { return TopoDS_Face(); }
-
 	TopoDS_Wire outerWireClean = outerWire;
 	outerWireClean.Orientation(TopAbs_FORWARD);
-	 
 	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
 	TopoDS_Wire outerCleanedWire = cleanWire(outerstraightWire);
 	BRepBuilderAPI_MakeFace faceMaker(plane, outerCleanedWire, precision);
-
 	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
@@ -1753,9 +1811,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 		if (computeArea(innerFace) < 0.001) { continue; }
 		faceMaker.Add(currentCleanWire);
 	}
-	
 	TopoDS_Face currentFace = faceMaker.Face();
-	
 	if (!fixFace(&currentFace))
 	{
 		return theFace;
@@ -2098,7 +2154,6 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 		visited.Add(currentEdge);
 
 		std::vector<TopoDS_Edge> colinGroup{ currentEdge };
-
 		gp_Vec currentDir = helperFunctions::computeEdgeDir(currentEdge);
 
 		if (currentDir.Magnitude() < precision) { continue; }
@@ -2113,7 +2168,7 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 			for (const TopoDS_Shape& potentialShape : adjEdges) {
 				TopoDS_Edge potentialEdge = TopoDS::Edge(potentialShape);
 				if (visited.Contains(potentialEdge)) { continue; }
-
+				
 				gp_Vec otherDir = helperFunctions::computeEdgeDir(potentialEdge);
 				if (otherDir.Magnitude() < precision) 
 				{ 
@@ -2169,9 +2224,15 @@ TopoDS_Wire helperFunctions::cleanWire(const TopoDS_Wire& wire) {
 
 		gp_Pnt p1 = BRep_Tool::Pnt(TopExp::FirstVertex(colinGroup.front(), true));
 		gp_Pnt p2 = BRep_Tool::Pnt(TopExp::LastVertex(colinGroup.back(), true));
-		TopoDS_Edge mergedEdge = BRepBuilderAPI_MakeEdge(p1,p2);		
 
+		if (p1.IsEqual(p2, 1e-6)){continue;}
+		TopoDS_Edge mergedEdge = BRepBuilderAPI_MakeEdge(p1,p2);	
 		wireMaker.Add(mergedEdge);
+	}
+
+	if (!wireMaker.IsDone())
+	{
+		return wire;
 	}
 	TopoDS_Wire finalWire = wireMaker.Wire();
 	if (finalWire.Closed())
@@ -2311,6 +2372,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			{
 				if (invertedFace.IsNull()) { continue; }
 				outerInvFaceList.emplace_back(invertedFace);
+
 			}
 			continue;
 		}

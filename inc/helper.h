@@ -232,6 +232,9 @@ struct helperFunctions{
 	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
+	/// creates a planar copy of the input wire
+	static TopoDS_Wire projectWireFlat(const TopoDS_Wire& theWire, double height);
+
 	/// creates a clean copy of the input face with no non-straight curves
 	static TopoDS_Face TessellateFace(const TopoDS_Face& theFace);
 	/// creates a clean copy of the input face list with no non-straight curves

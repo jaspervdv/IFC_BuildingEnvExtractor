@@ -254,6 +254,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	//index
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> spatialIndex;
 	std::vector<TopoDS_Face> faceList;
+
 	for (size_t i = 0; i < Collection.size(); i++)
 	{
 		const TopoDS_Face& currentFace = Collection[i]->getFace();
@@ -268,7 +269,6 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		faceList.emplace_back(currentCleanFace);
 	}
 
-
 	//// group surfaces
 	std::vector<RCollection> mergedRSurfaces;
 	std::vector<int>evalList(faceList.size());
@@ -276,7 +276,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	{
 		if (evalList[i] == 1) { continue; }
 		evalList[i] = 1;
-
+		std::cout << "1" << std::endl;
 		const TopoDS_Face& currentFace = faceList[i];
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
 
@@ -335,6 +335,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 			outerSurfaceRingList = bufferList;
 			bufferList.clear();
 		}
+
 		if (!toBeGroupdSurfaces.size()) { continue; }
 
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
@@ -5253,7 +5254,6 @@ void CJGeoCreator::splitOuterSurfaces(
 		if (faceList.size() <= 1)
 		{
 			helperFunctions::triangulateShape(currentFace);
-			//DebugUtils::printFaces(currentFace);
 			const std::lock_guard<std::mutex> lock(untouchedListMutex);
 			untouchedFacesOut.emplace_back(std::pair(currentFace, currentProduct));
 		}
