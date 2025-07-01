@@ -1827,7 +1827,7 @@ bool helperFunctions::fixFace(TopoDS_Face* theFace)
 	BRepCheck_Analyzer analyzer(*theFace);
 	if (analyzer.IsValid()) // no need to fix
 	{
-		return theFace;
+		return true;
 	}
 
 	ShapeFix_Face faceFixer(*theFace);

@@ -721,8 +721,14 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		faceMakerBottom.Add(wireCopyBottom[i]);
 	}
 
-	brepSewer.Add(faceMakerTop.Face());
-	brepSewer.Add(faceMakerBottom.Face());
+	TopoDS_Face TopFace = faceMakerTop.Face();
+	TopoDS_Face bottomFace = faceMakerBottom.Face();
+
+	helperFunctions::fixFace(&TopFace);
+	helperFunctions::fixFace(&bottomFace);
+
+	brepSewer.Add(TopFace);
+	brepSewer.Add(bottomFace);
 	brepSewer.Perform();
 
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
@@ -2115,8 +2121,6 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 
 	for (const std::pair<int, IfcSchema::IfcSpace*>& currentSpacePair : spacePairList)
 	{
-
-
 		IfcSchema::IfcSpace* spaceObject = currentSpacePair.second;
 
 		// check if proper kind of room object
