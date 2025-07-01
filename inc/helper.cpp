@@ -2672,39 +2672,171 @@ bool helperFunctions::hasGlassMaterial(const IfcSchema::IfcProduct* ifcProduct)
 	for (IfcSchema::IfcRelAssociates::list::it it = associations->begin(); it != associations->end(); ++it)
 	{
 		IfcSchema::IfcRelAssociates* IfcRelAssociates = *it;
-		if (IfcRelAssociates->data().type()->name() != "IfcRelAssociatesMaterial")
-		{
-			continue;
-		}
+		if (IfcRelAssociates->data().type()->name() != "IfcRelAssociatesMaterial") { continue; }
 
 		IfcSchema::IfcRelAssociatesMaterial* MaterialAss = IfcRelAssociates->as<IfcSchema::IfcRelAssociatesMaterial>();
-		if (MaterialAss->data().type()->name() != "IfcRelAssociatesMaterial")
-		{
-			continue;
-		}
+		if (MaterialAss->data().type()->name() != "IfcRelAssociatesMaterial") { continue; }
 
 		IfcSchema::IfcMaterialSelect* relMaterial = MaterialAss->RelatingMaterial();
-		if (relMaterial->data().type()->name() != "IfcMaterial")
-		{
-			continue;
-		}
+		if (relMaterial->data().type()->name() != "IfcMaterial") { continue; }
 
 		IfcSchema::IfcMaterial* ifcMaterial = relMaterial->as<IfcSchema::IfcMaterial>();
 		std::string materialName = boost::to_upper_copy(ifcMaterial->Name());
 
-		//IfcSchema::IfcMaterialProperties::list::ptr ifcPropertyList = ifcMaterial->HasProperties();
-
-		if (materialName.find("GLASS") != std::string::npos || materialName.find("GLAZED") != std::string::npos)
+		if (materialName.find("GLASS") != std::string::npos || 
+			materialName.find("GLAZED") != std::string::npos)
 		{
 			return true;
 		}
+		 //TODO: implement ifc4x3
+#if defined(USE_IFC4x3)
+		return false;
+#elif defined(USE_IFC2x3) || defined(USE_IFC4) 
 
-		//for (auto et = ifcPropertyList->begin(); et != ifcPropertyList->end(); ++et)
-		//{
-		//	std::cout << (*et)->data().toString() << std::endl;
-		//}
+		// if material name is not glass or glazed search for render properties transparency
+		IfcSchema::IfcMaterialDefinitionRepresentation::list::ptr materialRepresentation = ifcMaterial->HasRepresentation();
+		IfcSchema::IfcStyledRepresentation* currentStyleRep = nullptr;
 
-		//TODO: add backup when no glass is used in the name
+		for (auto propertyIt = materialRepresentation->begin(); propertyIt != materialRepresentation->end(); ++propertyIt)
+		{
+			bool found = false;
+			IfcSchema::IfcMaterialDefinitionRepresentation* currentMaterialRepresenation = *propertyIt;
+
+			IfcSchema::IfcRepresentation::list::ptr representationList = currentMaterialRepresenation->Representations();
+
+			for (auto repIt = representationList->begin(); repIt != representationList->end(); ++repIt)
+			{
+				IfcSchema::IfcRepresentation* currentRep = *repIt;
+				if (currentRep->data().type()->name() == "IfcStyledRepresentation")
+				{
+					currentStyleRep = currentRep->as<IfcSchema::IfcStyledRepresentation>();
+					found = true;
+					break;
+				}
+			}
+			if (found) { break; }
+		}
+
+		// find via object material
+		if (currentStyleRep != nullptr) {
+
+			IfcSchema::IfcRepresentationItem::list::ptr representationList = currentStyleRep->Items();
+			for (auto propertyIt = representationList->begin(); propertyIt != representationList->end(); ++propertyIt)
+			{
+				IfcSchema::IfcRepresentationItem* currentItem = *propertyIt;
+				if (currentItem->data().type()->name() != "IfcStyledItem") { continue; }
+				IfcSchema::IfcStyledItem* currentStyledItem = currentItem->as<IfcSchema::IfcStyledItem>();
+
+#if defined(USE_IFC2x3) 
+				IfcSchema::IfcPresentationStyleAssignment::list::ptr currenStyleAssList = currentStyledItem->Styles();
+#elif defined(USE_IFC4) 
+				IfcSchema::IfcStyleAssignmentSelect::list::ptr currenStyleAssList = currentStyledItem->Styles();
+#endif
+
+				for (auto currenStyleAssIt = currenStyleAssList->begin(); currenStyleAssIt != currenStyleAssList->end(); ++currenStyleAssIt)
+				{
+#if defined(USE_IFC2x3) 
+					IfcSchema::IfcPresentationStyleAssignment* currentStyleAss = *currenStyleAssIt;
+#elif defined(USE_IFC4) 
+					IfcSchema::IfcStyleAssignmentSelect* currentStyleAss = *currenStyleAssIt;
+#endif				
+					if (currentStyleAss->data().type()->name() != "IfcPresentationStyleAssignment") { continue; }
+					IfcSchema::IfcPresentationStyleAssignment* currentAss = currentStyleAss->as<IfcSchema::IfcPresentationStyleAssignment>();
+					IfcSchema::IfcPresentationStyleSelect::list::ptr styleSelectList = currentAss->Styles();
+
+					for (auto styleSelectIt = styleSelectList->begin(); styleSelectIt != styleSelectList->end(); ++styleSelectIt)
+					{
+						IfcSchema::IfcPresentationStyleSelect* currentStyleSelect = *styleSelectIt;
+						if (currentStyleSelect->data().type()->name() != "IfcSurfaceStyle") { continue; }
+						IfcSchema::IfcSurfaceStyle* currentStyle = currentStyleSelect->as<IfcSchema::IfcSurfaceStyle>();
+						IfcSchema::IfcSurfaceStyleElementSelect::list::ptr elementSurfList = currentStyle->Styles();
+
+						for (auto styleElementIt = elementSurfList->begin(); styleElementIt != elementSurfList->end(); ++styleElementIt)
+						{
+							IfcSchema::IfcSurfaceStyleElementSelect* currentElemStyle = *styleElementIt;
+							if (currentElemStyle->data().type()->name() != "IfcSurfaceStyleRendering") { continue; }
+							IfcSchema::IfcSurfaceStyleRendering* currentRenderStyle = currentElemStyle->as< IfcSchema::IfcSurfaceStyleRendering>();
+							if (currentRenderStyle->Transparency() > 0.25) { return true; }
+						}
+					}
+				}
+			}
+		}
+
+		// find via geometry material
+		if (currentStyleRep == nullptr) {
+			IfcSchema::IfcProductRepresentation* currentProductRep = ifcProduct->Representation();
+			IfcSchema::IfcRepresentation::list::ptr currentRepList = currentProductRep->Representations();
+			
+			std::vector< IfcSchema::IfcRepresentation*> representationList;
+			for (auto repIt = currentRepList->begin(); repIt != currentRepList->end(); ++repIt)
+			{
+				IfcSchema::IfcRepresentation* currentRep = *repIt;
+				if (!currentRep->RepresentationIdentifier()) { continue;  }
+				if (currentRep->RepresentationIdentifier().get() != "Body") { continue; }
+				if (currentRep->RepresentationType().get() == "MappedRepresentation") // repesentation is used as container
+				{
+					IfcSchema::IfcRepresentationItem::list::ptr representationSubItemList = currentRep->Items();
+
+					for (auto represenetationSubIt = representationSubItemList->begin(); represenetationSubIt != representationSubItemList->end(); ++represenetationSubIt)
+					{
+						IfcSchema::IfcRepresentationItem* subRepresentationItem = *represenetationSubIt;
+						if (subRepresentationItem->data().type()->name() != "IfcMappedItem") { continue; }
+						IfcSchema::IfcMappedItem* currentMappedItem = subRepresentationItem->as<IfcSchema::IfcMappedItem>();
+						IfcSchema::IfcRepresentationMap* currentRepMap = currentMappedItem->MappingSource();
+						IfcSchema::IfcRepresentation* subRep = currentRepMap->MappedRepresentation();
+						representationList.emplace_back(subRep);
+					}
+					continue;
+				}
+				representationList.emplace_back(currentRep);
+			}
+
+
+			for (IfcSchema::IfcRepresentation* currentRep : representationList)
+			{
+				IfcSchema::IfcRepresentationItem::list::ptr representationSubItemList = currentRep->Items();
+
+				for (auto RepresentationSubItemIt = representationSubItemList->begin(); RepresentationSubItemIt != representationSubItemList->end(); ++RepresentationSubItemIt)
+				{
+					IfcSchema::IfcRepresentationItem* RepresentationSubItem = *RepresentationSubItemIt;
+					IfcSchema::IfcStyledItem::list::ptr StyledItemList = RepresentationSubItem->StyledByItem();
+
+					for (auto styledItemIt = StyledItemList->begin(); styledItemIt != StyledItemList->end(); ++styledItemIt)
+					{
+						IfcSchema::IfcStyledItem* styledItem = *styledItemIt;
+
+#if defined(USE_IFC2x3)
+						IfcSchema::IfcPresentationStyleAssignment::list::ptr currenStyleAssList = styledItem->Styles();
+#elif defined(USE_IFC4)
+						IfcSchema::IfcStyleAssignmentSelect::list::ptr currenStyleAssList = styledItem->Styles();
+#endif
+
+						for (auto currenStyleAssIt = currenStyleAssList->begin(); currenStyleAssIt != currenStyleAssList->end(); ++currenStyleAssIt)
+						{
+#if defined(USE_IFC2x3)
+							IfcSchema::IfcPresentationStyleAssignment* currentStyleAss = *currenStyleAssIt;
+#elif defined(USE_IFC4)
+							IfcSchema::IfcStyleAssignmentSelect* currentStyleAss = *currenStyleAssIt;
+#endif
+							if (currentStyleAss->data().type()->name() != "IfcSurfaceStyle") { continue; }
+
+							IfcSchema::IfcSurfaceStyle* currentStyle = currentStyleAss->as<IfcSchema::IfcSurfaceStyle>();
+							IfcSchema::IfcSurfaceStyleElementSelect::list::ptr elementSurfList = currentStyle->Styles();
+
+							for (auto styleElementIt = elementSurfList->begin(); styleElementIt != elementSurfList->end(); ++styleElementIt)
+							{
+								IfcSchema::IfcSurfaceStyleElementSelect* currentElemStyle = *styleElementIt;
+								if (currentElemStyle->data().type()->name() != "IfcSurfaceStyleRendering") { continue; }
+								IfcSchema::IfcSurfaceStyleRendering* currentRenderStyle = currentElemStyle->as< IfcSchema::IfcSurfaceStyleRendering>();
+								if (currentRenderStyle->Transparency() > 0.25) { return true; }
+							}
+						}
+					}
+				}
+			}
+		}
+#endif
 	}
 	return false;
 }

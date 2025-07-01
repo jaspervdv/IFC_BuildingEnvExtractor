@@ -1792,6 +1792,8 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 {
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 	std::vector<TopoDS_Face> projectedFaceList;
+
+	std::vector<TopoDS_Face> t;
 	for (const RCollection& currentGroup : rCollectionList)
 	{
 		TopoDS_Face currentFace = currentGroup.getProjectedFace();
