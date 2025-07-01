@@ -448,7 +448,8 @@ void IOManager::internalizeGeo()
 
 void IOManager::setMetaData(std::shared_ptr<CJT::CityCollection> collection)
 {
-	CJT::ObjectTransformation transformation(0.001);
+	double scale = 0.001;
+	CJT::ObjectTransformation transformation(scale);
 	CJT::metaDataObject metaData;
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -477,6 +478,7 @@ void IOManager::setMetaData(std::shared_ptr<CJT::CityCollection> collection)
 	collection->setTransformation(transformation); // set transformation early to avoid geo compression
 	collection->setVersion(CJObjectEnum::getString(CJObjectID::v11));
 	collection->setMetaData(metaData);
+	collection->setPrecision(scale);
 	return;
 }
 

@@ -406,10 +406,8 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 
 	if (theFaceColletion.size() == 1)
 	{
-		theFlatFace_ = helperFunctions::projectFaceFlat(
-			theFaceColletion[0],
-			urrPoint_.Z()
-		);
+		TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(theFaceColletion[0], urrPoint_.Z() );
+		theFlatFace_ = flattenedFace;
 		return;
 	}
 
@@ -417,17 +415,12 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 
 	for (const TopoDS_Face& currentFace : theFaceColletion)
 	{
-		projectedFaces.emplace_back(helperFunctions::projectFaceFlat(
-			currentFace,
-			urrPoint_.Z()
-		));
+		TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(currentFace, urrPoint_.Z() );
+		if (flattenedFace.IsNull()) {continue; }
+		projectedFaces.emplace_back(flattenedFace);
 	}
 
-	std::cout << "x1" << std::endl;
-
 	std::vector<TopoDS_Face> flatFaceList = helperFunctions::planarFaces2Outline(projectedFaces);
-
-	std::cout << "x2" << std::endl;
 
 	if (flatFaceList.size() < 1)
 	{

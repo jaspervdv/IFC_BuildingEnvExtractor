@@ -276,7 +276,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	{
 		if (evalList[i] == 1) { continue; }
 		evalList[i] = 1;
-		std::cout << "1" << std::endl;
+
 		const TopoDS_Face& currentFace = faceList[i];
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
 
@@ -339,6 +339,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		if (!toBeGroupdSurfaces.size()) { continue; }
 
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
+		//DebugUtils::printFaces(mergedSurfaces);
 		mergedRSurfaces.emplace_back(RCollection(mergedSurfaces));
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -1881,7 +1882,6 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 			BoostPoint3D(helperFunctions::Point3DOTB(surfGridPair->getLLLPoint())),
 			BoostPoint3D(helperFunctions::Point3DOTB(surfGridPair->getURRPoint()))
 			);
-
 		shapeIdx.insert(std::make_pair(bbox, surfGridPair));
 	}
 
@@ -3791,6 +3791,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe0) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
+
+	if (storeyObjects_.empty()){makeStoreyObjects(h);}
 	finishedLoDe0_ = true;
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection

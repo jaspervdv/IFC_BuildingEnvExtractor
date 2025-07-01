@@ -1682,10 +1682,11 @@ TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1
 
 TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double height) {
 
+	if (theFace.IsNull()) { return TopoDS_Face(); }
 	// check if face is flat
 	gp_Vec faceNormal = computeFaceNormal(theFace);
 	if (abs(faceNormal.Z()) < 1e-4) { return TopoDS_Face(); }
-	
+
 	TopoDS_Face flatFace;
 	if (abs(faceNormal.X()) < 1e-4 && abs(faceNormal.Y()) < 1e-4)
 	{
@@ -1722,6 +1723,7 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 			currentFlatWire.Orientation(TopAbs_REVERSED);
 
 			BRepBuilderAPI_MakeFace faceMaker2(currentFlatWire);
+			if (!faceMaker2.IsDone()) { continue; }
 			TopoDS_Face innerFace = faceMaker2.Face();
 			if (innerFace.IsNull()) { continue; }
 			if (computeArea(innerFace) < 0.001) { continue; }
@@ -1734,6 +1736,7 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		}
 		flatFace = faceMaker.Face();
 	}
+
 	fixFace(&flatFace);
 	return flatFace;
 }
