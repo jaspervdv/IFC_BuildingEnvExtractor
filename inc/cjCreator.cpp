@@ -339,7 +339,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		if (!toBeGroupdSurfaces.size()) { continue; }
 
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
-		//DebugUtils::printFaces(mergedSurfaces);
+		DebugUtils::printFaces(mergedSurfaces);
 		mergedRSurfaces.emplace_back(RCollection(mergedSurfaces));
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -841,6 +841,7 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	for (const TopoDS_Face& currentOutFace : floorSectionList)
 	{
 		TopoDS_Face cleanedOutFace = helperFunctions::TessellateFace(currentOutFace);
+		if (cleanedOutFace.IsNull()) { continue; }
 		facesOut.emplace_back(cleanedOutFace);
 	}
 
@@ -2539,7 +2540,6 @@ void CJGeoCreator::make2DStorey(
 {
 	std::string LoDString = "0.2";
 	if (is03) { LoDString = "0.3"; }
-
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	double storeyUserBuffer = settingsCollection.horizontalSectionOffset();
@@ -2559,7 +2559,6 @@ void CJGeoCreator::make2DStorey(
 	std::string storeyKey = std::to_string(userStoreyElevation) + " (" + std::to_string(storeyElevation) + ")";
 	progressMap.emplace(storeyKey, 0);
 	faceLock.unlock();
-
 	std::vector<TopoDS_Face> storeySurfaceList;
 	std::vector<TopoDS_Face> storeyExternalSurfaceList;
 	if (is03)
@@ -2623,7 +2622,6 @@ void CJGeoCreator::make2DStorey(
 		progressMap[storeyKey] = 2;
 		return;
 	}
-
 	std::map<std::string, std::string> semanticExternalStoreyData;
 	std::map<std::string, std::string> semanticStoreyData;
 	semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloor));

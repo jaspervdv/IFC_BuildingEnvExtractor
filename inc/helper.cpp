@@ -52,6 +52,7 @@
 #include <ShapeFix_Edge.hxx>
 #include <ShapeFix_Wire.hxx>
 #include <BRepTools_ReShape.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -3056,18 +3057,22 @@ void helperFunctions::triangulateShape(const TopoDS_Shape& shape, bool force)
 TopoDS_Wire helperFunctions::CurveToCompound(const TopoDS_Edge& theEdge)
 {
 	double precision = SettingsCollection::getInstance().precision();
+	double stepLenght = 0.3;
 
 	Standard_Real first, last;
 	Handle(Geom_Curve) curve = BRep_Tool::Curve(theEdge, first, last);
-
-	BRepBuilderAPI_MakeWire builder;
-
 	if (curve.IsNull()) return {};
-
 	GeomAdaptor_Curve adaptorCurve(curve, first, last);
-	GCPnts_UniformAbscissa abscissa(adaptorCurve, 10, first, last);
+	double curveLength = GCPnts_AbscissaPoint::Length(adaptorCurve, first, last);
+
+	int splitSteps = std::ceil(curveLength / stepLenght);
+	if (splitSteps < 2) { splitSteps = 3; }
+
+	GCPnts_UniformAbscissa abscissa(adaptorCurve, splitSteps, first, last);
 	if (!abscissa.IsDone()) return {};
 
+
+	BRepBuilderAPI_MakeWire builder;
 	for (int i = 1; i < abscissa.NbPoints(); ++i) {
 		gp_Pnt p1 = adaptorCurve.Value(abscissa.Parameter(i));
 		gp_Pnt p2 = adaptorCurve.Value(abscissa.Parameter(i + 1));
