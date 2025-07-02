@@ -916,7 +916,7 @@ bool IOManager::run()
 	collection->addCityObject(cityBuildingObject);
 	collection->addCityObject(cityOuterShellObject);
 	collection->addCityObject(cityInnerShellObject);
-	collection->cullDuplicatedVerices();
+	collection->CleanVertices();
 	cityCollection_ = collection;
 
 	printErrors();

@@ -399,7 +399,7 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 	case ErrorID::warningFailedObjectConversion: {
-		const std::string coms = "Unable to convet object shape";
+		const std::string coms = "Unable to convert object shape";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 
