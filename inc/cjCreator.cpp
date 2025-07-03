@@ -339,7 +339,6 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		if (!toBeGroupdSurfaces.size()) { continue; }
 
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
-		DebugUtils::printFaces(mergedSurfaces);
 		mergedRSurfaces.emplace_back(RCollection(mergedSurfaces));
 	}
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -963,6 +962,8 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 	std::vector<TopoDS_Face> splitFaceList;
 	for (const TopoDS_Face& currentRoofSurface : inputFaceList)
 	{
+		if (currentRoofSurface.IsNull()) { continue; }
+
 		std::vector<std::pair<BoostBox3D, TopoDS_Face>> qResult;
 		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentRoofSurface);
 		cuttingFaceIdx.query(bgi::intersects(searchBox), std::back_inserter(qResult));
@@ -1192,7 +1193,9 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIdx; // pair bbox | extruded shape faces
 	for (const TopoDS_Face& currentTopFace : inputFaceList)
 	{
+		if (currentTopFace.IsNull()) { continue; }
 		TopoDS_Solid extrudedShape = extrudeFace(currentTopFace, true, lowestZ);
+
 		for (TopExp_Explorer expl(extrudedShape, TopAbs_FACE); expl.More(); expl.Next()) {
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
 			// ignore if not vertical face
@@ -1206,7 +1209,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		BoostBox3D topFaceBox = helperFunctions::createBBox(currentTopFace);
 		faceIdx.insert(std::make_pair(topFaceBox, currentTopFace));
 	}
-
 	if (!bufferSurface.IsNull())
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(bufferSurface, false, 1000000);
@@ -2129,16 +2131,39 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 		{
 			std::shared_ptr<CJT::CityObject> cjRoomObject = std::make_unique<CJT::CityObject>();
 
+			std::string roomName = CJObjectEnum::getString(CJObjectID::CJTypeNone);
 			// store generic data
 			if (spaceObject->Name().has_value())
 			{
-				cjRoomObject->setName(*spaceObject->Name());
+				roomName = *spaceObject->Name();
 				cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcName), spaceObject->Name().get());
 			}
+
+			for (const std::shared_ptr<CJT::CityObject>& otherSpace : cityRoomObjects)
+			{
+				if (roomName != otherSpace->getName()) { continue; }
+
+				int addition = 0;
+				std::string adjustedRoomName = roomName;
+				while (true)
+				{
+					adjustedRoomName = roomName + " (" + std::to_string(addition) + ")";
+					if (adjustedRoomName != otherSpace->getName()) { break; }
+					addition++;
+				}
+				roomName = adjustedRoomName;
+			}
+			cjRoomObject->setName(roomName);
+
 			if (spaceObject->LongName().has_value())
 			{
 				cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), spaceObject->LongName().get());
 			}
+
+
+
+
+
 			cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), spaceObject->GlobalId());
 			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
 
@@ -2879,7 +2904,6 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 	{
 		return {};
 	}
-
 	std::vector<std::vector<TopoDS_Face>> nestedFaceList;
 	for (const BuildingSurfaceCollection& buildingSurfaceData: buildingSurfaceDataList_)
 	{
