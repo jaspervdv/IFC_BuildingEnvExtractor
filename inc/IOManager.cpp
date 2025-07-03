@@ -500,7 +500,11 @@ void IOManager::setDefaultSemantic(CJT::CityObject& cityBuildingObject, CJT::Cit
 	cityInnerShellObject.setType(CJT::Building_Type::BuildingPart);
 
 	cityBuildingObject.addChild(&cityOuterShellObject);
-	cityBuildingObject.addChild(&cityInnerShellObject);
+
+	if (SettingsCollection::getInstance().makeInterior())
+	{
+		cityBuildingObject.addChild(&cityInnerShellObject);
+	}
 
 	return;
 }
@@ -780,7 +784,16 @@ void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT
 
 	// get storey semantic objects
 	std::vector<std::shared_ptr<CJT::CityObject>> storeyObjects = geoCreator->makeStoreyObjects(internalDataManager_.get());
-	std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = geoCreator->makeRoomObjects(internalDataManager_.get(), storeyObjects);
+	std::vector<std::shared_ptr<CJT::CityObject>> roomObjects = {};
+
+	if (settingsCollection.make02() || settingsCollection.make12() || 
+		settingsCollection.make22() || settingsCollection.make32() ||
+		settingsCollection.makeV())
+	{
+		roomObjects = geoCreator->makeRoomObjects(internalDataManager_.get(), storeyObjects);
+	}
+	
+	
 
 	// storeys
 	if (settingsCollection.make02())
@@ -915,7 +928,10 @@ bool IOManager::run()
 
 	collection->addCityObject(cityBuildingObject);
 	collection->addCityObject(cityOuterShellObject);
-	collection->addCityObject(cityInnerShellObject);
+	if (settingsCollection.makeInterior())
+	{
+		collection->addCityObject(cityInnerShellObject);
+	}
 	collection->CleanVertices();
 	cityCollection_ = collection;
 
