@@ -43,7 +43,9 @@ For the extraction of the exterior shell the tool utilizes three different extra
 
 The extraction of interior shells relies more heavily on the source IFC file and does not scale like the exterior shells. For all interior export (Storeys, apartments/areas and rooms/spaces) a high quality input model is required with additional extra "special" semantic information to help the tool function.
 
-More information about the input requirement can be found at the input requirements paragraph ([here](#input-file-requirements)).
+A video summary covering the tool and GUI can be found [here](https://www.youtube.com/watch?v=3bJyBj61a-Y)
+
+More information about the input requirement can be found at the [input requirements paragraph](#input-file-requirements).
 
 Below you can see a speed comparison between the software and manual processing of the exterior shell. Note that in this comparison the software creates the exterior shells for LoD 0.0, 0.2, 1.0, 1.2, 2.2 and 3.2 while the manual processing only creates LoD 2.2. This example is sped up 5 times.
 
