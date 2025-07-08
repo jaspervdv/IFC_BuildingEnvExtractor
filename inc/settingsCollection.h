@@ -130,6 +130,10 @@ private:
     IfcGeom::IteratorSettings iteratorSettings_;
     IfcGeom::IteratorSettings simpleIteratorSettings_;
 
+
+    //  \/ global mutex \/
+    std::mutex wireOffSetterMutex_; // TODO: make more local
+
 public:
 	static SettingsCollection& getInstance() {
 		static SettingsCollection instance;
@@ -375,5 +379,8 @@ public:
     IfcGeom::IteratorSettings iteratorSettings(bool simple = false);
     void setIterator(const IfcGeom::IteratorSettings& settingsObject) { iteratorSettings_ = settingsObject; }
     void setSimpleIterator(const IfcGeom::IteratorSettings& settingsObject) { simpleIteratorSettings_ = settingsObject; }
+
+
+    std::mutex* getWireOffsetterMutex() { return &wireOffSetterMutex_; }
 };
 #endif // SETTINGSCOLLECTION_SETTINGSCOLLECTION_H

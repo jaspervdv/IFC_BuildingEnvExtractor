@@ -109,185 +109,28 @@ SurfaceGridPair::SurfaceGridPair(const TopoDS_Face& theFace)
 
 void SurfaceGridPair::populateGrid(double distance)
 {
+	if (distance < 0.05) { return; }
+
 	pointGrid_.clear();
 
-	double xRange = urrPoint_.X() - lllPoint_.X();
-	double yRange = urrPoint_.Y() - lllPoint_.Y();
+	// get points on wire
 
-	double xDistance = distance;
-	double yDistance = distance;
-
-	int xSteps = static_cast<int>(ceil(xRange / xDistance));
-	int ySteps = static_cast<int>(ceil(yRange / yDistance));
-
-	xDistance = xRange / xSteps;
-	yDistance = yRange / ySteps;
-
-	int vertCount = vertCount_;
-
-	if (vertCount == 6 && helperFunctions::computeArea(theFace_) < 1) // If Triangle
+	std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(theFace_, distance);
+	pointGrid_.reserve(wireGridList.size());
+	for (const gp_Pnt& wirePoint : wireGridList)
 	{
-		double x = 0;
-		double y = 0;
-		double z = 0;
-
-		for (TopExp_Explorer expl(theFace_, TopAbs_VERTEX); expl.More(); expl.Next())
-		{
-			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-			gp_Pnt point = BRep_Tool::Pnt(vertex);
-
-			x += point.X();
-			y += point.Y();
-			z += point.Z();
-		}
-
-		gp_Pnt centerPoint = gp_Pnt(
-			x / 6,
-			y / 6,
-			z / 6
-		);
-
-		pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint));
-
-		double largestAngle = helperFunctions::computeLargestAngle(theFace_);
-
-		//TODO: finetune
-		if (largestAngle > 2.22) //140 degrees
-		{
-			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theFace_);
-
-			for (size_t i = 0; i < uniquePointList.size(); i++)
-			{
-				gp_Pnt legPoint = uniquePointList[i];
-
-				if (xSteps == 1) { xSteps = 2; }
-
-				gp_Vec translationVec = gp_Vec(
-					(legPoint.X() - centerPoint.X()) / xSteps,
-					(legPoint.Y() - centerPoint.Y()) / xSteps,
-					(legPoint.Z() - centerPoint.Z()) / xSteps
-				);
-
-				for (int j = 0; j < xSteps; j++)
-				{
-					pointGrid_.emplace_back(std::make_shared<EvaluationPoint>(centerPoint.Translated(translationVec * j))
-					);
-				}
-
-			}
-			if (pointGrid_.size() <= 5) { populateGrid(distance / 2); } //TODO: make smarter to avoid points only on wires
-			return;
-		}
+		std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(wirePoint);
+		pointGrid_.emplace_back(evalPoint);
 	}
 
-	// if not triangle
-	IntCurvesFace_Intersector intersector(theFace_, 0.0001);
-
-	// get points on wire (do not use offsetter due to instability issues)
-	for (TopExp_Explorer expl(theFace_, TopAbs_EDGE); expl.More(); expl.Next())
+	std::vector<gp_Pnt> faceGridList = helperFunctions::getPointGridOnSurface(theFace_, distance);
+	for (const gp_Pnt& facePoint : faceGridList)
 	{
-		Standard_Real trimOffset = 2* 1e-4;
-
-		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-		BRepAdaptor_Curve curve(currentEdge);
-		Standard_Real firstParam = curve.FirstParameter();
-		Standard_Real lastParam = curve.LastParameter();
-		Standard_Real edgeLength = GCPnts_AbscissaPoint::Length(curve, firstParam, lastParam);
-
-		if (edgeLength < 2 * trimOffset) { continue; }
-
-		// shorten the edge
-
-		Standard_Real newFirstParam = firstParam + trimOffset;
-		Standard_Real newLastParam = lastParam - trimOffset;
-
-		Handle(Geom_Curve) baseCurve = BRep_Tool::Curve(currentEdge, firstParam, lastParam);
-		Handle(Geom_TrimmedCurve) currentTrimmedCurve = new Geom_TrimmedCurve(baseCurve, newFirstParam, newLastParam);
-		TopoDS_Edge currentTrimmedEdge = BRepBuilderAPI_MakeEdge(currentTrimmedCurve);
-		BRepAdaptor_Curve shortCurve(currentTrimmedEdge);
-
-		Standard_Real shortEdgeLength = GCPnts_AbscissaPoint::Length(curve, firstParam, lastParam);
-
-		int stepCount = static_cast<int>(ceil(shortEdgeLength /distance));
-		double localDistance = shortEdgeLength / stepCount;
-
-		if (stepCount < 3)
-		{
-			stepCount = 3;
-		}
-
-		GCPnts_UniformAbscissa uniformAbscissa(shortCurve, stepCount);
-
-		if (!uniformAbscissa.IsDone()) { continue; }
-
-		for (int i = 1; i <= uniformAbscissa.NbPoints(); ++i) {
-			Standard_Real param = uniformAbscissa.Parameter(i);
-
-			gp_Pnt point;
-			gp_Vec tangent;
-			shortCurve.D1(param, point, tangent);
-
-			tangent.Normalize();
-			tangent = tangent * trimOffset;
-
-			gp_Vec perp1Vec(tangent.Y(), -tangent.X(), 0);
-			gp_Vec perp2Vec(-tangent.Y(), tangent.X(), 0);
-
-			gp_Pnt p1 = point.Translated(perp1Vec);
-			gp_Pnt p2 = point.Translated(perp2Vec);
-			p1.SetZ(-1000);
-			p2.SetZ(-1000);
-
-			intersector.Perform(
-				gp_Lin(
-					p1,
-					gp_Dir(0, 0, 10000)),
-				-INFINITY,
-				+INFINITY);
-
-			if (intersector.NbPnt() == 1) {
-				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
-				pointGrid_.emplace_back(evalPoint);
-				continue;
-			}
-
-			intersector.Perform(
-				gp_Lin(
-					p2,
-					gp_Dir(0, 0, 10000)),
-				-INFINITY,
-				+INFINITY);
-
-			if (intersector.NbPnt() == 1) {
-				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
-				pointGrid_.emplace_back(evalPoint);
-				continue;
-			}
-		}
+		std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(facePoint);
+		pointGrid_.emplace_back(evalPoint);
 	}
 
-	// get points on face
-	for (size_t i = 0; i <= xSteps; i++)
-	{
-		for (size_t j = 0; j <= ySteps; j++)
-		{
-			intersector.Perform(
-				gp_Lin(
-					gp_Pnt(lllPoint_.X() + xDistance * i, lllPoint_.Y() + yDistance * j, -1000),
-					gp_Dir(0, 0, 10000)),
-				-INFINITY,
-				+INFINITY);
-
-			if (intersector.NbPnt() == 1) {
-				gp_Pnt intersectionPoint = intersector.Pnt(1);
-				std::shared_ptr<EvaluationPoint> evalPoint = std::make_shared<EvaluationPoint>(intersectionPoint);
-				pointGrid_.emplace_back(evalPoint);
-			}
-		}
-	}
-	if (pointGrid_.size() <= 5) { populateGrid(distance / 2); } //TODO: make smarter to avoid points only on wires
+	if (pointGrid_.size() <= 5) { populateGrid(distance / 2); } //TODO: refine this
 	return;
 }
 
@@ -356,6 +199,7 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 			return true;
 		}
 	}
+
 	visibility_ = false;
 	return false;
 }

@@ -1839,6 +1839,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	{
 		while (coreUse > inputShapes.size()) { coreUse /= 2; }
 	}
+
 	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 
 	std::vector<std::thread> threadList;
@@ -4569,11 +4570,10 @@ void CJGeoCreator::getOuterRaySurfaces(
 			if (helperFunctions::getPointCount(currentFace) < 3) { continue; }
 
 			//Create a grid over the surface and the offsetted wire
-			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace);
-			std::unique_lock<std::mutex> lock(listmutex); //TODO: better mutex
-			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace);
-			lock.unlock();
+			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace, settingsCollection.voxelSize());
+			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace, settingsCollection.voxelSize());
 			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
+			//DebugUtils::printPoint(wireGridList);
 
 			// cast a line from the grid to surrounding voxels
 			for (const gp_Pnt& gridPoint : surfaceGridList)
@@ -4599,6 +4599,12 @@ void CJGeoCreator::getOuterRaySurfaces(
 						// get the potential faces
 						const TopoDS_Face& otherFace = facePair.second;
 						if (currentFace.IsEqual(otherFace)) { continue; }
+
+						if (helperFunctions::pointOnFace(otherFace, gridPoint))
+						{
+							clearLine = false;
+							break;
+						}
 
 						//test for linear intersections
 						TopLoc_Location loc;

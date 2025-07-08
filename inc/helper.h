@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC2x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -80,9 +80,9 @@ struct helperFunctions{
 	/// Rotate OpenCascade point p around point anchorP
 	static gp_Pnt rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP, const double& angle);
 	// get a grid of points that are placed over a surface
-	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface);
+	static std::vector<gp_Pnt> getPointGridOnSurface(const TopoDS_Face& theface, const double& resolution);
 	// get a grid of points that are placed alongside the wire on a face (not threadsave)
-	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface);
+	static std::vector<gp_Pnt> getPointGridOnWire(const TopoDS_Face& theface, const double& resolution);
 	/// check if points are equal
 	static bool pointIsSame(const BoostPoint3D& lp, const BoostPoint3D& rp);
 
@@ -152,9 +152,9 @@ struct helperFunctions{
 	/// check if point is on face
 	static bool pointOnFace(const std::vector<TopoDS_Face>& theFace, const gp_Pnt& thePoint, double precision = 0.0);
 	/// check if point is on edge
-	static bool pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint);
+	static bool pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint, double precision = 0.0);
 	/// check if point is on edge
-	static bool pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint);
+	static bool pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint, double precision = 0.0);
 	
 	/// direction and angle code
 

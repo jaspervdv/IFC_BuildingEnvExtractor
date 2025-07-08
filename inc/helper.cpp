@@ -228,11 +228,11 @@ gp_Pnt helperFunctions::rotatePointPoint(const gp_Pnt& p, const gp_Pnt& anchorP,
 	return rotatedP.Translated(gp_Vec(anchorP.X(), anchorP.Y(), anchorP.Z()));
 }
 
-std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface) //TODO: triangles
+std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& theface, const double& resolution)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precision = settingsCollection.precision();
-	int minSurfacePoints = 3; //TODO: move to settingcollection
+	int minSurfacePoints = 5; //TODO: move to settingcollection
 
 	Handle(Geom_Surface) surface = BRep_Tool::Surface(theface);
 
@@ -241,13 +241,8 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 	Standard_Real uMin, uMax, vMin, vMax;
 	BRepTools::UVBounds(theface, BRepTools::OuterWire(theface), uMin, uMax, vMin, vMax);
 
-	uMin = uMin + 0.05;
-	uMax = uMax - 0.05;
-	vMin = vMin + 0.05;
-	vMax = vMax - 0.05;
-
-	int numUPoints = static_cast<int>(ceil(abs(uMax - uMin) / settingsCollection.voxelSize()));
-	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / settingsCollection.voxelSize()));
+	int numUPoints = static_cast<int>(ceil(abs(uMax - uMin) / resolution));
+	int numVPoints = static_cast<int>(ceil(abs(vMax - vMin) / resolution));
 
 	// set num of points if min/max rule is not met
 	if (numUPoints <= minSurfacePoints) { numUPoints = minSurfacePoints; }
@@ -258,10 +253,63 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 	double uStep = (uMax - uMin) / (numUPoints - 1);
 	double vStep = (vMax - vMin) / (numVPoints - 1);
 
+	std::vector<gp_Pnt> gridPointList;
+
+	if (getPointCount(theface) == 3 && helperFunctions::computeArea(theface) < 1) // If small Triangle
+	{
+		double x = 0;
+		double y = 0;
+		double z = 0;
+
+		for (TopExp_Explorer expl(theface, TopAbs_VERTEX); expl.More(); expl.Next())
+		{
+			TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+			gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+			x += point.X();
+			y += point.Y();
+			z += point.Z();
+		}
+
+		gp_Pnt centerPoint = gp_Pnt(
+			x / 6,
+			y / 6,
+			z / 6
+		);
+
+		gridPointList.emplace_back(centerPoint);
+
+		double largestAngle = helperFunctions::computeLargestAngle(theface);
+
+		//TODO: finetune
+		if (largestAngle > 2.22) //140 degrees
+		{
+			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theface);
+
+			for (size_t i = 0; i < uniquePointList.size(); i++)
+			{
+				gp_Pnt legPoint = uniquePointList[i];
+
+				if (uStep == 1) { uStep = 2; }
+
+				gp_Vec translationVec = gp_Vec(
+					(legPoint.X() - centerPoint.X()) / uStep,
+					(legPoint.Y() - centerPoint.Y()) / uStep,
+					(legPoint.Z() - centerPoint.Z()) / uStep
+				);
+
+				for (int j = 0; j < uStep; j++)
+				{
+					gridPointList.emplace_back(centerPoint.Translated(translationVec * j));
+				}
+
+			}
+			return gridPointList;
+		}
+	}
+
 	// create grid
 	int currentStep = 0;
-
-	std::vector<gp_Pnt> gridPointList;
 	for (int i = 0; i < numUPoints; ++i)
 	{
 		double u = uMin + i * uStep;
@@ -272,40 +320,60 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 			surface->D0(u, v, point);
 			BRepClass_FaceClassifier faceClassifier(theface, point, precision);
 			if (faceClassifier.State() != TopAbs_ON && faceClassifier.State() != TopAbs_IN) { continue; }
+
+			bool notOnWire = true;
+			for (TopExp_Explorer expl(theface, TopAbs_WIRE); expl.More(); expl.Next())
+			{
+				TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
+				if (helperFunctions::pointOnWire(currentWire, point, precision * 10))
+				{
+					notOnWire = false;
+					break;
+				}
+			}
+			if (!notOnWire)
+			{
+				continue;
+			}
 			gridPointList.emplace_back(point);
 		}
 	}
 	return gridPointList;
 }
 
-std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& theface)
+std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& theface, const double& resolution)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+	double precision = settingsCollection.precision();
 
-	if (helperFunctions::computeArea(theface) < 0.01) { return {}; }
+	//if (helperFunctions::computeArea(theface) < 0.001) { return {}; }
 
 	std::vector<gp_Pnt> wirePointList;
 
+	TopoDS_Face faceLocalCopy = theface;
 	for (TopExp_Explorer exp(theface, TopAbs_EDGE); exp.More(); exp.Next()) {
 		const TopoDS_Edge& edge = TopoDS::Edge(exp.Current());
 		Standard_Real first, last;
 		Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
 		if (curve.IsNull()) {
+			std::cout << "dedgen" << std::endl;
 			return {};  // Skip degenerated edges
 		}
 		if (!curve->IsKind(STANDARD_TYPE(Geom_Line))) {
-			ErrorCollection::getInstance().addError(ErrorID::warningNonLinearEdges);  // Found a non-linear edge
-			return {};
+			faceLocalCopy = TessellateFace(theface);
+			if (faceLocalCopy.IsNull()) { return {}; }
+			break;
 		}
 	}
 
-	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(theface), GeomAbs_Intersection);
-	offsetter.Perform(-1e-3);
+	SettingsCollection::getInstance().getWireOffsetterMutex()->lock();
+	BRepOffsetAPI_MakeOffset offsetter(BRepTools::OuterWire(faceLocalCopy), GeomAbs_Intersection);
+	offsetter.Perform(-precision * 10);
+	SettingsCollection::getInstance().getWireOffsetterMutex()->unlock();
 
 	if (!offsetter.IsDone()) { return {}; }
 	const TopoDS_Shape offsettedFace = offsetter.Shape();
 	if (offsettedFace.IsNull()) { return {}; }
-
 
 	for (TopExp_Explorer expl(offsetter.Shape(), TopAbs_EDGE); expl.More(); expl.Next())
 	{
@@ -314,16 +382,18 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 
 		double uStart = curveAdaptor.Curve().FirstParameter();
 		double uEnd = curveAdaptor.Curve().LastParameter();
-		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / settingsCollection.voxelSize());
+		int numUPoints = static_cast<int>(ceil(abs(uStart - uEnd)) / resolution);
 
 		if (numUPoints < 2) { numUPoints = 2; }
 		else if (numUPoints > 10) { numUPoints = 10; }
 
 		double uStep = abs(uStart - uEnd) / (numUPoints - 1);
+		bool t = false;
 		for (double u = uStart; u < uEnd; u += uStep) {
 			gp_Pnt point;
 			curveAdaptor.D0(u, point);
 			wirePointList.emplace_back(point);
+			t = true;
 		}
 	}
 	return wirePointList;
@@ -833,24 +903,26 @@ bool helperFunctions::pointOnFace(const std::vector<TopoDS_Face>& theFace, const
 	return false;
 }
 
-bool helperFunctions::pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint)
+bool helperFunctions::pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint, double precision)
 {
 	for (TopExp_Explorer currentExpl(theWire, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
 	{
 		TopoDS_Edge currentEdge = TopoDS::Edge(currentExpl.Current());
-		if (pointOnEdge(currentEdge, thePoint)) { return true; }
+		if (pointOnEdge(currentEdge, thePoint, precision)) { return true; }
 	}
 	return false;
 }
 
-bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint)
+bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint, double precision)
 {
+	if (precision == 0.0) { precision = SettingsCollection::getInstance().precision(); }
+
 	gp_Pnt p1 = getFirstPointShape(theEdge);
 	gp_Pnt p2 = getLastPointShape(theEdge);
 
 	double baseDistance = p1.Distance(p2);
 
-	if (abs(baseDistance - (p1.Distance(thePoint) + p2.Distance(thePoint))) < SettingsCollection::getInstance().precision()) { return true; }
+	if (abs(baseDistance - (p1.Distance(thePoint) + p2.Distance(thePoint))) < precision) { return true; }
 	return false;
 }
 
