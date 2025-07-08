@@ -31,16 +31,17 @@ private:
 		// the roof outline in a single surface at z=0
 		TopoDS_Face roofOutline_;
 		// the footprint in a single surface at z=0
-		TopoDS_Face footPrint_;
+		std::vector<TopoDS_Face> footPrintList_;
 
 	public:
-		void addRoof(RCollection theRoof) { roofFacesRCollection_.emplace_back(theRoof); }
+		void addRoof(const RCollection& theRoof) { roofFacesRCollection_.emplace_back(theRoof); }
 		const std::vector<RCollection> getRoof() const { return roofFacesRCollection_; }
-		void setRoof(std::vector<RCollection> theRoofList) { roofFacesRCollection_ = theRoofList; }
-		void setRoofOutline(TopoDS_Face theOutline) { roofOutline_ = theOutline; }
+		void setRoof(const std::vector<RCollection>& theRoofList) { roofFacesRCollection_ = theRoofList; }
+		void setRoofOutline(const TopoDS_Face& theOutline) { roofOutline_ = theOutline; }
 		const TopoDS_Face getRoofOutline() const { return roofOutline_; }
-		void setFootPrint(TopoDS_Face theFootPrint) { footPrint_ = theFootPrint; }
-		const TopoDS_Face getFootPrint() const { return footPrint_; }
+		void setFootPrint(const std::vector<TopoDS_Face>& theFootPrintList) { footPrintList_ = theFootPrintList; }
+		void addFootPrint(const TopoDS_Face& theFootPrint) { footPrintList_.emplace_back(theFootPrint); }
+		const std::vector<TopoDS_Face> getFootPrintList() const { return footPrintList_; }
 	};
 
 	// building geo data per building
@@ -139,11 +140,11 @@ private:
 	// merges roof representations that are near eachother
 	std::vector<RCollection> mergeRoofSurfaces(std::vector<std::shared_ptr<SurfaceGridPair>>& Collection);
 	/// returns visible surfaces from the top
-	std::vector<TopoDS_Face> getVisTopSurfaces(const std::vector<TopoDS_Face>& faceIdx, double lowestZ, const TopoDS_Face& bufferSurface = {});
+	std::vector<TopoDS_Face> getVisTopSurfaces(const std::vector<TopoDS_Face>& faceIdx, double lowestZ, const std::vector<TopoDS_Face>& bufferSurfaceList = {});
 	// trims the roof surfaces to the underlying footprint
-	std::vector<TopoDS_Face> trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
+	std::vector<TopoDS_Face> trimFacesToFootprint(const std::vector<TopoDS_Face>& roofFaces, const std::vector<TopoDS_Face>& footprintFaceList);
 	// splits the roof surfaces to the underlying footprint
-	void splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces, std::vector<TopoDS_Face>& outOverhangFaces, const std::vector<TopoDS_Face>& roofFaces, const TopoDS_Face& footprintFace);
+	void splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces, std::vector<TopoDS_Face>& outOverhangFaces, const std::vector<TopoDS_Face>& roofFaces, const std::vector<TopoDS_Face>& footprintFaceList);
 
 	// storey generation code
 
@@ -175,11 +176,11 @@ private:
 	// face extruding code
 	
 	/// create a solid extrusion from the projected roofoutline
-	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const TopoDS_Face& bufferSurface = {});
+	std::vector<TopoDS_Shape> computePrisms(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, bool preFilter = true, const std::vector<TopoDS_Face>& bufferSurfaceList = {});
 	// extrudes shape downwards and caps it on the splitting face
 	TopoDS_Solid extrudeFace(const TopoDS_Face& evalFace, bool downwards,  double splittingFaceHeight = 0);
 	/// splits the surfaces with extruded solid copies and returns the ones visible from the top
-	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const TopoDS_Face& bufferSurface = {});
+	std::vector<TopoDS_Face> getSplitTopFaces(const std::vector<TopoDS_Face>& inputFaceList, double lowestZ, const std::vector<TopoDS_Face>& bufferSurfaceList = {});
 	/// splits the surfaces with extruded solid copies
 	std::vector<TopoDS_Face> getSplitFaces(
 		const std::vector<TopoDS_Face>& inputFaceList,
