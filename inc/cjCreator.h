@@ -223,6 +223,16 @@ private:
 	// approximate the area of a room base on the voxelshape (Only works with full voxelization)
 	void processDirectionalFaces(int direction, int roomNum, std::mutex& faceListMutex, std::vector<std::pair<TopoDS_Face, CJObjectID>>& collectionList);
 
+	void makeVRoom(
+		DataManager* h, 
+		CJT::Kernel* kernel, 
+		std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, 
+		std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, 
+		int startIdx,
+		int endIdx,
+		std::mutex& roomListMutex,
+		int unitScale);
+
 	// LoD32 related code
 
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> getE1Faces(

@@ -20,7 +20,12 @@ private:
 	std::mutex voxelGrowthMutex_;
 	int activeThreads_ = 0;
 
+	// list for indx to voxel
 	std::map<int, std::shared_ptr<voxel>> VoxelLookup_;
+
+	// list for roomnum to voxelIdx
+	std::map<int, std::vector<int>> room2VoxelIdx_;
+
 	std::mutex voxelLookupMutex;
 
 	int roomSize_ = 0;

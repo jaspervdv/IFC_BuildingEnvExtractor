@@ -4191,72 +4191,43 @@ void CJGeoCreator::makeVRooms(DataManager* h, CJT::Kernel* kernel, std::vector<s
 
 	auto startTime = std::chrono::steady_clock::now();
 	// bool indicating if the voxelroom data has to be created 
-	bool genData = false;
 	if (!h->getSpaceIndexPointer()->size())
 	{
 		ErrorCollection::getInstance().addError(ErrorID::warningIfcNoRoomObjects);
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoRoomObjects) << std::endl;
-		genData = true;
 	}
 
-	for (int i = 1; i < voxelGrid_->getRoomSize(); i++) //TODO: multithread (-6 for the surface creation)
+	int coreUse = static_cast<int>(std::floor(SettingsCollection::getInstance().threadcount() / 6));
+	if (coreUse < 1) { coreUse = 1; }
+
+	int listLenght = static_cast<int>(std::ceil(voxelGrid_->getRoomSize() / coreUse));
+	if (coreUse > voxelGrid_->getRoomSize())
 	{
-		TopoDS_Shape sewedShape = voxels2Shape(i); //TODO: remove windows from this
-
-		gp_Trsf localRotationTrsf;
-		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
-		sewedShape.Move(localRotationTrsf);
-
-		std::vector< std::shared_ptr<CJT::CityObject>> potentialRoomCityObjectList;
-		if (genData) { potentialRoomCityObjectList = fetchRoomObject(h, roomCityObjects, i); }
-
-		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
-		{
-			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
-			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
-
-			if (!potentialRoomCityObjectList.size() || genData) 
-			{ 
-				double lowestZ = helperFunctions::getLowestZ(sewedShape);
-				std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
-				if (!cjRoomObject->getParents().size()) { continue; }
-				cjRoomObject->addGeoObject(geoObject);
-				roomCityObjects.emplace_back(cjRoomObject);
-				continue; 
-			}
-			for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
-			{
-				potentialRoomCityObjectList[j]->addGeoObject(geoObject);
-			}	
-			continue;
-		}
-
-		BRep_Builder brepBuilder;
-		TopoDS_Shell shell;
-		brepBuilder.MakeShell(shell);
-		TopoDS_Solid voxelSolid;
-		brepBuilder.MakeSolid(voxelSolid);
-		brepBuilder.Add(voxelSolid, sewedShape);
-
-		CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
-
-		if (!potentialRoomCityObjectList.size() || genData)
-		{
-			double lowestZ = helperFunctions::getLowestZ(sewedShape);
-			std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
-
-			if (!cjRoomObject->getParents().size()) { continue; }
-			cjRoomObject->addGeoObject(geoObject);
-			roomCityObjects.emplace_back(cjRoomObject);
-			continue;
-		}
-		for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
-		{
-			potentialRoomCityObjectList[j]->addGeoObject(geoObject);
-		}
+		coreUse = 1;
+		listLenght = voxelGrid_->getRoomSize();
 	}
 
+	std::vector<std::thread> threadList;
+	std::mutex VoxelListMutex;
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		int startIndx = i * listLenght;
+		int endIndx = startIndx + listLenght;
+
+		if (i + 1 == coreUse)
+		{
+			endIndx = voxelGrid_->getRoomSize();
+		}
+		threadList.emplace_back([&, startIndx, endIndx]() {makeVRoom(h, kernel, storeyCityObjects, roomCityObjects, startIndx, endIndx, VoxelListMutex, unitScale); });
+	}
+
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
+	}
 	printTime(startTime, std::chrono::steady_clock::now());
+	return;
 }
 
 std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel* kernel, int unitScale)
@@ -4347,7 +4318,6 @@ TopoDS_Shape CJGeoCreator::voxels2Shape(int roomNum, std::vector<int>* typeList)
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
 	for (int i = 0; i < 6; i++) {
-		//processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists));
 		threads.emplace_back([this, &threadFaceLists, &faceListMutex, i, roomNum]() {processDirectionalFaces(i, roomNum, faceListMutex, std::ref(threadFaceLists)); });
 	}
 	for (auto& thread : threads) { thread.join(); }
@@ -4445,6 +4415,84 @@ void CJGeoCreator::processDirectionalFaces(int direction, int roomNum, std::mute
 		std::unique_lock<std::mutex> listLock(faceListMutex);
 		collectionList.emplace_back(std::make_pair(cleanFace, surfaceType));
 		listLock.unlock();
+	}
+	return;
+}
+
+void CJGeoCreator::makeVRoom(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, std::vector<std::shared_ptr<CJT::CityObject>>& roomCityObjects, int startIdx, int endIdx, std::mutex& roomListMutex, int unitScale)
+{
+	bool genData = false;
+	if (!h->getSpaceIndexPointer()->size()) { genData = true; }
+
+	for (int i = startIdx; i < endIdx; i++)
+	{
+		if (i == 0) { continue; }
+
+		TopoDS_Shape sewedShape = voxels2Shape(i); //TODO: remove windows from this
+
+		gp_Trsf localRotationTrsf;
+		localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
+		sewedShape.Move(localRotationTrsf);
+
+		std::vector< std::shared_ptr<CJT::CityObject>> potentialRoomCityObjectList;
+		if (!genData) { potentialRoomCityObjectList = fetchRoomObject(h, roomCityObjects, i); }
+
+		if (sewedShape.ShapeType() == TopAbs_COMPOUND)
+		{
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
+			roomListMutex.lock();
+			CJT::GeoObject geoObject = kernel->convertToJSON(sewedShape, "5.0");
+			roomListMutex.unlock();
+
+			if (!potentialRoomCityObjectList.size() || genData)
+			{
+				double lowestZ = helperFunctions::getLowestZ(sewedShape);
+				std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
+				if (!cjRoomObject->getParents().size()) { continue; }
+				cjRoomObject->addGeoObject(geoObject);
+				roomListMutex.lock();
+				roomCityObjects.emplace_back(cjRoomObject);
+				roomListMutex.unlock();
+				continue;
+			}
+			for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
+			{
+				roomListMutex.lock();
+				potentialRoomCityObjectList[j]->addGeoObject(geoObject);
+				roomListMutex.unlock();
+			}
+			continue;
+		}
+
+		BRep_Builder brepBuilder;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid voxelSolid;
+		brepBuilder.MakeSolid(voxelSolid);
+		brepBuilder.Add(voxelSolid, sewedShape);
+
+		roomListMutex.lock();
+		CJT::GeoObject geoObject = kernel->convertToJSON(voxelSolid, "5.0");
+		roomListMutex.unlock();
+
+		if (!potentialRoomCityObjectList.size() || genData)
+		{
+			double lowestZ = helperFunctions::getLowestZ(sewedShape);
+			std::shared_ptr<CJT::CityObject> cjRoomObject = createDefaultRoomObject(storeyCityObjects, i, lowestZ);
+
+			if (!cjRoomObject->getParents().size()) { continue; }
+			cjRoomObject->addGeoObject(geoObject);
+			roomListMutex.lock();
+			roomCityObjects.emplace_back(cjRoomObject);
+			roomListMutex.unlock();
+			continue;
+		}
+		for (size_t j = 0; j < potentialRoomCityObjectList.size(); j++)
+		{
+			roomListMutex.lock();
+			potentialRoomCityObjectList[j]->addGeoObject(geoObject);
+			roomListMutex.unlock();
+		}
 	}
 	return;
 }

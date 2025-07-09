@@ -410,6 +410,20 @@ void VoxelGrid::growInterior(DataManager* h)
 			roomSize_++;
 		}
 	}
+
+	for (int i = 0; i < totalVoxels_; i++)
+	{
+		if (VoxelLookup_[i]->getIsIntersecting()) { continue; }
+
+		int roomNum = VoxelLookup_[i]->getRoomNum();
+		if (room2VoxelIdx_.find(roomNum) == room2VoxelIdx_.end())
+		{
+			room2VoxelIdx_[roomNum] = { i };
+			continue;
+		}
+		room2VoxelIdx_[roomNum].emplace_back(i);
+	}
+
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
 }
 
@@ -747,6 +761,8 @@ double VoxelGrid::getRoomArea(int roomNum)
 
 std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> VoxelGrid::getDirectionalFaces(int dirIndx, double angle, int roomNum)
 {
+	if (room2VoxelIdx_.find(roomNum) == room2VoxelIdx_.end()) { return {}; }
+
 	std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> clusteredEdges = {};
 
 	std::vector<int> evaluated(VoxelLookup_.size());
@@ -763,16 +779,17 @@ std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> VoxelGrid::getDirec
 		// find the start of the face growth
 		std::vector<int> buffer = {};
 		CJObjectID search4Type = CJObjectID::CJTypeNone;
-		for (int i = searchStartIdx; i < VoxelLookup_.size(); i++)
+		for (size_t i = searchStartIdx; i < room2VoxelIdx_[roomNum].size(); i++)
 		{
-			std::shared_ptr<voxel> potentialVoxel = VoxelLookup_[i];
-			if (evaluated[i] == 1) { continue; }
+			int currentIdx = room2VoxelIdx_[roomNum].at(i);
+			std::shared_ptr<voxel> potentialVoxel = VoxelLookup_[currentIdx];
+			if (evaluated[currentIdx] == 1) { continue; }
 			if (potentialVoxel->getRoomNum() != roomNum) { continue; }
 			if (!potentialVoxel->hasFace(dirIndx)) { continue; }
 			search4Type = potentialVoxel->faceType(dirIndx);
-			buffer.emplace_back(i);
-			evaluated[i] = 1;
-			evaluatedGrowth[i] = 1;
+			buffer.emplace_back(currentIdx);
+			evaluated[currentIdx] = 1;
+			evaluatedGrowth[currentIdx] = 1;
 			searchStartIdx = i;
 			break;
 		}
