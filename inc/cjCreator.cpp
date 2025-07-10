@@ -2665,49 +2665,98 @@ void CJGeoCreator::make2DStorey(
 		progressMap[storeyKey] = 2;
 		return;
 	}
-	std::map<std::string, std::string> semanticExternalStoreyData;
+
 	std::map<std::string, std::string> semanticStoreyData;
+	std::map<std::string, std::string> semanticExternalStoreyData;
 	semanticStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloor));
 	semanticExternalStoreyData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeOuterFloor));
 
 	double totalArea = 0;
 	trsf.SetTranslationPart(gp_Vec(0, 0, -storeyUserBuffer));
 
-	for (const TopoDS_Face& currentStoreyFace : storeySurfaceList)
+	bool hasMultipleBuildings = (buildingSurfaceDataList_.size() > 1);
+	for (BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
 	{
-		std::lock_guard<std::mutex> faceLock(storeyMutex);
-		TopoDS_Shape movedStoreyFace = currentStoreyFace.Moved(trsf);
+		const TopoDS_Face& roofOutline = buildingSurfaceData.getRoofOutline();
 
-		if (SettingsCollection::getInstance().createSTEP() || SettingsCollection::getInstance().createOBJ())
+
+		// make compound
+		BRep_Builder builder;
+		TopoDS_Compound collectionShape;
+		builder.MakeCompound(collectionShape);
+
+		std::vector<int> typeValueList;
+		for (const TopoDS_Face& currentStoreyFace : storeySurfaceList)
 		{
-			copyGeoList.emplace_back(movedStoreyFace);
+			if (hasMultipleBuildings)
+			{
+				std::optional<gp_Pnt> optionalFacePoint = helperFunctions::getPointOnFace(currentStoreyFace);
+				if (optionalFacePoint == std::nullopt) { continue; }
+				gp_Pnt facePoint = *optionalFacePoint;
+				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000)) &&
+					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000)))
+				{
+					continue;
+				}
+			}
+
+
+			TopoDS_Shape movedStoreyFace = currentStoreyFace.Moved(trsf);
+
+			if (SettingsCollection::getInstance().createSTEP() || SettingsCollection::getInstance().createOBJ())
+			{
+				storeyMutex.lock();
+				copyGeoList.emplace_back(movedStoreyFace);
+				storeyMutex.unlock();
+			}
+
+			builder.Add(collectionShape, movedStoreyFace);
+			typeValueList.emplace_back(0);
+
+			totalArea += helperFunctions::computeArea(currentStoreyFace);
 		}
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(movedStoreyFace, LoDString);
+		for (const TopoDS_Face& currentStoreyFace : storeyExternalSurfaceList)
+		{
+			if (hasMultipleBuildings)
+			{
+				std::optional<gp_Pnt> optionalFacePoint = helperFunctions::getPointOnFace(currentStoreyFace);
+				if (optionalFacePoint == std::nullopt) { continue; }
+				gp_Pnt facePoint = *optionalFacePoint;
+				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000)) &&
+					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000)))
+				{
+					continue;
+				}
+			}
+
+			TopoDS_Shape movedStoreyFace = currentStoreyFace.Moved(trsf);
+
+			if (SettingsCollection::getInstance().createSTEP() || SettingsCollection::getInstance().createOBJ())
+			{
+				storeyMutex.lock();
+				copyGeoList.emplace_back(movedStoreyFace);
+				storeyMutex.unlock();
+			}
+
+			builder.Add(collectionShape, movedStoreyFace);
+			typeValueList.emplace_back(1);
+
+			totalArea += helperFunctions::computeArea(currentStoreyFace);
+		}
+
+		if (typeValueList.empty()) { continue; }
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, LoDString, false, true);
 		geoObject.appendSurfaceData(semanticStoreyData);
-		geoObject.appendSurfaceTypeValue(0);
-		storeyCityObject->addGeoObject(geoObject);
-
-		totalArea += helperFunctions::computeArea(currentStoreyFace);
-	}
-
-	for (const TopoDS_Face& currentStoreyFace : storeyExternalSurfaceList)
-	{
-		std::lock_guard<std::mutex> faceLock(storeyMutex);
-		TopoDS_Shape movedStoreyFace = currentStoreyFace.Moved(trsf);
-
-		if (SettingsCollection::getInstance().createSTEP() || SettingsCollection::getInstance().createOBJ())
-		{
-			copyGeoList.emplace_back(movedStoreyFace);
-		}
-
-		CJT::GeoObject geoObject = kernel->convertToJSON(movedStoreyFace, LoDString);
 		geoObject.appendSurfaceData(semanticExternalStoreyData);
-		geoObject.appendSurfaceTypeValue(0);
+		geoObject.setSurfaceTypeValues(typeValueList);
 		storeyCityObject->addGeoObject(geoObject);
 	}
 	storeyCityObject->addAttribute(CJObjectEnum::getString(CJObjectID::EnvLoDfloorArea) + LoDString, totalArea);
+	storeyMutex.lock();
 	progressMap[storeyKey] = 1;
+	storeyMutex.unlock();
 	return;
 }
 
@@ -2975,19 +3024,29 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (const std::vector<TopoDS_Face>& faceCluster : LoD03RoofFaces_)
 	{
+		BRep_Builder builder;
+		TopoDS_Compound collectionShape;
+		builder.MakeCompound(collectionShape);
+
+		std::vector<int> typeValueList;
+		typeValueList.reserve(faceCluster.size());
+
 		for (TopoDS_Face currentShape : faceCluster)
 		{
 			gp_Trsf localRotationTrsf;
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
+
+			builder.Add(collectionShape, currentShape);
 			faceCopyCollection.emplace_back(currentShape);
-
-			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.3");
-
-			geoObject.appendSurfaceData(semanticRoofData);
-			geoObject.appendSurfaceTypeValue(0);
-			geoObjectCollection.emplace_back(geoObject);
+			typeValueList.emplace_back(0);
 		}
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.3", false, true);
+
+		geoObject.appendSurfaceData(semanticRoofData);
+		geoObject.setSurfaceTypeValues(typeValueList);
+		geoObjectCollection.emplace_back(geoObject);
 	}
 
 	if (hasFootprints_)
@@ -2999,19 +3058,27 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
 		{
 			// make compound
+			BRep_Builder builder;
+			TopoDS_Compound collectionShape;
+			builder.MakeCompound(collectionShape);
+
+			std::vector<int> typeValueList;
+			typeValueList.reserve(buildingSurfaceData.getFootPrintList().size());
 			for (TopoDS_Face currentFootPrint : buildingSurfaceData.getFootPrintList())
 			{
-				if (currentFootPrint.IsNull()) { continue; }
-				gp_Trsf trsf;
-				trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-				currentFootPrint.Move(trsf);
-				faceCopyCollection.emplace_back(currentFootPrint);
+				gp_Trsf localRotationTrsf;
+				localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+				currentFootPrint.Move(localRotationTrsf);
 
-				CJT::GeoObject geoObject = kernel->convertToJSON(currentFootPrint, "0.3");
-				geoObject.appendSurfaceData(semanticFootData);
-				geoObject.appendSurfaceTypeValue(0);
-				geoObjectCollection.emplace_back(geoObject);
+				builder.Add(collectionShape, currentFootPrint);
+				faceCopyCollection.emplace_back(currentFootPrint);
+				typeValueList.emplace_back(0);
 			}
+			CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.3", false, true);
+
+			geoObject.appendSurfaceData(semanticFootData);
+			geoObject.setSurfaceTypeValues(typeValueList);
+			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
 
@@ -3046,18 +3113,29 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (std::vector<TopoDS_Face> faceCluster : LoD04RoofFaces_)
 	{
+		BRep_Builder builder;
+		TopoDS_Compound collectionShape;
+		builder.MakeCompound(collectionShape);
+
+		std::vector<int> typeValueList;
+		typeValueList.reserve(faceCluster.size());
+
 		for (TopoDS_Face currentShape : faceCluster)
 		{
 			gp_Trsf localRotationTrsf;
 			localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 			currentShape.Move(localRotationTrsf);
-			faceCopyCollection.emplace_back(currentShape);
 
-			CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "0.4");
-			geoObject.appendSurfaceData(semanticRoofData);
-			geoObject.appendSurfaceTypeValue(0);
-			geoObjectCollection.emplace_back(geoObject);
+			builder.Add(collectionShape, currentShape);
+			faceCopyCollection.emplace_back(currentShape);
+			typeValueList.emplace_back(0);
 		}
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.4", false, true);
+
+		geoObject.appendSurfaceData(semanticRoofData);
+		geoObject.setSurfaceTypeValues(typeValueList);
+		geoObjectCollection.emplace_back(geoObject);
 	}
 
 	if (hasFootprints_)
@@ -3069,19 +3147,27 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 		for (const BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
 		{
 			// make compound
+			BRep_Builder builder;
+			TopoDS_Compound collectionShape;
+			builder.MakeCompound(collectionShape);
+
+			std::vector<int> typeValueList;
+			typeValueList.reserve(buildingSurfaceData.getFootPrintList().size());
 			for (TopoDS_Face currentFootPrint : buildingSurfaceData.getFootPrintList())
 			{
-				if (currentFootPrint.IsNull()) { continue; }
-				gp_Trsf trsf;
-				trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
-				currentFootPrint.Move(trsf);
-				faceCopyCollection.emplace_back(currentFootPrint);
+				gp_Trsf localRotationTrsf;
+				localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
+				currentFootPrint.Move(localRotationTrsf);
 
-				CJT::GeoObject geoObject = kernel->convertToJSON(currentFootPrint, "0.4");
-				geoObject.appendSurfaceData(semanticFootData);
-				geoObject.appendSurfaceTypeValue(0);
-				geoObjectCollection.emplace_back(geoObject);
+				builder.Add(collectionShape, currentFootPrint);
+				faceCopyCollection.emplace_back(currentFootPrint);
+				typeValueList.emplace_back(0);
 			}
+			CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.4", false, true);
+
+			geoObject.appendSurfaceData(semanticFootData);
+			geoObject.setSurfaceTypeValues(typeValueList);
+			geoObjectCollection.emplace_back(geoObject);
 		}
 	}
 
@@ -3997,10 +4083,27 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	// remove dub and incapsulated surfaces by merging them
 	std::vector<gp_Dir> normalList;
 	normalList.reserve(finalOuterSurfacePairList.size());
-	for (const auto& [currentFace, currentProduct] : finalOuterSurfacePairList)
+
+	std::vector<int> eliminatedFaceIndxList;
+
+	for (size_t i = 0; i < finalOuterSurfacePairList.size(); i++)
 	{
-		normalList.emplace_back(helperFunctions::computeFaceNormal(currentFace));
+		const TopoDS_Face& currentFace = finalOuterSurfacePairList[i].first;
+		gp_Vec currentVec = helperFunctions::computeFaceNormal(currentFace);
+		if (currentVec.Magnitude() < settingsCollection.precision())
+		{
+			eliminatedFaceIndxList.emplace_back(i);
+			continue;
+		}
+		normalList.emplace_back(currentVec);
 	}
+
+	std::reverse(eliminatedFaceIndxList.begin(), eliminatedFaceIndxList.end());
+	for (int eliminatedIndx : eliminatedFaceIndxList )
+	{
+		finalOuterSurfacePairList.erase(finalOuterSurfacePairList.begin() + eliminatedIndx);
+	}
+
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> cleanedOuterSurfacePairList = simplefyFacePool(finalOuterSurfacePairList, normalList); //TODO: multithread
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(finalOuterSurfacePairList);
 

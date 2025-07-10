@@ -946,13 +946,18 @@ gp_Vec helperFunctions::computeFaceNormal(const T& theFace) //TODO: check if tri
 	gp_Vec vec2;
 
 	TopExp_Explorer edgeExpl(theFace, TopAbs_EDGE);
+
+	bool found = false;
 	for (edgeExpl; edgeExpl.More(); edgeExpl.Next())
 	{
 		TopoDS_Edge edge = TopoDS::Edge(edgeExpl.Current());
 		vec1 = computeEdgeDir(edge);
 		if (vec1.Magnitude() < precision) { continue; }
+		found = true;
 		break;
 	}
+	if (!found) { return gp_Vec(0, 0, 0); }
+
 	for (edgeExpl; edgeExpl.More(); edgeExpl.Next())
 	{
 		TopoDS_Edge edge = TopoDS::Edge(edgeExpl.Current());
@@ -1411,10 +1416,16 @@ bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp
 	for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
 		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
 		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
 		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		gp_Pnt lll;
+		gp_Pnt urr;
+		bBoxDiagonal({ p1, p2, p3 }, &lll, &urr);
+
+		if (lP1.X() > urr.X() || lP1.X() < lll.X()) { continue; }
+		if (lP1.Y() > urr.Y() || lP1.Y() < lll.Y()) { continue; }
 
 		if (helperFunctions::triangleIntersecting({ lP1, lp2 }, {p1, p2, p3}))
 		{
