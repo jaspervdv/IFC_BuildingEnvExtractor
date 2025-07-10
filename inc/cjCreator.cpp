@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <mutex>
 
 #include <Bnd_Box.hxx>
 #include <BOPAlgo_Splitter.hxx>
@@ -755,6 +756,12 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 	// set up floorlvl
 	double floorlvl = settingsCollection.footprintElevation();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
+	// local user choses z offset
+	double storeyBuffer = settingsCollection.horizontalSectionOffset();
+	gp_Trsf translation;
+	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
+	floorlvl = floorlvl + storeyBuffer + h->getObjectTranslation().TranslationPart().Z();
+
 	// check if storey elev falls within bbox
 	if (h->getLllPoint().Z() > floorlvl || h->getUrrPoint().Z() < floorlvl)
 	{
@@ -765,15 +772,10 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoasreFootFiltering) << floorlvl << std::endl;
 	}
 
-	// local user choses z offset
-	double storeyBuffer = settingsCollection.horizontalSectionOffset();
-	gp_Trsf translation;
-	translation.SetTranslation(gp_Vec(0, 0, -storeyBuffer));
-
 	try
 	{
 		std::vector<TopoDS_Face> footprintList;
-		makeFloorSection(footprintList, h, floorlvl + storeyBuffer + h->getObjectTranslation().TranslationPart().Z());
+		makeFloorSection(footprintList, h, floorlvl);
 		for (TopoDS_Face& footprintItem : footprintList) { footprintItem.Move(translation); }
 
 		for (BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
