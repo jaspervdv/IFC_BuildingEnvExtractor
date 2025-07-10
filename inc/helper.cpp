@@ -246,9 +246,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 
 	// set num of points if min/max rule is not met
 	if (numUPoints <= minSurfacePoints) { numUPoints = minSurfacePoints; }
-	else if (numUPoints > 10) { numUPoints = 10; }
 	if (numVPoints <= minSurfacePoints) { numVPoints = minSurfacePoints; }
-	else if (numVPoints > 10) { numVPoints = 10; }
 
 	double uStep = (uMax - uMin) / (numUPoints - 1);
 	double vStep = (vMax - vMin) / (numVPoints - 1);
@@ -356,7 +354,6 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 		Standard_Real first, last;
 		Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
 		if (curve.IsNull()) {
-			std::cout << "dedgen" << std::endl;
 			return {};  // Skip degenerated edges
 		}
 		if (!curve->IsKind(STANDARD_TYPE(Geom_Line))) {

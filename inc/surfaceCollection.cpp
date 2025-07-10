@@ -171,7 +171,6 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 				continue;
 			}
 
-			
 			gp_Pnt projectedPoint = currentEvalPoint->getPoint();
 			projectedPoint.SetZ(0);
 			for (TopExp_Explorer expl(otherFace, TopAbs_EDGE); expl.More(); expl.Next())

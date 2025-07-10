@@ -76,7 +76,7 @@ private:
 	int intersectionLogic_ = 3;
 
 	double voxelSize_ = 0.5;
-	double surfaceGridSize_ = 0.3; //TODO: make accessible for user?
+	double surfaceGridSize_ = 0.5; //TODO: make accessible for user?
 
 	bool autoRotateGrid_ = true;
 	double desiredRotation_ = 0;
