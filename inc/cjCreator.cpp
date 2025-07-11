@@ -3068,6 +3068,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 			typeValueList.reserve(buildingSurfaceData.getFootPrintList().size());
 			for (TopoDS_Face currentFootPrint : buildingSurfaceData.getFootPrintList())
 			{
+				if (currentFootPrint.IsNull()) { continue; }
 				gp_Trsf localRotationTrsf;
 				localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 				currentFootPrint.Move(localRotationTrsf);
@@ -3076,6 +3077,9 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 				faceCopyCollection.emplace_back(currentFootPrint);
 				typeValueList.emplace_back(0);
 			}
+
+			if (typeValueList.empty()) { continue; }
+
 			CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.3", false, true);
 
 			geoObject.appendSurfaceData(semanticFootData);
@@ -3157,6 +3161,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 			typeValueList.reserve(buildingSurfaceData.getFootPrintList().size());
 			for (TopoDS_Face currentFootPrint : buildingSurfaceData.getFootPrintList())
 			{
+				if (currentFootPrint.IsNull()) { continue; }
 				gp_Trsf localRotationTrsf;
 				localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 				currentFootPrint.Move(localRotationTrsf);
@@ -3165,6 +3170,9 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 				faceCopyCollection.emplace_back(currentFootPrint);
 				typeValueList.emplace_back(0);
 			}
+
+			if (typeValueList.empty()) { continue; }
+
 			CJT::GeoObject geoObject = kernel->convertToJSON(collectionShape, "0.4", false, true);
 
 			geoObject.appendSurfaceData(semanticFootData);
