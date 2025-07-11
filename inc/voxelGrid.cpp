@@ -411,11 +411,21 @@ void VoxelGrid::growInterior(DataManager* h)
 		}
 	}
 
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
+}
+
+
+void VoxelGrid::pairVoxels()
+{
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPairVoxels) << std::endl;
+
 	for (int i = 0; i < totalVoxels_; i++)
 	{
 		if (VoxelLookup_[i]->getIsIntersecting()) { continue; }
 
 		int roomNum = VoxelLookup_[i]->getRoomNum();
+		if (roomNum == -1) { continue; }
+
 		if (room2VoxelIdx_.find(roomNum) == room2VoxelIdx_.end())
 		{
 			room2VoxelIdx_[roomNum] = { i };
@@ -424,13 +434,6 @@ void VoxelGrid::growInterior(DataManager* h)
 		room2VoxelIdx_[roomNum].emplace_back(i);
 	}
 
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentInteriorSpaceGrown) << std::endl;
-}
-
-
-void VoxelGrid::pairVoxels()
-{
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPairVoxels) << std::endl;
 	int buildingNum = 0;
 	for (int i = 0; i < totalVoxels_; i++)
 	{
@@ -440,6 +443,7 @@ void VoxelGrid::pairVoxels()
 			buildingNum++;
 		}
 	}
+
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentPairedVoxels) << std::endl;
 	std::cout << "\t" << buildingNum << " buildings(s) found" << std::endl << std::endl;
 }
