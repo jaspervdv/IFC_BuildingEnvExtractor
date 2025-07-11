@@ -639,6 +639,8 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 			const TopoDS_Edge& edge = TopoDS::Edge(expl.Current());
 			gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
 			gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+			if (p0.IsEqual(p1, 1e-6)) { continue; }
+
 			edgeCount++;
 
 			if (downwards)
@@ -652,7 +654,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 
 			gp_Pnt p2 = gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight);
 			gp_Pnt p3 = gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight);
-
 			TopoDS_Edge topEdge = BRepBuilderAPI_MakeEdge(p0, p1);
 			TopoDS_Edge buttomEdge = BRepBuilderAPI_MakeEdge(p2, p3);
 			wireMakerTop.Add(topEdge);
@@ -4729,7 +4730,7 @@ void CJGeoCreator::getOuterRaySurfaces(
 	std::mutex& listmutex,
 	DataManager* h,
 	const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx,
-	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>&voxelIndex
+	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex
 )
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
@@ -4797,7 +4798,7 @@ void CJGeoCreator::getOuterRaySurfaces(
 							continue;
 						}
 
-						for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
+						for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: index this?
 						{
 							const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
 

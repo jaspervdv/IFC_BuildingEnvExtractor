@@ -937,6 +937,8 @@ gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge) //TODO: make 
 template<typename T>
 gp_Vec helperFunctions::computeFaceNormal(const T& theFace) //TODO: check if triangle based would be usefull 
 {
+	if (theFace.IsNull()) { return gp_Vec(0, 0, 0); }
+
 	double precision = SettingsCollection::getInstance().precision();
 
 	gp_Vec vec1;

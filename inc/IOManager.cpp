@@ -209,7 +209,7 @@ void IOManager::printSummary()
 		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY\n";
 	}
 	std::vector<std::string> addDivObjects = settingsCollection.getCustomDivList();
-	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << "    " << boost::to_upper_copy(*it) << "\n"; }
+	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << "\n"; }
 	std::cout << "\n";
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings\n";
