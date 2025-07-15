@@ -8,7 +8,7 @@ enum class ErrorID {
 	errorNoValFilePaths,
 	errorUnableToProcessFile,
 	errorNoUnits,
-	errorMultipleUnits,
+	warningMultipleUnits,
 	errorNoLengthUnit,
 	errorNoAreaUnit,
 

@@ -49,7 +49,7 @@ ErrorCollection::ErrorCollection() {
 
 		{ErrorID::errorUnableToProcessFile, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorUnableToProcessFile, false))},
 		{ErrorID::errorNoUnits, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorNoUnits, false))},
-		{ErrorID::errorMultipleUnits, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorMultipleUnits, false))},
+		{ErrorID::warningMultipleUnits, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::warningMultipleUnits, false))},
 		{ErrorID::errorNoLengthUnit, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorNoLengthUnit, false))},
 		{ErrorID::errorNoAreaUnit, ErrorObject("J0001", errorWarningStringEnum::getString(ErrorID::errorNoAreaUnit, false))},
 

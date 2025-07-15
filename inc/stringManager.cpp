@@ -193,9 +193,9 @@ std::string errorWarningStringEnum::getString(ErrorID id, bool withImportance)
 		const std::string coms = "No unit assignment has been found";
 		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
 		return coms; }
-	case ErrorID::errorMultipleUnits: {
+	case ErrorID::warningMultipleUnits: {
 		const std::string coms = "Multiple unit assignments have been found";
-		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::error) + coms; }
+		if (withImportance) { return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::warning) + coms; }
 		return coms; }
 	case ErrorID::errorNoLengthUnit: {
 		const std::string coms = "SI unit for length cannot be found";

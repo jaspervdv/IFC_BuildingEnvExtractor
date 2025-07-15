@@ -134,9 +134,8 @@ void fileKernelCollection::setUnits()
 	}
 	else if (assignedUnitListObjects.get()->size() > 1)
 	{
-		ErrorCollection::getInstance().addError(ErrorID::errorMultipleUnits);
-		std::cout << errorWarningStringEnum::getString(ErrorID::errorMultipleUnits) << std::endl;
-		return;
+		ErrorCollection::getInstance().addError(ErrorID::warningMultipleUnits);
+		std::cout << errorWarningStringEnum::getString(ErrorID::warningMultipleUnits) << std::endl;
 	}
 
 	IfcSchema::IfcUnitAssignment* assignedUnitListObject = *assignedUnitListObjects->begin();
@@ -153,6 +152,10 @@ void fileKernelCollection::setUnits()
 				length = getSiScaleValue(*currentSiUnit);
 				continue;
 			}
+		}
+		if (length != 0)
+		{
+			break;
 		}
 	}
 
@@ -608,7 +611,7 @@ std::vector<gp_Pnt> DataManager::getObjectListPoints(bool simple)
 std::vector<gp_Pnt> DataManager::getObjectPoints(IfcSchema::IfcProduct* product, bool simple)
 {
 	TopoDS_Shape productShape = getObjectShape(product, simple);
-	std::vector<gp_Pnt> pointList = helperFunctions::getPoints(productShape);
+ 	std::vector<gp_Pnt> pointList = helperFunctions::getPoints(productShape);
 	return pointList;
 }
 
@@ -1407,24 +1410,40 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	if (!potentialShape.IsNull()) { return potentialShape; }
 
 	IfcSchema::IfcRepresentation* ifc_representation = getProductRepPtr(product);
+
 	if (ifc_representation == nullptr)
 	{
 		return getNestedObjectShape(product, isSimple);
 	}	
 
 	IfcGeom::Kernel* kernelObject = getKernelObject(product->GlobalId());
-	if (kernelObject == nullptr) { return {}; }
+	if (kernelObject == nullptr) {
+		//TODO: add error
+		return {}; 
+	}
 
 	gp_Trsf trsf;
 	convertMutex_.lock();
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	convertMutex_.unlock();
-
 	IfcGeom::IteratorSettings iteratorSettings = SettingsCollection::getInstance().iteratorSettings(isSimple);
+
 	convertMutex_.lock();
-	IfcGeom::BRepElement* brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
+	IfcGeom::BRepElement* brep = nullptr;
+	try
+	{
+		brep = kernelObject->convert(iteratorSettings, ifc_representation, product);
+	}
+	catch (const std::exception&)
+	{
+		//TODO: add error
+	}
+
 	convertMutex_.unlock();
-	if (brep == nullptr) { return {}; }
+	if (brep == nullptr) { 
+		//TODO: add error
+		return {}; 
+	}
 
 	TopoDS_Compound comp;
 	gp_Trsf placement;
