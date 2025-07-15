@@ -1016,7 +1016,7 @@ void DataManager::indexGeo()
 		timedAddObjectListToIndex<IfcSchema::IfcRoof>("IfcRoof", addToRoomIndex);
 		timedAddObjectListToIndex<IfcSchema::IfcWall>("IfcWall", addToRoomIndex);
 		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcCovering", addToRoomIndex);
-		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcBeam", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcBeam>("IfcBeam", addToRoomIndex);
 		timedAddObjectListToIndex<IfcSchema::IfcColumn>("IfcColumn", addToRoomIndex);
 		timedAddObjectListToIndex<IfcSchema::IfcPlate>("IfcPlate", addToRoomIndex);
 		timedAddObjectListToIndex<IfcSchema::IfcMember>("IfcMember", addToRoomIndex);
