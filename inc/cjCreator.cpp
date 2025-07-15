@@ -968,7 +968,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 	for (const TopoDS_Face& currentRoofSurface : inputFaceList)
 	{
 		if (currentRoofSurface.IsNull()) { continue; }
-
 		std::vector<std::pair<BoostBox3D, TopoDS_Face>> qResult;
 		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(currentRoofSurface);
 		cuttingFaceIdx.query(bgi::intersects(searchBox), std::back_inserter(qResult));
@@ -987,10 +986,8 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 		for (const auto& [cuttingBox, cuttingFace] : qResult)
 		{
 			TopoDS_Face currentSplitter = cuttingFace;
-			if (currentSplitter.IsEqual(currentRoofSurface))
-			{
-				continue;
-			}
+			if (currentSplitter.IsEqual(currentRoofSurface)) { continue; }
+			
 			divider.AddTool(currentSplitter);
 		}
 		divider.Perform();
@@ -1096,6 +1093,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> splittingfaceIdx; // horizontal and veritcal faces that can be used to split the to be split faces
 	std::vector<TopoDS_Face> toBesSplitFaceList; // vertical faces that are to be split
 
+	int extrusionNumber = 0;
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
@@ -1115,21 +1113,18 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
 			splittingfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
-			toBesSplitFaceList.emplace_back(extrusionFace);
 		}
-
-		BoostBox3D flatFaceBox = helperFunctions::createBBox(currentFace);
-		splittingfaceIdx.insert(std::make_pair(flatFaceBox, currentFace));
 	}
 
 	// remove dub faces and split them
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(splittingfaceIdx);
+	for (const auto& [currentBox, currentFace] : cuttingFaceIdx) { toBesSplitFaceList.emplace_back(currentFace); }
+
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
 
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
-
 		gp_Vec currentVec = helperFunctions::computeFaceNormal(currentFace);
 		if (currentVec.Magnitude() < precision) { continue; }
 		BoostBox3D faceBox = helperFunctions::createBBox(currentFace);
@@ -1149,14 +1144,24 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
 		gp_Pnt currentPoint = *optionalCurrentPoint;
 
+		int isSameCount = 0;
 		for (const auto& [otherBox, otherFace] : qResult)
 		{
-			if (currentFace.IsEqual(otherFace)) { continue; }
-			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) { continue; }
+			if (currentFace.IsEqual(otherFace)) 
+			{ 
+				if (isSameCount == 0)
+				{
+					isSameCount++;
+					continue;
+				}
+				isDub = true;
+				break;
+			}
 
-			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) { continue; }
-
+			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) {  continue; }
+			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) {  continue; }
 			isDub = true;
+			break;
 		}
 		if (!isDub)
 		{
@@ -3292,7 +3297,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD13(DataManager* h, CJT::Kernel
 	// get the correct top surface
 	std::vector<std::vector<TopoDS_Face>> roofList;
 	if (LoD03RoofFaces_.size() == 0) {
-		roofList = makeRoofFaces(h, kernel, 1, true, settingsCollection.footPrintBased());
+		roofList = makeRoofFaces(h, kernel, 1, true, settingsCollection.footPrintBased());		
 	}
 	else if (!settingsCollection.footPrintBased())
 	{
