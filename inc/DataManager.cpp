@@ -327,13 +327,18 @@ gp_Vec DataManager::computeObjectTranslation()
 		IfcSchema::IfcSlab::list::ptr slabList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
 		if (slabList.get() == nullptr) { continue; }
 		if (!slabList.get()->size()) { continue; }
-		IfcSchema::IfcSlab* slab = *slabList->begin();
 
-		gp_Pnt lllPoint;
-		gp_Pnt urrPoint;
-		TopoDS_Shape slabShape = getObjectShape(slab, true);
-		helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
-		return gp_Vec(-lllPoint.X(), -lllPoint.Y(), -lllPoint.Z());
+		for (IfcSchema::IfcSlab::list::it slabIt = slabList->begin(); slabIt != slabList->end(); ++ slabIt)
+		{
+			IfcSchema::IfcSlab* slab = *slabIt;
+			gp_Pnt lllPoint;
+			gp_Pnt urrPoint;
+			TopoDS_Shape slabShape = getObjectShape(slab, true);
+
+			if (slabShape.IsNull()) { continue;  }
+			helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
+			return gp_Vec(-lllPoint.X(), -lllPoint.Y(), -lllPoint.Z());
+		}
 	}
 	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
 	std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab) << std::endl;
@@ -975,6 +980,7 @@ void DataManager::internalizeGeo()
 	auto startTime = std::chrono::high_resolution_clock::now();
 	//combine the georef transformation from the ifc file with the local origin offset
 	gp_Trsf geoTrsf = getProjectionTransformation();
+
 	objectTranslation_.SetRotation(geoTrsf.GetRotation()); //set the objectranslation to the rotation only
 	gp_Vec ifcTrsf = computeObjectTranslation();
 	objectTranslation_.SetTranslationPart(ifcTrsf);
@@ -1005,20 +1011,23 @@ void DataManager::indexGeo()
 
 	if (settingsCollection.useDefaultDiv())
 	{
-		timedAddObjectListToIndex<IfcSchema::IfcSlab>("IfcSlab", false);
-		timedAddObjectListToIndex<IfcSchema::IfcRoof>("IfcRoof", false);
-		timedAddObjectListToIndex<IfcSchema::IfcWall>("IfcWall", false);
-		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcCovering", false);
-		timedAddObjectListToIndex<IfcSchema::IfcColumn>("IfcColumn", false);
-		timedAddObjectListToIndex<IfcSchema::IfcPlate>("IfcPlate", false);
-		timedAddObjectListToIndex<IfcSchema::IfcMember>("IfcMember", false);
-		timedAddObjectListToIndex<IfcSchema::IfcWindow>("IfcWindow", false);
-		timedAddObjectListToIndex<IfcSchema::IfcDoor>("IfcDoor", false);
-		//addObjectListToIndex<IfcSchema::IfcCurtainWall>("IfcCurtainWall", false);
+		bool addToRoomIndex = false;
+		timedAddObjectListToIndex<IfcSchema::IfcSlab>("IfcSlab", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcRoof>("IfcRoof", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcWall>("IfcWall", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcCovering", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcCovering>("IfcBeam", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcColumn>("IfcColumn", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcPlate>("IfcPlate", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcMember>("IfcMember", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcWindow>("IfcWindow", addToRoomIndex);
+		timedAddObjectListToIndex<IfcSchema::IfcDoor>("IfcDoor", addToRoomIndex);
+		//addObjectListToIndex<IfcSchema::IfcCurtainWall>("IfcCurtainWall", addToRoomIndex);
 
 		if (settingsCollection.useProxy())
 		{
-			timedAddObjectListToIndex<IfcSchema::IfcBuildingElementProxy>("IfcBuildingElementProxy", false);
+			bool addToRoomIndex = false;
+			timedAddObjectListToIndex<IfcSchema::IfcBuildingElementProxy>("IfcBuildingElementProxy", addToRoomIndex);
 		}
 	}
 	else // add custom set div objects
@@ -1032,7 +1041,8 @@ void DataManager::indexGeo()
 
 	if (settingsCollection.makeInterior())
 	{
-		timedAddObjectListToIndex<IfcSchema::IfcSpace>("IfcSpace", true);
+		bool addToRoomIndex = true;
+		timedAddObjectListToIndex<IfcSchema::IfcSpace>("IfcSpace", addToRoomIndex);
 	}
 	std::cout << std::endl;
 	// find valid voids
