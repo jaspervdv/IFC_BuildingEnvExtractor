@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC2x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -151,7 +151,9 @@ struct helperFunctions{
 	static bool pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision = 0.0);
 	/// check if point is on face
 	static bool pointOnFace(const std::vector<TopoDS_Face>& theFace, const gp_Pnt& thePoint, double precision = 0.0);
-	/// check if point is on edge
+	/// check if point is on any edge of face
+	static bool pointOnWire(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision = 0.0);
+	/// check if point is on any edge of wire
 	static bool pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint, double precision = 0.0);
 	/// check if point is on edge
 	static bool pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& thePoint, double precision = 0.0);

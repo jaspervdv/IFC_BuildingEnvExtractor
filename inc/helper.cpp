@@ -900,6 +900,19 @@ bool helperFunctions::pointOnFace(const std::vector<TopoDS_Face>& theFace, const
 	return false;
 }
 
+bool helperFunctions::pointOnWire(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision)
+{
+	for (TopExp_Explorer expl(theFace, TopAbs_WIRE); expl.More(); expl.Next())
+	{
+		TopoDS_Wire currentWire = TopoDS::Wire(expl.Current());
+		if (pointOnWire(currentWire, thePoint, precision))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool helperFunctions::pointOnWire(const TopoDS_Wire& theWire, const gp_Pnt& thePoint, double precision)
 {
 	for (TopExp_Explorer currentExpl(theWire, TopAbs_EDGE); currentExpl.More(); currentExpl.Next())
@@ -2545,8 +2558,8 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 	gp_Vec clusterNormal = computeFaceNormal(planarFaces[0]);
 	gp_Vec horizontalNormal = gp_Vec(0, 0, 1);
 
-	std::vector<TopoDS_Face> flattenedFaceList;
-	flattenedFaceList.reserve(planarFaces.size());
+	std::vector<std::pair<double, TopoDS_Face>> flattenedAreaFaceList;
+	flattenedAreaFaceList.reserve(planarFaces.size());
 
 	if (!clusterNormal.IsParallel(horizontalNormal, 1e-6))
 	{
@@ -2563,14 +2576,61 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 			BRepBuilderAPI_Transform transformer(face, transform);
 			if (transformer.IsDone()) {
 				TopoDS_Face dubface = TopoDS::Face(transformer.Shape());
-				flattenedFaceList.emplace_back(dubface);
+				double area = computeArea(dubface);
+				flattenedAreaFaceList.emplace_back(std::pair(area,dubface));
 			}
 		}
 	}
 	else
 	{
-		flattenedFaceList = planarFaces;
+		for (const TopoDS_Face& face : planarFaces) {
+			double area = computeArea(face);
+			flattenedAreaFaceList.emplace_back(area, face);
+		}
 	}
+
+	std::sort(flattenedAreaFaceList.begin(), flattenedAreaFaceList.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+
+	std::vector<TopoDS_Face> flattenedFaceList;
+	flattenedFaceList.reserve(flattenedAreaFaceList.size());
+	for (size_t i = 0; i < flattenedAreaFaceList.size(); i++) //TODO: find a better way to filter out overlap
+	{
+		TopoDS_Face currentFace = flattenedAreaFaceList[i].second;
+
+		if (i + 1 == flattenedAreaFaceList.size())
+		{
+			flattenedFaceList.emplace_back(currentFace);
+			break;
+		}
+
+		bool useFace = true;
+		for (size_t j = i + 1; j < flattenedAreaFaceList.size(); j++)
+		{
+			bool freeFace = false;
+			TopoDS_Face otherFace = flattenedAreaFaceList[j].second;
+			for (TopExp_Explorer vertExpl(currentFace, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
+				TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
+				gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
+				if (!pointOnFace(otherFace, currentPoint) && !pointOnWire(otherFace, currentPoint))
+				{
+					freeFace = true;
+					break;
+				}
+			}
+			if (!freeFace)
+			{
+				useFace = false;
+				break;
+			}
+		}
+
+		if (useFace)
+		{
+			flattenedFaceList.emplace_back(currentFace);
+		}
+	}
+
+	if (flattenedFaceList.size() == 1) { return flattenedFaceList; }
 
 	// use the storey approach? 
 	gp_Pnt lll;

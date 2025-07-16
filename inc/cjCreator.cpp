@@ -262,7 +262,6 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 	for (size_t i = 0; i < Collection.size(); i++)
 	{
 		const TopoDS_Face& currentFace = Collection[i]->getFace();
-
 		if (helperFunctions::computeArea(currentFace) <= precision)
 		{
 			continue;
@@ -340,11 +339,11 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 			bufferList.clear();
 		}
 
-		if (!toBeGroupdSurfaces.size()) { continue; }
-
+		if (toBeGroupdSurfaces.empty()) { continue; }
 		std::vector<TopoDS_Face> mergedSurfaces = helperFunctions::mergeFaces(toBeGroupdSurfaces);
 		mergedRSurfaces.emplace_back(RCollection(mergedSurfaces));
 	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return mergedRSurfaces;
 }
