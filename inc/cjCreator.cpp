@@ -604,13 +604,17 @@ void CJGeoCreator::SplitInAndOuterHFaces(const TopoDS_Shape& inputFaces, std::ve
 
 TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwards, double splittingFaceHeight)
 {
+	if (evalFace.IsNull()) { return {}; }
+	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
+
+	if (projectedFace.IsNull()) { return {}; }
+
 	BRep_Builder brepBuilder;
 	BRepBuilderAPI_Sewing brepSewer(SettingsCollection::getInstance().precision());
 	TopoDS_Shell shell;
 	brepBuilder.MakeShell(shell);
 	TopoDS_Solid solidShape;
 	brepBuilder.MakeSolid(solidShape);
-	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
 
 	std::vector<TopoDS_Wire> wireList;
 	TopoDS_Wire outerWire = BRepTools::OuterWire(evalFace);
@@ -711,6 +715,9 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 
 	gp_Pnt p0 = helperFunctions::getFirstPointShape(evalFace);
 	gp_Vec normal = helperFunctions::computeFaceNormal(evalFace);
+
+	if (normal.Magnitude() < 1e-6) { return{}; }
+
 	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
 
 	Handle(Geom_Plane) planeFlat = new Geom_Plane(gp_Pnt(0, 0, splittingFaceHeight), gp_Vec(0, 0, -1));
@@ -960,10 +967,41 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
 )
 {
+	// split the range over cores
+	int coreUse = SettingsCollection::getInstance().threadcount();
+	if (coreUse > inputFaceList.size())
+	{
+		while (coreUse > inputFaceList.size()) { coreUse /= 2; }
+	}
+
+	int splitListSize = static_cast<int>(floor(inputFaceList.size() / coreUse));
+
+	std::vector<std::thread> threadList;
+	std::mutex processMutex;
+	std::vector<TopoDS_Face> outSplitFaceList;
+
+	for (size_t i = 0; i < coreUse; i++)
+	{
+		auto startIdx = inputFaceList.begin() + i * splitListSize;
+		auto endIdx = (i == coreUse - 1) ? inputFaceList.end() : startIdx + splitListSize;
+
+		std::vector<TopoDS_Face> sublist(startIdx, endIdx);
+		threadList.emplace_back([this, &outSplitFaceList, &processMutex, sublist, &cuttingFaceIdx]() { getSplitFaces(outSplitFaceList, processMutex, sublist, cuttingFaceIdx); });
+	}
+
+	for (auto& thread : threadList) {
+		if (thread.joinable()) {
+			thread.join();
+		}
+	}
+	return outSplitFaceList;
+}
+
+void CJGeoCreator::getSplitFaces(std::vector<TopoDS_Face>& outFaceList, std::mutex& listMutex, const std::vector<TopoDS_Face>& inputFaceList, bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx)
+{
 	double precision = SettingsCollection::getInstance().precisionCoarse();
 
 	// split the topfaces with the cutting faces
-	std::vector<TopoDS_Face> splitFaceList;
 	for (const TopoDS_Face& currentRoofSurface : inputFaceList)
 	{
 		if (currentRoofSurface.IsNull()) { continue; }
@@ -973,7 +1011,9 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 
 		if (qResult.size() <= 1)
 		{
-			splitFaceList.emplace_back(currentRoofSurface);
+			listMutex.lock();
+			outFaceList.emplace_back(currentRoofSurface);
+			listMutex.unlock();
 			continue;
 		}
 
@@ -986,7 +1026,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 		{
 			TopoDS_Face currentSplitter = cuttingFace;
 			if (currentSplitter.IsEqual(currentRoofSurface)) { continue; }
-			
+
 			divider.AddTool(currentSplitter);
 		}
 		divider.Perform();
@@ -997,10 +1037,12 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 			TopExp::MapShapes(subFace, TopAbs_EDGE, aMap);
 
 			if (aMap.Size() <= 2) { continue; }
-			splitFaceList.emplace_back(subFace);
+			listMutex.lock();
+			outFaceList.emplace_back(subFace);
+			listMutex.unlock();
 		}
 	}
-	return splitFaceList;
+	return;
 }
 
 std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoDS_Face>& faceList, double lowestZ, const std::vector<TopoDS_Face>& bufferSurfaceList)
@@ -1117,7 +1159,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 	// remove dub faces and split them
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(splittingfaceIdx);
-	for (const auto& [currentBox, currentFace] : cuttingFaceIdx) { toBesSplitFaceList.emplace_back(currentFace); }
+	for (const auto& [currentBox, currentFace] : cuttingFaceIdx) { toBesSplitFaceList.emplace_back(currentFace);}
 
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
 
@@ -1612,33 +1654,6 @@ void CJGeoCreator::printTime(std::chrono::steady_clock::time_point startTime, st
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::indentSuccesFinished) << 
 			std::chrono::duration_cast<std::chrono::seconds>(endTime - startTime).count() << UnitStringEnum::getString(UnitStringID::seconds) << std::endl;
 	}
-}
-
-
-bool CJGeoCreator::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape) //TODO: might be dup
-{
-	double precision = SettingsCollection::getInstance().precision();
-	for (TopExp_Explorer explorer(encapsulatedShape, TopAbs_FACE); explorer.More(); explorer.Next())
-	{
-		const TopoDS_Face& outerSurface = TopoDS::Face(explorer.Current());
-		bool encapsulated = true;
-
-		for (TopExp_Explorer explorer2(innerSurface, TopAbs_VERTEX); explorer2.More(); explorer2.Next())
-		{
-			const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer2.Current());
-
-			if (!helperFunctions::pointOnShape(outerSurface, BRep_Tool::Pnt(vertex)))
-			{
-				encapsulated = false;
-				break;
-			}
-		}
-		if (encapsulated)
-		{
-			return true;
-		}
-	}
-	return false;
 }
 
 

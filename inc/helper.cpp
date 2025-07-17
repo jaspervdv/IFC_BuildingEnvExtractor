@@ -1265,6 +1265,31 @@ bool helperFunctions::coplanarOverlapping(const TopoDS_Face& leftFace, const Top
 
 }
 
+bool helperFunctions::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Face& outerSurface)
+{
+	double precision = SettingsCollection::getInstance().precision();
+	for (TopExp_Explorer explorer(innerSurface, TopAbs_VERTEX); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Vertex& vertex = TopoDS::Vertex(explorer.Current());
+		gp_Pnt currentPoint = BRep_Tool::Pnt(vertex);
+
+		if (!pointOnFace(outerSurface, currentPoint) && !pointOnWire(outerSurface, currentPoint))
+		{
+			return false;
+		}
+	}
+
+	std::vector<gp_Pnt> pointList = getPointListOnFace(innerSurface);
+	for (const gp_Pnt& currentPoint : pointList)
+	{
+		if (!pointOnFace(outerSurface, currentPoint))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
 	const gp_Pnt& vert0 = vertices[0];
 	const gp_Pnt& vert1 = vertices[1];
@@ -1808,6 +1833,7 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		if (!outerWire.Closed()) { return TopoDS_Face(); }
 
 		TopoDS_Wire flattenedWire = projectWireFlat(outerWire, height);
+		if (flattenedWire.IsNull()) { return TopoDS_Face(); }
 		flattenedWire.Orientation(TopAbs_FORWARD);
 
 		BRepBuilderAPI_MakeFace faceMaker(plane, flattenedWire, precision);
@@ -1817,7 +1843,6 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 			if (currentWire.IsEqual(outerWire)) { continue; }
 			TopoDS_Wire currentFlatWire = projectWireFlat(currentWire, height);
 			currentFlatWire.Orientation(TopAbs_REVERSED);
-
 			BRepBuilderAPI_MakeFace faceMaker2(currentFlatWire);
 			if (!faceMaker2.IsDone()) { continue; }
 			TopoDS_Face innerFace = faceMaker2.Face();
@@ -1832,7 +1857,6 @@ TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double 
 		}
 		flatFace = faceMaker.Face();
 	}
-
 	fixFace(&flatFace);
 	return flatFace;
 }
@@ -2606,18 +2630,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		bool useFace = true;
 		for (size_t j = i + 1; j < flattenedAreaFaceList.size(); j++)
 		{
-			bool freeFace = false;
-			TopoDS_Face otherFace = flattenedAreaFaceList[j].second;
-			for (TopExp_Explorer vertExpl(currentFace, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
-				TopoDS_Vertex currentVertex = TopoDS::Vertex(vertExpl.Current());
-				gp_Pnt currentPoint = BRep_Tool::Pnt(currentVertex);
-				if (!pointOnFace(otherFace, currentPoint) && !pointOnWire(otherFace, currentPoint))
-				{
-					freeFace = true;
-					break;
-				}
-			}
-			if (!freeFace)
+			if (surfaceIsIncapsulated(currentFace, flattenedAreaFaceList[j].second))
 			{
 				useFace = false;
 				break;

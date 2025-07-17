@@ -1,4 +1,4 @@
-#define USE_IFC2x3
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -187,6 +187,8 @@ struct helperFunctions{
 	static bool faceFaceNeighbour(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace);
 	/// check if coplanar surfaces overlap based on points
 	static bool coplanarOverlapping(const TopoDS_Face& leftFace, const TopoDS_Face& rightFace);
+	/// checks if surface is encapsulated by another shape
+	static bool surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Face& outerSurface);
 
 	/// line surface intersection related code
 

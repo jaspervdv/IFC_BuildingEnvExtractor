@@ -187,6 +187,14 @@ private:
 		bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
 	);
 
+	/// splits the surfaces with extruded solid copies
+	void getSplitFaces(
+		std::vector<TopoDS_Face>& outFaceList,
+		std::mutex& listMutex,
+		const std::vector<TopoDS_Face>& inputFaceList,
+		bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
+	);
+
 
 	// generic shape simplification code
 
@@ -205,9 +213,6 @@ private:
 
 	/// outputs the time delta between the start and end time
 	void printTime(std::chrono::steady_clock::time_point startTime, std::chrono::steady_clock::time_point endTime);
-
-	/// checks if surface is encapsulated by another shape
-	bool surfaceIsIncapsulated(const TopoDS_Face& innerSurface, const TopoDS_Shape& encapsulatedShape);
 
 	/// create spatial index for voxels and lookup
 	void populateVoxelIndex(
