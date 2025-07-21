@@ -229,6 +229,8 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 	for (const RCollection& currentSurface : rCollectionList)
 	{
 		const TopoDS_Face currentFlatFace = currentSurface.getFlatFace();
+		if (currentFlatFace.IsNull()) { continue; } // this filters out invalid surface r groups
+
 		std::vector<gp_Pnt> currentFacePoints = helperFunctions::getPointListOnFace(currentFlatFace);
 
 		bool found = false;
@@ -271,7 +273,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentCleanFace);
 	}
-
+	DebugUtils::WriteToSTEP(faceList, "C:/Users/Jasper/Desktop/desk/test.STEP");
 	//// group surfaces
 	std::vector<RCollection> mergedRSurfaces;
 	std::vector<int>evalList(faceList.size());
@@ -1138,6 +1140,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+
 		if (extrudedShape.IsNull())
 		{
 			ErrorCollection::getInstance().addError(ErrorID::warningUnableToExtrude);
@@ -3014,7 +3017,6 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 				}
 			}
 		}
-
 		if (footprintBased && !footprintList.empty())
 		{
 			std::vector<TopoDS_Face> faceList = getSplitTopFaces(faceCollection, h->getLllPoint().Z(), footprintList);

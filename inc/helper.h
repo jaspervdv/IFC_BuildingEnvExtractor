@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC2x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -169,6 +169,8 @@ struct helperFunctions{
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
 	/// compute the largest angle of the edges, returns 0 if not found
 	static double computeLargestAngle(const TopoDS_Face& theFace);
+	/// compute the smallest angle of the edges, returns 0 if not found
+	static double computeSmallestAngle(const TopoDS_Face& theFace);
 	/// compute the horizontal dir based on vector count
 	static gp_Vec getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal);
 	/// compute if wire is properly oriented

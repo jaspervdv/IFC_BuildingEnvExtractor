@@ -253,7 +253,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 
 	std::vector<gp_Pnt> gridPointList;
 
-	if (getPointCount(theface) == 3 && helperFunctions::computeArea(theface) < 1) // If small Triangle
+	if (getPointCount(theface) == 3)
 	{
 		double x = 0;
 		double y = 0;
@@ -277,10 +277,9 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 
 		gridPointList.emplace_back(centerPoint);
 
-		double largestAngle = helperFunctions::computeLargestAngle(theface);
+		double smallestAngle = helperFunctions::computeSmallestAngle(theface);
 
-		//TODO: finetune
-		if (largestAngle > 2.22) //140 degrees
+		if (smallestAngle < 0.1745) //10 degrees
 		{
 			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theface);
 
@@ -288,15 +287,15 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 			{
 				gp_Pnt legPoint = uniquePointList[i];
 
-				if (uStep == 1) { uStep = 2; }
+				if (numUPoints == 1) { numUPoints = 2; } //TODO: finetune
 
 				gp_Vec translationVec = gp_Vec(
-					(legPoint.X() - centerPoint.X()) / uStep,
-					(legPoint.Y() - centerPoint.Y()) / uStep,
-					(legPoint.Z() - centerPoint.Z()) / uStep
+					(legPoint.X() - centerPoint.X()) / numUPoints,
+					(legPoint.Y() - centerPoint.Y()) / numUPoints,
+					(legPoint.Z() - centerPoint.Z()) / numUPoints
 				);
 
-				for (int j = 0; j < uStep; j++)
+				for (int j = 0; j < numUPoints; j++)
 				{
 					gridPointList.emplace_back(centerPoint.Translated(translationVec * j));
 				}
@@ -1020,6 +1019,27 @@ double helperFunctions::computeLargestAngle(const TopoDS_Face& theFace)
 	double angle2 = v02.Angle(v12);
 
 	return std::max({ angle0, angle1, angle2 });
+}
+
+double helperFunctions::computeSmallestAngle(const TopoDS_Face& theFace)
+{
+	double precision = SettingsCollection::getInstance().precision();
+
+	std::vector<gp_Pnt> pointList = getUniquePoints(theFace);
+	if (pointList.size() != 3) { std::cout << "smallest angle only works for triangles\n"; }
+
+	gp_Vec v01(pointList[0], pointList[1]);
+	gp_Vec v10 = v01.Reversed();
+	gp_Vec v12(pointList[1], pointList[2]);
+	gp_Vec v21 = v12.Reversed();
+	gp_Vec v20(pointList[2], pointList[0]);
+	gp_Vec v02 = v20.Reversed();
+
+	double angle0 = v20.Angle(v10);
+	double angle1 = v01.Angle(v21);
+	double angle2 = v02.Angle(v12);
+
+	return std::min({ angle0, angle1, angle2 });
 }
 
 gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool isHorizontal)
@@ -1903,6 +1923,13 @@ TopoDS_Wire helperFunctions::projectWireFlat(const TopoDS_Wire& theWire, double 
 
 TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 {
+	Handle(Geom_Surface) Surface = BRep_Tool::Surface(theFace);
+	GeomAdaptor_Surface theGASurface(Surface);
+	if (theGASurface.GetType() != GeomAbs_Plane)
+	{
+		//TODO: do something here
+	}
+
 	double precision = SettingsCollection::getInstance().precision();
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
@@ -1935,6 +1962,7 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 		faceMaker.Add(currentCleanWire);
 	}
 	TopoDS_Face currentFace = faceMaker.Face();
+
 	if (!fixFace(&currentFace))
 	{
 		return theFace;
@@ -1956,8 +1984,8 @@ bool helperFunctions::fixFace(TopoDS_Face* theFace)
 		faceFixer.FixOrientation(); // fixes the innerwire invalid issue
 	}
 	faceFixer.FixIntersectingWires();
+	faceFixer.SetPrecision(1e-6);
 	faceFixer.Perform();
-
 	TopoDS_Face fixedFace = faceFixer.Face();
 
 	BRepCheck_Analyzer cleanAnalyzer(fixedFace);
