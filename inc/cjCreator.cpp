@@ -1145,6 +1145,8 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	double precision = SettingsCollection::getInstance().precisionCoarse();
 	double precisionCoarse = SettingsCollection::getInstance().precisionCoarse();
 
+	if (inputFaceList.empty()) { return {}; }
+
 	std::vector<TopoDS_Face> splitTopSurfaceList; // horizontal faces that are to be output
 	if (!preFilter) { splitTopSurfaceList = inputFaceList; }
 	else { splitTopSurfaceList = getSplitTopFaces(inputFaceList, lowestZ, bufferSurfaceList); }
