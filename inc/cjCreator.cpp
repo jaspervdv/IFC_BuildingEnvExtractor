@@ -3067,6 +3067,7 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD03(DataManager* h, CJT::Kernel
 	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (const std::vector<TopoDS_Face>& faceCluster : LoD03RoofFaces_)
 	{
+		if (faceCluster.empty()) { continue; }
 		BRep_Builder builder;
 		TopoDS_Compound collectionShape;
 		builder.MakeCompound(collectionShape);
@@ -3160,6 +3161,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoD04(DataManager* h, CJT::Kernel*
 	std::vector<TopoDS_Shape> faceCopyCollection;
 	for (std::vector<TopoDS_Face> faceCluster : LoD04RoofFaces_)
 	{
+		if (faceCluster.empty()) { continue; }
 		BRep_Builder builder;
 		TopoDS_Compound collectionShape;
 		builder.MakeCompound(collectionShape);
