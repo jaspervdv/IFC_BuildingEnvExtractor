@@ -232,7 +232,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	double precision = settingsCollection.precision();
-	int minSurfacePoints = 5; //TODO: move to settingcollection
+	int minSurfacePoints = settingsCollection.minGridPointCount(); 
 
 	Handle(Geom_Surface) surface = BRep_Tool::Surface(theface);
 
@@ -279,7 +279,7 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnSurface(const TopoDS_Face& th
 
 		double smallestAngle = helperFunctions::computeSmallestAngle(theface);
 
-		if (smallestAngle < 0.1745) //10 degrees
+		if (smallestAngle < settingsCollection.thinTriangleAngle()) //10 degrees
 		{
 			std::vector<gp_Pnt> uniquePointList = helperFunctions::getUniquePoints(theface);
 
@@ -632,6 +632,9 @@ TopoDS_Shape helperFunctions::boxSimplefyShape(const TopoDS_Shape& shape)
 	std::vector<gp_Pnt> pointList = getPoints(shape);
 	gp_Vec hVector = getShapedir(pointList, true);
 	gp_Vec vVector = getShapedir(pointList, false);
+
+	if (hVector.Magnitude()  < 1e-6) { hVector = gp_Vec(1, 0, 0); }
+	if (vVector.Magnitude()  < 1e-6) { vVector = gp_Vec(0, 0, 1); }
 
 	// compute rotation around z axis
 	gp_Pnt p1 = gp_Pnt(0, 0, 0);
@@ -1107,8 +1110,8 @@ gp_Vec helperFunctions::getShapedir(const std::vector<gp_Pnt>& pointList, bool i
 			if (vFound) { continue; }
 			vecCountMap.emplace_back(std::pair<gp_Vec, int>(vec, 1));
 		}
-
 		if (!vecCountMap.empty()) { break; }
+		if (minDistance < 1e-6) { return gp_Vec(); }
 		minDistance = 0;
 	}
 	

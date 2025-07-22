@@ -1359,6 +1359,11 @@ nlohmann::json DataManager::collectPropertyValues(const std::string& objectId, I
 				IfcSchema::IfcReal* propertyValueContainer = ifcValue->as<IfcSchema::IfcReal>();
 				attributesList[propertyItem->Name()] = propertyValueContainer->operator double();
 			}
+			else if (propertyIdName == "IfcInteger")
+			{
+				IfcSchema::IfcInteger* propertyValueContainer = ifcValue->as<IfcSchema::IfcInteger>();
+				attributesList[propertyItem->Name()] = propertyValueContainer->operator int();
+			}
 			else if (propertyIdName == "IfcPowerMeasure")
 			{
 				IfcSchema::IfcPowerMeasure* propertyValueContainer = ifcValue->as<IfcSchema::IfcPowerMeasure>();
@@ -1373,6 +1378,15 @@ nlohmann::json DataManager::collectPropertyValues(const std::string& objectId, I
 			{
 				IfcSchema::IfcBoolean* propertyValueContainer = ifcValue->as<IfcSchema::IfcBoolean>();
 				attributesList[propertyItem->Name()] = propertyValueContainer->operator bool();
+			}
+			else if (propertyIdName == "IfcLogical")
+			{
+				IfcSchema::IfcLogical* propertyValueContainer = ifcValue->as<IfcSchema::IfcLogical>();
+				boost::logic::tribool tribool = propertyValueContainer->operator boost::logic::tribool();
+
+				if (tribool.value == tribool.false_value) { attributesList[propertyItem->Name()] = "FALSE"; }
+				else if (tribool.value == tribool.true_value) { attributesList[propertyItem->Name()] = "TRUE"; }
+				else { attributesList[propertyItem->Name()] = "UNKNOWN"; }
 			}
 			else
 			{

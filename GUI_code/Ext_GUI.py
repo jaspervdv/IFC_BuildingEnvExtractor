@@ -1,7 +1,7 @@
 import os
 import time
 import tkinter
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, PhotoImage
 import json
 import subprocess
 import threading
@@ -30,11 +30,18 @@ class LoDSettings:
             self.lod32r, self.lod32, self.lod50
         ])
 
+class voxelSettings:
+    def __init__(self):
+        self.voxel_size = tkinter.DoubleVar(value=1.0)
+        self.voxel_unit = tkinter.StringVar(value="m")
+
 class FootprintSettings:
     def __init__(self):
         self.make_footprint = tkinter.IntVar(value=1)
         self.make_roofprint = tkinter.IntVar(value=1)
         self.footprint_based = tkinter.IntVar(value=0)
+        self.footprint_elevation = tkinter.DoubleVar(value=0.0)
+        self.footprint_unit =  tkinter.StringVar(value="m")
 
 class DivSettings:
     def __init__(self):
@@ -160,11 +167,10 @@ def toggleMakeFootprintBased(footprint_widges):
 def runCode(input_path,
             output_path,
             lod_settings,
+            voxel_settings,
             footprint_settings,
             div_settings,
             other_settings,
-            footprint_elevation,
-            voxel_size,
             div_string,
             bool_run):
 
@@ -174,18 +180,18 @@ def runCode(input_path,
 
     # check voxel input
     try:
-        float(voxel_size)
+        float(voxel_settings.voxel_size.get())
     except:
         tkinter.messagebox.showerror("Settings Error", "Error: no valid voxel size supplied")
         return
 
-    if(float(voxel_size) <= 0):
+    if(float(voxel_settings.voxel_size.get()) <= 0):
         tkinter.messagebox.showerror("Settings Error", "Error: voxel size should be larger than 0")
         return
 
     # check footprint input
     try:
-        float(footprint_elevation)
+        float(footprint_settings.footprint_elevation.get())
     except:
         tkinter.messagebox.showerror("Settings Error", "Error: no valid footprint elevation supplied")
         return
@@ -222,8 +228,14 @@ def runCode(input_path,
     json_dictionary["Filepaths"]["Input"] = input_path_list
     json_dictionary["Filepaths"]["Output"] = output_path
 
+    voxel_size = float(voxelSettings.voxel_size.get())
+    if voxelSettings.voxel_unit.get() == "mm":
+        voxel_size /= 1000
+    elif voxelSettings.voxel_unit.get() == "cm":
+        voxel_size /= 100
+
     json_dictionary["Voxel"] = {}
-    json_dictionary["Voxel"]["Size"] = float(voxel_size)
+    json_dictionary["Voxel"]["Size"] = voxel_size
     json_dictionary["Voxel"]["Store values"] = other_settings.summary_voxels.get()
 
     json_dictionary["IFC"] = {}
@@ -241,8 +253,14 @@ def runCode(input_path,
     else:
         json_dictionary["IFC"]["Simplify geometry"] = 0
 
+    footprint_elevation = float(footprint_settings.footprint_elevation.get())
+    if footprint_settings.footprint_unit.get() == "mm":
+        footprint_elevation /= 1000
+    elif footprint_settings.footprint_unit.get() == "cm":
+        footprint_elevation /= 100
+
     json_dictionary["JSON"] = {}
-    json_dictionary["JSON"]["Footprint elevation"] = float(footprint_elevation)
+    json_dictionary["JSON"]["Footprint elevation"] = footprint_elevation
     json_dictionary["JSON"]["Generate exterior"] = other_settings.make_exterior.get()
     json_dictionary["JSON"]["Generate interior"] = other_settings.make_interior.get()
 
@@ -376,11 +394,10 @@ def runExe(code_path, json_path):
                 entry_inputpath.get(),
                 entry_outputpath.get(),
                 lod_settings,
+                voxelSettings,
                 footprint_settings,
                 div_settings,
                 other_settings,
-                entry_footprint.get(),
-                entry_voxelsize.get(),
                 message_div_objects.get('1.0', tkinter.END),
                 True
             ))
@@ -468,6 +485,26 @@ def updateDivMessage(message_window, useDefault, useProxy):
     message_window['state'] = tkinter.DISABLED
     return
 
+def makeUnitWindow(frame_location, unit_variable):
+    unit_options = ["m", "cm", "mm"]
+    unit_variable.set(unit_options[0])
+
+    entry_unit = tkinter.Menubutton(
+        frame_location,
+        textvariable=unit_variable,
+        relief="raised",
+        borderwidth=1.5,
+        highlightthickness=0,
+        direction="below")
+    entry_unit.pack(side=tkinter.LEFT, )
+
+    # Add options to the Menu
+    menu = tkinter.Menu(entry_unit, tearoff=0)
+    for option in unit_options:
+        menu.add_command(label=option, command=lambda value=option: unit_variable.set(value))
+
+    # Attach the menu to the button
+    entry_unit.configure(menu=menu)
 
 # main variables
 size_entry_small = 13
@@ -482,6 +519,7 @@ main_window.title("IfcEnvExtactor GUI")
 
 # create settings classes
 lod_settings = LoDSettings()
+voxelSettings = voxelSettings()
 footprint_settings = FootprintSettings()
 div_settings = DivSettings()
 other_settings = OtherSettings()
@@ -681,8 +719,12 @@ frame_voxel.pack(side=tkinter.LEFT, padx=30)
 text_voxel_settings = tkinter.Label(frame_voxel, text="Voxel size:")
 text_voxel_settings.pack()
 
-entry_voxelsize = tkinter.Entry(frame_voxel, text= "voxelsize", width=size_entry_small)
-entry_voxelsize.insert(0, "1.0")
+entry_voxelsize = tkinter.Entry(
+    frame_voxel,
+    text= "voxelsize",
+    width=size_entry_small,
+    textvariable=voxelSettings.voxel_size
+)
 entry_voxelsize.pack(side=tkinter.LEFT)
 
 button_min_voxelsize = tkinter.Button(frame_voxel, text="-", width=size_button_small,
@@ -692,6 +734,8 @@ button_plus_voxelsize = tkinter.Button(frame_voxel, text="+", width=size_button_
                                        command= lambda : increment(entry_voxelsize, 0.1))
 button_plus_voxelsize.pack(side=tkinter.LEFT)
 
+makeUnitWindow(frame_voxel, voxelSettings.voxel_unit)
+
 # the footprint height
 frame_footprint = tkinter.Frame(frame_foot_voxel)
 frame_footprint.pack(side=tkinter.LEFT)
@@ -699,8 +743,12 @@ frame_footprint.pack(side=tkinter.LEFT)
 text_footprint_settings = tkinter.Label(frame_footprint, text="Footprint elevation:")
 text_footprint_settings.pack()
 
-entry_footprint = tkinter.Entry(frame_footprint, text= "footprint elevation", width=size_entry_small)
-entry_footprint.insert(0, "0.0")
+entry_footprint = tkinter.Entry(
+    frame_footprint,
+    text= "footprint elevation",
+    width=size_entry_small,
+    textvariable= footprint_settings.footprint_elevation
+)
 entry_footprint.pack(side=tkinter.LEFT)
 
 button_min_footprint = tkinter.Button(frame_footprint, text="-", width=size_button_small,
@@ -709,6 +757,8 @@ button_min_footprint.pack(side=tkinter.LEFT, padx=(5,0))
 button_plus_footprint = tkinter.Button(frame_footprint, text="+", width=size_button_small,
                                        command= lambda : increment(entry_footprint, 0.01))
 button_plus_footprint.pack(side=tkinter.LEFT)
+
+makeUnitWindow(frame_footprint, footprint_settings.footprint_unit)
 
 separatorFootprint = ttk.Separator(main_window, orient='horizontal')
 separatorFootprint.pack(fill='x', pady=10)
@@ -768,11 +818,10 @@ run_button = tkinter.Button(frame_other, text="Run", width=size_button_normal, c
     entry_inputpath.get(),
     entry_outputpath.get(),
     lod_settings,
+    voxelSettings,
     footprint_settings,
     div_settings,
     other_settings,
-    entry_footprint.get(),
-    entry_voxelsize.get(),
     message_div_objects.get('1.0', tkinter.END),
     True
 ))
@@ -782,11 +831,10 @@ generate_button = tkinter.Button(frame_other, text="Generate", width=size_button
     entry_inputpath.get(),
     entry_outputpath.get(),
     lod_settings,
+    voxelSettings,
     footprint_settings,
     div_settings,
     other_settings,
-    entry_footprint.get(),
-    entry_voxelsize.get(),
     message_div_objects.get('1.0', tkinter.END),
     False
 ))

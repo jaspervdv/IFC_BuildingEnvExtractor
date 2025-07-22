@@ -21,7 +21,7 @@ private:
     std::string InputJsonPath_;
 	std::vector<std::string> inputIFCPathList_ = {};
     std::string outputBasePath_ = "";
-;	std::string outputReportPath_ = "";
+	std::string outputReportPath_ = "";
 
 	// sets which LoD envelopes are attampted to be created
 	bool make00_ = false;
@@ -78,12 +78,14 @@ private:
 
 	double voxelSize_ = 0.5;
 	double surfaceGridSize_ = 0.5; //TODO: make accessible for user?
+    int minGridPointCount_ = 5;
 
 	bool autoRotateGrid_ = true;
 	double desiredRotation_ = 0;
 
 	double footprintElevation_ = 0;
     double horizontalSectionOffset_ = 0; // offset from the storey and footprint sections
+    double horizontalSectionBuffer_ = 0.15; // buffer from which mostly horizontal faces are includes as if part of the section
 
 	int threadcount_ = 0;
 
@@ -93,6 +95,7 @@ private:
     double precisionCoarse_ = 1e-4;
     double maxProxyPercentage_ = 0.3;
     double searchBufferLoD32_ = 1.5 * voxelSize_;
+    double thinTriangleAngle_ = 0.1745;
 
 	// \/ generated settings \/
 	// if LoD0.0 and 1.0 is generated only no voxels are required
@@ -323,6 +326,9 @@ public:
     double surfaceGridSize() const { return surfaceGridSize_; }
     void setSurfaceGridSize(double value) { surfaceGridSize_ = value; }
 
+    int minGridPointCount() const { return minGridPointCount_; }
+    void setMinGridPointCount(int value) { minGridPointCount_ = value; }
+
     void setRotation(const nlohmann::json& json);
 
     bool autoRotateGrid() const { return autoRotateGrid_; }
@@ -339,6 +345,9 @@ public:
     void setHorizontalSectionOffset(double value) { horizontalSectionOffset_ = value; }
     void setHorizontalSectionOffset(const nlohmann::json& json);
 
+    double horizontalSectionBuffer() const { return horizontalSectionBuffer_; }
+    void sethorizontalSectionBuffer(double value) { horizontalSectionBuffer_ = value; }
+
     double precision() const { return precision_; }
     void setPrecision(double value) { precision_ = value; }
 
@@ -350,6 +359,9 @@ public:
 
     double searchBufferLod32() const { return searchBufferLoD32_; }
     void setSearchBufferLoD32(double value) { searchBufferLoD32_ = value; }
+
+    double thinTriangleAngle() const { return thinTriangleAngle_; }
+    double setThinTriangleAngle(double value) { thinTriangleAngle_ = value; }
 
     int threadcount() const { return threadcount_; }
     void setThreadcount(int value) { threadcount_ = value; }

@@ -273,7 +273,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		spatialIndex.insert(std::make_pair(bbox, i));
 		faceList.emplace_back(currentCleanFace);
 	}
-	DebugUtils::WriteToSTEP(faceList, "C:/Users/Jasper/Desktop/desk/test.STEP");
+
 	//// group surfaces
 	std::vector<RCollection> mergedRSurfaces;
 	std::vector<int>evalList(faceList.size());
@@ -489,7 +489,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<Value>& p
 template <typename T>
 std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<T>& shapes, double cutlvl)
 {
-	double buffer = 0.15;
+	double buffer = SettingsCollection::getInstance().horizontalSectionBuffer();
 
 	std::vector<TopoDS_Face> spltFaceCollection;
 	double precision = SettingsCollection::getInstance().precision();
@@ -785,6 +785,7 @@ void CJGeoCreator::makeFootprint(DataManager* h)
 	{
 		std::vector<TopoDS_Face> footprintList;
 		makeFloorSection(footprintList, h, floorlvl);
+
 		for (TopoDS_Face& footprintItem : footprintList) { footprintItem.Move(translation); }
 
 		for (BuildingSurfaceCollection& buildingSurfaceData : buildingSurfaceDataList_)
@@ -945,18 +946,25 @@ TopoDS_Face CJGeoCreator::eleminateInnerVoids(const TopoDS_Face& theFace)
 		if (!innerFaceMaker.IsDone()) { continue; }
 		TopoDS_Face innerFace = innerFaceMaker.Face();
 
-		std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(innerFace);
-		if (optionalPoint == std::nullopt) { continue; }
-		gp_Pnt facePoint = *optionalPoint;
+		std::vector<gp_Pnt> pointList = helperFunctions::getPointListOnFace(innerFace);
 
-
-		facePoint.SetZ(facePoint.Z() + SettingsCollection::getInstance().voxelSize() / 0.66);
-		int voxelIndx = voxelGrid_->getCloseByVoxel(facePoint);
-		voxel boxel = voxelGrid_->getVoxel(voxelIndx);
-		if (!boxel.getIsIntersecting() && !boxel.getIsInside())
+		bool isInside = false;
+		for (gp_Pnt facePoint : pointList)
+		{
+			facePoint.SetZ(facePoint.Z() + SettingsCollection::getInstance().voxelSize() * 0.6);
+			int voxelIndx = voxelGrid_->getCloseByVoxel(facePoint);
+			voxel boxel = voxelGrid_->getVoxel(voxelIndx);
+			if (!boxel.getIsIntersecting() && boxel.getIsInside())
+			{
+				isInside = true;
+				break;
+			}
+		}
+		if (!isInside)
 		{
 			faceMaker.Add(innerWire);
 		}
+	
 	}
 	TopoDS_Face currentCleanFace = faceMaker.Face();
 
@@ -969,6 +977,10 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx
 )
 {
+
+	double totalArea = 0;
+	for (const TopoDS_Face& currentFace : inputFaceList) { totalArea += helperFunctions::computeArea(currentFace); }
+
 	// split the range over cores
 	int coreUse = SettingsCollection::getInstance().threadcount();
 	if (coreUse > inputFaceList.size())
@@ -996,6 +1008,16 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitFaces(
 			thread.join();
 		}
 	}
+
+	double totalAreaOut = 0;
+	for (const TopoDS_Face& currentFace : outSplitFaceList) { totalAreaOut += helperFunctions::computeArea(currentFace); }
+
+	if (abs(totalArea - totalAreaOut) > 10)
+	{
+		//std::cout << "mismatch" << std::endl;
+	}
+
+
 	return outSplitFaceList;
 }
 
@@ -1273,6 +1295,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		BoostBox3D topFaceBox = helperFunctions::createBBox(currentTopFace);
 		faceIdx.insert(std::make_pair(topFaceBox, currentTopFace));
 	}
+
 	if (!bufferSurfaceList.empty())
 	{
 		for (const TopoDS_Face& bufferSurface : bufferSurfaceList)
@@ -2200,10 +2223,6 @@ std::vector<std::shared_ptr<CJT::CityObject>> CJGeoCreator::makeRoomObjects(Data
 			{
 				cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcLongName), spaceObject->LongName().get());
 			}
-
-
-
-
 
 			cjRoomObject->addAttribute(CJObjectEnum::getString(CJObjectID::ifcGuid), spaceObject->GlobalId());
 			cjRoomObject->setType(CJT::Building_Type::BuildingRoom);
