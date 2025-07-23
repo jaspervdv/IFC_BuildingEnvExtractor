@@ -85,6 +85,7 @@ private:
     };
     int applyVoidGrade_ = 0;
     bool simplefyGeo_ = true;
+    std::vector<std::string> ignoreSimplificationList_;
 
     bool mergeSemantics_ = true;
 
@@ -324,6 +325,11 @@ public:
     bool simplefyGeo() const { return simplefyGeo_; }
     void setSimplefyGeo(bool value) { simplefyGeo_ = value; }
     void setSimplefyGeo(const nlohmann::json& json);
+
+    const std::vector<std::string>& getIgnoreSimplificationList() const { return ignoreSimplificationList_; }
+    void setIgnoreSimplificationList(const std::vector<std::string>& value) { ignoreSimplificationList_ = value; }
+    void setIgnoreSimplificationList(const nlohmann::json& json);
+    void addToIgnoreSimplificationList(const std::string& value) { ignoreSimplificationList_.emplace_back(value); }
 
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }

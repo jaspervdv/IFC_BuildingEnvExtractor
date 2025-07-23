@@ -491,11 +491,15 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 	{
 		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
-			shape = helperFunctions::boxSimplefyShape(shape);
-			if (shape.IsNull())
+			const std::vector<std::string>& ignoreList = SettingsCollection::getInstance().getIgnoreSimplificationList();
+			if (std::find(ignoreList.begin(), ignoreList.end(), product->GlobalId()) == ignoreList.end())
 			{
-				ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
-				return;
+				shape = helperFunctions::boxSimplefyShape(shape);
+				if (shape.IsNull())
+				{
+					ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
+					return;
+				}
 			}
 		}
 	}

@@ -565,6 +565,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Simplify geometry";
 	case JsonObjectInID::IFCapplyVoids:
 		return "Apply voids";
+	case JsonObjectInID::IFCignoreSimple:
+		return "Ignore simplification";
 
 	case JsonObjectInID::JSON:
 		return "JSON";

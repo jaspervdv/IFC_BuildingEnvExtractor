@@ -187,6 +187,7 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 		setCustomDivList(ifcDataJson);
 		setApplyVoidGrade(ifcDataJson);
 		setSimplefyGeo(ifcDataJson);
+		setIgnoreSimplificationList(ifcDataJson);
 	}
 	catch (const std::string& errorString)
 	{
@@ -837,6 +838,28 @@ void SettingsCollection::setSimplefyGeo(const nlohmann::json& json)
 		}
 	}
 	return;
+}
+
+void SettingsCollection::setIgnoreSimplificationList(const nlohmann::json& json)
+{
+	std::string ignoreSimplesOName = JsonObjectInEnum::getString(JsonObjectInID::IFCignoreSimple);
+	if (!json.contains(ignoreSimplesOName))
+	{
+		return;
+	}
+
+	std::vector<std::string> ignoreSimpleList = json[ignoreSimplesOName];
+
+	for (const std::string& currentGUI : ignoreSimpleList)
+	{
+		addToIgnoreSimplificationList(currentGUI);
+	}
+
+	if (!getCustomDivList().size() && !useDefaultDiv())
+	{
+		ErrorCollection::getInstance().addError(ErrorID::errorJsonNoDivObjects);
+		throw std::string(errorWarningStringEnum::getString(ErrorID::errorJsonNoDivObjects));
+	}
 }
 
 void SettingsCollection::setCustomDivList(const nlohmann::json& json)

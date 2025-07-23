@@ -201,6 +201,8 @@ void IOManager::printSummary()
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.applyVoidGrade() << "\n";
 	std::cout << "- Simplify geometry:\n";
 	std::cout << boolToString(settingsCollection.simplefyGeo()) << "\n";
+	std::cout << "- Ignore simplification for: \n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getIgnoreSimplificationList().size() << std::endl;
 	std::cout << "- Space dividing objects:\n";
 	if (settingsCollection.useDefaultDiv())
 	{
@@ -383,6 +385,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string ifcDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
 	std::string ifcApplyVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
 	std::string ifcSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
+	std::string ifcIgnoreSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCignoreSimple);
 	
 	ifcJSON[ifcRotationOName] = settingsCollection.gridRotation();
 	std::vector<std::string> DivList;
@@ -391,13 +394,18 @@ nlohmann::json IOManager::settingsToJSON()
 		const std::vector<std::string>& divObjects = settingsCollection.getDefaultDivList();
 		for (auto it = divObjects.begin(); it != divObjects.end(); ++it)
 		{
-			DivList.emplace_back(boost::to_upper_copy(*it));
+			DivList.emplace_back(*it);
 		}
+		if (settingsCollection.useProxy()) { DivList.emplace_back("IfcBuildingElementProxy"); }
+		ifcJSON[ifcDivOName] = DivList;
 	}
-	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
-	ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();
+	else
+	{
+		ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();
+	}
 	ifcJSON[ifcApplyVoidOName] = settingsCollection.applyVoidGrade();
 	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeo();
+	ifcJSON[ifcIgnoreSimpleOName] = settingsCollection.getIgnoreSimplificationList();
 	settingsJSON[ifcOName] = ifcJSON;
 
 	// store the json data
