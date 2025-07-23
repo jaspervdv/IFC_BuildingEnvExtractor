@@ -249,9 +249,9 @@ def runCode(input_path,
         json_dictionary["IFC"]["Div objects"] = div_string.split()
 
     if div_settings.simple_geo.get():
-        json_dictionary["IFC"]["Simplify geometry"] = 2
+        json_dictionary["IFC"]["Apply voids"] = 2
     else:
-        json_dictionary["IFC"]["Simplify geometry"] = 0
+        json_dictionary["IFC"]["Apply voids"] = 0
 
     footprint_elevation = float(footprint_settings.footprint_elevation.get())
     if footprint_settings.footprint_unit.get() == "mm":

@@ -563,6 +563,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Div objects";
 	case JsonObjectInID::IFCsimplefyGeo:
 		return "Simplify geometry";
+	case JsonObjectInID::IFCapplyVoids:
+		return "Apply voids";
 
 	case JsonObjectInID::JSON:
 		return "JSON";

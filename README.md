@@ -286,7 +286,7 @@ The configuration json has a very simple structure. An example can be found belo
         "Default div": true,
         "Ignore proxy": true,
         "Div objects" : [],
-        "Simplify geometry" : 0
+        "Apply voids" : 0
     },
     "JSON" : {
         "Footprint elevation": 1,
@@ -357,7 +357,7 @@ Optional:
   * Array filled with string, size 0 to ∞
   * Adds more custom space bounding objects to the processing.
   * Default value = empty
-* :white_check_mark: "IFC" "Simplify geometry" :white_check_mark:
+* :white_check_mark: "IFC" "Apply voids" :white_check_mark:
   * int
   * Toggles the use of void objects on the IFC objects. If 2: voids are not applied, if 1: voids are only applied for void objects that are not filled with other objects, if 0: all void objects are applied. GUI allows the choice between 0 and 2. 1 is only available from the ConfigJSON. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
   * Default value = false

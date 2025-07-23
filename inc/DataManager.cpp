@@ -355,7 +355,6 @@ gp_Vec DataManager::computeObjectTranslation(const std::string& objectType)
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
 		aggregate_of_instance::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type(objectType);
-
 		if (productList == nullptr) { continue; }
 		if (!productList->size()) { continue; }
 
