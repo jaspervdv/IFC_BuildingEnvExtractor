@@ -286,7 +286,9 @@ The configuration json has a very simple structure. An example can be found belo
         "Default div": true,
         "Ignore proxy": true,
         "Div objects" : [],
-        "Apply voids" : 0
+        "Apply voids" : 0,
+        "Simplify geometry" : true,
+        "Ignore simplification" : []
     },
     "JSON" : {
         "Footprint elevation": 1,

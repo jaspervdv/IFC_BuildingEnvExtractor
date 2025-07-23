@@ -487,13 +487,16 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 		return;
 	}
 
-	if (productType == "IfcDoor" || productType == "IfcWindow")
+	if (SettingsCollection::getInstance().simplefyGeo())
 	{
-		shape = helperFunctions::boxSimplefyShape(shape);
-		if (shape.IsNull())
+		if (productType == "IfcDoor" || productType == "IfcWindow")
 		{
-			ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
-			return;
+			shape = helperFunctions::boxSimplefyShape(shape);
+			if (shape.IsNull())
+			{
+				ErrorCollection::getInstance().addError(ErrorID::warningFailedObjectSimplefication, product->GlobalId());
+				return;
+			}
 		}
 	}
 
@@ -1080,7 +1083,7 @@ void DataManager::indexGeo()
 	}
 	std::cout << std::endl;
 	// find valid voids
-	if (settingsCollection.simplefyGeoGrade() == 1)
+	if (settingsCollection.applyVoidGrade() == 1)
 	{
 		applyVoids();
 	}
@@ -1457,7 +1460,7 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
-	int simplefyGeoGrade = SettingsCollection::getInstance().simplefyGeoGrade();
+	int simplefyGeoGrade = SettingsCollection::getInstance().applyVoidGrade();
 
 	if (simplefyGeoGrade == 0) { isSimple = false; }
 	else if (simplefyGeoGrade == 2) { isSimple = true; }

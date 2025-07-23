@@ -197,8 +197,10 @@ void IOManager::printSummary()
 	{
 		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << "\n";
 	}
-	std::cout << "- Simplify geometry grade:\n";
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.simplefyGeoGrade() << "\n";
+	std::cout << "- Apply void grade:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.applyVoidGrade() << "\n";
+	std::cout << "- Simplify geometry:\n";
+	std::cout << boolToString(settingsCollection.simplefyGeo()) << "\n";
 	std::cout << "- Space dividing objects:\n";
 	if (settingsCollection.useDefaultDiv())
 	{
@@ -252,9 +254,9 @@ void IOManager::printSummary()
 	std::cout << "- Max thread count\n";
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.threadcount() << "\n\n";
 
-	if (settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.summaryVoxels() ||
-		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.makeV() ||
-		settingsCollection.simplefyGeoGrade() != 0 && settingsCollection.make32())
+	if (settingsCollection.applyVoidGrade() != 0 && settingsCollection.summaryVoxels() ||
+		settingsCollection.applyVoidGrade() != 0 && settingsCollection.makeV() ||
+		settingsCollection.applyVoidGrade() != 0 && settingsCollection.make32())
 	{
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningSimplefication) << "\n\n";
 		ErrorCollection::getInstance().addError(ErrorID::warningSimplefication);
@@ -379,6 +381,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
 	std::string ifcRotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotationAngle);
 	std::string ifcDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
+	std::string ifcApplyVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
 	std::string ifcSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
 	
 	ifcJSON[ifcRotationOName] = settingsCollection.gridRotation();
@@ -393,7 +396,8 @@ nlohmann::json IOManager::settingsToJSON()
 	}
 	if (settingsCollection.useProxy()) { DivList.emplace_back("IFCBUILDINGELEMENTPROXY"); }
 	ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();
-	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeoGrade();
+	ifcJSON[ifcApplyVoidOName] = settingsCollection.applyVoidGrade();
+	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeo();
 	settingsJSON[ifcOName] = ifcJSON;
 
 	// store the json data

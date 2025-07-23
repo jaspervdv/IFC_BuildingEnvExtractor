@@ -83,7 +83,8 @@ private:
         "IfcDoor",
         "IfcWindow"
     };
-    int simplefyGeoGrade_ = 0;
+    int applyVoidGrade_ = 0;
+    bool simplefyGeo_ = true;
 
     bool mergeSemantics_ = true;
 
@@ -316,9 +317,13 @@ public:
     void setUseProxy(bool value) { useProxy_ = value; }
     void setUseProxy(const nlohmann::json& json);
 
-    int simplefyGeoGrade() const { return simplefyGeoGrade_; }
-    void setSimpleGeoGrade(int value) { simplefyGeoGrade_ = value; }
-    void setSimpleGeoGrade(const nlohmann::json& json);
+    int applyVoidGrade() const { return applyVoidGrade_; }
+    void setApplyVoidGrade(int value) { applyVoidGrade_ = value; }
+    void setApplyVoidGrade(const nlohmann::json& json); 
+    
+    bool simplefyGeo() const { return simplefyGeo_; }
+    void setSimplefyGeo(bool value) { simplefyGeo_ = value; }
+    void setSimplefyGeo(const nlohmann::json& json);
 
     const std::vector<std::string>& getCustomDivList() const { return CustomDivList_; }
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }

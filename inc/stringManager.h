@@ -208,6 +208,7 @@ enum class JsonObjectInID {
 	IFCIgnoreProxy,
 	IFCDivObject,
 	IFCsimplefyGeo,
+	IFCapplyVoids,
 
 	JSON,
 	JSONFootprintElev,

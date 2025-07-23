@@ -186,6 +186,7 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 		setUseProxy(ifcDataJson);
 		setCustomDivList(ifcDataJson);
 		setApplyVoidGrade(ifcDataJson);
+		setSimplefyGeo(ifcDataJson);
 	}
 	catch (const std::string& errorString)
 	{
@@ -795,25 +796,44 @@ void SettingsCollection::setUseProxy(const nlohmann::json& json)
 
 void SettingsCollection::setApplyVoidGrade(const nlohmann::json& json)
 {
-	std::string simpleGeoOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
-	if (json.contains(simpleGeoOName))
+	std::string applyVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
+	if (json.contains(applyVoidOName))
 	{
 		try
 		{
-			int simpleGeoInt = getJsonInt(json[simpleGeoOName], false, false);
+			int applyVoidInt = getJsonInt(json[applyVoidOName], false, false);
 
-			if (simpleGeoInt < 0 && simpleGeoInt > 3)
+			if (applyVoidInt < 0 && applyVoidInt > 3)
 			{
 				//TODO: add error
 				return;
 			}
 
-			setApplyVoidGrade(simpleGeoInt);
+			setApplyVoidGrade(applyVoidInt);
 		}
 		catch (const ErrorID& exceptionId)
 		{
-			ErrorCollection::getInstance().addError(exceptionId, simpleGeoOName);
-			throw std::string(errorWarningStringEnum::getString(exceptionId) + simpleGeoOName);
+			ErrorCollection::getInstance().addError(exceptionId, applyVoidOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + applyVoidOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setSimplefyGeo(const nlohmann::json& json)
+{
+	std::string simplefyOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
+	if (json.contains(simplefyOName))
+	{
+		try
+		{
+			bool defaultDivBool = getJsonBoolValue(json[simplefyOName]);
+			setSimplefyGeo(defaultDivBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, simplefyOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + simplefyOName);
 		}
 	}
 	return;
