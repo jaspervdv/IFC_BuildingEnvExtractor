@@ -102,20 +102,4 @@ public:
 	bool run();
 
 	bool write(bool reportOnly = false);
-
-	std::unordered_set<std::string> divObjects_ = { // Only used for output purposes
-		"IFCSLAB",
-		"IFCROOF",
-		"IFCWALL",
-		"IFCWALLSTANDARDCASE",
-		"IFCCOVERING",
-		"IFCCOLUMN",
-		"IFCBEAM",
-		"IFCCURTAINWALL",
-		"IFCPLATE",
-		"IFCMEMBER",
-		"IFCDOOR",
-		"IFCWINDOW"
-	};
-	//TODO: move this data somewhere central
 };

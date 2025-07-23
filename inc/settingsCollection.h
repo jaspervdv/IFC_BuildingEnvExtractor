@@ -69,6 +69,20 @@ private:
 	bool useDefaultDiv_ = true;
 	bool useProxy_ = false;
 	std::vector<std::string> CustomDivList_;
+    std::vector<std::string> defaultDivList_ = {
+        "IfcSlab",
+        "IfcRoof",
+        "IfcWall",
+        "IfcWallstandardcase",
+        "IfcCovering",
+        "IfcColumn",
+        "IfcBeam",
+        "IfcCurtainwall",
+        "IfcPlate",
+        "IfcMember",
+        "IfcDoor",
+        "IfcWindow"
+    };
     int simplefyGeoGrade_ = 0;
 
     bool mergeSemantics_ = true;
@@ -310,6 +324,8 @@ public:
     void setCustomDivList(const std::vector<std::string>& value) { CustomDivList_ = value; }
     void setCustomDivList(const nlohmann::json& json);
     void addToCustomDivList(const std::string& value) { CustomDivList_.emplace_back(value); }
+
+    const std::vector<std::string>& getDefaultDivList() const { return defaultDivList_; }
 
     bool mergeSemantics() const { return mergeSemantics_; }
     void setmergeSemantics(bool value) { mergeSemantics_ = value; }

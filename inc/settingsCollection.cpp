@@ -835,6 +835,9 @@ void SettingsCollection::setCustomDivList(const nlohmann::json& json)
 		std::string potentialType = stringDivList[i];
 		std::transform(potentialType.begin(), potentialType.end(), potentialType.begin(), ::toupper);
 
+		// if user forgot to add ifc add manually to the type
+		if (potentialType.substr(0, 3) != "IFC") { potentialType = "IFC" + potentialType; }
+
 		if (std::find(CustomDivList_.begin(), CustomDivList_.end(), potentialType) != CustomDivList_.end())
 		{
 			continue;
@@ -851,6 +854,16 @@ void SettingsCollection::setCustomDivList(const nlohmann::json& json)
 	{
 		ErrorCollection::getInstance().addError(ErrorID::errorJsonNoDivObjects);
 		throw std::string(errorWarningStringEnum::getString(ErrorID::errorJsonNoDivObjects));
+	}
+
+	//correct caps
+	for (std::string& currenttypeString : CustomDivList_)
+	{
+		for (size_t i = 0; i < currenttypeString.size(); i++)
+		{
+			if (i == 0 || i ==3) { continue; }
+			currenttypeString[i] = std::tolower(currenttypeString[i]);
+		}
 	}
 
 	return;

@@ -146,8 +146,10 @@ private:
 	void elementCountSummary();
 	/// compute the inital lll point, urr point and the rotation related to the apporximated smallest bbox around ino type of object
 	void computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint);
-	/// compute vector from the lll corner to the originpoint based on the first slab in the ifc slab list
+	/// compute vector from the lll corner to the originpoint based on the first object it can find (prefers slab objects)
 	gp_Vec computeObjectTranslation();
+	/// compute vector from the lll corner to the originpoint based on the first object of the input type
+	gp_Vec computeObjectTranslation(const std::string& objectType);
 
 	/// adds all instances of the template type to the index and reports to user
 	template <typename IfcType>

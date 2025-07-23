@@ -202,14 +202,15 @@ void IOManager::printSummary()
 	std::cout << "- Space dividing objects:\n";
 	if (settingsCollection.useDefaultDiv())
 	{
-		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << "\n";; }
+		const std::vector<std::string>& divObjects = settingsCollection.getDefaultDivList();
+		for (auto it = divObjects.begin(); it != divObjects.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << *it << "\n";; }
 	}
 	if (settingsCollection.useProxy())
 	{
-		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IFCBUILDINGELEMENTPROXY\n";
+		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "IfcBuildingElementProxy\n";
 	}
 	std::vector<std::string> addDivObjects = settingsCollection.getCustomDivList();
-	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << boost::to_upper_copy(*it) << "\n"; }
+	for (auto it = addDivObjects.begin(); it != addDivObjects.end(); ++it) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << *it << "\n"; }
 	std::cout << "\n";
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "voxel settings\n";
@@ -384,7 +385,8 @@ nlohmann::json IOManager::settingsToJSON()
 	std::vector<std::string> DivList;
 	if (settingsCollection.useDefaultDiv())
 	{
-		for (auto it = divObjects_.begin(); it != divObjects_.end(); ++it)
+		const std::vector<std::string>& divObjects = settingsCollection.getDefaultDivList();
+		for (auto it = divObjects.begin(); it != divObjects.end(); ++it)
 		{
 			DivList.emplace_back(boost::to_upper_copy(*it));
 		}

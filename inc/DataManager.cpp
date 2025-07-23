@@ -321,21 +321,54 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 
 gp_Vec DataManager::computeObjectTranslation()
 {
-	// get a point to translate the model to
+	gp_Vec translationVec = computeObjectTranslation("IfcSlab");
+	if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+	translationVec = computeObjectTranslation("IfcRoof");
+	if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+
+	if (SettingsCollection::getInstance().useDefaultDiv())
+	{
+		for (const std::string& currentType : SettingsCollection::getInstance().getDefaultDivList())
+		{
+			if (currentType == "IfcSlab" || currentType == "IfcRoof") { continue; }
+			translationVec = computeObjectTranslation(currentType);
+			if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+		}
+	}
+	if (SettingsCollection::getInstance().useProxy())
+	{
+		translationVec = computeObjectTranslation("IfcBuildingElementProxy");
+		if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+	}
+
+	for (const std::string& currentType : SettingsCollection::getInstance().getCustomDivList())	
+	{
+		if (currentType == "IfcSlab" || currentType == "IfcRoof") { continue; }
+		translationVec = computeObjectTranslation(currentType);
+		if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+	}
+	return gp_Vec();
+}
+
+gp_Vec DataManager::computeObjectTranslation(const std::string& objectType)
+{
 	for (size_t i = 0; i < dataCollectionSize_; i++)
 	{
-		IfcSchema::IfcSlab::list::ptr slabList = datacollection_[i]->getFilePtr()->instances_by_type<IfcSchema::IfcSlab>();
-		if (slabList.get() == nullptr) { continue; }
-		if (!slabList.get()->size()) { continue; }
+		aggregate_of_instance::ptr productList = datacollection_[i]->getFilePtr()->instances_by_type(objectType);
 
-		for (IfcSchema::IfcSlab::list::it slabIt = slabList->begin(); slabIt != slabList->end(); ++ slabIt)
+		if (productList == nullptr) { continue; }
+		if (!productList->size()) { continue; }
+
+		for (auto et = productList->begin(); et != productList->end(); ++et)
 		{
-			IfcSchema::IfcSlab* slab = *slabIt;
+			IfcUtil::IfcBaseClass* test = *et;
+			IfcSchema::IfcProduct* product = (*et)->as<IfcSchema::IfcProduct>();
+
 			gp_Pnt lllPoint;
 			gp_Pnt urrPoint;
-			TopoDS_Shape slabShape = getObjectShape(slab, true);
+			TopoDS_Shape slabShape = getObjectShape(product, true);
 
-			if (slabShape.IsNull()) { continue;  }
+			if (slabShape.IsNull()) { continue; }
 			helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
 			return gp_Vec(-lllPoint.X(), -lllPoint.Y(), -lllPoint.Z());
 		}
@@ -343,6 +376,8 @@ gp_Vec DataManager::computeObjectTranslation()
 	ErrorCollection::getInstance().addError(ErrorID::warningIfcNoSlab);
 	std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcNoSlab) << std::endl;
 	return gp_Vec();
+
+
 }
 
 
