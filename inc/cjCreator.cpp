@@ -2413,7 +2413,7 @@ CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int 
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 	double rotationAngle = settingsCollection.gridRotation();
-	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, settingsCollection.footprintElevation());
+	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, lll.Z());
 
 	if (settingsCollection.createOBJ())
 	{
