@@ -1023,8 +1023,13 @@ void DataManager::internalizeGeo()
 	gp_Trsf geoTrsf = getProjectionTransformation();
 
 	objectTranslation_.SetRotation(geoTrsf.GetRotation()); //set the objectranslation to the rotation only
-	gp_Vec ifcTrsf = computeObjectTranslation();
-	objectTranslation_.SetTranslationPart(ifcTrsf);
+	gp_Vec ifcTrsf(0,0,0);
+	if (SettingsCollection::getInstance().correctPlacement())
+	{
+		ifcTrsf = computeObjectTranslation();
+		objectTranslation_.SetTranslationPart(ifcTrsf);
+	}
+
 	objectIfcTranslation_.SetTranslationPart(-ifcTrsf + geoTrsf.TranslationPart());
 	elementCountSummary();
 	try

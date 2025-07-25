@@ -188,6 +188,7 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 		setApplyVoidGrade(ifcDataJson);
 		setSimplefyGeo(ifcDataJson);
 		setIgnoreSimplificationList(ifcDataJson);
+		setCorrectPlacement(ifcDataJson);
 	}
 	catch (const std::string& errorString)
 	{
@@ -660,6 +661,25 @@ void SettingsCollection::setGeoReference(const nlohmann::json& json)
 		{
 			ErrorCollection::getInstance().addError(exceptionId, georeferenceOName);
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + georeferenceOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setCorrectPlacement(const nlohmann::json& json)
+{
+	std::string correctPlacementOName = JsonObjectInEnum::getString(JsonObjectInID::IFCCorrentPlacement);
+	if (json.contains(correctPlacementOName))
+	{
+		try
+		{
+			bool correctPlacementBool = getJsonBoolValue(json[correctPlacementOName]);
+			setCorrectPlacement(correctPlacementBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, correctPlacementOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + correctPlacementOName);
 		}
 	}
 	return;

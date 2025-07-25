@@ -288,7 +288,8 @@ The configuration json has a very simple structure. An example can be found belo
         "Div objects" : [],
         "Apply voids" : 0,
         "Simplify geometry" : true,
-        "Ignore simplification" : []
+        "Ignore simplification" : [],
+        "Correct placement" : true
     },
     "JSON" : {
         "Footprint elevation": 1,
@@ -363,6 +364,17 @@ Optional:
   * int
   * Toggles the use of void objects on the IFC objects. If 2: voids are not applied, if 1: voids are only applied for void objects that are not filled with other objects, if 0: all void objects are applied. GUI allows the choice between 0 and 2. 1 is only available from the ConfigJSON. If voids are not applied processing speed will improve, but accuracy is reduced if there are voids present in the to be evaluated objects. Buggy former behavior was ignoring voids.
   * Default value = false
+* :ballot_box_with_check: "IFC" "Simplify geometry" :ballot_box_with_check:
+  * Boolean
+  * Toggles the use of oriented bounding box simplification of IfcWindow and IfcDoor objects.
+  * Default value = true
+* :ballot_box_with_check: "IFC" "Ignore simplification" :ballot_box_with_check:
+  * Array filled with string, size 0 to ∞
+  * Allows to not simplefy ceratin IfcDoor and IfcWindow objects based on the GUID
+  * Default value = empty
+* :ballot_box_with_check: "IFC" "Correct placement"
+  * Boolean
+  * Toggles if the local placement of the model should be corercted
 * :white_check_mark: "JSON" "Footprint elevation" :white_check_mark:
   * Float/double
   * Sets the level at which a horizontal section will be taken of the building. This section is used to create the footprint.

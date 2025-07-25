@@ -567,6 +567,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Apply voids";
 	case JsonObjectInID::IFCignoreSimple:
 		return "Ignore simplification";
+	case JsonObjectInID::IFCCorrentPlacement:
+		return "Correct placement";
 
 	case JsonObjectInID::JSON:
 		return "JSON";

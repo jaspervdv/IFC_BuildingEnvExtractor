@@ -1,4 +1,4 @@
-#define USE_IFC2x3
+#define USE_IFC4
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -17,6 +17,7 @@
 #define buildVersion "IFC4X3"
 #define SCHEMA_VERSIONS (4x3)
 #define SCHEMA_SEQ (4x3)
+
 
 #else
 #error "No IFC version defined"

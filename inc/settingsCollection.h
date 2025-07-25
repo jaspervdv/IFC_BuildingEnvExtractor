@@ -55,6 +55,7 @@ private:
     bool footPrintBased_ = false;
 
 	bool geoReference_ = true;
+    bool correctPlacement_ = true;
 
 	bool summaryVoxels_ = false;
 	bool writeReport_ = true;
@@ -286,6 +287,10 @@ public:
     bool geoReference() const { return geoReference_; }
     void setGeoReference(bool value) { geoReference_ = value; }
     void setGeoReference(const nlohmann::json& json);
+
+    bool correctPlacement() const { return correctPlacement_; }
+    void setCorrectPlacement(bool value) { correctPlacement_ = value; }
+    void setCorrectPlacement(const nlohmann::json& json);
 
     bool summaryVoxels() const { return summaryVoxels_; }
     void setSummaryVoxels(bool value) { summaryVoxels_ = value; }
