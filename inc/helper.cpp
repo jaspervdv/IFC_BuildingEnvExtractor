@@ -1461,7 +1461,7 @@ bool helperFunctions::LineShapeIntersection(const TopoDS_Shape& theShape, const 
 	return false;
 }
 
-bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2)
+bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2, bool inZdir)
 {
 	TopLoc_Location loc;
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
@@ -1480,12 +1480,16 @@ bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp
 		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
 		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
 
-		gp_Pnt lll;
-		gp_Pnt urr;
-		bBoxDiagonal({ p1, p2, p3 }, &lll, &urr);
+		if (inZdir)
+		{
+			gp_Pnt lll;
+			gp_Pnt urr;
+			bBoxDiagonal({ p1, p2, p3 }, &lll, &urr);
 
-		if (lP1.X() > urr.X() || lP1.X() < lll.X()) { continue; }
-		if (lP1.Y() > urr.Y() || lP1.Y() < lll.Y()) { continue; }
+			if (lP1.X() > urr.X() || lP1.X() < lll.X()) { continue; }
+			if (lP1.Y() > urr.Y() || lP1.Y() < lll.Y()) { continue; }
+		}
+		
 
 		if (helperFunctions::triangleIntersecting({ lP1, lp2 }, {p1, p2, p3}))
 		{
@@ -1926,10 +1930,16 @@ TopoDS_Wire helperFunctions::projectWireFlat(const TopoDS_Wire& theWire, double 
 
 TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 {
+	if (!isFlat(theFace))
+	{
+		DebugUtils::printFaces(theFace);
+	}
+
 	Handle(Geom_Surface) Surface = BRep_Tool::Surface(theFace);
 	GeomAdaptor_Surface theGASurface(Surface);
 	if (theGASurface.GetType() != GeomAbs_Plane)
 	{
+		std::cout << "hit" << std::endl;
 		//TODO: do something here
 	}
 
@@ -3621,4 +3631,41 @@ TopoDS_Face helperFunctions::plane2Face(const Handle(Geom_Plane)& geoPlane, cons
 
 	TopoDS_Face occtFace = BRepBuilderAPI_MakeFace(geomPlane, UMin, UMax, VMin, VMax, Precision::Confusion());
 	return occtFace;
+}
+
+bool helperFunctions::isFlat(const TopoDS_Face& theFace)
+{
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
+
+	if (mesh.IsNull())
+	{
+		helperFunctions::triangulateShape(theFace);
+		mesh = BRep_Tool::Triangulation(theFace, loc);
+	}
+
+	gp_Vec tstNormal(0, 0, 0);
+	for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		gp_Vec v1(p1, p2);
+		gp_Vec v2(p1, p3);
+
+		if (tstNormal.Magnitude() < 1e-6)
+		{
+			tstNormal = v1.Crossed(v2);
+			continue;
+		}
+
+		gp_Vec localNormal = v1.Crossed(v2);
+		if (!tstNormal.IsParallel(localNormal, 1e-4))
+		{
+			return false;
+		}
+	}
+	return true;
 }

@@ -53,7 +53,34 @@ std::string DebugUtils::pointToString2D(const T& currentPoint)
 
 std::string DebugUtils::faceToString(const TopoDS_Face& currentFace)
 {
-	std::string currentString = "new\n";
+	std::string currentString = "";
+
+	if (!helperFunctions::isFlat(currentFace))
+	{
+		TopLoc_Location loc;
+		auto mesh = BRep_Tool::Triangulation(currentFace, loc);
+
+		if (mesh.IsNull())
+		{
+			helperFunctions::triangulateShape(currentFace);
+			mesh = BRep_Tool::Triangulation(currentFace, loc);
+		}
+
+		for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
+		{
+			const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
+			gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+			gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+			gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+			currentString += "new\n";
+			currentString += pointToString3D(p1);
+			currentString += pointToString3D(p2);
+			currentString += pointToString3D(p3);
+		}
+		return currentString;
+	}
+
+	currentString += "new\n";
 	for (TopExp_Explorer WireExpl(currentFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());

@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -216,7 +216,7 @@ struct helperFunctions{
 	/// check if a line intersects with a shape
 	static bool LineShapeIntersection(const TopoDS_Shape& theShape, const gp_Pnt& lP1, const gp_Pnt& lP2);
 	/// check if a line intersects with a face
-	static bool LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2);
+	static bool LineShapeIntersection(const TopoDS_Face& theFace, const gp_Pnt& lP1, const gp_Pnt& lp2, bool inZdir = false);
 
 	// surface and wire merging code
 
@@ -344,6 +344,9 @@ struct helperFunctions{
 	static std::vector<TopoDS_Face> getUniqueFaces(const std::vector<TopoDS_Face>& inputFaceList);
 	/// returns a square face with the characteristics of the input plane
 	static TopoDS_Face plane2Face(const Handle(Geom_Plane)& geoPlane, const double& planeSize);
+
+	/// checks if the face is flat
+	static bool isFlat(const TopoDS_Face& theFace);
 
 };
 #endif // HELPER_HELPER_H

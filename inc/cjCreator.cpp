@@ -504,32 +504,39 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<T>& shape
 
 	for (const TopoDS_Shape& currentShape : shapes)
 	{
+		gp_Pnt objectLll;
+		gp_Pnt objectUrr;
+		helperFunctions::bBoxDiagonal(currentShape, &objectLll, &objectUrr);
+
+		bool searchFlush = true;
+		if (cutlvl + buffer < objectLll.Z() || cutlvl - buffer > objectUrr.Z()) { continue; }
+
 		std::vector<TopoDS_Edge> edgeList;
 		for (TopExp_Explorer expl(currentShape, TopAbs_FACE); expl.More(); expl.Next())
 		{
 			TopoDS_Face face = TopoDS::Face(expl.Current());
-
 			// ignore extremely small surfaces
 			if (helperFunctions::computeArea(face) < 0.005) { continue; }
 
 			// check if the face is flush to the cuttting plane if flat 
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(face);
-			
-			if (std::abs(faceNormal.X()) < 0.05 && std::abs(faceNormal.Y()) < 0.05)
+			if (searchFlush)
 			{
-				// if flush store as is
-				std::vector<gp_Pnt> facePoints =  helperFunctions::getUniquePoints(face);
-
-				for (const gp_Pnt& currentFacePoint : facePoints)
+				if (std::abs(faceNormal.X()) < 0.05 && std::abs(faceNormal.Y()) < 0.05)
 				{
-					if (abs(currentFacePoint.Z() - cutlvl) > buffer) { continue; }
-					spltFaceCollection.emplace_back(helperFunctions::projectFaceFlat(face, cutlvl));
+					// if flush store as is
+					std::vector<gp_Pnt> facePoints = helperFunctions::getUniquePoints(face);
 
-					break;
+					for (const gp_Pnt& currentFacePoint : facePoints)
+					{
+						if (abs(currentFacePoint.Z() - cutlvl) > buffer) { continue; }
+						spltFaceCollection.emplace_back(helperFunctions::projectFaceFlat(face, cutlvl));
+						break;
+					}
+					continue;
 				}
-				// else ignore the face
-				continue;
-			}
+
+			}			
 
 			// check if the surface bbox falls on the cut level
 			bg::model::box <BoostPoint3D> faceBox = helperFunctions::createBBox(face);
@@ -1081,6 +1088,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 		faceIdx.insert(std::make_pair(bbox, currentFace));
 	}
 
+	bool isZdir = true;
 	// extrude the trimmed surfaces and join
 	std::vector<TopoDS_Face> outputFaceList;
 	for (const TopoDS_Face& currentFace : faceList)
@@ -1100,7 +1108,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 			double inBuffer = false;
 			for (const TopoDS_Face& bufferSurface : bufferSurfaceList)
 			{
-				if (helperFunctions::LineShapeIntersection(bufferSurface, basePoint, bottomPoint))
+				if (helperFunctions::LineShapeIntersection(bufferSurface, basePoint, bottomPoint, isZdir))
 				{
 					inBuffer = true;
 					break;
@@ -1126,7 +1134,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getVisTopSurfaces(const std::vector<TopoD
 			TopoDS_Face otherFace = otherSurfaceValue.second;
 			if (currentFace.IsEqual(otherFace)) { continue; }
 
-			if (helperFunctions::LineShapeIntersection(otherFace, basePoint, topPoint))
+			if (helperFunctions::LineShapeIntersection(otherFace, basePoint, topPoint, isZdir))
 			{
 				isHidden = true;
 				break;
@@ -2739,8 +2747,8 @@ void CJGeoCreator::make2DStorey(
 				std::optional<gp_Pnt> optionalFacePoint = helperFunctions::getPointOnFace(currentStoreyFace);
 				if (optionalFacePoint == std::nullopt) { continue; }
 				gp_Pnt facePoint = *optionalFacePoint;
-				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000)) &&
-					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000)))
+				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000), true) &&
+					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000), true))
 				{
 					continue;
 				}
@@ -2769,8 +2777,8 @@ void CJGeoCreator::make2DStorey(
 				std::optional<gp_Pnt> optionalFacePoint = helperFunctions::getPointOnFace(currentStoreyFace);
 				if (optionalFacePoint == std::nullopt) { continue; }
 				gp_Pnt facePoint = *optionalFacePoint;
-				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000)) &&
-					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000)))
+				if (!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() + 1000), true) &&
+					!helperFunctions::LineShapeIntersection(roofOutline, facePoint, gp_Pnt(facePoint.X(), facePoint.Y(), facePoint.Z() - 1000), true))
 				{
 					continue;
 				}
@@ -4704,7 +4712,6 @@ std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> CJGeoCreator::getE1F
 	std::vector<int>().swap(scoreList);
 
 	return outerSurfacePairList;
-	
 }
 
 void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>& outerSurfacePairList, const std::vector<Value>& totalValueObjectList, const std::vector<int>& scoreList, DataManager* h, const bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>>& faceIdx, const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIndex)
@@ -5628,7 +5635,7 @@ void CJGeoCreator::splitFacesToFootprint(std::vector<TopoDS_Face>& outRoofFaces,
 		bool isOVerhang = true;
 		for (const TopoDS_Face& currentFootprint : footprintFaceList)
 		{
-			if (helperFunctions::LineShapeIntersection(currentFootprint, basePoint, bottomPoint))
+			if (helperFunctions::LineShapeIntersection(currentFootprint, basePoint, bottomPoint, true))
 			{
 				isOVerhang = false;
 				break;
