@@ -67,6 +67,8 @@ private:
 
 	/// get a list of idx representing the dir of the neighbor in -/+ x, y, z dir 
 	std::array<int, 6> getDirNeighbours(int voxelIndx);
+	/// get a list of idx representing the dir of the neighbor in -/+ x, y, z dir 
+	std::array<int, 6> getDirNeighbours(const std::shared_ptr<voxel>& boxel);
 
 	/// grow a void and mark it
 	void growVoid(int startIndx, int roomnum, DataManager* h);
@@ -109,6 +111,7 @@ public:
 	// returns a plate in full x an y but 1 z the closes at the input platelvl 
 	std::vector<std::shared_ptr<voxel>> getVoxelPlate(double platelvl);
 	std::vector<std::shared_ptr<voxel>> getIntersectingVoxels();
+	std::vector<std::shared_ptr<voxel>> getOuterIntersectingVoxels();
 	std::vector<std::shared_ptr<voxel>> getExternalVoxels();
 	std::vector<std::shared_ptr<voxel>> getInternalVoxels();
 	std::vector<std::shared_ptr<voxel>> getVoxels();

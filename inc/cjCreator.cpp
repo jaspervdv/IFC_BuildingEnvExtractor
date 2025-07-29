@@ -131,7 +131,7 @@ void CJGeoCreator::garbageCollection()
 		LoDe1FacesRequired = true;
 	}
 
-	if (!LoDe1FacesRequired && !LoDE1Faces_.empty()) //TODO: release
+	if (!LoDe1FacesRequired && !LoDE1Faces_.empty())
 	{
 		std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>>().swap(LoDE1Faces_);
 	}
@@ -4045,10 +4045,10 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe1(DataManager* h, CJT::Kernel*
 
 	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>> voxelIndex;
 	// collect and index the voxels to which rays are cast
-	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
-	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
-	populateVoxelIndex(&voxelIndex, intersectingVoxels);
+	populateVoxelIndex(&voxelIndex, externalVoxel);
+
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
 	LoDE1Faces_ = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
@@ -4105,10 +4105,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>> voxelIndex;
 	// collect and index the voxels to which rays are cast
-	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getIntersectingVoxels();
-	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
-	intersectingVoxels.insert(intersectingVoxels.end(), externalVoxel.begin(), externalVoxel.end());
-	populateVoxelIndex(&voxelIndex, intersectingVoxels);
+	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();	
+	populateVoxelIndex(&voxelIndex, externalVoxel);
 
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> outerSurfacePairList;
@@ -4118,6 +4116,7 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	}
 	else
 	{
+		std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
 		outerSurfacePairList = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
 	}
 

@@ -313,6 +313,15 @@ std::array<int, 6> VoxelGrid::getDirNeighbours(int voxelIndx)
 	return neightbours;
 }
 
+std::array<int, 6> VoxelGrid::getDirNeighbours(const std::shared_ptr<voxel>& boxel)
+{
+	BoostPoint3D middlePoint = boxel->getCenterPoint();
+	BoostPoint3D relativePoint = worldToRelPoint(middlePoint);
+	int voxelInt = relativeToLinear(relativePoint);
+	std::array<int, 6> neighbours = getDirNeighbours(voxelInt);
+	return neighbours;
+}
+
 
 void VoxelGrid::growVoid(int startIndx, int roomnum, DataManager* h)
 {
@@ -702,6 +711,31 @@ std::vector<std::shared_ptr<voxel>> VoxelGrid::getIntersectingVoxels()
 		if (currentVoxel->getBuildingNum() == -1) { continue; }
 
 		intersectingVoxels.emplace_back(currentVoxel);
+	}
+	return intersectingVoxels;
+}
+
+std::vector<std::shared_ptr<voxel>> VoxelGrid::getOuterIntersectingVoxels()
+{
+	std::vector<std::shared_ptr<voxel>> intersectingVoxels;
+	for (auto i = VoxelLookup_.begin(); i != VoxelLookup_.end(); i++)
+	{
+		std::shared_ptr<voxel> currentVoxel = i->second;
+		if (!currentVoxel->getIsIntersecting()) { continue; }
+		if (currentVoxel->getBuildingNum() == -1) { continue; }
+
+		std::array<int, 6> neighbours = getDirNeighbours(currentVoxel);
+		for (const int otherIdx : neighbours)
+		{
+			if (otherIdx == -1) { continue; }
+
+			std::shared_ptr<voxel> otherVoxel = VoxelLookup_[otherIdx];
+			if (otherVoxel->getRoomNum() == 0)
+			{
+				intersectingVoxels.emplace_back(currentVoxel);
+				break;
+			}
+		}
 	}
 	return intersectingVoxels;
 }
