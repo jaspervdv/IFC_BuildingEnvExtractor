@@ -1,6 +1,5 @@
-#define USE_IFC4
+#define USE_IFC2x3
 #define iterationVersion "0.2.5"
-
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -238,16 +237,20 @@ struct helperFunctions{
 	/// creates a planar face between lll and urr with a rotation
 	static TopoDS_Face createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle, double z);
 	/// creates a planar face by connecting the 4 points, make sure the 4 points are on a single plane
-	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3 = {});
+	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3);
+	/// creates a planar face by connecting the 3 points, make sure the 3 points are on a single plane
+	static TopoDS_Face createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2);
 	/// creates a planar copy of input face at input height
 	static TopoDS_Face projectFaceFlat(const TopoDS_Face& theFace, double height);
 	/// creates a planar copy of the input wire
 	static TopoDS_Wire projectWireFlat(const TopoDS_Wire& theWire, double height);
 
 	/// creates a clean copy of the input face with no non-straight curves
-	static TopoDS_Face TessellateFace(const TopoDS_Face& theFace);
+	static std::vector<TopoDS_Face> TessellateFace(const TopoDS_Face& theFace);
 	/// creates a clean copy of the input face list with no non-straight curves
 	static std::vector<TopoDS_Face> TessellateFace(const std::vector<TopoDS_Face>& theFaceList);
+	/// creates a clean mesh approximation of the input face
+	static std::vector<TopoDS_Face> TriangulateFace(const TopoDS_Face& theFace);
 	/// fixes face if face is broken
 	static bool fixFace(TopoDS_Face* theFace);
 	/// creates a clean copy of the input face with no curves

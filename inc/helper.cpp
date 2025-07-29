@@ -356,7 +356,8 @@ std::vector<gp_Pnt> helperFunctions::getPointGridOnWire(const TopoDS_Face& thefa
 			return {};  // Skip degenerated edges
 		}
 		if (!curve->IsKind(STANDARD_TYPE(Geom_Line))) {
-			faceLocalCopy = TessellateFace(theface);
+			//faceLocalCopy = TessellateFace(theface);
+			//TODO: check this
 			if (faceLocalCopy.IsNull()) { return {}; }
 			break;
 		}
@@ -1828,6 +1829,15 @@ TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1
 	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2, edge3));
 }
 
+TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2)
+{
+	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
+	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
+	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p0);
+
+	return BRepBuilderAPI_MakeFace(BRepBuilderAPI_MakeWire(edge0, edge1, edge2));
+}
+
 TopoDS_Face helperFunctions::projectFaceFlat(const TopoDS_Face& theFace, double height) {
 
 	if (theFace.IsNull()) { return TopoDS_Face(); }
@@ -1928,30 +1938,19 @@ TopoDS_Wire helperFunctions::projectWireFlat(const TopoDS_Wire& theWire, double 
 	return flattenedWire;
 }
 
-TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
+std::vector<TopoDS_Face> helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 {
-	if (!isFlat(theFace))
-	{
-		DebugUtils::printFaces(theFace);
-	}
-
-	Handle(Geom_Surface) Surface = BRep_Tool::Surface(theFace);
-	GeomAdaptor_Surface theGASurface(Surface);
-	if (theGASurface.GetType() != GeomAbs_Plane)
-	{
-		std::cout << "hit" << std::endl;
-		//TODO: do something here
-	}
+	if (!isFlat(theFace)) { return TriangulateFace(theFace); }
 
 	double precision = SettingsCollection::getInstance().precision();
 	gp_Pnt p0 = getFirstPointShape(theFace);
 	gp_Vec normal = computeFaceNormal(theFace);
-	if (normal.Magnitude() < precision) 	{ return TopoDS_Face(); }
+	if (normal.Magnitude() < precision) { return {}; }
 
 	Handle(Geom_Plane) plane = new Geom_Plane(p0, normal);
 	TopoDS_Wire outerWire = BRepTools::OuterWire(theFace);
-	if (outerWire.IsNull()) { return TopoDS_Face(); }
-	if (!outerWire.Closed()) { return TopoDS_Face(); }
+	if (outerWire.IsNull()) { return {}; }
+	if (!outerWire.Closed()) { return {}; }
 	TopoDS_Wire outerWireClean = outerWire;
 	outerWireClean.Orientation(TopAbs_FORWARD);
 	TopoDS_Wire outerstraightWire = replaceCurves(outerWire);
@@ -1978,9 +1977,9 @@ TopoDS_Face helperFunctions::TessellateFace(const TopoDS_Face& theFace)
 
 	if (!fixFace(&currentFace))
 	{
-		return theFace;
+		return { theFace };
 	}
-	return currentFace;
+	return { currentFace };
 }
 
 bool helperFunctions::fixFace(TopoDS_Face* theFace)
@@ -2018,25 +2017,58 @@ std::vector<TopoDS_Face> helperFunctions::TessellateFace(const std::vector<TopoD
 	outputList.reserve(theFaceList.size());
 	for (const TopoDS_Face& currentFace : theFaceList)
 	{
-		TopoDS_Face cleanedFace = TessellateFace(currentFace);
-		if (cleanedFace.IsNull())
+		std::vector<TopoDS_Face> cleanedFaceList = TessellateFace(currentFace);
+
+		if (cleanedFaceList.empty())
 		{
 			outputList.emplace_back(currentFace);
 			continue;
 		}
-		outputList.emplace_back(cleanedFace);
+
+		for (const TopoDS_Face& cleanedFace : cleanedFaceList)
+		{
+			outputList.emplace_back(cleanedFace);
+		}
 	}
 	return outputList;
 }
 
+std::vector<TopoDS_Face> helperFunctions::TriangulateFace(const TopoDS_Face& theFace)
+{
+	TopLoc_Location loc;
+	auto mesh = BRep_Tool::Triangulation(theFace, loc);
+
+	if (mesh.IsNull())
+	{
+		helperFunctions::triangulateShape(theFace);
+		mesh = BRep_Tool::Triangulation(theFace, loc);
+	}
+	if (mesh.IsNull()) { return {}; }
+
+	std::vector<TopoDS_Face> triangleFaceList;
+	for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
+	{
+		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+		TopoDS_Face triangleFace = createPlanarFace(p1, p2, p3);
+
+		if (triangleFace.IsNull()) { continue; }
+		triangleFaceList.emplace_back(triangleFace);
+	}
+
+	//TODO: merge faces that are planar and next to eachother
+	return triangleFaceList;
+}
+
 TopoDS_Wire helperFunctions::wipeWireClean(const TopoDS_Wire& theWire)
 {
-	std::cout << "swap" << std::endl;
 	BRepBuilderAPI_MakeWire wireMaker;
 	for (BRepTools_WireExplorer expl(theWire); expl.More(); expl.Next()) {
 		TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-
-
 
 		TopoDS_Edge reversedEdge = BRepBuilderAPI_MakeEdge(helperFunctions::getFirstPointShape(currentEdge), helperFunctions::getLastPointShape(currentEdge));
 
@@ -2604,13 +2636,19 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 		}
 	}
 
-	for (TopoDS_Face& currentFace : outputFaceList)
+	std::vector<TopoDS_Face> cleanedOutputFaceList;
+	for (const TopoDS_Face& currentFace : outputFaceList)
 	{
-		currentFace = TessellateFace(currentFace);
-		fixFace(&currentFace);
-		helperFunctions::triangulateShape(currentFace, true);
+		std::vector<TopoDS_Face> cleanedFaceList = TessellateFace(currentFace);
+
+		for (TopoDS_Face& cleanedFace : cleanedFaceList)
+		{
+			fixFace(&cleanedFace);
+			helperFunctions::triangulateShape(cleanedFace, true);
+			cleanedOutputFaceList.emplace_back(currentFace);
+		}
 	}
-	return outputFaceList;
+	return cleanedOutputFaceList;
 }
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces)
@@ -3655,13 +3693,18 @@ bool helperFunctions::isFlat(const TopoDS_Face& theFace)
 		gp_Vec v1(p1, p2);
 		gp_Vec v2(p1, p3);
 
+		gp_Vec localNormal = v1.Crossed(v2);
+		if (localNormal.Magnitude() < 1e-6)
+		{
+			continue; 
+		}
+
 		if (tstNormal.Magnitude() < 1e-6)
 		{
 			tstNormal = v1.Crossed(v2);
 			continue;
 		}
 
-		gp_Vec localNormal = v1.Crossed(v2);
 		if (!tstNormal.IsParallel(localNormal, 1e-4))
 		{
 			return false;

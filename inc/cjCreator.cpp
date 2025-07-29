@@ -268,10 +268,13 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		{
 			continue;
 		}
-		TopoDS_Face currentCleanFace = helperFunctions::TessellateFace(currentFace); //tODO: should be more central
-		bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
-		spatialIndex.insert(std::make_pair(bbox, i));
-		faceList.emplace_back(currentCleanFace);
+		std::vector<TopoDS_Face> currentCleanFaceList = helperFunctions::TessellateFace(currentFace); //tODO: should be more central
+		for (const TopoDS_Face& currentCleanFace: currentCleanFaceList)
+		{
+			bg::model::box <BoostPoint3D> bbox = helperFunctions::createBBox(currentCleanFace, 0.5);
+			spatialIndex.insert(std::make_pair(bbox, i));
+			faceList.emplace_back(currentCleanFace);
+		}
 	}
 
 	//// group surfaces
@@ -860,9 +863,13 @@ void CJGeoCreator::makeFloorSection(std::vector<TopoDS_Face>& facesOut, DataMana
 	facesOut.reserve(floorSectionList.size());
 	for (const TopoDS_Face& currentOutFace : floorSectionList)
 	{
-		TopoDS_Face cleanedOutFace = helperFunctions::TessellateFace(currentOutFace);
-		if (cleanedOutFace.IsNull()) { continue; }
-		facesOut.emplace_back(cleanedOutFace);
+		std::vector<TopoDS_Face> cleanedOutFaceList = helperFunctions::TessellateFace(currentOutFace);
+
+		for (const TopoDS_Face& cleanedOutFace : cleanedOutFaceList)
+		{
+			if (cleanedOutFace.IsNull()) { continue; }
+			facesOut.emplace_back(cleanedOutFace);
+		}
 	}
 
 	return;
@@ -1296,6 +1303,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 			TopoDS_Face extrusionFace = TopoDS::Face(expl.Current());
 			// ignore if not vertical face
 			gp_Vec currentNormal = helperFunctions::computeFaceNormal(extrusionFace);
+			if (currentNormal.Magnitude() < precision) { continue; }
 			if (abs(currentNormal.Z()) > precisionCoarse) { continue; };
 
 			// find if already found in model 
@@ -2911,14 +2919,20 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 				}
 				if (!clearLine){ continue; }
 
-				TopoDS_Face cleanedCurrentFace = helperFunctions::TessellateFace(currentFace);
+				std::vector<TopoDS_Face> cleanedCurrentFaceList = helperFunctions::TessellateFace(currentFace);
 				if (settingsCollection.make02() || settingsCollection.make12())
 				{
-					flatFaceList.emplace_back(helperFunctions::projectFaceFlat(cleanedCurrentFace, lowestZ));
+					for (const TopoDS_Face& cleanedCurrentFace : cleanedCurrentFaceList)
+					{
+						flatFaceList.emplace_back(helperFunctions::projectFaceFlat(cleanedCurrentFace, lowestZ));
+					}	
 				}
 				if (settingsCollection.make22())
 				{
-					topFaceList.emplace_back(cleanedCurrentFace);
+					for (const TopoDS_Face& cleanedCurrentFace : cleanedCurrentFaceList)
+					{
+						topFaceList.emplace_back(cleanedCurrentFace);
+					}
 				}
 				break;
 			}
@@ -4120,6 +4134,8 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 		outerSurfacePairList = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
 	}
 
+	//TODO: tesselate the faces
+
 	// clip surfaces that are in contact with eachother
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> splitOuterSurfacePairList;
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> unSplitOuterSurfacePairList;
@@ -4806,7 +4822,6 @@ void CJGeoCreator::getOuterRaySurfaces(
 			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace, settingsCollection.voxelSize());
 			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace, settingsCollection.voxelSize());
 			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
-			//DebugUtils::printPoint(wireGridList);
 
 			// cast a line from the grid to surrounding voxels
 			for (const gp_Pnt& gridPoint : surfaceGridList)
@@ -5180,21 +5195,25 @@ void CJGeoCreator::extrudeStoreyGeometry(
 				for (TopExp_Explorer explorer(currentSolid, TopAbs_FACE); explorer.More(); explorer.Next())
 				{
 					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-					TopoDS_Face tesselatedFace = helperFunctions::TessellateFace(currentFace);
-					if (abs(helperFunctions::computeFaceNormal(tesselatedFace).Z()) < settingsCollection.precisionCoarse())
-					{
-						outVerticalextFaces.emplace_back(tesselatedFace);
-						continue;
-					}
 
-					double currentFaceZ = roundDoubleToPrecision(helperFunctions::getLowestZ(tesselatedFace), 1e-6);
-					if (outHorizontalStoreyFaces.count(currentFaceZ) != 0)
+					std::vector<TopoDS_Face> tesselatedFaceList = helperFunctions::TessellateFace(currentFace);
+					for (const TopoDS_Face& tesselatedFace : tesselatedFaceList)
 					{
-						outHorizontalStoreyFaces[currentFaceZ].emplace_back(tesselatedFace);
-					}
-					else
-					{
-						outHorizontalStoreyFaces[currentFaceZ] = { tesselatedFace };
+						if (abs(helperFunctions::computeFaceNormal(tesselatedFace).Z()) < settingsCollection.precisionCoarse())
+						{
+							outVerticalextFaces.emplace_back(tesselatedFace);
+							continue;
+						}
+
+						double currentFaceZ = roundDoubleToPrecision(helperFunctions::getLowestZ(tesselatedFace), 1e-6);
+						if (outHorizontalStoreyFaces.count(currentFaceZ) != 0)
+						{
+							outHorizontalStoreyFaces[currentFaceZ].emplace_back(tesselatedFace);
+						}
+						else
+						{
+							outHorizontalStoreyFaces[currentFaceZ] = { tesselatedFace };
+						}
 					}
 				}
 			}
@@ -5234,26 +5253,30 @@ std::vector<TopoDS_Face> CJGeoCreator::TrimHStoreyFaces(const bgi::rtree<std::pa
 		for (TopExp_Explorer explorer(fuser.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
 		{
 			const TopoDS_Face& currentSplitFace = TopoDS::Face(explorer.Current());
-			TopoDS_Face tesselatedFace = helperFunctions::TessellateFace(currentSplitFace);
-			std::optional<gp_Pnt> currentCenterPoint = helperFunctions::getPointOnFace(tesselatedFace);
 
-			if (currentCenterPoint == std::nullopt) { continue; }
-
-			bool found = false;
-			for (const auto& [otherBoundingBox, otherHorizontalFace] : qResult)
+			std::vector<TopoDS_Face> tesselatedFaceList = helperFunctions::TessellateFace(currentSplitFace);
+			for (const TopoDS_Face& tesselatedFace : tesselatedFaceList)
 			{
-				if (horizontalFace.IsEqual(otherHorizontalFace)) { continue; }
+				std::optional<gp_Pnt> currentCenterPoint = helperFunctions::getPointOnFace(tesselatedFace);
 
-				if (helperFunctions::pointOnShape(otherHorizontalFace, *currentCenterPoint))
+				if (currentCenterPoint == std::nullopt) { continue; }
+
+				bool found = false;
+				for (const auto& [otherBoundingBox, otherHorizontalFace] : qResult)
 				{
-					found = true;
-					break;
-				}
-			}
+					if (horizontalFace.IsEqual(otherHorizontalFace)) { continue; }
 
-			if (!found)
-			{
-				outerShapeFaces.emplace_back(tesselatedFace);
+					if (helperFunctions::pointOnShape(otherHorizontalFace, *currentCenterPoint))
+					{
+						found = true;
+						break;
+					}
+				}
+
+				if (!found)
+				{
+					outerShapeFaces.emplace_back(tesselatedFace);
+				}
 			}
 		}
 	}
