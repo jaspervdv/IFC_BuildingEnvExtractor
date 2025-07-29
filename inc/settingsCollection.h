@@ -393,7 +393,7 @@ public:
     void setSearchBufferLoD32(double value) { searchBufferLoD32_ = value; }
 
     double thinTriangleAngle() const { return thinTriangleAngle_; }
-    double setThinTriangleAngle(double value) { thinTriangleAngle_ = value; }
+    void setThinTriangleAngle(double value) { thinTriangleAngle_ = value; }
 
     int threadcount() const { return threadcount_; }
     void setThreadcount(int value) { threadcount_ = value; }
