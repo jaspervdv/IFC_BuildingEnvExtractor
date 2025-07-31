@@ -123,6 +123,9 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	try { settingsCollection.setThreadcount(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
+	try { settingsCollection.setTolerances(json); }
+	catch (const std::string& errorString) { throw errorString; }
+
 	// set lod output values
 	try { settingsCollection.setLoD(json); }
 	catch (const std::string& errorString) { throw errorString; }
@@ -131,7 +134,7 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	try { settingsCollection.setJSONRelatedSettings(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
-	// set json related values 
+	// set voxel related values 
 	try { settingsCollection.setVoxelRelatedSettings(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
@@ -139,6 +142,7 @@ bool IOManager::getJSONValues(const std::string& inputPath)
 	try { settingsCollection.setIFCRelatedSettings(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
+	// set alternative output related values
 	try { settingsCollection.setFormatRelatedSettings(json); }
 	catch (const std::string& errorString) { throw errorString; }
 
@@ -189,6 +193,14 @@ void IOManager::printSummary()
 	if (settingsCollection.createOBJ()) { formatString += "OBJ, "; }
 	formatString.erase(formatString.size() - 2);
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << formatString << "\n\n";
+
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "Tolerances\n";
+	std::cout << "- Spatial tolerance:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.spatialTolerance() << "\n";
+	std::cout << "- angular tolerance:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.angularTolerance() << "\n";
+	std::cout << "- area tolerance:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.areaTolerance() << "\n\n";
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "IFC settings\n";
 	std::cout << "- Model rotation:\n";
@@ -365,6 +377,17 @@ nlohmann::json IOManager::settingsToJSON()
 	if (settingsCollection.makeV()) { LoDList.emplace_back("5.0"); }
 
 	settingsJSON[JsonObjectInEnum::getString(JsonObjectInID::lodOutput)] = LoDList;
+
+	// store the tolerance data
+	nlohmann::json tolJSON;
+	std::string spatialTolOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesSpatial);
+	std::string angularTolOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesAngular);
+	std::string areaTolOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesArea);
+
+	tolJSON[spatialTolOName] = settingsCollection.spatialTolerance();
+	tolJSON[angularTolOName] = settingsCollection.angularTolerance();
+	tolJSON[areaTolOName] = settingsCollection.areaTolerance();
+	settingsJSON[JsonObjectInEnum::getString(JsonObjectInID::tolerances)] = tolJSON;
 
 	// store the voxel data
 	nlohmann::json voxelJSON;

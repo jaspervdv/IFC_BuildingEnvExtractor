@@ -217,6 +217,25 @@ void SettingsCollection::setFormatRelatedSettings(const nlohmann::json& json)
 	return;
 }
 
+void SettingsCollection::setTolerances(const nlohmann::json& json)
+{
+	std::string tolerancesOName = JsonObjectInEnum::getString(JsonObjectInID::tolerances);
+	if (!json.contains(tolerancesOName)) { return; }
+	nlohmann::json tolerancesJson = json[tolerancesOName];
+
+	try
+	{
+		setSpatialTolerance(tolerancesJson);
+		setAngularTolerance(tolerancesJson);
+		setAreaTolerance(tolerancesJson);
+	}
+	catch (const std::string& errorString)
+	{
+		throw errorString;
+	}
+	return;
+}
+
 void SettingsCollection::generateGeneralSettings()
 {
 	// set generated settings
@@ -1049,6 +1068,85 @@ void SettingsCollection::setHorizontalSectionOffset(const nlohmann::json& json)
 		{
 			ErrorCollection::getInstance().addError(exceptionId, hSectionOffsetOName);
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + hSectionOffsetOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setSpatialTolerance(const nlohmann::json& json)
+{
+	std::string toleranceOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesSpatial);
+	if (json.contains(toleranceOName))
+	{
+		try
+		{
+			double toleranceValue = getJsonDouble(json[toleranceOName]);
+			setSpatialTolerance(toleranceValue);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, toleranceOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + toleranceOName);
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setAngularTolerance(const nlohmann::json& json)
+{
+	std::string toleranceOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesAngular);
+	if (json.contains(toleranceOName))
+	{
+		try
+		{
+			double toleranceValue = getJsonDouble(json[toleranceOName]);
+			setAngularTolerance(toleranceValue);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, toleranceOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + toleranceOName);
+		}
+	}
+	else
+	{
+		if (spatialTolerance() < 1e-4)
+		{
+			setAngularTolerance(1e-4);
+		}
+		else
+		{
+			setAngularTolerance(spatialTolerance());
+		}
+	}
+	return;
+}
+
+void SettingsCollection::setAreaTolerance(const nlohmann::json& json)
+{
+	std::string toleranceOName = JsonObjectInEnum::getString(JsonObjectInID::tolerancesArea);
+	if (json.contains(toleranceOName))
+	{
+		try
+		{
+			double toleranceValue = getJsonDouble(json[toleranceOName]);
+			setAreaTolerance(toleranceValue);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, toleranceOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + toleranceOName);
+		}
+	}
+	else
+	{
+		if (spatialTolerance() < 1e-4)
+		{
+			setAreaTolerance(1e-4);
+		}
+		else
+		{
+			setAreaTolerance(spatialTolerance() * 10);
 		}
 	}
 	return;

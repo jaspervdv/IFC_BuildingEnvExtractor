@@ -136,7 +136,7 @@ void SurfaceGridPair::populateGrid(double distance)
 
 bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGridPair>>& otherSurfaces, bool preFilter)
 {
-	double precision = SettingsCollection::getInstance().precision();
+	double precision = SettingsCollection::getInstance().spatialTolerance();
 	
 	if (!pointGrid_.size()) { populateGrid(SettingsCollection::getInstance().surfaceGridSize()); }
 
@@ -181,7 +181,7 @@ bool SurfaceGridPair::testIsVisable(const std::vector<std::shared_ptr<SurfaceGri
 				p0.SetZ(0);
 				p1.SetZ(0);
 
-				if (p0.Distance(p1) < 1e-6) { continue; }
+				if (p0.Distance(p1) < precision) { continue; }
 				if (helperFunctions::pointOnEdge(BRepBuilderAPI_MakeEdge(p0, p1), projectedPoint))
 				{
 					currentEvalPoint->setInvisible();
@@ -264,13 +264,9 @@ RCollection::RCollection(const std::vector<TopoDS_Face>& theFaceColletion)
 	}
 
 	std::vector<TopoDS_Face> flatFaceList = helperFunctions::planarFaces2Outline(projectedFaces);
+	if (flatFaceList.size() < 1) { return; }
 
-	if (flatFaceList.size() < 1)
-	{
-		return;
-	}
-
-	theFlatFace_ = helperFunctions::planarFaces2Outline(flatFaceList)[0];
+	theFlatFace_ = flatFaceList[0];
 	return;
 }
 

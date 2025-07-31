@@ -58,6 +58,7 @@ class OtherSettings:
         self.make_report = tkinter.IntVar(value=1)
         self.make_obj = tkinter.IntVar(value=0)
         self.make_step = tkinter.IntVar(value=0)
+        self.highTol_toggle = tkinter.IntVar(value=1)
 
 class Tooltip:
     def __init__(self, widget, text):
@@ -234,6 +235,16 @@ def runCode(input_path,
     elif voxelSettings.voxel_unit.get() == "cm":
         voxel_size /= 100
 
+    json_dictionary["Tolerances"] = {}
+    if other_settings.highTol_toggle.get():
+        json_dictionary["Tolerances"]["Spatial tolerance"] = 1e-6
+        json_dictionary["Tolerances"]["Angular tolerance"] = 1e-4
+        json_dictionary["Tolerances"]["Area tolerance"] = 1e-4
+    else:
+        json_dictionary["Tolerances"]["Spatial tolerance"] = 1e-4
+        json_dictionary["Tolerances"]["Angular tolerance"] = 1e-3
+        json_dictionary["Tolerances"]["Area tolerance"] = 1e-3
+
     json_dictionary["Voxel"] = {}
     json_dictionary["Voxel"]["Size"] = voxel_size
     json_dictionary["Voxel"]["Store values"] = other_settings.summary_voxels.get()
@@ -269,7 +280,6 @@ def runCode(input_path,
     json_dictionary["Output format"] = {}
     json_dictionary["Output format"]["STEP file"] = other_settings.make_step.get()
     json_dictionary["Output format"]["OBJ file"] = other_settings.make_obj.get()
-
 
     lod_list = []
     if(lod_settings.lod00.get()):
@@ -775,23 +785,15 @@ igoreproxy_toggle = ttk.Checkbutton(frame_div_objects,
                                     text="Ignore proxy elements",
                                     variable=div_settings.ignore_proxy,
                                     command= lambda : updateDivMessage(message_div_objects,div_settings.use_default, div_settings.ignore_proxy))
-igoreproxy_toggle.pack(side=tkinter.LEFT, padx=30)
+igoreproxy_toggle.pack(side=tkinter.LEFT, padx=10)
 
 useDefault_toggle = ttk.Checkbutton(frame_div_objects,
                                     text="Use default div objects",
                                     variable=div_settings.use_default,
                                     command= lambda : updateDivMessage(message_div_objects, div_settings.use_default, div_settings.ignore_proxy))
-useDefault_toggle.pack(side=tkinter.LEFT)
+useDefault_toggle.pack(side=tkinter.LEFT, padx=10)
 
-# div communication
-message_div_objects.insert(tkinter.INSERT, getDefaultDivObjects())
-message_div_objects['state'] = tkinter.DISABLED
-message_div_objects.pack(fill='x', padx=5, pady=10)
-
-frame_final_objects = tkinter.Frame(main_window)
-frame_final_objects.pack()
-
-enableCustom_toggle = ttk.Checkbutton(frame_final_objects,
+enableCustom_toggle = ttk.Checkbutton(frame_div_objects,
                                     text="Custom div objects",
                                     variable=div_settings.custom_enabled,
                                     command= lambda : toggleEnableDiv(
@@ -802,10 +804,23 @@ enableCustom_toggle = ttk.Checkbutton(frame_final_objects,
                                         div_settings.ignore_proxy))
 enableCustom_toggle.pack(side=tkinter.LEFT)
 
+# div communication
+message_div_objects.insert(tkinter.INSERT, getDefaultDivObjects())
+message_div_objects['state'] = tkinter.DISABLED
+message_div_objects.pack(fill='x', padx=5, pady=10)
+
+frame_final_objects = tkinter.Frame(main_window)
+frame_final_objects.pack()
+
 simpleGeo_toggle = ttk.Checkbutton(frame_final_objects,
                                     text="Use simple geo",
                                     variable=div_settings.simple_geo)
 simpleGeo_toggle.pack(side=tkinter.LEFT, padx=5)
+
+highTol_toggle = ttk.Checkbutton(frame_final_objects,
+                                    text="Use high precision",
+                                    variable=other_settings.highTol_toggle)
+highTol_toggle.pack(side=tkinter.LEFT, padx=5)
 
 # other buttons
 separator3 = ttk.Separator(main_window, orient='horizontal')

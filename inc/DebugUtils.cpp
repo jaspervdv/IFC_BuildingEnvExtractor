@@ -75,7 +75,10 @@ std::string DebugUtils::faceToString(const TopoDS_Face& currentFace)
 			currentString += "new\n";
 			currentString += pointToString3D(p1);
 			currentString += pointToString3D(p2);
+			currentString += pointToString3D(p2);
 			currentString += pointToString3D(p3);
+			currentString += pointToString3D(p3);
+			currentString += pointToString3D(p1);
 		}
 		return currentString;
 	}

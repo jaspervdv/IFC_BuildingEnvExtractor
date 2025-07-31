@@ -116,7 +116,7 @@ fileKernelCollection::fileKernelCollection(const std::string& filePath)
 	if (!file_->good()) { return; }
 	kernel_ = std::make_unique<IfcGeom::Kernel>(file_);;
 	IfcGeom::Kernel* kernelObject = kernel_.get();
-	kernel_.get()->setValue(kernelObject->GV_PRECISION, SettingsCollection::getInstance().precision());
+	kernel_.get()->setValue(kernelObject->GV_PRECISION, SettingsCollection::getInstance().spatialTolerance());
 	setUnits();
 }
 
@@ -321,10 +321,11 @@ void DataManager::computeBoundingData(gp_Pnt* lllPoint, gp_Pnt* urrPoint)
 
 gp_Vec DataManager::computeObjectTranslation()
 {
+	double precision = SettingsCollection::getInstance().spatialTolerance();
 	gp_Vec translationVec = computeObjectTranslation("IfcSlab");
-	if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+	if (translationVec.Magnitude() > precision) { return translationVec; }
 	translationVec = computeObjectTranslation("IfcRoof");
-	if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+	if (translationVec.Magnitude() > precision) { return translationVec; }
 
 	if (SettingsCollection::getInstance().useDefaultDiv())
 	{
@@ -332,20 +333,20 @@ gp_Vec DataManager::computeObjectTranslation()
 		{
 			if (currentType == "IfcSlab" || currentType == "IfcRoof") { continue; }
 			translationVec = computeObjectTranslation(currentType);
-			if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+			if (translationVec.Magnitude() > precision) { return translationVec; }
 		}
 	}
 	if (SettingsCollection::getInstance().useProxy())
 	{
 		translationVec = computeObjectTranslation("IfcBuildingElementProxy");
-		if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+		if (translationVec.Magnitude() > precision) { return translationVec; }
 	}
 
 	for (const std::string& currentType : SettingsCollection::getInstance().getCustomDivList())	
 	{
 		if (currentType == "IfcSlab" || currentType == "IfcRoof") { continue; }
 		translationVec = computeObjectTranslation(currentType);
-		if (translationVec.Magnitude() > 1e-6) { return translationVec; }
+		if (translationVec.Magnitude() > precision) { return translationVec; }
 	}
 	return gp_Vec();
 }
@@ -811,7 +812,7 @@ std::vector<TopoDS_Shape> DataManager::computeEmptyVoids(IfcSchema::IfcRelVoidsE
 
 TopoDS_Shape DataManager::applyVoidtoShape(const TopoDS_Shape& untrimmedShape, std::vector<TopoDS_Shape>& voidObjectList)
 {
-	double precision = SettingsCollection::getInstance().precision();
+	double precision = SettingsCollection::getInstance().spatialTolerance();
 
 	// bool out voidShape
 	BOPAlgo_Splitter aSplitter;

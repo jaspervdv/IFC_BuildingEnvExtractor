@@ -307,6 +307,11 @@ The configuration json has a very simple structure. An example can be found belo
         "STEP file" : 1,
         "OBJ file" : 1
     },
+    "Tolerances" : {
+      "Spatial tolerance" : 1e-6,
+      "Angular tolerance" : 1e-4,
+      "Area tolerance" : 1e-4
+    },
     "Generate report": 1,
     "Threads": 12
 }

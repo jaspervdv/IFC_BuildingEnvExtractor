@@ -90,7 +90,7 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoRoofStructureMerging:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "merge roofing structures";
 	case CommunicationStringID::infoCoasreFootFiltering:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Corse filtering footprint at z = ";
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Coarse filtering footprint at z = ";
 
 	case CommunicationStringID::infoNoVoxelizationReq:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "No voxelization required";
@@ -548,6 +548,15 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Store values";
 	case JsonObjectInID::voxelIntersection:
 		return "Logic";
+
+	case JsonObjectInID::tolerances:
+		return "Tolerances";
+	case JsonObjectInID::tolerancesSpatial:
+		return "Spatial tolerance";
+	case JsonObjectInID::tolerancesAngular:
+		return "Angular tolerance";
+	case JsonObjectInID::tolerancesArea:
+		return "Area tolerance";
 
 	case JsonObjectInID::IFC:
 		return "IFC";

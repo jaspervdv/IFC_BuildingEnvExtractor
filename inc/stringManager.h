@@ -196,6 +196,11 @@ enum class JsonObjectInID {
 	filePathOutput,
 	filePathReport,
 
+	tolerances,
+	tolerancesSpatial,
+	tolerancesAngular,
+	tolerancesArea,
+
 	voxel,
 	voxelSize,
 	voxelSummarize,

@@ -1,4 +1,4 @@
-#define USE_IFC2x3
+#define USE_IFC4
 #define iterationVersion "0.2.5"
 
 #ifdef USE_IFC2x3
@@ -18,7 +18,6 @@
 #define buildVersion "IFC4X3"
 #define SCHEMA_VERSIONS (4x3)
 #define SCHEMA_SEQ (4x3)
-
 
 #else
 #error "No IFC version defined"
@@ -246,9 +245,9 @@ struct helperFunctions{
 	static TopoDS_Wire projectWireFlat(const TopoDS_Wire& theWire, double height);
 
 	/// creates a clean copy of the input face with no non-straight curves
-	static std::vector<TopoDS_Face> TessellateFace(const TopoDS_Face& theFace);
+	static std::vector<TopoDS_Face> TessellateFace(const TopoDS_Face& theFace, bool knownIsFlat = false);
 	/// creates a clean copy of the input face list with no non-straight curves
-	static std::vector<TopoDS_Face> TessellateFace(const std::vector<TopoDS_Face>& theFaceList);
+	static std::vector<TopoDS_Face> TessellateFace(const std::vector<TopoDS_Face>& theFaceList, bool knownIsFlat = false);
 	/// creates a clean mesh approximation of the input face
 	static std::vector<TopoDS_Face> TriangulateFace(const TopoDS_Face& theFace);
 	/// fixes face if face is broken

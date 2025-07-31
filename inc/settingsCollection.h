@@ -106,10 +106,13 @@ private:
 
 	int threadcount_ = 0;
 
+    // precision settings
+    double spatialTolerance_ = 1e-6;
+    double angularTolerance_ = 1e-4;
+    double areaTolerance_ = 1e-4;
+
     // unexposed settings
     bool addCustomWallAttributes_ = false;
-    double precision_ = 1e-6;
-    double precisionCoarse_ = 1e-4;
     double maxProxyPercentage_ = 0.3;
     double searchBufferLoD32_ = 1.5 * voxelSize_;
     double thinTriangleAngle_ = 0.1745;
@@ -173,8 +176,11 @@ public:
     void setIFCRelatedSettings(const nlohmann::json& json);
     // read and store the output format related settings
     void setFormatRelatedSettings(const nlohmann::json& json);
+    // set the tolerances
+    void setTolerances(const nlohmann::json& json);
     // set the generative settings related to the user submitted settings
     void generateGeneralSettings();
+
 
     bool isSilent() const { return isSilent_; }
     void setSilent(bool value) { isSilent_ = value; }
@@ -380,11 +386,17 @@ public:
     double horizontalSectionBuffer() const { return horizontalSectionBuffer_; }
     void sethorizontalSectionBuffer(double value) { horizontalSectionBuffer_ = value; }
 
-    double precision() const { return precision_; }
-    void setPrecision(double value) { precision_ = value; }
+    double spatialTolerance() const { return spatialTolerance_; }
+    void setSpatialTolerance(double value) { spatialTolerance_ = value; }
+    void setSpatialTolerance(const nlohmann::json& json);
 
-    double precisionCoarse() const { return precisionCoarse_; }
-    void setPrecisionCoarse(double value) { precisionCoarse_ = value; }
+    double angularTolerance() const { return angularTolerance_; }
+    void setAngularTolerance(double value) { angularTolerance_ = value; }
+    void setAngularTolerance(const nlohmann::json& json);
+
+    double areaTolerance() const { return areaTolerance_; }
+    void setAreaTolerance(double value) { areaTolerance_ = value; }
+    void setAreaTolerance(const nlohmann::json& json);
 
     double maxProxyPercentage() const { return maxProxyPercentage_; }
     void setMaxProxyPercentage(double value) { maxProxyPercentage_ = value; }
