@@ -556,35 +556,39 @@ void VoxelGrid::setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxe
 
 	bool hasWindowSurface = false;
 	bool hasDoorSurface = false;
-	bool hasWallSurface = false;
+	bool hasNormalSurface = false;
 	bool hasRoofSurface = false;
 
 	for (auto valueIt = intersectingValues.begin(); valueIt != intersectingValues.end(); ++valueIt)
 	{
 		IfcSchema::IfcProduct* intersectedProduct = h->getLookup(valueIt->second)->getProductPtr();
 		std::string productTypeName = intersectedProduct->data().type()->name();
+		
+		if (productTypeName == "IfcDoor")
+		{
+			hasDoorSurface = true;
+			break;
+		}
 
 		if (productTypeName == "IfcWindow")
 		{
 			hasWindowSurface = true;
-			continue;
+			break;
 		}
-		if (productTypeName == "IfcDoor")
-		{
-			hasDoorSurface = true;
-			continue;
-		}
+
 		if (productTypeName == "IfcPlate")
 		{
 			if (helperFunctions::hasGlassMaterial(intersectedProduct))
 			{
 				hasWindowSurface = true;
-				continue;
+				break;
 			}
 		}
-		if (productTypeName == "IfcWall" || productTypeName == "IfcWallStandardCase" || productTypeName == "IfcColumn")
+		if (productTypeName == "IfcWall" || productTypeName == "IfcWallStandardCase" || productTypeName == "IfcColumn" || 
+			productTypeName == "IfcBeam" || productTypeName == "IfcCovering" || productTypeName == "IfcMember" || 
+			productTypeName == "IfcPlate" )
 		{
-			hasWallSurface = true;
+			hasNormalSurface = true;
 			continue;
 		}
 		if (productTypeName == "IfcRoof" || productTypeName == "IfcSlab")
@@ -595,19 +599,7 @@ void VoxelGrid::setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxe
 
 	}
 
-	if (hasWindowSurface)
-	{
-		voxel->addWindowSemantic(dirIndx);
-		return;
-	}
-
 	if (hasDoorSurface)
-	{
-		voxel->addDoorSemantic(dirIndx);
-		return;
-	}
-
-	if (hasWallSurface)
 	{
 		if (dirIndx == 4)
 		{
@@ -620,7 +612,13 @@ void VoxelGrid::setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxe
 			return;
 		}
 
-		voxel->addWallSemantic(dirIndx);
+		voxel->addDoorSemantic(dirIndx);
+		return;
+	}
+
+	if (hasWindowSurface)
+	{
+		voxel->addWindowSemantic(dirIndx);
 		return;
 	}
 
@@ -638,7 +636,23 @@ void VoxelGrid::setSemanticVoxelFace(DataManager* h, std::shared_ptr<voxel> voxe
 		{
 			voxel->addRoofSemantic(dirIndx); //TODO: add check to see if roof or not
 		}
+		return;
+	}
 
+	if (hasNormalSurface)
+	{
+		if (dirIndx == 4)
+		{
+			voxel->addRoofSemantic(dirIndx);
+			return;
+		}
+		if (dirIndx == 5)
+		{
+			voxel->addOuterCeilingSemantic(dirIndx);
+			return;
+		}
+
+		voxel->addWallSemantic(dirIndx);
 		return;
 	}
 	return;

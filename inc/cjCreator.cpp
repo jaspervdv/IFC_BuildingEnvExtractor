@@ -4262,8 +4262,74 @@ void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std:
 
 		// get height values
 		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+
 		spaceShape.Move(localRotationTrsf);
-		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");;
+		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");
+
+		std::map<std::string, std::string> cMap;
+		cMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeCeilingSurface));
+		std::map<std::string, std::string> wMap;
+		wMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeInteriorWallSurface));
+		std::map<std::string, std::string> fMap;
+		fMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeFloorSurface));
+		roomGeoObject.appendSurfaceData(cMap);
+		roomGeoObject.appendSurfaceData(wMap);
+		roomGeoObject.appendSurfaceData(fMap);
+
+		std::vector<int> typeValueList;
+		for (TopExp_Explorer explorer(spaceShape, TopAbs_FACE); explorer.More(); explorer.Next())
+		{
+			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+			// compute the angle of the surface to see if it is a wall 
+			gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentFace);
+			gp_Vec vertical = gp_Vec(0, 0, 2);
+			double angle = faceNormal.Angle(vertical);
+			double angleDeg = angle * (180.0 / M_PI);
+
+			if (abs(angleDeg - 90.0) <= 20)
+			{
+				typeValueList.emplace_back(1);
+				continue;
+			}
+
+			std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+			if (optionalPoint == std::nullopt)
+			{
+				typeValueList.emplace_back(0);
+				continue;
+			}
+
+			gp_Pnt point = *optionalPoint;
+			gp_Pnt topPoint = gp_Pnt(point.X(), point.Y(), point.Z() + 10000);
+
+			bool isFloor = false;
+			for (TopExp_Explorer explorer2(spaceShape, TopAbs_FACE); explorer2.More(); explorer2.Next())
+			{
+				const TopoDS_Face& otherFace = TopoDS::Face(explorer2.Current());
+				if (currentFace.IsSame(otherFace))
+				{
+					continue;
+				}
+
+				if (helperFunctions::LineShapeIntersection(otherFace, point, topPoint))
+				{
+					isFloor = true;
+					break;
+				} 
+
+			}
+
+			if (isFloor)
+			{
+				typeValueList.emplace_back(2);
+			}
+			else
+			{
+				typeValueList.emplace_back(0);
+			}
+		}
+		roomGeoObject.setSurfaceTypeValues(typeValueList);
 		matchingCityRoomObject->addGeoObject(roomGeoObject);
 	}
 	return;
@@ -4781,7 +4847,7 @@ void CJGeoCreator::getOuterRaySurfaces(std::vector<std::pair<TopoDS_Face, IfcSch
 		});
 	}
 
-	//threadList.emplace_back([&] {updateCounter("Evaluating outer objects", totalValueObjectList.size(), processedObjects, listMutex);  });
+	threadList.emplace_back([&] {updateCounter("Evaluating outer objects", totalValueObjectList.size(), processedObjects, listMutex);  });
 
 	for (auto& thread : threadList) {
 		if (thread.joinable()) {
@@ -4820,85 +4886,90 @@ void CJGeoCreator::getOuterRaySurfaces(
 			const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
 			if (helperFunctions::getPointCount(currentFace) < 3) {continue; }
 
-			//Create a grid over the surface and the offsetted wire
-			std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentFace, settingsCollection.voxelSize());
-			std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentFace, settingsCollection.voxelSize());
-			surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
+			std::vector<TopoDS_Face> tesselatedFaceList = helperFunctions::TessellateFace(currentFace);
 
-			// cast a line from the grid to surrounding voxels
-			for (const gp_Pnt& gridPoint : surfaceGridList)
+			for (const TopoDS_Face& currentTesselatedFace : tesselatedFaceList)
 			{
-				bg::model::box<BoostPoint3D> pointQuerybox(
-					{ gridPoint.X() - searchBuffer, gridPoint.Y() - searchBuffer, gridPoint.Z() - searchBuffer },
-					{ gridPoint.X() + searchBuffer, gridPoint.Y() + searchBuffer, gridPoint.Z() + searchBuffer }
-				);
+				//Create a grid over the surface and the offsetted wire
+				std::vector<gp_Pnt> surfaceGridList = helperFunctions::getPointGridOnSurface(currentTesselatedFace, SettingsCollection::getInstance().surfaceGridSize());
+				std::vector<gp_Pnt> wireGridList = helperFunctions::getPointGridOnWire(currentTesselatedFace, SettingsCollection::getInstance().surfaceGridSize());
+				surfaceGridList.insert(surfaceGridList.end(), wireGridList.begin(), wireGridList.end());
 
-				std::vector<std::pair<BoostBox3D, std::shared_ptr<voxel>>> pointQResult;
-				voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
-				//check if ray castline cleared
-				for (const auto& [voxelBBox, targetVoxel] : pointQResult)
+				// cast a line from the grid to surrounding voxels
+				for (const gp_Pnt& gridPoint : surfaceGridList)
 				{
-					bool clearLine = true;
-					const gp_Pnt& targetPoint = targetVoxel->getOCCTCenterPoint();
-					bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetPoint, precision));
-					std::vector<std::pair<BoostBox3D, TopoDS_Face>>faceQResult;
-					faceIdx.query(bgi::intersects(productQuerybox), std::back_inserter(faceQResult));
+					bg::model::box<BoostPoint3D> pointQuerybox(
+						{ gridPoint.X() - searchBuffer, gridPoint.Y() - searchBuffer, gridPoint.Z() - searchBuffer },
+						{ gridPoint.X() + searchBuffer, gridPoint.Y() + searchBuffer, gridPoint.Z() + searchBuffer }
+					);
 
-					for (const std::pair<BoostBox3D, TopoDS_Face>& facePair : faceQResult)
+					std::vector<std::pair<BoostBox3D, std::shared_ptr<voxel>>> pointQResult;
+					voxelIndex.query(bgi::intersects(pointQuerybox), std::back_inserter(pointQResult));
+					//check if ray castline cleared
+					for (const auto& [voxelBBox, targetVoxel] : pointQResult)
 					{
-						// get the potential faces
-						const TopoDS_Face& otherFace = facePair.second;
-						if (currentFace.IsEqual(otherFace)) { continue; }
+						bool clearLine = true;
+						const gp_Pnt& targetPoint = targetVoxel->getOCCTCenterPoint();
+						bg::model::box<BoostPoint3D> productQuerybox(helperFunctions::createBBox(gridPoint, targetPoint, precision));
+						std::vector<std::pair<BoostBox3D, TopoDS_Face>>faceQResult;
+						faceIdx.query(bgi::intersects(productQuerybox), std::back_inserter(faceQResult));
 
-						if (helperFunctions::pointOnFace(otherFace, gridPoint))
+						for (const std::pair<BoostBox3D, TopoDS_Face>& facePair : faceQResult)
 						{
-							clearLine = false;
-							break;
-						}
+							// get the potential faces
+							const TopoDS_Face& otherFace = facePair.second;
+							if (currentFace.IsEqual(otherFace)) { continue; }
 
-						//test for linear intersections
-						TopLoc_Location loc;
-						auto mesh = BRep_Tool::Triangulation(otherFace, loc);
-
-						if (mesh.IsNull()) {
-							//TODO: add error
-							continue;
-						}
-
-						for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: index this?
-						{
-							const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-
-							std::vector<gp_Pnt> trianglePoints{
-								mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
-								mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
-								mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
-							};
-
-							if (helperFunctions::triangleIntersecting({ gridPoint, targetPoint }, trianglePoints))
+							if (helperFunctions::pointOnFace(otherFace, gridPoint))
 							{
 								clearLine = false;
 								break;
 							}
+
+							//test for linear intersections
+							TopLoc_Location loc;
+							auto mesh = BRep_Tool::Triangulation(otherFace, loc);
+
+							if (mesh.IsNull()) {
+								//TODO: add error
+								continue;
+							}
+
+							for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: index this?
+							{
+								const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
+
+								std::vector<gp_Pnt> trianglePoints{
+									mesh->Nodes().Value(theTriangle(1)).Transformed(loc),
+									mesh->Nodes().Value(theTriangle(2)).Transformed(loc),
+									mesh->Nodes().Value(theTriangle(3)).Transformed(loc)
+								};
+
+								if (helperFunctions::triangleIntersecting({ gridPoint, targetPoint }, trianglePoints))
+								{
+									clearLine = false;
+									break;
+								}
+							}
+							if (!clearLine) { break; }
 						}
-						if (!clearLine) { break; }
+						if (clearLine)
+						{
+							faceIsExterior = true;
+							break;
+						}
 					}
-					if (clearLine)
+					if (faceIsExterior)
 					{
-						faceIsExterior = true;
 						break;
 					}
 				}
-				if (faceIsExterior)
-				{
-					break;
-				}
-			}
-			if (!faceIsExterior) { continue; }
+				if (!faceIsExterior) { continue; }
 
-			std::unique_lock<std::mutex> listLock(listmutex);
-			outerSurfacePairList.emplace_back(std::make_pair(currentFace, lookup->getProductPtr()));
-			listLock.unlock();
+				std::unique_lock<std::mutex> listLock(listmutex);
+				outerSurfacePairList.emplace_back(std::make_pair(currentTesselatedFace, lookup->getProductPtr()));
+				listLock.unlock();
+			}
 		}
 	}
 	return;
