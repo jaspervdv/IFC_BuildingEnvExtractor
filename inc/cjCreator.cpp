@@ -2335,7 +2335,7 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 		std::string productType = product->data().type()->name();
 		const TopoDS_Face& currentFace = currentFacePair.first;
 
-		if (productType == "IfcPlate") //TODO: make this smarter
+		if (productType == "IfcPlate")
 		{
 			std::map<std::string, std::string> windowMap;
 			if (!helperFunctions::hasGlassMaterial(product))
@@ -2344,11 +2344,6 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 				continue;
 			}
 			productType = "IfcWindow";
-		}
-		if (productType == "IfcRoof")
-		{
-			outTypeValueList.emplace_back(2);
-			continue;
 		}
 		if (productType == "IfcWindow" || productType == "IfcDoor")
 		{
@@ -2383,7 +2378,12 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 			outSurfaceTypeCollection.emplace_back(objectMap);
 			continue;
 		}
-		if (productType == "IfcSlab")
+		else if (productType == "IfcRoof")
+		{
+			outTypeValueList.emplace_back(2);
+			continue;
+		}
+		else if (productType == "IfcSlab")
 		{
 			std::optional<gp_Pnt> pointOnface = helperFunctions::getPointOnFace(currentFacePair.first);
 			gp_Vec vecOfFace = helperFunctions::computeFaceNormal(currentFace);

@@ -19,6 +19,7 @@ class LoDSettings:
         self.lod12 = tkinter.IntVar(value=1)
         self.lod13 = tkinter.IntVar(value=1)
         self.lod22 = tkinter.IntVar(value=1)
+        self.translate = tkinter.IntVar(value=0)
         self.lod32r = tkinter.IntVar(value=0)
         self.lod32 = tkinter.IntVar(value=0)
         self.lod50 = tkinter.IntVar(value=0)
@@ -27,7 +28,7 @@ class LoDSettings:
         return any(lod.get() for lod in [
             self.lod00, self.lod02, self.lod03, self.lod04,
             self.lod10, self.lod12, self.lod13, self.lod22,
-            self.lod32r, self.lod32, self.lod50
+            self.translate, self.lod32r, self.lod32, self.lod50
         ])
 
 class voxelSettings:
@@ -307,6 +308,8 @@ def runCode(input_path,
     if (lod_settings.lod22).get():
         lod_list.append(2.2)
         json_dictionary["JSON"]["Footprint based"] = footprint_settings.footprint_based.get()
+    if (lod_settings.translate.get()):
+        lod_list.append("e.0")
     if (lod_settings.lod32r.get()):
         lod_list.append("e.1")
     if (lod_settings.lod32.get()):
@@ -638,6 +641,14 @@ toggle_makelod22 = ttk.Checkbutton(frame_lod_settings2, text="LoD2.2", variable=
                                        toggleMakeInterior(toggle_makeinterior)
                                    ])
 
+toggle_makelod11 = ttk.Checkbutton(frame_lod_settings3, text="1:1",  variable=lod_settings.translate,
+                                   command=lambda: [
+                                       toggleMakeFootprint(toggle_makefootprint),
+                                       toggleMakeRoofOutline(toggle_makeroofprint),
+                                       toggleMakeFootprintBased(toggle_footprint_based),
+                                       toggleMakeInterior(toggle_makeinterior)
+                                   ])
+
 toggle_makelode1 = ttk.Checkbutton(frame_lod_settings3, text="LoDe.1",  variable=lod_settings.lod32r,
                                    command=lambda: [
                                        toggleMakeFootprint(toggle_makefootprint),
@@ -671,10 +682,10 @@ toggle_makelod10.pack(side=tkinter.LEFT)
 toggle_makelod12.pack(side=tkinter.LEFT)
 toggle_makelod13.pack(side=tkinter.LEFT)
 toggle_makelod22.pack(side=tkinter.LEFT)
+toggle_makelod11.pack(side=tkinter.LEFT, padx=(0,19))
 toggle_makelode1.pack(side=tkinter.LEFT)
 toggle_makelod32.pack(side=tkinter.LEFT)
 toggle_makelod50.pack(side=tkinter.LEFT)
-
 
 text_format_settings = tkinter.Label(frame_lod_settings_gen, text="Additional format:")
 text_format_settings.pack(pady=[5,0])
