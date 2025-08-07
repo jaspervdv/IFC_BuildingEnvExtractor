@@ -4013,7 +4013,40 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 	finishedLoDe0_ = true;
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
-	for (const std::shared_ptr<CJT::CityObject>& storeyObject: storeyObjects_)
+
+	auto spatialIndx = h->getIndexPointer();
+	
+	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++ it)
+	{
+		Value test = *it;
+		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(test.second);
+		TopoDS_Shape currentShape = lookup->getProductShape();
+		if (currentShape.IsNull()) { continue; }
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
+		IfcSchema::IfcProduct* currentProduct = lookup->getProductPtr();
+
+		nlohmann::json attributeMap;
+		attributeMap[CJObjectEnum::getString(CJObjectID::CJType)] = "+" + currentProduct->data().type()->name();
+		nlohmann::json attributeList = h->collectPropertyValues(currentProduct->GlobalId());
+		for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
+			attributeMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value();
+		}
+
+		int faceCount = 0;
+		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) { faceCount++; }
+		std::vector<int>TypeValueList(faceCount, 0);
+
+		geoObject.setSurfaceTypeValues(TypeValueList);
+		geoObject.appendSurfaceData(attributeMap);
+		geoObjectList.emplace_back(geoObject);
+	}
+	
+
+
+
+
+	/*for (const std::shared_ptr<CJT::CityObject>& storeyObject : storeyObjects_)
 	{
 		std::vector<std::string> storeyGuidList = storeyObject->getAttributes()["IFC Guid"];
 		std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList = fetchStoreyObjects(h, storeyGuidList);
@@ -4050,6 +4083,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 			}
 		}
 	}
+	*/
 	printTime(startTime, std::chrono::steady_clock::now());
 	garbageCollection();
 	return geoObjectList;
