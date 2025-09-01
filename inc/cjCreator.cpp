@@ -4008,22 +4008,24 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe0) << std::endl;
 	auto startTime = std::chrono::steady_clock::now();
-
-	if (storeyObjects_.empty()){makeStoreyObjects(h);}
 	finishedLoDe0_ = true;
 
-	std::vector< CJT::GeoObject> geoObjectList; // final output collection
+	gp_Trsf localRotationTrsf;
+	localRotationTrsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -settingsCollection.gridRotation());
 
+	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	auto spatialIndx = h->getIndexPointer();
-	
+
+	std::vector<TopoDS_Shape> collectionShape;
 	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++ it)
 	{
 		Value test = *it;
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(test.second);
 		TopoDS_Shape currentShape = lookup->getProductShape();
 		if (currentShape.IsNull()) { continue; }
+		currentShape.Move(localRotationTrsf);
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
+
 		IfcSchema::IfcProduct* currentProduct = lookup->getProductPtr();
 
 		nlohmann::json attributeMap;
@@ -4034,56 +4036,29 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 		}
 
 		int faceCount = 0;
-		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) { faceCount++; }
+		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) 
+		{ 
+			faceCount++;
+		}
 		std::vector<int>TypeValueList(faceCount, 0);
 
+		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
 		geoObject.setSurfaceTypeValues(TypeValueList);
 		geoObject.appendSurfaceData(attributeMap);
 		geoObjectList.emplace_back(geoObject);
+
+		collectionShape.emplace_back(currentShape);
 	}
-	
-
-
-
-
-	/*for (const std::shared_ptr<CJT::CityObject>& storeyObject : storeyObjects_)
+	if (settingsCollection.createOBJ())
 	{
-		std::vector<std::string> storeyGuidList = storeyObject->getAttributes()["IFC Guid"];
-		std::vector< IfcSchema::IfcBuildingStorey*> ifcStoreyList = fetchStoreyObjects(h, storeyGuidList);
-
-		for (IfcSchema::IfcBuildingStorey* currentStorey : ifcStoreyList)
-		{
-			IfcSchema::IfcRelContainedInSpatialStructure::list::ptr containedStructure = currentStorey->ContainsElements()->as<IfcSchema::IfcRelContainedInSpatialStructure>();
-			for (auto csit = containedStructure->begin(); csit != containedStructure->end(); ++csit)
-			{
-				IfcSchema::IfcProduct::list::ptr storeyRelatedProducts = (*csit)->RelatedElements();
-				for (auto srit = storeyRelatedProducts->begin(); srit != storeyRelatedProducts->end(); ++srit)
-				{
-					IfcSchema::IfcProduct* currentProduct = *srit;
-					TopoDS_Shape currentShape = h->getObjectShapeFromMem(currentProduct, true);
-
-					if (currentShape.IsNull()) { continue; }
-					CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
-
-					nlohmann::json attributeMap;
-					attributeMap[CJObjectEnum::getString(CJObjectID::CJType)] = "+" + currentProduct->data().type()->name();
-					nlohmann::json attributeList = h->collectPropertyValues(currentProduct->GlobalId());
-					for (auto jsonObIt = attributeList.begin(); jsonObIt != attributeList.end(); ++jsonObIt) {
-						attributeMap[sourceIdentifierEnum::getString(sourceIdentifierID::ifc) + jsonObIt.key()] = jsonObIt.value();
-					}
-
-					int faceCount = 0;
-					for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) { faceCount++; }
-					std::vector<int>TypeValueList(faceCount, 0);
-
-					geoObject.setSurfaceTypeValues(TypeValueList);
-					geoObject.appendSurfaceData(attributeMap);
-					geoObjectList.emplace_back(geoObject);
-				}
-			}
-		}
+		helperFunctions::writeToOBJ(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDe0));
 	}
-	*/
+
+	if (settingsCollection.createSTEP())
+	{
+		helperFunctions::writeToSTEP(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDe0));
+	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	garbageCollection();
 	return geoObjectList;

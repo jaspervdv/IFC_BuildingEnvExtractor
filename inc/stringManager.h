@@ -63,7 +63,7 @@ enum class CommunicationStringID {
 	infoParsingFiles,
 	infoInternalizingGeo,
 	infoCreateSpatialIndex,
-	infoApplyVoids,
+	infoIgnoreVoids,
 	infoFoundUnits,
 	infoDefaultVolumeUnit,
 
@@ -152,6 +152,7 @@ enum class fileExtensionID {
 	OBJLoDb,
 	OBJLoDc1,
 	OBJLoDd1,
+	OBJLoDe0,
 	OBJLoDe1,
 	OBJLoD32,
 	OBJLoD50,
@@ -167,6 +168,7 @@ enum class fileExtensionID {
 	STEPLoDb,
 	STEPLoDc1,
 	STEPLoDd1,
+	STEPLoDe0,
 	STEPLoDe1,
 	STEPLoD32,
 	STEPLoD50,
@@ -213,7 +215,7 @@ enum class JsonObjectInID {
 	IFCIgnoreProxy,
 	IFCDivObject,
 	IFCsimplefyGeo,
-	IFCapplyVoids,
+	IFCignoreVoids,
 	IFCignoreSimple,
 	IFCCorrentPlacement,
 

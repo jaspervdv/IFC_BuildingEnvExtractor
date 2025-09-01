@@ -84,7 +84,7 @@ private:
         "IfcDoor",
         "IfcWindow"
     };
-    int applyVoidGrade_ = 0;
+    int ignoreVoidGrade_ = 0;
     bool simplefyGeo_ = true;
     std::vector<std::string> ignoreSimplificationList_;
 
@@ -329,9 +329,9 @@ public:
     void setUseProxy(bool value) { useProxy_ = value; }
     void setUseProxy(const nlohmann::json& json);
 
-    int applyVoidGrade() const { return applyVoidGrade_; }
-    void setApplyVoidGrade(int value) { applyVoidGrade_ = value; }
-    void setApplyVoidGrade(const nlohmann::json& json); 
+    int ignoreVoidGrade() const { return ignoreVoidGrade_; }
+    void setIgnoreVoidGrade(int value) { ignoreVoidGrade_ = value; }
+    void setIgnoreVoidGrade(const nlohmann::json& json); 
     
     bool simplefyGeo() const { return simplefyGeo_; }
     void setSimplefyGeo(bool value) { simplefyGeo_ = value; }

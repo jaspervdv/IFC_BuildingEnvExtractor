@@ -689,7 +689,7 @@ void DataManager::updateShapeMemory(IfcSchema::IfcProduct* product, TopoDS_Shape
 void DataManager::applyVoids()
 {
 	//TODO: make this work with the opening objects list 
-	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoApplyVoids) << std::endl;
+	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoIgnoreVoids) << std::endl;
 	timedVoidShapeAdjust<IfcSchema::IfcWall>("IfcWall");
 	timedVoidShapeAdjust<IfcSchema::IfcSlab>("IfcSlab");
 	timedVoidShapeAdjust<IfcSchema::IfcRoof>("IfcRoof");
@@ -1093,7 +1093,7 @@ void DataManager::indexGeo()
 	}
 	std::cout << std::endl;
 	// find valid voids
-	if (settingsCollection.applyVoidGrade() == 1)
+	if (settingsCollection.ignoreVoidGrade() == 1)
 	{
 		applyVoids();
 	}
@@ -1470,7 +1470,7 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	std::string objectType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
-	int simplefyGeoGrade = SettingsCollection::getInstance().applyVoidGrade();
+	int simplefyGeoGrade = SettingsCollection::getInstance().ignoreVoidGrade();
 
 	if (simplefyGeoGrade == 0) { isSimple = false; }
 	else if (simplefyGeoGrade == 2) { isSimple = true; }

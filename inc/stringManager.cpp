@@ -68,8 +68,8 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Internalizing Geometry of Construction Model";
 	case CommunicationStringID::infoCreateSpatialIndex:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Create Spatial Index";
-	case CommunicationStringID::infoApplyVoids:
-		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "apply voids";
+	case CommunicationStringID::infoIgnoreVoids:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Ignore voids";
 	case CommunicationStringID::infoFoundUnits:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Found units:";
 	case CommunicationStringID::infoDefaultVolumeUnit:
@@ -448,6 +448,8 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::OBJ);	
 	case fileExtensionID::OBJLoDd1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDd1" + getString(fileExtensionID::OBJ);	
+	case fileExtensionID::OBJLoDe0:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe0" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoDe1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::OBJ);
 	case fileExtensionID::OBJLoD32:
@@ -477,6 +479,8 @@ std::string fileExtensionEnum::getString(fileExtensionID id)
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDc1" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoDd1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDd1" + getString(fileExtensionID::STEP);
+	case fileExtensionID::STEPLoDe0:
+		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe0" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoDe1:
 		return getString(fileExtensionID::dash) + getString(fileExtensionID::exterior) + "LoDe1" + getString(fileExtensionID::STEP);
 	case fileExtensionID::STEPLoD32:
@@ -572,8 +576,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Div objects";
 	case JsonObjectInID::IFCsimplefyGeo:
 		return "Simplify geometry";
-	case JsonObjectInID::IFCapplyVoids:
-		return "Apply voids";
+	case JsonObjectInID::IFCignoreVoids:
+		return "Ignore voids";
 	case JsonObjectInID::IFCignoreSimple:
 		return "Ignore simplification";
 	case JsonObjectInID::IFCCorrentPlacement:

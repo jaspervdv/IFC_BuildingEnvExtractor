@@ -209,12 +209,12 @@ void IOManager::printSummary()
 	{
 		std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.desiredRotation() << "\n";
 	}
-	std::cout << "- Apply void grade:\n";
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.applyVoidGrade() << "\n";
+	std::cout << "- Ignore void grade:\n";
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.ignoreVoidGrade() << "\n";
 	std::cout << "- Simplify geometry:\n";
 	std::cout << boolToString(settingsCollection.simplefyGeo()) << "\n";
 	std::cout << "- Ignore simplification for: \n";
-	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getIgnoreSimplificationList().size() << std::endl;
+	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.getIgnoreSimplificationList().size() << " object(s)" << std::endl;
 	std::cout << "- Space dividing objects:\n";
 	if (settingsCollection.useDefaultDiv())
 	{
@@ -268,9 +268,9 @@ void IOManager::printSummary()
 	std::cout << "- Max thread count\n";
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << settingsCollection.threadcount() << "\n\n";
 
-	if (settingsCollection.applyVoidGrade() != 0 && settingsCollection.summaryVoxels() ||
-		settingsCollection.applyVoidGrade() != 0 && settingsCollection.makeV() ||
-		settingsCollection.applyVoidGrade() != 0 && settingsCollection.make32())
+	if (settingsCollection.ignoreVoidGrade() != 0 && settingsCollection.summaryVoxels() ||
+		settingsCollection.ignoreVoidGrade() != 0 && settingsCollection.makeV() ||
+		settingsCollection.ignoreVoidGrade() != 0 && settingsCollection.make32())
 	{
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningSimplefication) << "\n\n";
 		ErrorCollection::getInstance().addError(ErrorID::warningSimplefication);
@@ -406,7 +406,7 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string ifcOName = JsonObjectInEnum::getString(JsonObjectInID::IFC);
 	std::string ifcRotationOName = JsonObjectInEnum::getString(JsonObjectInID::IFCRotationAngle);
 	std::string ifcDivOName = JsonObjectInEnum::getString(JsonObjectInID::IFCDivObject);
-	std::string ifcApplyVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
+	std::string ifcignoreVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCignoreVoids);
 	std::string ifcSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCsimplefyGeo);
 	std::string ifcIgnoreSimpleOName = JsonObjectInEnum::getString(JsonObjectInID::IFCignoreSimple);
 	
@@ -426,7 +426,7 @@ nlohmann::json IOManager::settingsToJSON()
 	{
 		ifcJSON[ifcDivOName] = settingsCollection.getCustomDivList();
 	}
-	ifcJSON[ifcApplyVoidOName] = settingsCollection.applyVoidGrade();
+	ifcJSON[ifcignoreVoidOName] = settingsCollection.ignoreVoidGrade();
 	ifcJSON[ifcSimpleOName] = settingsCollection.simplefyGeo();
 	ifcJSON[ifcIgnoreSimpleOName] = settingsCollection.getIgnoreSimplificationList();
 	settingsJSON[ifcOName] = ifcJSON;

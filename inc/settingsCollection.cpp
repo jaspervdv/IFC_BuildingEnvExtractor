@@ -185,7 +185,7 @@ void SettingsCollection::setIFCRelatedSettings(const nlohmann::json& json)
 		setUseDefaultDiv(ifcDataJson);
 		setUseProxy(ifcDataJson);
 		setCustomDivList(ifcDataJson);
-		setApplyVoidGrade(ifcDataJson);
+		setIgnoreVoidGrade(ifcDataJson);
 		setSimplefyGeo(ifcDataJson);
 		setIgnoreSimplificationList(ifcDataJson);
 		setCorrectPlacement(ifcDataJson);
@@ -834,27 +834,27 @@ void SettingsCollection::setUseProxy(const nlohmann::json& json)
 	return;
 }
 
-void SettingsCollection::setApplyVoidGrade(const nlohmann::json& json)
+void SettingsCollection::setIgnoreVoidGrade(const nlohmann::json& json)
 {
-	std::string applyVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCapplyVoids);
-	if (json.contains(applyVoidOName))
+	std::string ignoreVoidOName = JsonObjectInEnum::getString(JsonObjectInID::IFCignoreVoids);
+	if (json.contains(ignoreVoidOName))
 	{
 		try
 		{
-			int applyVoidInt = getJsonInt(json[applyVoidOName], false, false);
+			int ignoreVoidInt = getJsonInt(json[ignoreVoidOName], false, false);
 
-			if (applyVoidInt < 0 && applyVoidInt > 3)
+			if (ignoreVoidInt < 0 && ignoreVoidInt > 3)
 			{
 				//TODO: add error
 				return;
 			}
 
-			setApplyVoidGrade(applyVoidInt);
+			setIgnoreVoidGrade(ignoreVoidInt);
 		}
 		catch (const ErrorID& exceptionId)
 		{
-			ErrorCollection::getInstance().addError(exceptionId, applyVoidOName);
-			throw std::string(errorWarningStringEnum::getString(exceptionId) + applyVoidOName);
+			ErrorCollection::getInstance().addError(exceptionId, ignoreVoidOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + ignoreVoidOName);
 		}
 	}
 	return;

@@ -3159,6 +3159,7 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 	std::vector<std::vector<int>> nestedTriangleIndx;
 	std::unordered_map<gp_XYZ, int, gp_XYZ_Hash, gp_XYZ_Equal> vertMap;
 
+	int counter = 0;
 	for (const T& theShape : theShapeList)
 	{
 		for (TopExp_Explorer exp(theShape, TopAbs_FACE); exp.More(); exp.Next()) {
