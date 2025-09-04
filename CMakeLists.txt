@@ -11,6 +11,7 @@ find_package(nlohmann_json REQUIRED)
 
 # IFCOpenShell
 if("${IFC_INCLUDE_DIR}" STREQUAL "")
+    set(IFC_INCLUDE_DIR "" CACHE PATH "Path to IFCOpenShell include directory")
     if(UNIX)
         find_path(IFC_INCLUDE_DIR ifcgeom/IfcGeom.h
         PATHS

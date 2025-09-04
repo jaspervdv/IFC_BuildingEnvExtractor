@@ -643,7 +643,7 @@ std::unique_ptr<gp_Pnt> IOManager::FetchMainEntranceLocation(std::unique_ptr<gp_
 			}
 
 			// if is main entrance
-			TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, true);
+			TopoDS_Shape currentShape = internalDataManager_->getObjectShape(currentDoor, false, true);
 			gp_Pnt lll;
 			gp_Pnt urr;
 			helperFunctions::bBoxDiagonal(currentShape, &lll, &urr);

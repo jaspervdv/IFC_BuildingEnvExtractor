@@ -11,6 +11,8 @@
 
 #include <sys/stat.h>
 
+#include <Poly_Triangulation.hxx>
+
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
@@ -760,9 +762,10 @@ double helperFunctions::getAverageZ(const T& shape) {
 
 
 gp_Pnt helperFunctions::getTriangleCenter(const opencascade::handle<Poly_Triangulation>& mesh, const Poly_Triangle& theTriangle, const TopLoc_Location& loc) {
-	gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-	gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-	gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+
+	gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
+	gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
+	gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
 	gp_Pnt middlePoint = gp_Pnt(
 		(p1.X() + p2.X() + p3.X()) / 3,
@@ -872,9 +875,9 @@ bool helperFunctions::pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& theP
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
 
-		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+		gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
 		double baseArea = computeArea(p1, p2, p3);
 
@@ -1480,9 +1483,10 @@ bool helperFunctions::LineShapeIntersection(const TopoDS_Face& theFace, const gp
 	for (int j = 1; j <= mesh.get()->NbTriangles(); j++) //TODO: if large num indx?
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
-		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+		
+		gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
 		if (inZdir)
 		{
@@ -2055,9 +2059,9 @@ std::vector<TopoDS_Face> helperFunctions::TriangulateFace(const TopoDS_Face& the
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
 
-		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+		gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
 		TopoDS_Face triangleFace = createPlanarFace(p1, p2, p3);
 
@@ -3715,9 +3719,9 @@ bool helperFunctions::isFlat(const TopoDS_Face& theFace)
 	for (int i = 1; i <= mesh.get()->NbTriangles(); i++)
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
-		gp_Pnt p1 = mesh->Nodes().Value(theTriangle(1)).Transformed(loc);
-		gp_Pnt p2 = mesh->Nodes().Value(theTriangle(2)).Transformed(loc);
-		gp_Pnt p3 = mesh->Nodes().Value(theTriangle(3)).Transformed(loc);
+		gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
+		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
+		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
 		gp_Vec v1(p1, p2);
 		gp_Vec v2(p1, p3);

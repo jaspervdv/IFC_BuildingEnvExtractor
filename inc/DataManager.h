@@ -171,8 +171,8 @@ private:
 
 	/// get the product representation from the object from the kernel
 	IfcSchema::IfcRepresentation* getProductRepPtr(IfcSchema::IfcProduct* product);
-	/// get object shapes from the objects that are grouped in the current product
-	TopoDS_Shape getNestedObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);
+	/// get the products that are nested inside of the main product
+	IfcSchema::IfcProduct::list::ptr getNestedProductList(IfcSchema::IfcProduct* product);
 	/// get flat pointlist of the input product list
 	template<typename T>
 	std::vector<gp_Pnt> getObjectListPoints(bool simple = false);
@@ -270,7 +270,10 @@ public:
 	TopoDS_Shape getObjectShapeFromMem(IfcSchema::IfcProduct* product, bool isSimple);
 
 	/// get the shape of an ifcproduct
-	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool isSimple = false);
+	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool getNested = false, bool isSimple = false, bool fromMemOnly = false);
+
+	/// get the shape of an ifcproduct
+
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

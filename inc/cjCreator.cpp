@@ -910,7 +910,7 @@ void CJGeoCreator::makeFloorSectionComplex(
 				for (auto srit = storeyRelatedProducts->begin(); srit != storeyRelatedProducts->end(); ++srit)
 				{
 					IfcSchema::IfcProduct* currentProduct = *srit;
-					TopoDS_Shape currentShape = h->getObjectShapeFromMem(currentProduct, true);
+					TopoDS_Shape currentShape = h->getObjectShape(currentProduct, true, true, true);
 
 					if (currentShape.IsNull()) { continue; }
 					storeyRelatedShapeList.emplace_back(currentShape);
@@ -936,7 +936,6 @@ void CJGeoCreator::makeFloorSectionComplex(
 		return;
 	}
 	std::vector<TopoDS_Shape> faceCluster = helperFunctions::planarFaces2Cluster(cleanedFaceList); //TODO: list fix?
-
 
 	std::vector<TopoDS_Face> innerFaces;
 	std::vector<TopoDS_Face> outerFaces;
@@ -2585,6 +2584,16 @@ void CJGeoCreator::make2DStoreys(
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingStoreys02) << std::endl;
 	}
 
+	if (!hasTopFaces_)
+	{
+		initializeBasic(h);
+	}
+	if (buildingSurfaceDataList_.size() == 0)
+	{
+		return;
+	}
+
+
 	std::vector<std::thread> threadList;
 	std::mutex storeyMutex;
 	std::map<std::string, int> storyProgressList;
@@ -2745,7 +2754,6 @@ void CJGeoCreator::make2DStorey(
 	{
 		const TopoDS_Face& roofOutline = buildingSurfaceData.getRoofOutline();
 
-
 		// make compound
 		BRep_Builder builder;
 		TopoDS_Compound collectionShape;
@@ -2765,7 +2773,6 @@ void CJGeoCreator::make2DStorey(
 					continue;
 				}
 			}
-
 
 			TopoDS_Shape movedStoreyFace = currentStoreyFace.Moved(trsf);
 
@@ -2869,7 +2876,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 		if (!spaceFound) { continue; }
 
 		// get height values
-		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false, false);
 		double lowestZ = helperFunctions::getLowestZ(spaceShape);
 		double highestZ = helperFunctions::getHighestZ(spaceShape);
 
@@ -4270,7 +4277,7 @@ void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std:
 		if (!spaceFound) { continue; }
 
 		// get height values
-		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false);
+		TopoDS_Shape spaceShape = h->getObjectShape(spaceIfcObject, false, false);
 
 		spaceShape.Move(localRotationTrsf);
 		CJT::GeoObject roomGeoObject = kernel->convertToJSON(spaceShape, "3.2");
@@ -4511,7 +4518,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 		IfcSchema::IfcSite* siteElement = *siteElements->begin();
 		
 		if (!siteElement->Representation()) { continue; }
-		TopoDS_Shape siteShape = h->getObjectShape(siteElement);
+		TopoDS_Shape siteShape = h->getObjectShape(siteElement, true);
 
 		if (siteShape.IsNull()) { continue; }
 
@@ -4531,7 +4538,7 @@ std::vector<CJT::CityObject> CJGeoCreator::makeSite(DataManager* h, CJT::Kernel*
 				IfcSchema::IfcGeographicElement* geographicElement = *it;
 				if (geographicElement->PredefinedType() != IfcSchema::IfcGeographicElementTypeEnum::Value::IfcGeographicElementType_TERRAIN) { continue; }
 
-				TopoDS_Shape geographicShape = h->getObjectShape(geographicElement);
+				TopoDS_Shape geographicShape = h->getObjectShape(geographicElement, true);
 
 				if (geographicShape.IsNull()) { continue; }
 
@@ -5153,7 +5160,7 @@ std::vector < std::shared_ptr<CJT::CityObject >> CJGeoCreator::fetchRoomObject(D
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getSpaceLookup(qResult[k].second);
 		IfcSchema::IfcProduct* product = lookup->getProductPtr();
 
-		TopoDS_Shape productShape = h->getObjectShape(product, true);
+		TopoDS_Shape productShape = h->getObjectShape(product, false, true);
 		BRepClass3d_SolidClassifier solidClassifier;
 		solidClassifier.Load(productShape);
 		solidClassifier.Perform(roomPoint, 0.1);

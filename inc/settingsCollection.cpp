@@ -520,7 +520,7 @@ void SettingsCollection::setMakeSite(const nlohmann::json& json)
 
 void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 {
-	if (!makeExterior() ||
+	if (!makeExterior() && !make02() && !make03() ||
 		!make02() &&
 		!make03() &&
 		!make04() &&

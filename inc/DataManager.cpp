@@ -366,7 +366,7 @@ gp_Vec DataManager::computeObjectTranslation(const std::string& objectType)
 
 			gp_Pnt lllPoint;
 			gp_Pnt urrPoint;
-			TopoDS_Shape slabShape = getObjectShape(product, true);
+			TopoDS_Shape slabShape = getObjectShape(product, false, true);
 
 			if (slabShape.IsNull()) { continue; }
 			helperFunctions::bBoxDiagonal(helperFunctions::getPoints(slabShape), &lllPoint, &urrPoint, 0);
@@ -469,17 +469,27 @@ void DataManager::addObjectToIndex(IfcSchema::IfcProduct* product, bool addToRoo
 {
 	// pass over if dub
 	if (getObjectShapeLocation(product) != -1) { return; }
+
+	IfcSchema::IfcProduct::list::ptr productList = getNestedProductList(product);
+	if (productList->size())
+	{
+		for (auto it = productList->begin(); it != productList->end(); ++it)
+		{
+			addObjectToIndex(*it, addToRoomIndx);
+		}
+	}
+
 	std::string productType = product->data().type()->name();
 	std::unordered_set<std::string> openingObjects = SettingsCollection::getInstance().getOpeningObjectsList();
 
 	TopoDS_Shape shape;
 	if (openingObjects.find(productType) != openingObjects.end())
 	{
-		shape = getObjectShape(product, true); //TODO: fix bool, rn vague
+		shape = getObjectShape(product, false, true); //TODO: fix bool, rn vague
 	}
 	else
 	{
-		shape = getObjectShape(product);
+		shape = getObjectShape(product, false);
 	}
 
 	if (shape.IsNull())
@@ -598,8 +608,10 @@ IfcSchema::IfcRepresentation* DataManager::getProductRepPtr(IfcSchema::IfcProduc
 	return ifc_representation;
 }
 
-TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, bool isSimple)
+IfcSchema::IfcProduct::list::ptr DataManager::getNestedProductList(IfcSchema::IfcProduct* product)
 {
+	IfcSchema::IfcProduct::list::ptr outputList = boost::make_shared<IfcSchema::IfcProduct::list>();
+
 #if defined(USE_IFC4) || defined(USE_IFC4x3)
 	IfcSchema::IfcRelAggregates::list::ptr decomposedProducts = product->IsDecomposedBy();
 #else
@@ -608,10 +620,6 @@ TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, b
 
 	if (decomposedProducts->size() > 0)
 	{
-		BRep_Builder builder;
-		TopoDS_Compound collection;
-		builder.MakeCompound(collection);
-
 		for (auto et = decomposedProducts->begin(); et != decomposedProducts->end(); ++et) {
 #if defined(USE_IFC4) || defined(USE_IFC4x3)
 			IfcSchema::IfcRelAggregates* aggregates = *et;
@@ -624,16 +632,11 @@ TopoDS_Shape DataManager::getNestedObjectShape(IfcSchema::IfcProduct* product, b
 
 				IfcSchema::IfcObjectDefinition* aggDef = *rt;
 				IfcSchema::IfcProduct* addprod = aggDef->as<IfcSchema::IfcProduct>();
-
-				if (getObjectShapeLocation(addprod) != -1) { continue; } // if already internalized ignore
-
-				TopoDS_Shape addshapeSimple = getObjectShape(addprod, isSimple);
-				builder.Add(collection, addshapeSimple);
+				outputList->push(addprod);
 			}
 		}
-		return collection;
 	}
-	return {};
+	return outputList;
 }
 
 template<typename T>
@@ -657,7 +660,7 @@ std::vector<gp_Pnt> DataManager::getObjectListPoints(bool simple)
 
 std::vector<gp_Pnt> DataManager::getObjectPoints(IfcSchema::IfcProduct* product, bool simple)
 {
-	TopoDS_Shape productShape = getObjectShape(product, simple);
+	TopoDS_Shape productShape = getObjectShape(product, true, simple);
  	std::vector<gp_Pnt> pointList = helperFunctions::getPoints(productShape);
 	return pointList;
 }
@@ -732,11 +735,11 @@ void DataManager::voidShapeAdjust(T productList)
 		}
 		else if (validVoidShapes.size() == voidElementList->size())
 		{
-			TopoDS_Shape finalShape = getObjectShape(wallProduct, false);
+			TopoDS_Shape finalShape = getObjectShape(wallProduct, false, false);
 			updateShapeMemory(wallProduct, finalShape);
 		}
 
-		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, true);
+		TopoDS_Shape untrimmedWallShape = getObjectShape(wallProduct, false, true);
 		TopoDS_Shape finalShape = applyVoidtoShape(untrimmedWallShape, validVoidShapes);
 
 		if (finalShape.IsNull()) { continue; }
@@ -754,7 +757,7 @@ std::vector<TopoDS_Shape> DataManager::computeEmptyVoids(IfcSchema::IfcRelVoidsE
 	{
 		IfcSchema::IfcRelVoidsElement* voidElement = *et;
 		IfcSchema::IfcFeatureElementSubtraction* openingElement = voidElement->RelatedOpeningElement();
-		TopoDS_Shape substractionShape = getObjectShape(openingElement);
+		TopoDS_Shape substractionShape = getObjectShape(openingElement, false);
 
 		// find void occupying objects
 		gp_Pnt lllPoint;
@@ -785,7 +788,7 @@ std::vector<TopoDS_Shape> DataManager::computeEmptyVoids(IfcSchema::IfcRelVoidsE
 			IfcSchema::IfcProduct* qProduct = lookup->getProductPtr();
 			if (cuttingObjects.find(qProduct->data().type()->name()) == cuttingObjects.end()) { continue; }
 
-			TopoDS_Shape qShape = getObjectShape(qProduct);
+			TopoDS_Shape qShape = getObjectShape(qProduct, false);
 			for (TopExp_Explorer expl(qShape, TopAbs_VERTEX); expl.More(); expl.Next())
 			{
 				insideChecker.Perform(BRep_Tool::Pnt(TopoDS::Vertex(expl.Current())), 0.01);
@@ -1464,7 +1467,7 @@ TopoDS_Shape DataManager::getObjectShapeFromMem(IfcSchema::IfcProduct* product, 
 }
 
 
-TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool isSimple)
+TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool getNested, bool isSimple, bool fromMemOnly)
 {
 	// filter with lookup
 	std::string objectType = product->data().type()->name();
@@ -1484,8 +1487,26 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 
 	if (ifc_representation == nullptr)
 	{
-		return getNestedObjectShape(product, isSimple);
+		if (!getNested) { return{}; }
+		IfcSchema::IfcProduct::list::ptr nestedProductList = getNestedProductList(product);
+
+		BRep_Builder builder;
+		TopoDS_Compound collection;
+		builder.MakeCompound(collection);
+
+		for (auto productIt = nestedProductList->begin(); productIt != nestedProductList->end(); ++productIt) {
+			IfcSchema::IfcProduct* addprod = *productIt;
+			TopoDS_Shape addshapeSimple = getObjectShape(addprod, getNested, isSimple, fromMemOnly);
+			if (addshapeSimple.IsNull()) { continue; }
+			builder.Add(collection, addshapeSimple);
+		}
+		if (!collection.NbChildren()) { return {}; }
+		return collection;
 	}	
+	else
+	{
+		if (fromMemOnly) { return {}; }
+	}
 
 	IfcGeom::Kernel* kernelObject = getKernelObject(product->GlobalId());
 	if (kernelObject == nullptr) {
@@ -1497,6 +1518,7 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool is
 	convertMutex_.lock();
 	kernelObject->convert_placement(product->ObjectPlacement(), trsf);
 	convertMutex_.unlock();
+
 	IfcGeom::IteratorSettings iteratorSettings = SettingsCollection::getInstance().iteratorSettings(isSimple);
 
 	convertMutex_.lock();
