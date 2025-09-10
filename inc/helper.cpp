@@ -802,6 +802,7 @@ std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace
 		if (isEdge) { continue; }
 		return point;
 	}
+
 	return std::nullopt;
 }
 
@@ -938,10 +939,37 @@ bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& theP
 	gp_Pnt p1 = getFirstPointShape(theEdge);
 	gp_Pnt p2 = getLastPointShape(theEdge);
 
-	double baseDistance = p1.Distance(p2);
+	gp_Vec v12 = gp_Vec(p1, p2);
+	gp_Vec v1p = gp_Vec(p1, thePoint);
 
-	if (abs(baseDistance - (p1.Distance(thePoint) + p2.Distance(thePoint))) < precision) { return true; }
-	return false;
+	if (v12.Magnitude() < precision) { return false; }
+	if (v1p.Magnitude() < precision) { return true; }
+
+	double projectionPar = v1p.Dot(v12) / v12.Dot(v12);
+
+	if (projectionPar < 0)
+	{
+		if (p1.Distance(thePoint) > precision)
+		{
+			return false;
+		}
+		return true;
+	}
+	if (projectionPar > 1)
+	{
+		if (p2.Distance(thePoint) > precision)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	gp_Pnt projectionPoint = p1.XYZ() + projectionPar * v12.XYZ();
+	if (projectionPoint.Distance(thePoint) > precision )
+	{
+		return false;
+	}
+	return true;
 }
 
 
@@ -3744,4 +3772,32 @@ bool helperFunctions::isFlat(const TopoDS_Face& theFace)
 		}
 	}
 	return true;
+}
+
+std::vector<TopoDS_Face> helperFunctions::sortFaces(const std::vector<TopoDS_Face>& faceList)
+{
+	// sort the surfaces 
+
+	if (faceList.size() < 2) { return faceList; }
+
+	std::vector<double> areaList;
+	for (const TopoDS_Face& currentFace : faceList)
+	{
+		double currentArea = helperFunctions::computeArea(currentFace);
+		areaList.emplace_back(currentArea);
+	}
+
+	std::vector<int> indices(faceList.size());
+	std::iota(indices.begin(), indices.end(), 0);
+	std::sort(indices.begin(), indices.end(),
+		[&](int A, int B) -> bool {
+			return areaList[A] < areaList[B];
+		});
+
+	std::vector<TopoDS_Face> sortedFaceColl;
+	for (int currentIndx : indices)
+	{
+		sortedFaceColl.emplace_back(faceList[currentIndx]);
+	}
+	return sortedFaceColl;
 }

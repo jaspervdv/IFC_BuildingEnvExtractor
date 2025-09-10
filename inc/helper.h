@@ -1,5 +1,5 @@
 #define USE_IFC4x3
-#define iterationVersion "0.2.5"
+#define iterationVersion "0.2.6"
 
 #ifdef USE_IFC2x3
 #define IfcSchema Ifc2x3
@@ -351,6 +351,9 @@ struct helperFunctions{
 
 	/// checks if the face is flat
 	static bool isFlat(const TopoDS_Face& theFace);
+
+	/// sorts the list of faces based on its area
+	static std::vector<TopoDS_Face> sortFaces(const std::vector<TopoDS_Face>& faceList);
 
 };
 #endif // HELPER_HELPER_H

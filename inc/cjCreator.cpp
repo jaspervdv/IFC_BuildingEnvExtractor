@@ -1206,7 +1206,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	for (const auto& [currentBox, currentFace] : cuttingFaceIdx) { toBesSplitFaceList.emplace_back(currentFace);}
 
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
-
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
@@ -1227,6 +1226,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		bool isDub = false;
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
 		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalCurrentPoint == std::nullopt) { continue; }
 		gp_Pnt currentPoint = *optionalCurrentPoint;
 
 		int isSameCount = 0;
