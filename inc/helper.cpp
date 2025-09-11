@@ -939,30 +939,17 @@ bool helperFunctions::pointOnEdge(const TopoDS_Edge& theEdge, const gp_Pnt& theP
 	gp_Pnt p1 = getFirstPointShape(theEdge);
 	gp_Pnt p2 = getLastPointShape(theEdge);
 
+	if (p1.Distance(thePoint) < precision) { return true; }
+	if (p2.Distance(thePoint) < precision) { return true; }
+	if (p1.Distance(p2) < precision) return false;
+
 	gp_Vec v12 = gp_Vec(p1, p2);
 	gp_Vec v1p = gp_Vec(p1, thePoint);
 
-	if (v12.Magnitude() < precision) { return false; }
-	if (v1p.Magnitude() < precision) { return true; }
-
 	double projectionPar = v1p.Dot(v12) / v12.Dot(v12);
 
-	if (projectionPar < 0)
-	{
-		if (p1.Distance(thePoint) > precision)
-		{
-			return false;
-		}
-		return true;
-	}
-	if (projectionPar > 1)
-	{
-		if (p2.Distance(thePoint) > precision)
-		{
-			return false;
-		}
-		return true;
-	}
+	if (projectionPar < 0.0) projectionPar = 0.0;
+	else if (projectionPar > 1.0) projectionPar = 1.0;
 
 	gp_Pnt projectionPoint = p1.XYZ() + projectionPar * v12.XYZ();
 	if (projectionPoint.Distance(thePoint) > precision )
@@ -1347,54 +1334,51 @@ bool helperFunctions::surfaceIsIncapsulated(const TopoDS_Face& innerSurface, con
 	return true;
 }
 
-double helperFunctions::tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices) {
-	const gp_Pnt& vert0 = vertices[0];
-	const gp_Pnt& vert1 = vertices[1];
-	const gp_Pnt& vert2 = vertices[2];
-
-	BoostPoint3D p1(vert0.X() - vert1.X(), vert0.Y() - vert1.Y(), vert0.Z() - vert1.Z());
-	BoostPoint3D p2(vert1.X() - p.X(), vert1.Y() - p.Y(), vert1.Z() - p.Z());
-	BoostPoint3D p3(vert2.X() - p.X(), vert2.Y() - p.Y(), vert2.Z() - p.Z());
-
-	return bg::dot_product(p1, bg::cross_product(p2, p3)) / 6;
-}
-
 bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, const std::vector<gp_Pnt>& triangle)
 {
+	double precision = SettingsCollection::getInstance().spatialTolerance();
+
 	const gp_Pnt& lineStart = line[0];
 	const gp_Pnt& lineEnd = line[1];
 
-	for (size_t i = 0; i < 3; i++)
-	{
-		int ip = (i + 1) % 3;
-		int ipp = (i + 2) % 3;
+	gp_Vec triangleNormal = gp_Vec(triangle[0], triangle[1]).Crossed(gp_Vec(triangle[0], triangle[2]));
+	if (triangleNormal.Magnitude() < precision) { return false; }
+	triangleNormal.Normalize();
 
-		if (
-			hasSameSign(
-				tVolume(triangle[i], { triangle[ipp], lineStart, lineEnd }),
-				tVolume(triangle[ip], { triangle[ipp], lineStart, lineEnd }))
-			) { return false; }
+	double distancePlaneLineStart = triangleNormal.Dot(gp_Vec(triangle[0], lineStart));
+	double distancePlaneLineEnd = triangleNormal.Dot(gp_Vec(triangle[0], lineEnd));
+
+	if (std::abs(distancePlaneLineStart) < precision &&
+		std::abs(distancePlaneLineEnd) < precision)
+	{
+		return false;
+	}
+	if ((distancePlaneLineStart > 0 && distancePlaneLineEnd > 0) || (distancePlaneLineStart < 0 && distancePlaneLineEnd < 0))
+	{
+		return false;
 	}
 
-	double leftFinal = tVolume(lineStart, triangle);
-	double rightFinal = tVolume(lineEnd, triangle);
+	double lineParameter = distancePlaneLineStart / (distancePlaneLineStart - distancePlaneLineEnd);
+	if (lineParameter < -precision || lineParameter > 1.0 + precision)
+		return false; // intersection outside segment
 
-	double precision = SettingsCollection::getInstance().spatialTolerance();
+	gp_Pnt pIntersect = lineStart.XYZ() + lineParameter * gp_Vec(lineStart, lineEnd).XYZ();
 
-	if (abs(leftFinal) < precision || abs(rightFinal) < precision) { return false; } // if surfaces rest on eachother return 0
-	if (!hasSameSign(leftFinal, rightFinal)) { return true; }
-	return false;
-}
+	gp_Vec v0(triangle[0], triangle[2]);
+	gp_Vec v1(triangle[0], triangle[1]);
+	gp_Vec v2(triangle[0], pIntersect);
 
-bool helperFunctions::hasSameSign(const double& leftDouble, const double& rightDouble)
-{
-	double precision = SettingsCollection::getInstance().spatialTolerance();
-	const bool leftIsZero = std::abs(leftDouble) < precision;
-	const bool rightIsZero = std::abs(rightDouble) < precision;
+	double dot00 = v0.Dot(v0);
+	double dot01 = v0.Dot(v1);
+	double dot02 = v0.Dot(v2);
+	double dot11 = v1.Dot(v1);
+	double dot12 = v1.Dot(v2);
 
-	if (leftIsZero || rightIsZero) { return false; }
-	if (leftDouble > 0 && rightDouble > 0 || leftDouble < 0 && rightDouble < 0) { return true; }
-	return false;
+	double invDenom = 1.0 / (dot00 * dot11 - dot01 * dot01);
+	double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+	double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+
+	return (u >= -precision && v >= -precision && (u + v) <= 1.0 + precision);
 }
 
 

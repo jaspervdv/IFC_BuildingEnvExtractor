@@ -1982,6 +1982,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::FinefilterSurfaces(c
 
 	// split the range over cores
 	int coreUse = SettingsCollection::getInstance().threadcount();
+
 	if (coreUse > shapeList.size())
 	{
 		while (coreUse > shapeList.size()) { coreUse /=2; }

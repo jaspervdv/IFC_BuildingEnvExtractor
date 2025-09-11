@@ -1,4 +1,4 @@
-#define USE_IFC4x3
+#define USE_IFC4
 #define iterationVersion "0.2.6"
 
 #ifdef USE_IFC2x3
@@ -195,12 +195,8 @@ struct helperFunctions{
 
 	/// line surface intersection related code
 
-	/// get the signed volume
-	static double tVolume(const gp_Pnt& p, const std::vector<gp_Pnt>& vertices);
 	/// check if line intersects triangle
 	static bool triangleIntersecting(const std::vector<gp_Pnt>& line, const std::vector<gp_Pnt>& triangle);
-	/// check if two values have the same sign
-	static bool hasSameSign(const double& leftDouble, const double& rightDouble);
 
 	/// line line intersection related code
 
