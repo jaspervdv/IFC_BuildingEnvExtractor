@@ -217,7 +217,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 	}
 	
 	// set up the list for if multiple footprints are present
-	buildingSurfaceDataList_.reserve(roofOutlines.size());
+	buildingSurfaceCollectionList.reserve(roofOutlines.size());
 	for (const TopoDS_Face& currentOutline : roofOutlines)
 	{
 		BuildingSurfaceCollection buildingCol;
@@ -239,7 +239,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 			gp_Pnt projectedPoint = gp_Pnt(currentPoint.X(), currentPoint.Y(), 0);
 			for (BuildingSurfaceCollection& currentSurfaceCol : buildingSurfaceCollectionList)
 			{
-				if (helperFunctions::pointOnShape(currentSurfaceCol.getRoofOutline(), projectedPoint, SettingsCollection::getInstance().angularTolerance())) //TODO: check if this can be changed to normal tolerance
+				if (helperFunctions::pointOnShape(currentSurfaceCol.getRoofOutline(), projectedPoint, SettingsCollection::getInstance().spatialTolerance())) //TODO: check if this can be changed to normal tolerance
 				{
 					currentSurfaceCol.addRoof(currentSurface);
 					found = true;
@@ -249,6 +249,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 			if (found) { break; }
 		}
 	}
+
 	printTime(startTime, std::chrono::steady_clock::now());
 	return buildingSurfaceCollectionList;
 }
@@ -270,6 +271,7 @@ std::vector<RCollection> CJGeoCreator::mergeRoofSurfaces(std::vector<std::shared
 		{
 			continue;
 		}
+
 		std::vector<TopoDS_Face> currentCleanFaceList = helperFunctions::TessellateFace(currentFace); //tODO: should be more central
 		for (const TopoDS_Face& currentCleanFace: currentCleanFaceList)
 		{
@@ -1296,6 +1298,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	double angularTolerance = SettingsCollection::getInstance().angularTolerance();
 	// extrude the surfaces and collect their faces
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> faceIdx; // pair bbox | extruded shape faces
+
 	for (const TopoDS_Face& currentTopFace : inputFaceList)
 	{
 		if (currentTopFace.IsNull()) { continue; }
@@ -3058,6 +3061,8 @@ std::vector<std::vector<TopoDS_Face>> CJGeoCreator::makeRoofFaces(DataManager* h
 	{
 		std::vector<RCollection> faceCluster = buildingSurfaceData.getRoof();
 		std::vector<TopoDS_Face> footprintList = buildingSurfaceData.getFootPrintList();
+
+		if (faceCluster.empty()) { continue; }
 
 		std::vector<TopoDS_Face> faceCollection;
 		for (RCollection surfaceGroup : faceCluster)
