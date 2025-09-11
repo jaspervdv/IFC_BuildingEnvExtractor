@@ -197,6 +197,8 @@ struct helperFunctions{
 
 	/// check if line intersects triangle
 	static bool triangleIntersecting(const std::vector<gp_Pnt>& line, const std::vector<gp_Pnt>& triangle);
+	/// test if point falls within the triangle
+	static bool baryCentricTest(const gp_Pnt& point, const std::vector<gp_Pnt>& triangle);
 
 	/// line line intersection related code
 

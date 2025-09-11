@@ -880,19 +880,15 @@ bool helperFunctions::pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& theP
 		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
 		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
-		double baseArea = computeArea(p1, p2, p3);
 
-		double area1 = computeArea(thePoint, p1, p2);
-		if (area1 - baseArea > precision) { continue; }
+		gp_Vec triangleNormal = gp_Vec(p1, p2).Crossed(gp_Vec(p1, p3));
+		if (triangleNormal.Magnitude() < precision) { return false; }
+		triangleNormal.Normalize();
 
-		double area2 = computeArea(thePoint, p1, p3);
-		if (area2 - baseArea > precision) { continue; }
+		double distancePlanePoint = triangleNormal.Dot(gp_Vec(p1, thePoint));
 
-		double area3 = computeArea(thePoint, p2, p3);
-		if (area3 - baseArea > precision) { continue; }
-
-		if (abs(baseArea - (area1 + area2 + area3)) > precision * baseArea) { continue; }
-		return true;
+		if (std::abs(distancePlanePoint) > precision) { continue; }
+		if (baryCentricTest(thePoint, { p1, p2, p3 })) { return true; }
 	}
 	return false;
 }
@@ -1364,9 +1360,16 @@ bool helperFunctions::triangleIntersecting(const std::vector<gp_Pnt>& line, cons
 
 	gp_Pnt pIntersect = lineStart.XYZ() + lineParameter * gp_Vec(lineStart, lineEnd).XYZ();
 
+	return baryCentricTest(pIntersect, triangle);
+}
+
+bool helperFunctions::baryCentricTest(const gp_Pnt& point, const std::vector<gp_Pnt>& triangle)
+{
+	double precision = SettingsCollection::getInstance().spatialTolerance();
+
 	gp_Vec v0(triangle[0], triangle[2]);
 	gp_Vec v1(triangle[0], triangle[1]);
-	gp_Vec v2(triangle[0], pIntersect);
+	gp_Vec v2(triangle[0], point);
 
 	double dot00 = v0.Dot(v0);
 	double dot01 = v0.Dot(v1);
