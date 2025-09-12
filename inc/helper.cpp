@@ -1839,6 +1839,12 @@ TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pn
 
 TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2, const gp_Pnt& p3) {
 
+	double precision = SettingsCollection::getInstance().spatialTolerance();
+	if (p0.IsEqual(p1, precision)) { return {}; }
+	if (p1.IsEqual(p2, precision)) { return {}; }
+	if (p2.IsEqual(p3, precision)) { return {}; }
+	if (p3.IsEqual(p0, precision)) { return {}; }
+
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
 	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p3);
@@ -1849,6 +1855,11 @@ TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1
 
 TopoDS_Face helperFunctions::createPlanarFace(const gp_Pnt& p0, const gp_Pnt& p1, const gp_Pnt& p2)
 {
+	double precision = SettingsCollection::getInstance().spatialTolerance();
+	if (p0.IsEqual(p1, precision)) { return {}; }
+	if (p1.IsEqual(p2, precision)) { return {}; }
+	if (p2.IsEqual(p0, precision)) { return {}; }
+
 	TopoDS_Edge edge0 = BRepBuilderAPI_MakeEdge(p0, p1);
 	TopoDS_Edge edge1 = BRepBuilderAPI_MakeEdge(p1, p2);
 	TopoDS_Edge edge2 = BRepBuilderAPI_MakeEdge(p2, p0);
@@ -2077,7 +2088,6 @@ std::vector<TopoDS_Face> helperFunctions::TriangulateFace(const TopoDS_Face& the
 		gp_Pnt p1 = mesh->Node(theTriangle(1)).Transformed(loc);
 		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
 		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
-
 		TopoDS_Face triangleFace = createPlanarFace(p1, p2, p3);
 
 		if (triangleFace.IsNull()) { continue; }

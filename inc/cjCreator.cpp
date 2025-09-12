@@ -1343,7 +1343,6 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(inputFaceList, cuttingFaceIdx);
 	std::vector<TopoDS_Face> visibleFaceList = getVisTopSurfaces(splitFaceList, lowestZ, bufferSurfaceList);
 	std::vector<TopoDS_Face> visibleCleanFaceList = helperFunctions::TessellateFace(visibleFaceList);
-
 	//clean the surfaces
 	return  visibleCleanFaceList;
 }
@@ -1888,7 +1887,6 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 	std::chrono::steady_clock::time_point startTime = std::chrono::steady_clock::now();
 	std::vector<TopoDS_Face> projectedFaceList;
 
-	std::vector<TopoDS_Face> t;
 	for (const RCollection& currentGroup : rCollectionList)
 	{
 		TopoDS_Face currentFace = currentGroup.getProjectedFace();
@@ -1896,10 +1894,7 @@ std::vector<TopoDS_Face> CJGeoCreator::createRoofOutline(const std::vector<RColl
 		projectedFaceList.emplace_back(currentFace);
 	}
 
-	if (projectedFaceList.empty())
-	{
-		return {};
-	}
+	if (projectedFaceList.empty()) { return {}; }
 
 	// create plane on which the projection has to be made
 	gp_Pnt lll;
