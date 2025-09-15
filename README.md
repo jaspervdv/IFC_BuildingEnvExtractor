@@ -7,7 +7,7 @@ The IfcEnvelopeExtractor enables users to automatically abstract BIM models (IFC
 
 The development of this conversion process is one of the steps required to close the gap between architecture/BIM and  GIS/city scale models.
 
-**Development of this tool is funded up until the end of September 2025. After this date new funding has to be found if further development is desired.**
+**Development of this tool is funded up until the end of December 2025. After this date new funding has to be found if further development is desired.**
 
 ![Output of the IfcEnvelopeExtractor](https://raw.githubusercontent.com/jaspervdv/IFC_BuildingEnvExtractor/master/Images/EnvExtractorExample.gif "An example of the created LoD envelopes based on an input file")
 

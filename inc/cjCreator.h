@@ -357,7 +357,7 @@ public:
 	void make2DStoreys(DataManager* h, CJT::Kernel* kernel, std::vector<std::shared_ptr<CJT::CityObject>>& storeyCityObjects, int unitScale, bool is03, bool output = true);
 
 	/// generates an LoD0.0 object
-	CJT::GeoObject makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
+	std::vector< CJT::GeoObject> makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.2 objects
 	std::vector< CJT::GeoObject>  makeLoD02(DataManager* h, CJT::Kernel* kernel, int unitScale);
 	/// generates a list of LoD0.3 roof faces

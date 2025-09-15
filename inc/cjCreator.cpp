@@ -232,7 +232,6 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 		if (currentFlatFace.IsNull()) { continue; } // this filters out invalid surface r groups
 
 		std::vector<gp_Pnt> currentFacePoints = helperFunctions::getPointListOnFace(currentFlatFace);
-
 		bool found = false;
 		for (const gp_Pnt& currentPoint : currentFacePoints)
 		{
@@ -242,6 +241,7 @@ std::vector<CJGeoCreator::BuildingSurfaceCollection> CJGeoCreator::sortRoofStruc
 				if (helperFunctions::pointOnShape(currentSurfaceCol.getRoofOutline(), projectedPoint, SettingsCollection::getInstance().spatialTolerance())) //TODO: check if this can be changed to normal tolerance
 				{
 					currentSurfaceCol.addRoof(currentSurface);
+
 					found = true;
 					break;
 				}
@@ -445,7 +445,6 @@ void CJGeoCreator::initializeBasic(DataManager* cluster)
 	// generate data required for most exports
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoarseFiltering) << std::endl;
 	std::vector<TopoDS_Shape> filteredObjects = getTopObjects(cluster);
-
 
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoReduceSurfaces) << std::endl;
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx;
@@ -1317,6 +1316,7 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 		}
 		BoostBox3D topFaceBox = helperFunctions::createBBox(currentTopFace);
 		faceIdx.insert(std::make_pair(topFaceBox, currentTopFace));
+
 	}
 
 	if (!bufferSurfaceList.empty())
@@ -2420,36 +2420,94 @@ void CJGeoCreator::setLoD32SurfaceAttributes(
 	return;
 }
 
-CJT::GeoObject CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale)
+std::vector< CJT::GeoObject> CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel* kernel, int unitScale)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
 	auto startTime = std::chrono::steady_clock::now();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoD00) << std::endl;
 
+	std::vector<TopoDS_Shape> faceCopyCollection;
+	std::vector< CJT::GeoObject> geoObjectCollection;
+
 	gp_Pnt lll = h->getLllPoint();
 	gp_Pnt urr = h->getUrrPoint();
 	double rotationAngle = settingsCollection.gridRotation();
-	TopoDS_Shape floorProjection = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, lll.Z());
+
+	double footprintHeight = settingsCollection.footprintElevation() + h->getObjectTranslation().TranslationPart().Z();
+	if (settingsCollection.makeRoofPrint())
+	{
+		double roofOutlineHeight = footprintHeight;
+		if (settingsCollection.makeFootPrint())
+		{
+			roofOutlineHeight = urr.Z();
+		}
+		TopoDS_Shape roofShape = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, roofOutlineHeight);
+		faceCopyCollection.emplace_back(roofShape);
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(roofShape, "0.0");
+		std::map<std::string, std::string> semanticData;
+		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+		geoObject.appendSurfaceData(semanticData);
+		geoObject.appendSurfaceTypeValue(0);
+		geoObjectCollection.emplace_back(geoObject);
+	}
+
+	if (settingsCollection.makeFootPrint())
+	{
+
+		double buffer = settingsCollection.horizontalSectionBuffer();
+		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(gp_Pnt(lll.X(), lll.Y(), footprintHeight - buffer), gp_Pnt(urr.X(), urr.Y(), footprintHeight + buffer), 0);
+
+		std::vector<Value> qResult;
+		qResult.clear();
+		h->getIndexPointer()->query(bgi::intersects(
+			searchBox), std::back_inserter(qResult));
+
+		std::vector<gp_Pnt> pointList;
+		for (const Value& resultItem : qResult)
+		{
+			std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(resultItem.second);
+			TopoDS_Shape currentShape = h->getObjectShape(lookup->getProductPtr(), true);
+			for (TopExp_Explorer expl(currentShape, TopAbs_VERTEX); expl.More(); expl.Next())
+			{
+				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
+				gp_Pnt point = BRep_Tool::Pnt(vertex);
+				pointList.emplace_back(point);
+			}
+		}
+
+		BoostBox3D floorBBox = helperFunctions::createBBox(pointList, 0);
+		BoostPoint3D lllBp = floorBBox.min_corner();
+		BoostPoint3D urrBp = floorBBox.max_corner();
+
+		TopoDS_Face footprintShape = helperFunctions::createHorizontalFace(
+			gp_Pnt(lllBp.get<0>(), lllBp.get<1>(), footprintHeight),
+			gp_Pnt(urrBp.get<0>(), urrBp.get<1>(), footprintHeight), -rotationAngle, footprintHeight);
+
+		faceCopyCollection.emplace_back(footprintShape);
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(footprintShape, "0.0");
+		std::map<std::string, std::string> semanticData;
+		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+		geoObject.appendSurfaceData(semanticData);
+		geoObject.appendSurfaceTypeValue(0);
+		geoObjectCollection.emplace_back(geoObject);
+	}
 
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(floorProjection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD00));
+		helperFunctions::writeToOBJ(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD00));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(floorProjection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD00));
+		helperFunctions::writeToSTEP(faceCopyCollection, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD00));
 	}
-
-	CJT::GeoObject geoObject = kernel->convertToJSON(floorProjection, "0.0");
-	std::map<std::string, std::string> semanticData;
-	semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType) , CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
-	geoObject.appendSurfaceData(semanticData);
-	geoObject.appendSurfaceTypeValue(0);
+	
 	printTime(startTime, std::chrono::steady_clock::now());
 	garbageCollection();
-	return geoObject;
+	return geoObjectCollection;
 }
 
 

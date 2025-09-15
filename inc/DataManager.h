@@ -272,8 +272,6 @@ public:
 	/// get the shape of an ifcproduct
 	TopoDS_Shape getObjectShape(IfcSchema::IfcProduct* product, bool getNested = false, bool isSimple = false, bool fromMemOnly = false);
 
-	/// get the shape of an ifcproduct
-
 };
 
 #endif // DATAMANAGER_DATAMANAGER_H

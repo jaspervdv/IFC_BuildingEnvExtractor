@@ -889,8 +889,8 @@ Tooltip(frame_lod_settings3, desired_lod_tooltip_txt)
 Tooltip(toggle_make_obj, "If active output is copied to wavefront .OBJ file(s)")
 Tooltip(toggle_make_step, "If active output is copied to .STEP (ISO 10303) file(s)")
 
-Tooltip(toggle_makefootprint, "If active a footprint will be created at the footprint elevation (lod0.2 only)")
-Tooltip(toggle_makeroofprint, "If active a roof outline will be created (lod0.2 only)")
+Tooltip(toggle_makefootprint, "If active a footprint will be created at the footprint elevation (lod0.0 0.2, 0.3 and 0.4 only)")
+Tooltip(toggle_makeroofprint, "If active a roof outline will be created (lod0.0 0.2, 0.3 and 0.4 only)")
 Tooltip(toggle_footprint_based, "If active the footprint will be used to restrict the output (LoD1.2, 1.3 & 2.2)")
 Tooltip(toggle_makeexterior, "If active exterior shells will be stored")
 Tooltip(toggle_makeinterior, "If active spaces will be stored (Lod0.2, 1.2, 2.2, 3.2 & voxels) and storey "
