@@ -1165,25 +1165,26 @@ void DataManager::getProjectionData(CJT::ObjectTransformation* transformation, C
 	IfcParse::IfcFile* fileObject = datacollection_[0]->getFilePtr();
 #if defined(USE_IFC4) || defined(USE_IFC4x3)
 	IfcSchema::IfcMapConversion::list::ptr mapList = fileObject->instances_by_type<IfcSchema::IfcMapConversion>();
-	if (mapList->size() == 0) { return; }
-	if (mapList->size() > 1) { 
-		ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleProjections);
-		std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcMultipleProjections) << std::endl;
-	}
-	
-	IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
-	metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
-
-	if (mapConversion->Scale().has_value())
-	{
-		std::array<double, 3> scaleCity = transformation->getScale();
-		double scaleIfc = mapConversion->Scale().get();
-
-		for (size_t i = 0; i < scaleCity.size(); i++)
-		{
-			scaleCity[i] = scaleCity[i] * scaleIfc;
+	if (mapList->size() != 0) {
+		if (mapList->size() > 1) {
+			ErrorCollection::getInstance().addError(ErrorID::warningIfcMultipleProjections);
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningIfcMultipleProjections) << std::endl;
 		}
-		transformation->setScale(scaleCity);
+
+		IfcSchema::IfcMapConversion* mapConversion = *(mapList->begin());
+		metaData->setReferenceSystem(mapConversion->TargetCRS()->Name());
+
+		if (mapConversion->Scale().has_value())
+		{
+			std::array<double, 3> scaleCity = transformation->getScale();
+			double scaleIfc = mapConversion->Scale().get();
+
+			for (size_t i = 0; i < scaleCity.size(); i++)
+			{
+				scaleCity[i] = scaleCity[i] * scaleIfc;
+			}
+			transformation->setScale(scaleCity);
+		}
 	}
 	gp_XYZ invertedObjectTrsf = objectIfcTranslation_.TranslationPart();
 

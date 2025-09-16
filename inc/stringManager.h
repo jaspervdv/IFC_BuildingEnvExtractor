@@ -268,6 +268,8 @@ enum class CJObjectID {
 	CJTTypeCeilingSurface, 
 	CJTTypeOuterCeilingSurface,
 
+	CJTTypeProjectedRoofOutline,
+
 	CJAttHasWindow,
 
 	True,

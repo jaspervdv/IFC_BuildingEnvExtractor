@@ -2438,16 +2438,18 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel
 	if (settingsCollection.makeRoofPrint())
 	{
 		double roofOutlineHeight = footprintHeight;
+		std::string surfaceType = CJObjectEnum::getString(CJObjectID::CJTTypeProjectedRoofOutline);
 		if (settingsCollection.makeFootPrint())
 		{
 			roofOutlineHeight = urr.Z();
+			surfaceType = CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface);
 		}
 		TopoDS_Shape roofShape = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, roofOutlineHeight);
 		faceCopyCollection.emplace_back(roofShape);
 
 		CJT::GeoObject geoObject = kernel->convertToJSON(roofShape, "0.0");
 		std::map<std::string, std::string> semanticData;
-		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), surfaceType);
 		geoObject.appendSurfaceData(semanticData);
 		geoObject.appendSurfaceTypeValue(0);
 		geoObjectCollection.emplace_back(geoObject);
@@ -2521,12 +2523,12 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 
 	std::vector< CJT::GeoObject> geoObjectCollection;
 
-	std::map<std::string, std::string> semanticRoofData;
-	semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface));
+
 	std::map<std::string, std::string> semanticFootData;
 	semanticFootData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
 
 	gp_Pnt urr = h->getUrrPoint();
+	double footprintHeight = settingCollection.footprintElevation() + h->getObjectTranslation().TranslationPart().Z();
 
 	std::vector<TopoDS_Shape> faceCopyCollection;
 	if (settingCollection.makeRoofPrint())
@@ -2538,10 +2540,22 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD02(DataManager* h, CJT::Kernel
 
 			gp_Trsf trsf;
 			trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)),  -settingCollection.gridRotation());
-			if (hasFootprints_) { trsf.SetTranslationPart(gp_Vec(0, 0, urr.Z())); }
+
+			std::map<std::string, std::string> semanticRoofData;
+			
+			std::string surfaceType = CJObjectEnum::getString(CJObjectID::CJTTypeProjectedRoofOutline);
+			if (hasFootprints_) { 
+				surfaceType = CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface);
+				trsf.SetTranslationPart(gp_Vec(0, 0, urr.Z()));
+			}
+			else
+			{
+				trsf.SetTranslationPart(gp_Vec(0, 0, footprintHeight));
+			}
 			roofOutline.Move(trsf);
 			faceCopyCollection.emplace_back(roofOutline);
 
+			semanticRoofData.emplace(CJObjectEnum::getString(CJObjectID::CJType), surfaceType);
 			CJT::GeoObject geoObject = kernel->convertToJSON(roofOutline, "0.2");
 			geoObject.appendSurfaceData(semanticRoofData);
 			geoObject.appendSurfaceTypeValue(0);
