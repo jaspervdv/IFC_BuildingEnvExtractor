@@ -3034,7 +3034,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 					//if (settingsCollection.createSTEP() || settingsCollection.createOBJ()) { copyLoD02GeoList.emplace_back(face); }
 
 					std::map<std::string, std::string> rMap;
-					rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeCeilingSurface));
+					rMap.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTTypeProjectedCeilingOutline));
 					roomGeoObject02.appendSurfaceData(rMap);
 					roomGeoObject02.appendSurfaceTypeValue(0);
 

@@ -668,7 +668,9 @@ std::string CJObjectEnum::getString(CJObjectID id)
 	case CJObjectID::CJTTypeOuterCeilingSurface:
 		return "OuterCeilingSurface";	
 	case CJObjectID::CJTTypeProjectedRoofOutline:
-		return "+projectedRoofOutline";
+		return "+ProjectedRoofOutline";
+	case CJObjectID::CJTTypeProjectedCeilingOutline:
+		return "+ProjectedCeilingOutline";
 	case CJObjectID::CJAttHasWindow:
 		return "+hasWindows";
 
