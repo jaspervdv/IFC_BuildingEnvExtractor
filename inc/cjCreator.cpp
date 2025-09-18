@@ -4103,9 +4103,11 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(test.second);
 		TopoDS_Shape currentShape = lookup->getProductShape();
 		if (currentShape.IsNull()) { continue; }
-		currentShape.Move(localRotationTrsf);
 
+		TopoDS_Shape cleanShape = helperFunctions::TesselateShape(currentShape);
+		if (cleanShape.IsNull()) { continue; }
 
+		cleanShape.Move(localRotationTrsf);
 		IfcSchema::IfcProduct* currentProduct = lookup->getProductPtr();
 
 		nlohmann::json attributeMap;
@@ -4116,18 +4118,18 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 		}
 
 		int faceCount = 0;
-		for (TopExp_Explorer explorer(currentShape, TopAbs_FACE); explorer.More(); explorer.Next()) 
+		for (TopExp_Explorer explorer(cleanShape, TopAbs_FACE); explorer.More(); explorer.Next())
 		{ 
 			faceCount++;
 		}
 		std::vector<int>TypeValueList(faceCount, 0);
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(currentShape, "4.0");
+		CJT::GeoObject geoObject = kernel->convertToJSON(cleanShape, "4.0");
 		geoObject.setSurfaceTypeValues(TypeValueList);
 		geoObject.appendSurfaceData(attributeMap);
 		geoObjectList.emplace_back(geoObject);
 
-		collectionShape.emplace_back(currentShape);
+		collectionShape.emplace_back(cleanShape);
 	}
 	if (settingsCollection.createOBJ())
 	{

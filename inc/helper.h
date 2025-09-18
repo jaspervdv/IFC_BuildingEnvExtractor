@@ -242,6 +242,8 @@ struct helperFunctions{
 	/// creates a planar copy of the input wire
 	static TopoDS_Wire projectWireFlat(const TopoDS_Wire& theWire, double height);
 
+	/// creates a clean shape of the input shape with no non-straight curves
+	static TopoDS_Shape TesselateShape(const TopoDS_Shape& theShape);
 	/// creates a clean copy of the input face with no non-straight curves
 	static std::vector<TopoDS_Face> TessellateFace(const TopoDS_Face& theFace, bool knownIsFlat = false);
 	/// creates a clean copy of the input face list with no non-straight curves

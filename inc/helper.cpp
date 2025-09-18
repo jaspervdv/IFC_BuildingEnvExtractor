@@ -1968,6 +1968,46 @@ TopoDS_Wire helperFunctions::projectWireFlat(const TopoDS_Wire& theWire, double 
 	return flattenedWire;
 }
 
+TopoDS_Shape helperFunctions::TesselateShape(const TopoDS_Shape& theShape)
+{
+	BRep_Builder compBuilder;
+	TopoDS_Compound collection;
+	compBuilder.MakeCompound(collection);
+	for (TopExp_Explorer solidExpl(theShape, TopAbs_SOLID); solidExpl.More(); solidExpl.Next())
+	{
+		BRepBuilderAPI_Sewing brepSewer;
+		TopoDS_Solid currentSolid = TopoDS::Solid(solidExpl.Current());
+		for (TopExp_Explorer faceExpl(currentSolid, TopAbs_FACE); faceExpl.More(); faceExpl.Next()) 
+		{
+			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+			std::vector <TopoDS_Face> cleanFaceList = TriangulateFace(currentFace); //TODO: change to tesselate function
+			for (const TopoDS_Face& cleanFace : cleanFaceList) { brepSewer.Add(cleanFace); }
+		}
+		brepSewer.Perform();
+
+		BRep_Builder brepBuilder;
+		TopoDS_Shell shell;
+		brepBuilder.MakeShell(shell);
+		TopoDS_Solid solidbox;
+		brepBuilder.MakeSolid(solidbox);
+		TopoDS_Shape sewedShape = brepSewer.SewedShape();
+
+		if (sewedShape.Closed())
+		{
+			brepBuilder.Add(solidbox, sewedShape);
+			compBuilder.Add(collection, sewedShape);
+			continue;
+		}
+	}
+
+	if (collection.NbChildren())
+	{
+		return collection;
+	}
+	return {};
+
+}
+
 std::vector<TopoDS_Face> helperFunctions::TessellateFace(const TopoDS_Face& theFace, bool knownIsFlat)
 {
 	if (!knownIsFlat)
