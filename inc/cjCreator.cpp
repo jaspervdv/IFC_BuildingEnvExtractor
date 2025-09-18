@@ -4372,10 +4372,11 @@ void CJGeoCreator::makeComplexLoDRooms(DataManager* h, CJT::Kernel* kernel, std:
 
 			// compute the angle of the surface to see if it is a wall 
 			gp_Vec faceNormal = helperFunctions::computeFaceNormal(currentFace);
+			if (faceNormal.Magnitude() < SettingsCollection::getInstance().spatialTolerance()) { continue; }
+
 			gp_Vec vertical = gp_Vec(0, 0, 2);
 			double angle = faceNormal.Angle(vertical);
 			double angleDeg = angle * (180.0 / M_PI);
-
 			if (abs(angleDeg - 90.0) <= 20)
 			{
 				typeValueList.emplace_back(1);
