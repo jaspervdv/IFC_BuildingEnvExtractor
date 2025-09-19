@@ -265,6 +265,9 @@ struct helperFunctions{
 	static TopoDS_Wire cleanWire(const TopoDS_Wire& wire);
 	static TopoDS_Face wireCluster2Faces(const std::vector<TopoDS_Wire>& wireList);
 
+	/// trim argument face down to tool faces extents
+	static std::vector<TopoDS_Face> TrimFaceToFace(const TopoDS_Face& argumentFace, const std::vector<TopoDS_Face>& toolFaceList, double faceHeight = 0);
+
 	// planar simplification code
 
 	/// creates face collection that represent the merged input shapes
@@ -354,6 +357,9 @@ struct helperFunctions{
 
 	/// sorts the list of faces based on its area
 	static std::vector<TopoDS_Face> sortFaces(const std::vector<TopoDS_Face>& faceList);
+
+	/// devide horizontal and vertical faces in seperate lists
+	static void devideFaces(const TopoDS_Shape& inputShape, std::vector<TopoDS_Face>* horizontalFaces, std::vector<TopoDS_Face>* verticalFaces);
 
 };
 #endif // HELPER_HELPER_H

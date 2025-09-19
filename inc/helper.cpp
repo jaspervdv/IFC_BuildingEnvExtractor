@@ -1980,7 +1980,7 @@ TopoDS_Shape helperFunctions::TesselateShape(const TopoDS_Shape& theShape)
 		for (TopExp_Explorer faceExpl(currentSolid, TopAbs_FACE); faceExpl.More(); faceExpl.Next()) 
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
-			std::vector <TopoDS_Face> cleanFaceList = TriangulateFace(currentFace); //TODO: change to tesselate function
+			std::vector <TopoDS_Face> cleanFaceList = TriangulateFace(currentFace);
 			for (const TopoDS_Face& cleanFace : cleanFaceList) { brepSewer.Add(cleanFace); }
 		}
 		brepSewer.Perform();
@@ -2597,6 +2597,45 @@ TopoDS_Face helperFunctions::wireCluster2Faces(const std::vector<TopoDS_Wire>& w
 		}
 	}
 	return clippedFace;
+}
+
+std::vector<TopoDS_Face> helperFunctions::TrimFaceToFace(const TopoDS_Face& argumentFace, const std::vector<TopoDS_Face>& toolFaceList, double faceHeight)
+{
+	std::vector<TopoDS_Face> outList;
+	
+	double precision = SettingsCollection::getInstance().spatialTolerance();
+	TopTools_ListOfShape toolList;
+	for (const TopoDS_Face& otherStoryFace : toolFaceList)
+	{
+		if (otherStoryFace.IsNull()) { continue; }
+		TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(otherStoryFace, faceHeight);
+		toolList.Append(flattenedFace);
+	}
+
+	TopTools_ListOfShape argumentList;
+	argumentList.Append(argumentFace);
+
+	BRepAlgoAPI_Splitter splitter;
+	splitter.SetFuzzyValue(precision);
+	splitter.SetArguments(argumentList);
+	splitter.SetTools(toolList);
+	splitter.Build();
+
+	for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+		std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
+		if (optionalPoint == std::nullopt) { continue; }
+
+		for (const TopoDS_Shape& otherStoryFace : toolList)
+		{
+			if (!helperFunctions::pointOnShape(otherStoryFace, *optionalPoint)) { continue; }
+			outList.emplace_back(currentFace);
+			break;
+		}
+	}
+	return outList;
 }
 
 std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<TopoDS_Face>& planarFaces, const TopoDS_Face& boundingFace)
@@ -3837,4 +3876,25 @@ std::vector<TopoDS_Face> helperFunctions::sortFaces(const std::vector<TopoDS_Fac
 		sortedFaceColl.emplace_back(faceList[currentIndx]);
 	}
 	return sortedFaceColl;
+}
+
+void helperFunctions::devideFaces(const TopoDS_Shape& inputShape, std::vector<TopoDS_Face>* horizontalFaces, std::vector<TopoDS_Face>* verticalFaces)
+{
+	double angularTolerance = SettingsCollection::getInstance().angularTolerance();
+	for (TopExp_Explorer explorer(inputShape, TopAbs_FACE); explorer.More(); explorer.Next())
+	{
+		const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
+
+		std::vector<TopoDS_Face> tesselatedFaceList = helperFunctions::TessellateFace(currentFace);
+		for (const TopoDS_Face& tesselatedFace : tesselatedFaceList)
+		{
+			if (abs(helperFunctions::computeFaceNormal(tesselatedFace).Z()) < angularTolerance)
+			{
+				horizontalFaces->emplace_back(tesselatedFace);
+				continue;
+			}
+			verticalFaces->emplace_back(tesselatedFace);
+		}
+	}
+	return;
 }

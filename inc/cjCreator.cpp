@@ -1269,10 +1269,16 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	{
 		return {};
 	}
-	if (sewedShape.Closed() != 1)
+
+	for (TopExp_Explorer expl(sewedShape, TopAbs_SHELL); expl.More(); expl.Next())
 	{
-		ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "prism computation");
-		std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
+		TopoDS_Shell currentShell = TopoDS::Shell(expl.Current());
+		if (!currentShell.Closed())
+		{
+			ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "prism computation");
+			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
+			break;
+		}
 	}
 
 	std::vector<TopoDS_Shape> prismList;
@@ -1350,6 +1356,31 @@ std::vector<TopoDS_Face> CJGeoCreator::getSplitTopFaces(const std::vector<TopoDS
 
 TopoDS_Shape CJGeoCreator::simplefySolid(const TopoDS_Shape& solidShape, bool evalOverlap)
 {
+	TopAbs_ShapeEnum shapeType = solidShape.ShapeType();
+	if (shapeType == TopAbs_COMPOUND ||shapeType == TopAbs_COMPSOLID)
+	{
+		BRep_Builder builder;
+		TopoDS_Compound collectionShape;
+		builder.MakeCompound(collectionShape);
+
+		for (TopExp_Explorer solidExpl(solidShape, TopAbs_SHELL); solidExpl.More(); solidExpl.Next())
+		{
+			TopoDS_Shell currentSolid = TopoDS::Shell(solidExpl.Current());
+			TopoDS_Shape cleanedshape = simplefySolid(currentSolid);
+			for (TopExp_Explorer cleanSolidExpl(cleanedshape, TopAbs_SOLID); cleanSolidExpl.More(); cleanSolidExpl.Next())
+			{
+				TopoDS_Solid cleanedSolid = TopoDS::Solid(cleanSolidExpl.Current());
+				if (cleanedSolid.IsNull()) { continue; }
+				builder.Add(collectionShape, cleanedSolid);
+			}
+		}
+		if (collectionShape.NbChildren())
+		{
+			return collectionShape;
+		}
+		return {};
+	}
+
 	double precision = SettingsCollection::getInstance().spatialTolerance();
 
 	std::vector<TopoDS_Face> facelist;
@@ -3937,7 +3968,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 		gp_Trsf trsf;
 		trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "c.2");
+		CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape.Moved(trsf), "c.2");
 		createSemanticData(&geoObject, simplefiedShape);
 		geoObjectList.emplace_back(geoObject);
 
@@ -5305,42 +5336,7 @@ void CJGeoCreator::extrudeStoreyGeometry(
 		{	
 			if (currentStoryFace.IsNull()) { continue; }
 			if (helperFunctions::computeArea(currentStoryFace) < minArea) { continue; }
-			std::vector<TopoDS_Face> toBeExtrudedFaces;
-
-			if (refine)// get the surface that is compliant with the current storey face and the face of the storey above it
-			{
-
-				TopTools_ListOfShape toolList;
-				for (const TopoDS_Face& otherStoryFace : nextStoreyFaceList)
-				{
-					TopoDS_Face flattenedFace = helperFunctions::projectFaceFlat(otherStoryFace, currentHeight);
-					toolList.Append(flattenedFace);
-				}
-
-				TopTools_ListOfShape argumentList;
-				argumentList.Append(currentStoryFace);
-
-				BRepAlgoAPI_Splitter splitter;
-				splitter.SetFuzzyValue(precision);
-				splitter.SetArguments(argumentList);
-				splitter.SetTools(toolList);
-				splitter.Build();
-
-				for (TopExp_Explorer explorer(splitter.Shape(), TopAbs_FACE); explorer.More(); explorer.Next())
-				{
-					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-
-					std::optional<gp_Pnt> optionalPoint = helperFunctions::getPointOnFace(currentFace);
-					if (optionalPoint == std::nullopt) { continue; }
-
-					for (const TopoDS_Shape& otherStoryFace : toolList)
-					{
-						if (!helperFunctions::pointOnShape(otherStoryFace, *optionalPoint)) { continue; }
-						toBeExtrudedFaces.emplace_back(currentFace);
-						break;
-					}
-				}
-			}
+			std::vector<TopoDS_Face> toBeExtrudedFaces = helperFunctions::TrimFaceToFace(currentStoryFace, nextStoreyFaceList, currentHeight);
 
 			if (toBeExtrudedFaces.empty())
 			{
@@ -5358,29 +5354,21 @@ void CJGeoCreator::extrudeStoreyGeometry(
 					continue;
 				}
 
-				for (TopExp_Explorer explorer(currentSolid, TopAbs_FACE); explorer.More(); explorer.Next())
+				std::vector<TopoDS_Face> verticalFaces = {};
+				std::vector<TopoDS_Face> horizontalFaces = {};
+				helperFunctions::devideFaces(currentSolid, &horizontalFaces, &verticalFaces);
+
+				for (const TopoDS_Face currentFace : verticalFaces)
 				{
-					const TopoDS_Face& currentFace = TopoDS::Face(explorer.Current());
-
-					std::vector<TopoDS_Face> tesselatedFaceList = helperFunctions::TessellateFace(currentFace);
-					for (const TopoDS_Face& tesselatedFace : tesselatedFaceList)
-					{
-						if (abs(helperFunctions::computeFaceNormal(tesselatedFace).Z()) < angularTolerance)
-						{
-							outVerticalextFaces.emplace_back(tesselatedFace);
-							continue;
-						}
-
-						double currentFaceZ = roundDoubleToPrecision(helperFunctions::getLowestZ(tesselatedFace), precision);
-						if (outHorizontalStoreyFaces.count(currentFaceZ) != 0)
-						{
-							outHorizontalStoreyFaces[currentFaceZ].emplace_back(tesselatedFace);
-						}
-						else
-						{
-							outHorizontalStoreyFaces[currentFaceZ] = { tesselatedFace };
-						}
-					}
+					outVerticalextFaces.emplace_back(currentFace);
+				}
+				if (outHorizontalStoreyFaces.count(currentHeight) != 0)
+				{
+					outHorizontalStoreyFaces[currentHeight].insert(outHorizontalStoreyFaces[currentHeight].end(), horizontalFaces.begin(), horizontalFaces.end());
+				}
+				else
+				{
+					outHorizontalStoreyFaces[currentHeight] = horizontalFaces;
 				}
 			}
 		}
