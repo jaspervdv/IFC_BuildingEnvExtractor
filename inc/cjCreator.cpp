@@ -1263,10 +1263,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	brepSewer.Perform();
 	TopoDS_Shape sewedShape = brepSewer.SewedShape();
 
-	if (sewedShape.IsNull())
-	{
-		return {};
-	}
+	if (sewedShape.IsNull()) { return {}; }
 
 	bool isClosed = true;
 	for (TopExp_Explorer expl(sewedShape, TopAbs_SHELL); expl.More(); expl.Next())
@@ -1709,6 +1706,7 @@ TopoDS_Face CJGeoCreator::mergeFaces(const std::vector<TopoDS_Face>& mergeFaces)
 
 	std::vector<TopoDS_Face> cleanedMergingFaces = helperFunctions::removeDubFaces(mergingFaces);
 	std::vector<TopoDS_Face> mergedFaces = helperFunctions::planarFaces2Outline(cleanedMergingFaces);
+
 	if (!mergedFaces.size())
 	{
 		//TODO: add error

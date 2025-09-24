@@ -2647,7 +2647,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 	std::vector<TopoDS_Shape> faceClusterList = planarFaces2Cluster(planarFaces);
 	if (faceClusterList.empty()) { return {}; }
 
-	double precisionCoarse = SettingsCollection::getInstance().spatialTolerance(); //TODO: this has been uncoarsened 
+	double precisionCoarse = SettingsCollection::getInstance().spatialTolerance(); 
 	std::vector<TopoDS_Face> outputFaceList;
 
 	const TopoDS_Shape& faceCluster = faceClusterList[0];
@@ -2679,7 +2679,7 @@ std::vector<TopoDS_Face> helperFunctions::planarFaces2Outline(const std::vector<
 	{
 		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
 		// ignore extremely small surfaces
-		if (helperFunctions::computeArea(currentFace) < 0.005) { continue; }
+		if (helperFunctions::computeArea(currentFace) < SettingsCollection::getInstance().areaTolerance()) { continue; }
 		std::optional<gp_Pnt> optionalPoint = getPointOnFace(currentFace);
 		if (optionalPoint == std::nullopt) { continue; }
 		gp_Pnt pointOnFace = *optionalPoint;
