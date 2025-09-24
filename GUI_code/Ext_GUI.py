@@ -35,6 +35,7 @@ class voxelSettings:
     def __init__(self):
         self.voxel_size = tkinter.DoubleVar(value=1.0)
         self.voxel_unit = tkinter.StringVar(value="m")
+        self.voxel_filter = tkinter.IntVar(value=1)
 
 class FootprintSettings:
     def __init__(self):
@@ -249,6 +250,7 @@ def runCode(input_path,
     json_dictionary["Voxel"] = {}
     json_dictionary["Voxel"]["Size"] = voxel_size
     json_dictionary["Voxel"]["Store values"] = other_settings.summary_voxels.get()
+    json_dictionary["Voxel"]["Coarse filter"] = voxelSettings.voxel_filter.get()
 
     json_dictionary["IFC"] = {}
     if not div_settings.custom_enabled.get():
@@ -833,6 +835,11 @@ highTol_toggle = ttk.Checkbutton(frame_final_objects,
                                     text="Use high precision",
                                     variable=other_settings.highTol_toggle)
 highTol_toggle.pack(side=tkinter.LEFT, padx=5)
+
+voxelFil_toggle = ttk.Checkbutton(frame_final_objects,
+                                    text="Use voxel filtering",
+                                    variable=voxelSettings.voxel_filter)
+voxelFil_toggle.pack(side=tkinter.LEFT, padx=5)
 
 # other buttons
 separator3 = ttk.Separator(main_window, orient='horizontal')

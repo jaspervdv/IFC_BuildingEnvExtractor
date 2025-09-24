@@ -282,7 +282,8 @@ The configuration json has a very simple structure. An example can be found belo
     "Voxel":{
         "Size": 1,
         "Store values" : 0,
-        "Logic" : 3
+        "Logic" : 3,
+        "Coarse filter": true
     },
     "IFC": {
         "Rotation angle" : 90,
@@ -352,6 +353,10 @@ Optional:
   * Integer (either 2 or 3)
   * Toggles the voxel intersection logic; 2 = 2D/plane intersection, 3 = 3D/solid intersection.
   * Default value = 3
+* :ballot_box_with_check: "Voxel" "Coarse filter" :ballot_box_with_check:
+  * Boolean
+  * Toggles the use of the voxels to coarsely filter the objects
+  * Default value = true
 * :ballot_box_with_check: "IFC" "Rotation angle" :ballot_box_with_check:
   * Float/Double
   * Sets the angle for a custom IFC object rotation around the Z-axis during processing. The value in degrees will be used as rotation angle.
@@ -363,7 +368,7 @@ Optional:
 * :white_check_mark: "IFC" "Ignore proxy" :white_check_mark:
   * Boolean
   * Toggles the use of the IfcBuildingElementProxy objects.
-  * Default value: yes
+  * Default value = yes
 * :white_check_mark: "IFC" "Div objects" :white_check_mark:
   * Array filled with string, size 0 to ∞
   * Adds custom space bounding objects to the to be utilized object pool.

@@ -101,6 +101,9 @@ enum class CommunicationStringID {
 	infoComputingLoD32,
 	infoComputingLoD50,
 
+	infoAlternativeLoDCreationReq,
+	infoContinueOriginalProcess,
+
 	infoComputingInterior,
 	infoComputingExterior,
 
@@ -207,6 +210,7 @@ enum class JsonObjectInID {
 	voxelSize,
 	voxelSummarize,
 	voxelIntersection,
+	voxelFilter,
 
 	IFC,
 	IFCRotationAuto,

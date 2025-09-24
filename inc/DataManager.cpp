@@ -1019,6 +1019,33 @@ std::vector<IfcParse::IfcFile*> DataManager::getSourceFiles() const
 }
 
 
+std::vector<TopoDS_Shape> DataManager::getIndexedShapes()
+{
+	std::vector<TopoDS_Shape> shapeList;
+	auto spatialIndx = getIndexPointer();
+	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++it)
+	{
+		Value test = *it;
+		std::shared_ptr<IfcProductSpatialData> lookup = getLookup(test.second);
+		TopoDS_Shape currentShape = lookup->getProductShape();
+		if (currentShape.IsNull()) { continue; }
+		shapeList.emplace_back(currentShape);
+	}
+	return shapeList;
+}
+
+std::vector<Value> DataManager::getIndexedValues()
+{
+	std::vector<Value> valueList;
+	auto spatialIndx = getIndexPointer();
+	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++it)
+	{
+		Value test = *it;
+		valueList.emplace_back(test);
+	}
+	return valueList;
+}
+
 void DataManager::internalizeGeo()
 {
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoInternalizingGeo) << std::endl;

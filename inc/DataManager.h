@@ -238,6 +238,11 @@ public:
 	const bgi::rtree<Value, bgi::rstar<treeDepth>>* getSpaceIndexPointer() { return &spaceIndex_; }
 	/// get the spatial/product data related to the space dividing objects index
 	std::shared_ptr<IfcProductSpatialData> getLookup(int i) { return productLookup_.at(i); }
+	/// get all indexed object shapes
+	std::vector<TopoDS_Shape> getIndexedShapes();
+	/// get all indexed lookup values
+	std::vector<Value> getIndexedValues();
+
 	/// get the spatial/product data  related to the space objects index
 	std::shared_ptr<IfcProductSpatialData> getSpaceLookup(int i) { return SpaceLookup_.at(i); }
 

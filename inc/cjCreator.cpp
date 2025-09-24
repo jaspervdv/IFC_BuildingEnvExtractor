@@ -444,7 +444,16 @@ void CJGeoCreator::initializeBasic(DataManager* cluster)
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoPreProcessing) << std::endl;
 	// generate data required for most exports
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoCoarseFiltering) << std::endl;
-	std::vector<TopoDS_Shape> filteredObjects = getTopObjects(cluster);
+	std::vector<TopoDS_Shape> filteredObjects;
+	
+	if (SettingsCollection::getInstance().voxelBasedFiltering())
+	{
+		filteredObjects = getTopObjects(cluster);
+	}
+	else
+	{
+		filteredObjects = cluster->getIndexedShapes();
+	}
 
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoReduceSurfaces) << std::endl;
 	bgi::rtree<Value, bgi::rstar<treeDepth_>> shapeIdx;
@@ -1199,14 +1208,15 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
 			splittingfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
+
 		}
 	}
 
 	// remove dub faces and split them
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> cuttingFaceIdx = indexUniqueFaces(splittingfaceIdx);
 	for (const auto& [currentBox, currentFace] : cuttingFaceIdx) { toBesSplitFaceList.emplace_back(currentFace);}
-
 	std::vector<TopoDS_Face> splitFaceList = getSplitFaces(toBesSplitFaceList, cuttingFaceIdx);
+
 	bgi::rtree<std::pair<BoostBox3D, TopoDS_Face>, bgi::rstar<25>> SplitfaceIdx;
 	for (const TopoDS_Face& currentFace : splitFaceList)
 	{
@@ -1223,27 +1233,15 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		std::vector<BoxFacePair> qResult;
 		qResult.clear();
 		SplitfaceIdx.query(bgi::intersects(currentBox), std::back_inserter(qResult));
-
 		bool isDub = false;
 		gp_Vec currentNormal = helperFunctions::computeFaceNormal(currentFace);
 		std::optional<gp_Pnt> optionalCurrentPoint = helperFunctions::getPointOnFace(currentFace);
 		if (optionalCurrentPoint == std::nullopt) { continue; }
-		gp_Pnt currentPoint = *optionalCurrentPoint;
-
+		gp_Pnt currentPoint = *optionalCurrentPoint; 
 		int isSameCount = 0;
 		for (const auto& [otherBox, otherFace] : qResult)
 		{
-			if (currentFace.IsEqual(otherFace)) 
-			{ 
-				if (isSameCount == 0)
-				{
-					isSameCount++;
-					continue;
-				}
-				isDub = true;
-				break;
-			}
-
+			if (currentFace.IsSame(otherFace))  { continue; }
 			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) {  continue; }
 			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) {  continue; }
 			isDub = true;
@@ -1270,6 +1268,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		return {};
 	}
 
+	bool isClosed = true;
 	for (TopExp_Explorer expl(sewedShape, TopAbs_SHELL); expl.More(); expl.Next())
 	{
 		TopoDS_Shell currentShell = TopoDS::Shell(expl.Current());
@@ -1277,6 +1276,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		{
 			ErrorCollection::getInstance().addError(ErrorID::warningNoSolid, "prism computation");
 			std::cout << errorWarningStringEnum::getString(ErrorID::warningNoSolid) << std::endl;
+			isClosed = false;
 			break;
 		}
 	}
@@ -1286,6 +1286,15 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 
 	if (simplefiedShape.IsNull())
 	{
+		if (isClosed)
+		{
+			BRep_Builder brepBuilder;
+			TopoDS_Solid sewedSolid;
+			brepBuilder.MakeSolid(sewedSolid);
+			brepBuilder.Add(sewedSolid, sewedShape);
+			sewedShape = sewedSolid;
+		}
+
 		prismList.emplace_back(sewedShape);
 		ErrorCollection::getInstance().addError(ErrorID::warningUnableToSimplefy, "prism computation");
 		std::cout << errorWarningStringEnum::getString(ErrorID::warningUnableToSimplefy) << std::endl;
@@ -3723,9 +3732,14 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 
 	if (LoD02Plates_.empty())
 	{
-		//TODO: add line stating that plates are required
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoAlternativeLoDCreationReq) << "LoD0.2 Storeys" << std::endl;
 		if (storeyObjects_.empty()) {makeStoreyObjects(h); }
 		make2DStoreys(h, kernel, storeyObjects_, 1, false, false);
+		if (LoD02Plates_.empty()) { return {}; }
+		printTime(startTime, std::chrono::steady_clock::now());
+
+		startTime = std::chrono::steady_clock::now();
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoContinueOriginalProcess) << "LoDc.1" << std::endl;
 	}	
 	finishedLoDc1_ = true;
 
@@ -3799,8 +3813,14 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 
 	if (LoD02Plates_.empty())
 	{
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoAlternativeLoDCreationReq) << "LoD0.2 Storeys" << std::endl;
 		if (storeyObjects_.empty()) { makeStoreyObjects(h); }
 		make2DStoreys(h, kernel, storeyObjects_, 1, false, false);
+		if (LoD02Plates_.empty()) { return {}; }
+		printTime(startTime, std::chrono::steady_clock::now());
+
+		startTime = std::chrono::steady_clock::now();
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoContinueOriginalProcess) << "LoDc.2" << std::endl;
 	}
 
 	std::vector<std::vector<TopoDS_Face>> roofList;
@@ -4017,10 +4037,17 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 	std::vector< CJT::GeoObject> geoObjectList;
 
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
+
 	if (LoD03Plates_.empty())
 	{
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoAlternativeLoDCreationReq) << "LoD0.3 Storeys" << std::endl;
 		if (storeyObjects_.empty()) { makeStoreyObjects(h); }
 		make2DStoreys(h, kernel, storeyObjects_, 1, true, false);
+		if (LoD03Plates_.empty()) { return {}; }
+		printTime(startTime, std::chrono::steady_clock::now());
+
+		startTime = std::chrono::steady_clock::now();
+		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoContinueOriginalProcess) << "LoDd.1" << std::endl;
 	}
 	finishedLoDd1_ = true;
 
@@ -4188,8 +4215,18 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe1(DataManager* h, CJT::Kernel*
 	std::vector<std::shared_ptr<voxel>> externalVoxel = voxelGrid_->getExternalVoxels();
 	populateVoxelIndex(&voxelIndex, externalVoxel);
 
-	std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
-	LoDE1Faces_ = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
+	if (settingsCollection.voxelBasedFiltering())
+	{
+		std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
+		std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
+		LoDE1Faces_ = getE1Faces(h, kernel, unitScale, productLookupValues, voxelIndex);
+	}
+	else
+	{
+		std::vector<Value> productLookupValues = h->getIndexedValues();
+		LoDE1Faces_ = getE1Faces(h, kernel, unitScale, productLookupValues, voxelIndex);
+	}
+
 
 	std::vector< CJT::GeoObject> geoObjectList; // final output collection
 	gp_Trsf localRotationTrsf;
@@ -4256,8 +4293,18 @@ std::vector< CJT::GeoObject>CJGeoCreator::makeLoD32(DataManager* h, CJT::Kernel*
 	}
 	else
 	{
-		std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
-		outerSurfacePairList = getE1Faces(h, kernel, unitScale, intersectingVoxels, voxelIndex);
+		if (settingsCollection.voxelBasedFiltering())
+		{
+			std::vector<std::shared_ptr<voxel>> intersectingVoxels = voxelGrid_->getOuterIntersectingVoxels();
+			std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
+			outerSurfacePairList = getE1Faces(h, kernel, unitScale, productLookupValues, voxelIndex);
+		}
+		else
+		{
+			std::vector<Value> productLookupValues = h->getIndexedValues();
+			outerSurfacePairList = getE1Faces(h, kernel, unitScale, productLookupValues, voxelIndex);
+		}
+
 	}
 
 	//TODO: tesselate the faces
@@ -4874,14 +4921,11 @@ std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> CJGeoCreator::getE1F
 	DataManager* h,
 	CJT::Kernel* kernel, 
 	int unitScale, 
-	const std::vector < std::shared_ptr<voxel>>& intersectingVoxels,
+	const std::vector<Value>& productLookupValues,
 	const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIdx)
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 
-
-	// collect and index the products which are presumed to be part of the exterior
-	std::vector<Value> productLookupValues = getUniqueProductValues(intersectingVoxels);
 	if (productLookupValues.size() <= 0)
 	{
 		throw ErrorID::failedLoD32;
@@ -4911,7 +4955,6 @@ std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> CJGeoCreator::getE1F
 		}
 		cleanedProductLookupValues.emplace_back(productLookupValues[i]);
 	}
-	std::vector<Value>().swap(productLookupValues);
 
 	// evaluate which surfaces are visible from the exterior
 	std::vector<std::pair<TopoDS_Face, IfcSchema::IfcProduct*>> outerSurfacePairList;
@@ -5319,6 +5362,7 @@ void CJGeoCreator::extrudeStoreyGeometry(
 	{
 		double nextHeight = topHeight;
 		double currentHeight = heightList[i];
+		currentHeight = roundDoubleToPrecision(currentHeight, precision);
 
 		std::vector<TopoDS_Face> currentStoreyFaceList = inHorizontalStoreyPlates.at(currentHeight);
 		std::vector<TopoDS_Face> nextStoreyFaceList;

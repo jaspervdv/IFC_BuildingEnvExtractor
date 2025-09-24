@@ -782,6 +782,7 @@ std::optional<gp_Pnt> helperFunctions::getPointOnFace(const TopoDS_Face& theFace
 	opencascade::handle<Poly_Triangulation> mesh = BRep_Tool::Triangulation(theFace, loc);
 
 	if (mesh.IsNull()) { return std::nullopt; }
+
 	for (int i = 1; i <= mesh.get()->NbTriangles(); i++) 
 	{
 		const Poly_Triangle& theTriangle = mesh->Triangles().Value(i);
@@ -861,7 +862,7 @@ bool helperFunctions::pointOnShape(const TopoDS_Shape& shape, const gp_Pnt& theP
 bool helperFunctions::pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& thePoint, double precision)
 {
 	if (precision == 0.0) { precision = SettingsCollection::getInstance().spatialTolerance(); }
-
+	
 	TopLoc_Location loc;
 	auto mesh = BRep_Tool::Triangulation(theFace, loc);
 
@@ -880,13 +881,16 @@ bool helperFunctions::pointOnFace(const TopoDS_Face& theFace, const gp_Pnt& theP
 		gp_Pnt p2 = mesh->Node(theTriangle(2)).Transformed(loc);
 		gp_Pnt p3 = mesh->Node(theTriangle(3)).Transformed(loc);
 
+		gp_Vec v12 = gp_Vec(p1, p2);
+		if (v12.Magnitude() < precision) { continue; }
+		gp_Vec v13 = gp_Vec(p1, p3);
+		if (v13.Magnitude() < precision) { continue; }
 
-		gp_Vec triangleNormal = gp_Vec(p1, p2).Crossed(gp_Vec(p1, p3));
-		if (triangleNormal.Magnitude() < precision) { return false; }
-		triangleNormal.Normalize();
+		gp_Vec triangleNormal = v12.Crossed(v13);
+		double maxEdge = std::max(v12.Magnitude(), v13.Magnitude());
+		if (triangleNormal.Magnitude() < precision * maxEdge) { continue; }
 
 		double distancePlanePoint = triangleNormal.Dot(gp_Vec(p1, thePoint));
-
 		if (std::abs(distancePlanePoint) > precision) { continue; }
 		if (baryCentricTest(thePoint, { p1, p2, p3 })) { return true; }
 	}

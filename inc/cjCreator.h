@@ -244,7 +244,7 @@ private:
 		DataManager* h, 
 		CJT::Kernel* kernel, 
 		int unitScale, 
-		const std::vector < std::shared_ptr<voxel>>& intersectingVoxels, 
+		const std::vector<Value>& productLookupValues,
 		const bgi::rtree<std::pair<BoostBox3D, std::shared_ptr<voxel>>, bgi::rstar<25>>& voxelIdx);
 
 	// get the outer surface by raycasting against exterior voxels

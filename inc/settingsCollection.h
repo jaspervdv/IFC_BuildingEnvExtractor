@@ -53,6 +53,7 @@ private:
 	bool makeExterior_ = true;
 
     bool footPrintBased_ = false;
+    bool voxelBasedFiltering_ = true;
 
 	bool geoReference_ = true;
     bool correctPlacement_ = true;
@@ -289,6 +290,10 @@ public:
     bool footPrintBased() const { return footPrintBased_; }
     void setFootPrintBased(bool value) { footPrintBased_ = value; }
     void setFootPrintBased(const nlohmann::json& json);
+
+    bool voxelBasedFiltering() const { return voxelBasedFiltering_; }
+    void setVoxelBasedFiltering(bool value) { voxelBasedFiltering_ = value; }
+    void setVoxelBasedFiltering(const nlohmann::json& json);
 
     bool geoReference() const { return geoReference_; }
     void setGeoReference(bool value) { geoReference_ = value; }

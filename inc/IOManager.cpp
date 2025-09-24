@@ -236,7 +236,9 @@ void IOManager::printSummary()
 	if (settingsCollection.intersectionLogic() == 2) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "plane\n"; }
 	if (settingsCollection.intersectionLogic() == 3) { std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) << "solid\n"; }
 	std::cout << "- Store voxel summary/approximation:\n";
-	std::cout << boolToString(settingsCollection.summaryVoxels()) << "\n\n";
+	std::cout << boolToString(settingsCollection.summaryVoxels()) << "\n";
+	std::cout << "- Coarse filter with voxel:\n";
+	std::cout << boolToString(settingsCollection.voxelBasedFiltering()) << "\n\n";
 
 	std::cout << CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) << "json settings\n";
 	std::cout << "- Footprint Elevation:\n";
@@ -395,10 +397,12 @@ nlohmann::json IOManager::settingsToJSON()
 	std::string voxelSizOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSize);
 	std::string voxelSummarizeOName = JsonObjectInEnum::getString(JsonObjectInID::voxelSummarize);
 	std::string voxelIntersectionOName = JsonObjectInEnum::getString(JsonObjectInID::voxelIntersection);
+	std::string voxelFiltinerOName = JsonObjectInEnum::getString(JsonObjectInID::voxelFilter);
 
 	voxelJSON[voxelSizOName] = settingsCollection.voxelSize();
 	voxelJSON[voxelSummarizeOName] = settingsCollection.summaryVoxels();
 	voxelJSON[voxelIntersectionOName] = settingsCollection.intersectionLogic();
+	voxelJSON[voxelFiltinerOName] = settingsCollection.voxelBasedFiltering();
 	settingsJSON[voxelOName] = voxelJSON;
 
 	//store the ifc data

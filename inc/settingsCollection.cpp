@@ -164,6 +164,7 @@ void SettingsCollection::setVoxelRelatedSettings(const nlohmann::json& json)
 		setVoxelSize(voxelDataJson);
 		setSummaryVoxels(voxelDataJson);
 		setIntersectionLogic(voxelDataJson);
+		setVoxelBasedFiltering(voxelDataJson);
 	}
 	catch (const std::string& errorString)
 	{
@@ -662,6 +663,24 @@ void SettingsCollection::setFootPrintBased(const nlohmann::json& json)
 		{
 			ErrorCollection::getInstance().addError(exceptionId, FootrpintBSOName);
 			throw std::string(errorWarningStringEnum::getString(exceptionId) + FootrpintBSOName);
+		}
+	}
+}
+
+void SettingsCollection::setVoxelBasedFiltering(const nlohmann::json& json)
+{
+	std::string voxelFilterOName = JsonObjectInEnum::getString(JsonObjectInID::voxelFilter); // check if footprint based output is desired (LoD1.2, 1.3 and 2.2)
+	if (json.contains(voxelFilterOName))
+	{
+		try
+		{
+			bool voxelFilterBool = getJsonBoolValue(json[voxelFilterOName]);
+			setVoxelBasedFiltering(voxelFilterBool);
+		}
+		catch (const ErrorID& exceptionId)
+		{
+			ErrorCollection::getInstance().addError(exceptionId, voxelFilterOName);
+			throw std::string(errorWarningStringEnum::getString(exceptionId) + voxelFilterOName);
 		}
 	}
 }

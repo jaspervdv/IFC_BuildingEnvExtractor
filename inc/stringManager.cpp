@@ -140,6 +140,11 @@ std::string CommunicationStringEnum::getString(CommunicationStringID id)
 	case CommunicationStringID::infoComputingLoD50:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing LoD 5.0 Model";
 
+	case CommunicationStringID::infoAlternativeLoDCreationReq:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::indent) + "Data required: ";
+	case CommunicationStringID::infoContinueOriginalProcess:
+		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Continuing original process: ";
+
 
 	case CommunicationStringID::infoComputingInterior:
 		return CommunicationStringImportanceEnum::getString(CommunicationStringImportanceID::info) + "Computing Interior";
@@ -552,6 +557,8 @@ std::string JsonObjectInEnum::getString(JsonObjectInID id)
 		return "Store values";
 	case JsonObjectInID::voxelIntersection:
 		return "Logic";
+	case JsonObjectInID::voxelFilter:
+		return "Coarse filter";
 
 	case JsonObjectInID::tolerances:
 		return "Tolerances";
