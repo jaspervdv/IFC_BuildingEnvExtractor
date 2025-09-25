@@ -1241,9 +1241,18 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 		int isSameCount = 0;
 		for (const auto& [otherBox, otherFace] : qResult)
 		{
-			if (currentFace.IsSame(otherFace))  { continue; }
-			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) {  continue; }
-			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) {  continue; }
+			if (currentFace.IsEqual(otherFace)) 
+			{ 
+				if (isSameCount == 1)
+				{
+					isDub = true;
+					break;
+				}
+				isSameCount++;
+				continue;
+			}
+			if (!currentNormal.IsParallel(helperFunctions::computeFaceNormal(otherFace), precision)) { continue; }
+			if (!helperFunctions::pointOnShape(otherFace, currentPoint)) { continue; }
 			isDub = true;
 			break;
 		}
@@ -2473,29 +2482,9 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel
 	double rotationAngle = settingsCollection.gridRotation();
 
 	double footprintHeight = settingsCollection.footprintElevation() + h->getObjectTranslation().TranslationPart().Z();
+	bool hasFootprint = false;
 	if (settingsCollection.makeRoofPrint())
 	{
-		double roofOutlineHeight = footprintHeight;
-		std::string surfaceType = CJObjectEnum::getString(CJObjectID::CJTTypeProjectedRoofOutline);
-		if (settingsCollection.makeFootPrint())
-		{
-			roofOutlineHeight = urr.Z();
-			surfaceType = CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface);
-		}
-		TopoDS_Shape roofShape = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, roofOutlineHeight);
-		faceCopyCollection.emplace_back(roofShape);
-
-		CJT::GeoObject geoObject = kernel->convertToJSON(roofShape, "0.0");
-		std::map<std::string, std::string> semanticData;
-		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), surfaceType);
-		geoObject.appendSurfaceData(semanticData);
-		geoObject.appendSurfaceTypeValue(0);
-		geoObjectCollection.emplace_back(geoObject);
-	}
-
-	if (settingsCollection.makeFootPrint())
-	{
-
 		double buffer = settingsCollection.horizontalSectionBuffer();
 		bg::model::box <BoostPoint3D> searchBox = helperFunctions::createBBox(gp_Pnt(lll.X(), lll.Y(), footprintHeight - buffer), gp_Pnt(urr.X(), urr.Y(), footprintHeight + buffer), 0);
 
@@ -2517,19 +2506,44 @@ std::vector< CJT::GeoObject> CJGeoCreator::makeLoD00(DataManager* h, CJT::Kernel
 			}
 		}
 
-		BoostBox3D floorBBox = helperFunctions::createBBox(pointList, 0);
-		BoostPoint3D lllBp = floorBBox.min_corner();
-		BoostPoint3D urrBp = floorBBox.max_corner();
+		if (!pointList.empty())
+		{
+			BoostBox3D floorBBox = helperFunctions::createBBox(pointList, 0);
+			BoostPoint3D lllBp = floorBBox.min_corner();
+			BoostPoint3D urrBp = floorBBox.max_corner();
 
-		TopoDS_Face footprintShape = helperFunctions::createHorizontalFace(
-			gp_Pnt(lllBp.get<0>(), lllBp.get<1>(), footprintHeight),
-			gp_Pnt(urrBp.get<0>(), urrBp.get<1>(), footprintHeight), -rotationAngle, footprintHeight);
+			TopoDS_Face footprintShape = helperFunctions::createHorizontalFace(
+				gp_Pnt(lllBp.get<0>(), lllBp.get<1>(), footprintHeight),
+				gp_Pnt(urrBp.get<0>(), urrBp.get<1>(), footprintHeight), -rotationAngle, footprintHeight);
 
-		faceCopyCollection.emplace_back(footprintShape);
+			faceCopyCollection.emplace_back(footprintShape);
 
-		CJT::GeoObject geoObject = kernel->convertToJSON(footprintShape, "0.0");
+			CJT::GeoObject geoObject = kernel->convertToJSON(footprintShape, "0.0");
+			std::map<std::string, std::string> semanticData;
+			semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+			geoObject.appendSurfaceData(semanticData);
+			geoObject.appendSurfaceTypeValue(0);
+			geoObjectCollection.emplace_back(geoObject);
+			hasFootprint = true;
+		}
+	}
+
+
+	if (settingsCollection.makeRoofPrint())
+	{
+		double roofOutlineHeight = footprintHeight;
+		std::string surfaceType = CJObjectEnum::getString(CJObjectID::CJTTypeProjectedRoofOutline);
+		if (hasFootprint)
+		{
+			roofOutlineHeight = urr.Z();
+			surfaceType = CJObjectEnum::getString(CJObjectID::CJTypeRoofSurface);
+		}
+		TopoDS_Shape roofShape = helperFunctions::createHorizontalFace(lll, urr, -rotationAngle, roofOutlineHeight);
+		faceCopyCollection.emplace_back(roofShape);
+
+		CJT::GeoObject geoObject = kernel->convertToJSON(roofShape, "0.0");
 		std::map<std::string, std::string> semanticData;
-		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), CJObjectEnum::getString(CJObjectID::CJTypeGroundSurface));
+		semanticData.emplace(CJObjectEnum::getString(CJObjectID::CJType), surfaceType);
 		geoObject.appendSurfaceData(semanticData);
 		geoObject.appendSurfaceTypeValue(0);
 		geoObjectCollection.emplace_back(geoObject);
