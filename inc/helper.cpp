@@ -55,6 +55,7 @@
 #include <ShapeFix_Wire.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
+#include <BRepBuilderAPI_FindPlane.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -971,38 +972,39 @@ gp_Vec helperFunctions::computeEdgeDir(const TopoDS_Edge& theEdge) //TODO: make 
 }
 
 template<typename T>
-gp_Vec helperFunctions::computeFaceNormal(const T& theFace) //TODO: check if triangle based would be usefull 
+gp_Vec helperFunctions::computeFaceNormal(const T& theFace)
 {
 	if (theFace.IsNull()) { return gp_Vec(0, 0, 0); }
 
+	TopAbs_ShapeEnum shapeType = theFace.ShapeType();
 	double precision = SettingsCollection::getInstance().spatialTolerance();
 
-	gp_Vec vec1;
-	gp_Vec vec2;
-
-	TopExp_Explorer edgeExpl(theFace, TopAbs_EDGE);
-
-	bool found = false;
-	for (edgeExpl; edgeExpl.More(); edgeExpl.Next())
+	if (shapeType == TopAbs_WIRE)
 	{
-		TopoDS_Edge edge = TopoDS::Edge(edgeExpl.Current());
-		vec1 = computeEdgeDir(edge);
-		if (vec1.Magnitude() < precision) { continue; }
-		found = true;
-		break;
+		TopoDS_Wire currentWire = TopoDS::Wire(theFace);
+
+		if (!currentWire.Closed()) { return gp_Vec(0, 0, 0); }
+
+		BRepBuilderAPI_FindPlane planeFinder(currentWire);
+
+		if (!planeFinder.Found()) { return gp_Vec(0, 0, 0); }
+
+		Handle(Geom_Plane) plane = planeFinder.Plane();
+		gp_Dir normal = plane->Pln().Axis().Direction();
+		gp_Vec normalVec = (gp_Vec(normal)).Normalized();
+		return normalVec;
 	}
-	if (!found) { return gp_Vec(0, 0, 0); }
-
-	for (edgeExpl; edgeExpl.More(); edgeExpl.Next())
+	if (shapeType == TopAbs_FACE)
 	{
-		TopoDS_Edge edge = TopoDS::Edge(edgeExpl.Current());
-		vec2 = computeEdgeDir(edge);
-		if (vec2.Magnitude() < precision) { continue; }
-		if (vec2.IsParallel(vec1, precision)) { continue; }
+		TopoDS_Face currentFace = TopoDS::Face(theFace);
 
-		gp_Vec normal = vec1.Crossed(vec2);
-		normal.Normalize();
-		return normal;
+		Standard_Real umin, umax, vmin, vmax;
+		BRepTools::UVBounds(currentFace, umin, umax, vmin, vmax);
+		Handle(Geom_Surface) aSurface = BRep_Tool::Surface(currentFace);
+		GeomLProp_SLProps props(aSurface, umin, vmin, 1, precision);
+		gp_Dir normal = props.Normal();
+		gp_Vec normalVec = (gp_Vec(normal)).Normalized();
+		return normalVec;
 	}
 	return gp_Vec(0, 0, 0);
 }
