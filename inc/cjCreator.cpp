@@ -4175,7 +4175,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 		if (currentShape.IsNull()) { continue; }
 
 		TopoDS_Shape cleanShape = helperFunctions::TesselateShape(currentShape);
-		if (cleanShape.IsNull()) { continue; }
+		if (cleanShape.IsNull()) {  continue; }
 
 		cleanShape.Move(localRotationTrsf);
 		IfcSchema::IfcProduct* currentProduct = lookup->getProductPtr();
@@ -4201,6 +4201,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 
 		collectionShape.emplace_back(cleanShape);
 	}
+
 	if (settingsCollection.createOBJ())
 	{
 		helperFunctions::writeToOBJ(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoDe0));

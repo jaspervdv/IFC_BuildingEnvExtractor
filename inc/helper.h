@@ -1,4 +1,4 @@
-#define USE_IFC2x3
+#define USE_IFC4
 #define iterationVersion "0.2.6"
 
 #ifdef USE_IFC2x3
@@ -360,6 +360,9 @@ struct helperFunctions{
 
 	/// devide horizontal and vertical faces in seperate lists
 	static void devideFaces(const TopoDS_Shape& inputShape, std::vector<TopoDS_Face>* horizontalFaces, std::vector<TopoDS_Face>* verticalFaces);
+
+	/// forces solid semantic data on a solid shape that is missing it
+	static TopoDS_Shape addSolidSemantic(const TopoDS_Shape& assumedSolid);
 
 };
 #endif // HELPER_HELPER_H

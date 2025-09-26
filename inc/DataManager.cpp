@@ -1566,20 +1566,37 @@ TopoDS_Shape DataManager::getObjectShape(IfcSchema::IfcProduct* product, bool ge
 		return {}; 
 	}
 
-	TopoDS_Compound comp;
 	gp_Trsf placement;
 	gp_Trsf trs;
+
 	trs.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), SettingsCollection::getInstance().gridRotation());
 	
 	convertMutex_.lock();
 	kernelObject->convert_placement(ifc_representation, placement);
 	convertMutex_.unlock();
 
-	comp = brep->geometry().as_compound();
-	comp.Move(trsf * placement); // location in global space
-	comp.Move(objectTranslation_);
-	comp.Move(trs);
-	helperFunctions::triangulateShape(comp);
+	auto shapeCollection = brep->geometry().shapes();
+	
+	int collectionSize = shapeCollection.size();
 
-	return comp;
+
+	BRep_Builder builder;
+	TopoDS_Compound collection;
+	builder.MakeCompound(collection);
+	for (auto it = shapeCollection.begin(); it != shapeCollection.end(); ++it)
+	{
+		TopoDS_Shape currentShape = (*it).Shape();
+		currentShape.Move((*it).Placement().Trsf());
+		if (currentShape.ShapeType() == TopAbs_COMPOUND)
+		{
+			currentShape = helperFunctions::addSolidSemantic(currentShape);
+		}
+		helperFunctions::triangulateShape(currentShape);
+		//if (collectionSize < 2) { return currentShape; }
+		builder.Add(collection, currentShape);	
+	}
+	collection.Move(trsf * placement); // location in global space
+	collection.Move(objectTranslation_);
+	collection.Move(trs);
+	return collection;
 }

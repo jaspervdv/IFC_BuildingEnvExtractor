@@ -56,6 +56,7 @@
 #include <BRepTools_ReShape.hxx>
 #include <GCPnts_AbscissaPoint.hxx>
 #include <BRepBuilderAPI_FindPlane.hxx>
+#include <BRepLib.hxx>
 
 #include <Prs3d_ShapeTool.hxx>
 
@@ -1979,15 +1980,23 @@ TopoDS_Shape helperFunctions::TesselateShape(const TopoDS_Shape& theShape)
 	BRep_Builder compBuilder;
 	TopoDS_Compound collection;
 	compBuilder.MakeCompound(collection);
+
+	std::vector<TopoDS_Shape> solidlist;
+
+	bool isCreated = false;
 	for (TopExp_Explorer solidExpl(theShape, TopAbs_SOLID); solidExpl.More(); solidExpl.Next())
 	{
+		isCreated = true;
 		BRepBuilderAPI_Sewing brepSewer;
 		TopoDS_Solid currentSolid = TopoDS::Solid(solidExpl.Current());
 		for (TopExp_Explorer faceExpl(currentSolid, TopAbs_FACE); faceExpl.More(); faceExpl.Next()) 
 		{
 			TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
 			std::vector <TopoDS_Face> cleanFaceList = TriangulateFace(currentFace);
-			for (const TopoDS_Face& cleanFace : cleanFaceList) { brepSewer.Add(cleanFace); }
+			for (const TopoDS_Face& cleanFace : cleanFaceList) 
+			{ 
+				brepSewer.Add(cleanFace); 
+			}
 		}
 		brepSewer.Perform();
 
@@ -1998,10 +2007,15 @@ TopoDS_Shape helperFunctions::TesselateShape(const TopoDS_Shape& theShape)
 		brepBuilder.MakeSolid(solidbox);
 		TopoDS_Shape sewedShape = brepSewer.SewedShape();
 
+		if (sewedShape.IsNull())
+		{
+			continue;
+		}
+
 		if (sewedShape.Closed())
 		{
 			brepBuilder.Add(solidbox, sewedShape);
-			compBuilder.Add(collection, sewedShape);
+			compBuilder.Add(collection, solidbox);
 			continue;
 		}
 	}
@@ -3288,26 +3302,56 @@ void helperFunctions::writeToOBJ(const std::vector<T>& theShapeList, const std::
 				mesh = BRep_Tool::Triangulation(face, loc);
 			}
 
+			bool flipTriangle = false;
+			if (face.Orientation() == TopAbs_REVERSED)
+			{
+				flipTriangle = true;
+			}
+
 			for (int j = 1; j <= mesh.get()->NbTriangles(); j++)
 			{
 				const Poly_Triangle& theTriangle = mesh->Triangles().Value(j);
 
 				std::vector<int> triangleIndx = {};
-				for (size_t i = 1; i <= 3; i++)
+
+				if (flipTriangle)
 				{
-					gp_XYZ xyz = mesh->Nodes().Value(theTriangle(i)).Transformed(loc).Coord();
-
-					if (vertMap.find(xyz) != vertMap.end())
+					for (size_t i = 3; i >= 1; i--)
 					{
-						triangleIndx.emplace_back(vertMap[xyz]);
-						continue;
-					}
+						gp_XYZ xyz = mesh->Nodes().Value(theTriangle(i)).Transformed(loc).Coord();
 
-					objFile << "v " << xyz.X() << " " << xyz.Y() << " " << xyz.Z() << "\n";
-					triangleIndx.emplace_back(vertIdxOffset);
-					vertMap[xyz] = vertIdxOffset;
-					vertIdxOffset++;
+						if (vertMap.find(xyz) != vertMap.end())
+						{
+							triangleIndx.emplace_back(vertMap[xyz]);
+							continue;
+						}
+
+						objFile << "v " << xyz.X() << " " << xyz.Y() << " " << xyz.Z() << "\n";
+						triangleIndx.emplace_back(vertIdxOffset);
+						vertMap[xyz] = vertIdxOffset;
+						vertIdxOffset++;
+					}
 				}
+				else
+				{
+					for (size_t i = 1; i <= 3; i++)
+					{
+						gp_XYZ xyz = mesh->Nodes().Value(theTriangle(i)).Transformed(loc).Coord();
+
+						if (vertMap.find(xyz) != vertMap.end())
+						{
+							triangleIndx.emplace_back(vertMap[xyz]);
+							continue;
+						}
+
+						objFile << "v " << xyz.X() << " " << xyz.Y() << " " << xyz.Z() << "\n";
+						triangleIndx.emplace_back(vertIdxOffset);
+						vertMap[xyz] = vertIdxOffset;
+						vertIdxOffset++;
+					}
+				}
+
+
 
 				nestedTriangleIndx.emplace_back(triangleIndx);
 			}
@@ -3903,4 +3947,31 @@ void helperFunctions::devideFaces(const TopoDS_Shape& inputShape, std::vector<To
 		}
 	}
 	return;
+}
+
+TopoDS_Shape helperFunctions::addSolidSemantic(const TopoDS_Shape& assumedSolid)
+{
+	BRep_Builder builder;
+	TopoDS_Shell shell;
+	builder.MakeShell(shell);
+
+	BRepBuilderAPI_Sewing brepSewer;
+	for (TopExp_Explorer faceExpl(assumedSolid, TopAbs_FACE); faceExpl.More(); faceExpl.Next())
+	{
+		TopoDS_Face currentFace = TopoDS::Face(faceExpl.Current());
+		brepSewer.Add(currentFace);
+	}
+	brepSewer.Perform();
+	TopoDS_Shape sewedShape = brepSewer.SewedShape();
+
+	if (sewedShape.Closed() && sewedShape.ShapeType() == TopAbs_SHELL)
+	{
+		TopoDS_Shell shell = TopoDS::Shell(sewedShape);
+		TopoDS_Solid solidrep;
+		builder.MakeSolid(solidrep);
+		builder.Add(solidrep, shell);
+		BRepLib::OrientClosedSolid(solidrep);
+		return solidrep;
+	}
+	return assumedSolid;
 }
