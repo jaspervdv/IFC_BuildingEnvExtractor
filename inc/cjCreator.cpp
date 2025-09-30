@@ -572,7 +572,7 @@ std::vector<TopoDS_Face> CJGeoCreator::section2Faces(const std::vector<T>& shape
 			}
 		}
 
-		if (!edgeList.size()) { continue; }
+		if (edgeList.size() <=  2) { continue; }
 		std::vector<TopoDS_Wire> splitWireList = helperFunctions::growWires(edgeList);
 
 		if (!splitWireList.size()) { continue; }
@@ -631,7 +631,6 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 {
 	if (evalFace.IsNull()) { return {}; }
 	TopoDS_Face projectedFace = helperFunctions::projectFaceFlat(evalFace, splittingFaceHeight);
-
 	if (projectedFace.IsNull()) { return {}; }
 
 	BRep_Builder brepBuilder;
@@ -642,12 +641,9 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	brepBuilder.MakeSolid(solidShape);
 
 	std::vector<TopoDS_Wire> wireList;
-	TopoDS_Wire outerWire = BRepTools::OuterWire(evalFace);
-	wireList.emplace_back(outerWire);
 	for (TopExp_Explorer wireExplorer(evalFace, TopAbs_WIRE); wireExplorer.More(); wireExplorer.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(wireExplorer.Current());
-		if (outerWire.IsEqual(currentWire)) { continue; }
 		wireList.emplace_back(currentWire);
 	}
 
@@ -659,7 +655,7 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	double precision = SettingsCollection::getInstance().spatialTolerance();
 
 	for (const TopoDS_Wire& currentWire : wireList)
-	{
+	{		
 		int edgeCount = 0;
 		BRepBuilderAPI_MakeWire wireMakerTop;
 		BRepBuilderAPI_MakeWire wireMakerBottom;
@@ -667,8 +663,19 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 		for (BRepTools_WireExplorer expl(currentWire); expl.More(); expl.Next())
 		{
 			const TopoDS_Edge& edge = TopoDS::Edge(expl.Current());
-			gp_Pnt p0 = helperFunctions::getFirstPointShape(edge);
-			gp_Pnt p1 = helperFunctions::getLastPointShape(edge);
+
+			gp_Pnt p0;
+			gp_Pnt p1;
+			if (edge.Orientation() == TopAbs_FORWARD)
+			{
+				p0 = helperFunctions::getFirstPointShape(edge);
+				p1 = helperFunctions::getLastPointShape(edge);
+			}
+			else
+			{
+				p0 = helperFunctions::getLastPointShape(edge);
+				p1 = helperFunctions::getFirstPointShape(edge);
+			}
 			if (p0.IsEqual(p1, precision)) { continue; }
 
 			edgeCount++;
@@ -685,7 +692,7 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 			gp_Pnt p2 = gp_Pnt(p1.X(), p1.Y(), splittingFaceHeight);
 			gp_Pnt p3 = gp_Pnt(p0.X(), p0.Y(), splittingFaceHeight);
 			TopoDS_Edge topEdge = BRepBuilderAPI_MakeEdge(p0, p1);
-			TopoDS_Edge buttomEdge = BRepBuilderAPI_MakeEdge(p2, p3);
+			TopoDS_Edge buttomEdge = BRepBuilderAPI_MakeEdge(p3, p2);
 			wireMakerTop.Add(topEdge);
 			wireMakerBottom.Add(buttomEdge);
 
@@ -750,12 +757,12 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	Handle(Geom_Plane) planeFlat = new Geom_Plane(gp_Pnt(0, 0, splittingFaceHeight), gp_Vec(0, 0, -1));
 
 	BRepBuilderAPI_MakeFace faceMakerTop(plane, wireCopyTop[0], precision);
-	BRepBuilderAPI_MakeFace faceMakerBottom(planeFlat, wireCopyBottom[0], precision);
+	BRepBuilderAPI_MakeFace faceMakerBottom(planeFlat, TopoDS::Wire(wireCopyBottom[0].Reversed()), precision);
 
 	for (size_t i = 1; i < wireCopyTop.size(); i++)
 	{
 		faceMakerTop.Add(wireCopyTop[i]);
-		faceMakerBottom.Add(wireCopyBottom[i]);
+		faceMakerBottom.Add(TopoDS::Wire(wireCopyBottom[i].Reversed()));
 	}
 
 	TopoDS_Face TopFace = faceMakerTop.Face();
@@ -1188,9 +1195,11 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	std::vector<TopoDS_Face> toBesSplitFaceList; // vertical faces that are to be split
 
 	int extrusionNumber = 0;
+	std::vector<TopoDS_Shape> test;
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
+		test.emplace_back(extrudedShape);
 
 		if (extrudedShape.IsNull())
 		{
@@ -1208,7 +1217,6 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 			// find if already found in model 
 			BoostBox3D faceBox = helperFunctions::createBBox(extrusionFace);
 			splittingfaceIdx.insert(std::make_pair(faceBox, extrusionFace));
-
 		}
 	}
 
@@ -3151,12 +3159,12 @@ CJT::GeoObject CJGeoCreator::makeLoD10(DataManager* h, CJT::Kernel* kernel, int 
 
 	if (settingsCollection.createOBJ())
 	{
-		helperFunctions::writeToOBJ(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD00));
+		helperFunctions::writeToOBJ(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::OBJLoD10));
 	}
 
 	if (settingsCollection.createSTEP())
 	{
-		helperFunctions::writeToSTEP(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD00));
+		helperFunctions::writeToSTEP(bbox, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD10));
 	}
 	 
 	printTime(startTime, std::chrono::steady_clock::now());
@@ -3777,7 +3785,13 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 		brepSewer.Add(face.Moved(trsf));
 	}
 	brepSewer.Perform();
+
 	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+
+	if (simplefiedShape.IsNull()) //TODO: this should be adressed
+	{
+		simplefiedShape = brepSewer.SewedShape();
+	}
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "c.1");
 	createSemanticData(&geoObject, simplefiedShape);
@@ -3997,6 +4011,12 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc2(DataManager* h, CJT::Kernel*
 		brepSewer.Perform();
 
 		TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+
+		if (simplefiedShape.IsNull()) //TODO: this should be adressed
+		{
+			simplefiedShape = brepSewer.SewedShape();
+		}
+
 		gp_Trsf trsf;
 		trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 
@@ -4090,6 +4110,11 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 	}
 	brepSewer.Perform();
 	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
+
+	if (simplefiedShape.IsNull()) //TODO: this should be adressed
+	{
+		simplefiedShape = brepSewer.SewedShape();
+	}
 
 	CJT::GeoObject geoObject = kernel->convertToJSON(simplefiedShape, "d.1");
 	createSemanticData(&geoObject, simplefiedShape);

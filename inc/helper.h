@@ -1,4 +1,4 @@
-#define USE_IFC4
+#define USE_IFC4x3
 #define iterationVersion "0.2.6"
 
 #ifdef USE_IFC2x3
@@ -166,6 +166,8 @@ struct helperFunctions{
 	/// compute the face normal
 	template<typename T>
 	static gp_Vec computeFaceNormal(const T& theFace);
+	/// compute normal of a pool of points in order representing a ring of edges
+	static gp_Vec newellsNormal(const std::vector<gp_Pnt>& pointList);
 	/// make a reversed copy of the input wire
 	static TopoDS_Wire reversedWire(const TopoDS_Wire& mainWire);
 	/// compute the largest angle of the edges, returns 0 if not found

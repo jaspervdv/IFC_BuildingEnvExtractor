@@ -982,18 +982,18 @@ gp_Vec helperFunctions::computeFaceNormal(const T& theFace)
 
 	if (shapeType == TopAbs_WIRE)
 	{
-		TopoDS_Wire currentWire = TopoDS::Wire(theFace);
+		std::vector<gp_Pnt> pts;
+		for (BRepTools_WireExplorer expl(TopoDS::Wire(theFace)); expl.More(); expl.Next()) // pick midpoints to accomodate for curves
+		{
+			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
+			Standard_Real sParam, lParam;
+			Handle(Geom_Curve) currentCurve = BRep_Tool::Curve(currentEdge, sParam, lParam);
+			if (currentCurve.IsNull()) continue;
+			Standard_Real mParam = 0.5 * (sParam + lParam);
+			pts.emplace_back(currentCurve->Value(mParam));
+		}
+		return newellsNormal(pts);
 
-		if (!currentWire.Closed()) { return gp_Vec(0, 0, 0); }
-
-		BRepBuilderAPI_FindPlane planeFinder(currentWire);
-
-		if (!planeFinder.Found()) { return gp_Vec(0, 0, 0); }
-
-		Handle(Geom_Plane) plane = planeFinder.Plane();
-		gp_Dir normal = plane->Pln().Axis().Direction();
-		gp_Vec normalVec = (gp_Vec(normal)).Normalized();
-		return normalVec;
 	}
 	if (shapeType == TopAbs_FACE)
 	{
@@ -1008,6 +1008,21 @@ gp_Vec helperFunctions::computeFaceNormal(const T& theFace)
 		return normalVec;
 	}
 	return gp_Vec(0, 0, 0);
+}
+
+gp_Vec helperFunctions::newellsNormal(const std::vector<gp_Pnt>& pointList)
+{
+	gp_Vec normal(0, 0, 0);
+	if (pointList.size() < 3) { normal; }
+
+	for (size_t i = 0; i < pointList.size(); ++i) { // compute normal with newell's method
+		const gp_Pnt& p0 = pointList[i];
+		const gp_Pnt& p1 = pointList[(i + 1) % pointList.size()];
+		normal.SetX(normal.X() + (p0.Y() - p1.Y()) * (p0.Z() + p1.Z()));
+		normal.SetY(normal.Y() + (p0.Z() - p1.Z()) * (p0.X() + p1.X()));
+		normal.SetZ(normal.Z() + (p0.X() - p1.X()) * (p0.Y() + p1.Y()));
+	}
+	return normal.Normalized();
 }
 
 TopoDS_Wire helperFunctions::reversedWire(const TopoDS_Wire& mainWire) {  //TODO: check where used
@@ -1828,18 +1843,18 @@ TopoDS_Wire helperFunctions::closeWireOrientated(const TopoDS_Wire& baseWire) {
 TopoDS_Face helperFunctions::createHorizontalFace(double x, double y, double z) {
 	
 	gp_Pnt p0(-x, -y, z);
-	gp_Pnt p1(-x, y, z);
+	gp_Pnt p1(x, -y, z);
 	gp_Pnt p2(x, y, z);
-	gp_Pnt p3(x, -y, z);
+	gp_Pnt p3(-x, y, z);
 
 	return createPlanarFace(p0, p1, p2, p3);
 }
 
 TopoDS_Face helperFunctions::createHorizontalFace(const gp_Pnt& lll, const gp_Pnt& urr, double rotationAngle, double z) {
 	gp_Pnt p0 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), lll.Y(), z), rotationAngle);
-	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), z), rotationAngle);
+	gp_Pnt p1 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), z), rotationAngle);
 	gp_Pnt p2 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), urr.Y(), z), rotationAngle);
-	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(urr.X(), lll.Y(), z), rotationAngle);
+	gp_Pnt p3 = helperFunctions::rotatePointWorld(gp_Pnt(lll.X(), urr.Y(), z), rotationAngle);
 
 	return createPlanarFace(p0, p1, p2, p3);
 }
@@ -2972,9 +2987,11 @@ std::vector<TopoDS_Face> helperFunctions::invertFace(const TopoDS_Face& inputFac
 {
 	gp_Pnt p0 = helperFunctions::getFirstPointShape(inputFace);
 	std::vector<TopoDS_Face> mergedFaceList;
+
 	for (TopExp_Explorer WireExpl(inputFace, TopAbs_WIRE); WireExpl.More(); WireExpl.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
+		currentWire.Orientation(TopAbs_FORWARD);
 		bool isInner = true;
 
 		for (TopExp_Explorer vertExpl(currentWire, TopAbs_VERTEX); vertExpl.More(); vertExpl.Next()) {
@@ -2987,20 +3004,16 @@ std::vector<TopoDS_Face> helperFunctions::invertFace(const TopoDS_Face& inputFac
 				break;
 			}
 		}
+
 		if (!isInner) { continue; }
+		if (!currentWire.Closed()) { continue; }
 
-		if (!currentWire.Closed())
+		if ( helperFunctions::computeFaceNormal(inputFace).IsOpposite(helperFunctions::computeFaceNormal(currentWire), 1e-4))
 		{
-			continue;
-		}
-
-		if (currentWire.Orientation() == TopAbs_REVERSED)
-		{
-			currentWire.Reverse();
+			currentWire = TopoDS::Wire(currentWire.Reversed());
 		}
 
 		TopoDS_Face innerFace = BRepBuilderAPI_MakeFace(currentWire);
-
 		BRepCheck_Analyzer check(innerFace);
 		if (!check.IsValid()) {
 			//TODO: add error
