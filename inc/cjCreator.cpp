@@ -1195,12 +1195,9 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	std::vector<TopoDS_Face> toBesSplitFaceList; // vertical faces that are to be split
 
 	int extrusionNumber = 0;
-	std::vector<TopoDS_Shape> test;
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		TopoDS_Solid extrudedShape = extrudeFace(currentFace, true, lowestZ);
-		test.emplace_back(extrudedShape);
-
 		if (extrudedShape.IsNull())
 		{
 			ErrorCollection::getInstance().addError(ErrorID::warningUnableToExtrude);
@@ -1274,7 +1271,7 @@ std::vector<TopoDS_Shape> CJGeoCreator::computePrisms(const std::vector<TopoDS_F
 	for (const TopoDS_Face& currentFace : splitTopSurfaceList)
 	{
 		brepSewer.Add(currentFace);
-		brepSewer.Add(helperFunctions::projectFaceFlat(currentFace, lowestZ));
+		brepSewer.Add(helperFunctions::projectFaceFlat(currentFace, lowestZ).Reversed());
 	}
 
 	brepSewer.Perform();
