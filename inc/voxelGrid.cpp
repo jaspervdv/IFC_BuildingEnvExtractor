@@ -880,45 +880,7 @@ std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> VoxelGrid::getDirec
 					{
 						if (i == 0)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[1]));
-						}
-						else if (i == 1)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[4]));
-						}
-						else if (i == 2)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[2]));
-						}
-						else if (i == 3)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[5]));
-						}
-					}
-					else if (dirIndx == 0)
-					{
-						if (i == 0)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[6]));
-						}
-						else if (i == 1)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[3]));
-						}
-						else if (i == 2)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[0]));
-						}
-						else if (i == 3)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[7]));
-						}
-					}
-					else if (dirIndx == 3)
-					{
-						if (i == 0)
-						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[7]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[5]));
 						}
 						else if (i == 1)
 						{
@@ -926,14 +888,14 @@ std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> VoxelGrid::getDirec
 						}
 						else if (i == 2)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[3]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[1]));
 						}
 						else if (i == 3)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[4]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[4]));
 						}
 					}
-					else if (dirIndx == 2)
+					else if (dirIndx == 0)
 					{
 						if (i == 0)
 						{
@@ -941,53 +903,91 @@ std::vector<std::pair<std::vector<TopoDS_Edge>, CJObjectID>> VoxelGrid::getDirec
 						}
 						else if (i == 1)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[5]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[7]));
 						}
 						else if (i == 2)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[1]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[3]));
 						}
 						else if (i == 3)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[6]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[6]));
 						}
 					}
-					else if (dirIndx == 5)
+					else if (dirIndx == 3)
 					{
 						if (i == 0)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[6]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[3]));
 						}
 						else if (i == 1)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[4]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[4]));
 						}
 						else if (i == 2)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[6]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[2]));
 						}
 						else if (i == 3)
 						{
 							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[7]));
 						}
 					}
+					else if (dirIndx == 2)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[6]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[5], voxelPoints[1]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[0]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[5]));
+						}
+					}
+					else if (dirIndx == 5)
+					{
+						if (i == 0)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[7]));
+						}
+						else if (i == 1)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[4], voxelPoints[5]));
+						}
+						else if (i == 2)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[6], voxelPoints[5]));
+						}
+						else if (i == 3)
+						{
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[7], voxelPoints[4]));
+						}
+					}
 					else if (dirIndx == 4)
 					{
 						if (i == 0)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[3]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[0]));
 						}
 						else if (i == 1)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[2]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[1]));
 						}
 						else if (i == 2)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[0], voxelPoints[1]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[1], voxelPoints[0]));
 						}
 						else if (i == 3)
 						{
-							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[2], voxelPoints[3]));
+							edgeList.emplace_back(BRepBuilderAPI_MakeEdge(voxelPoints[3], voxelPoints[2]));
 						}
 					}
 				}
