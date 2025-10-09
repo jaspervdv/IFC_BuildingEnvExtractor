@@ -644,6 +644,7 @@ TopoDS_Solid CJGeoCreator::extrudeFace(const TopoDS_Face& evalFace, bool downwar
 	for (TopExp_Explorer wireExplorer(evalFace, TopAbs_WIRE); wireExplorer.More(); wireExplorer.Next())
 	{
 		TopoDS_Wire currentWire = TopoDS::Wire(wireExplorer.Current());
+		if (!downwards) { currentWire.Reverse(); }
 		wireList.emplace_back(currentWire);
 	}
 
@@ -947,6 +948,7 @@ void CJGeoCreator::makeFloorSectionComplex(
 
 	// generate shapes
 	std::vector<TopoDS_Face> cleanedFaceList = helperFunctions::removeDubFaces(splitFaceList);
+	cleanedFaceList = helperFunctions::TessellateFace(cleanedFaceList);
 	if (!cleanedFaceList.size())
 	{
 		//TODO: add error
@@ -957,9 +959,9 @@ void CJGeoCreator::makeFloorSectionComplex(
 	std::vector<TopoDS_Face> innerFaces;
 	std::vector<TopoDS_Face> outerFaces;
 	SplitInAndOuterHFaces(faceCluster[0], innerFaces, outerFaces);
-
 	intFacesOut = helperFunctions::planarFaces2Outline(innerFaces);
 	extFacesOut = helperFunctions::planarFaces2Outline(outerFaces);
+
 	return;
 }
 
@@ -1972,6 +1974,7 @@ void CJGeoCreator::reduceSurfaces(const std::vector<TopoDS_Shape>& inputShapes, 
 	{
 		while (coreUse > inputShapes.size()) { coreUse /= 2; }
 	}
+	coreUse = 1;
 
 	int splitListSize = static_cast<int>(floor(inputShapes.size() / coreUse));
 
@@ -2107,6 +2110,7 @@ void CJGeoCreator::FinefilterSurface(
 
 std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces(const TopoDS_Shape& shape)
 {
+
 	// coarse pre processing of the surfaces
 	std::vector<std::shared_ptr<SurfaceGridPair>> gridPairList;
 	std::vector<gp_Pnt> centerpointHList;
@@ -2147,6 +2151,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 		spatialIndex.query(bgi::intersects(
 			bbox), std::back_inserter(qResult));
 		// cull faces completely overlapped by one other face
+
 		for (size_t j = 0; j < qResult.size(); j++)
 		{
 			int otherIdx = qResult[j].second;
@@ -2164,6 +2169,7 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 				break;
 			}
 		}
+
 		if (!currentGroup->isVisible()) { continue; }
 		// cull faces completely overlapped by other faces
 		std::vector<std::shared_ptr<SurfaceGridPair>> rayReceivingPairList;
@@ -2181,7 +2187,6 @@ std::vector<std::shared_ptr<SurfaceGridPair>> CJGeoCreator::getObjectTopSurfaces
 			visibleSurfaces.emplace_back(currentGroup);
 		}
 	}
-
 	return visibleSurfaces;
 }
 
@@ -2730,7 +2735,7 @@ void CJGeoCreator::make2DStoreys(
 	for (const std::shared_ptr<CJT::CityObject>& storeyCityObject : storeyCityObjects)
 	{
 		//make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03);
-		threadList.emplace_back([&]() {make2DStorey(storeyMutex ,h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
+		threadList.emplace_back([&]() {make2DStorey(storeyMutex, h, kernel, storeyCityObject, copyGeoList, storyProgressList, unitScale, is03); });
 	}
 
 	threadList.emplace_back([&] {monitorStoreys(storeyMutex, storyProgressList, storeyCityObjects.size()); });
@@ -2833,13 +2838,11 @@ void CJGeoCreator::make2DStorey(
 			LoD03Plates_.emplace(storeyElevation, cleanStoreySurfaceList);
 			faceLock.unlock();
 		}
-
 		// lod 03 plates are not stored because all object horizontal surfaces are used for lodd.1 and d.2
 	}
 	else
 	{
 		makeFloorSection(storeySurfaceList, h, storeyElevation + storeyUserBuffer);
-
 		if (settingsCollection.makec1() || settingsCollection.makec2())
 		{
 			std::vector<TopoDS_Face> cleanStoreySurfaceList;
@@ -3102,7 +3105,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 					TopoDS_Solid solidShape12 = extrudeFace(face, false, highestZ);
 					if (solidShape12.IsNull()) { continue; }
 
-					//if (settingsCollection.createSTEP() || settingsCollection.createOBJ()) { copyLoD12GeoList.emplace_back(solidShape12); }
+					if (settingsCollection.createSTEP() || settingsCollection.createOBJ()) { copyLoD12GeoList.emplace_back(solidShape12); }
 
 					CJT::GeoObject roomGeoObject12 = kernel->convertToJSON(solidShape12, "1.2");
 					createSemanticData(&roomGeoObject12, solidShape12, false);
@@ -3132,7 +3135,7 @@ void CJGeoCreator::makeSimpleLodRooms(DataManager* h, CJT::Kernel* kernel, std::
 	if (settingsCollection.createSTEP())
 	{
 		//helperFunctions::writeToSTEP(copyLoD02GeoList, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD02Interior));
-		//helperFunctions::writeToSTEP(copyLoD12GeoList, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD12Interior));
+		helperFunctions::writeToSTEP(copyLoD12GeoList, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD12Interior));
 		//helperFunctions::writeToSTEP(copyLoD22GeoList, SettingsCollection::getInstance().getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoD22Interior));
 	}
 
@@ -3660,7 +3663,6 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDb0(DataManager* h, CJT::Kernel*
 	{
 		roofList = LoD04RoofFaces_;
 	}
-
 	for (size_t i = 0; i < roofList.size(); i++)
 	{
 		std::vector<TopoDS_Face> tempInnerRoofList;
@@ -3775,16 +3777,18 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDc1(DataManager* h, CJT::Kernel*
 		outerShapeFaces.emplace_back(currentFace);
 	}
 
+	DebugUtils::WriteToSTEP(outerShapeFaces, "C:/Users/Jasper/Desktop/desk/test.STEP");
+
 	gp_Trsf trsf;
 	trsf.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Vec(0, 0, 1)), -SettingsCollection::getInstance().gridRotation());
 	BRepBuilderAPI_Sewing brepSewer;
 	for (const TopoDS_Face face : outerShapeFaces) {
 		brepSewer.Add(face.Moved(trsf));
 	}
+
 	brepSewer.Perform();
 
 	TopoDS_Shape simplefiedShape = simplefySolid(brepSewer.SewedShape());
-
 	if (simplefiedShape.IsNull()) //TODO: this should be adressed
 	{
 		simplefiedShape = brepSewer.SewedShape();
@@ -4074,7 +4078,6 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDd1(DataManager* h, CJT::Kernel*
 		make2DStoreys(h, kernel, storeyObjects_, 1, true, false);
 		if (LoD03Plates_.empty()) { return {}; }
 		printTime(startTime, std::chrono::steady_clock::now());
-
 		startTime = std::chrono::steady_clock::now();
 		std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoContinueOriginalProcess) << "LoDd.1" << std::endl;
 	}
@@ -4179,6 +4182,8 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 {
 	SettingsCollection& settingsCollection = SettingsCollection::getInstance();
 	std::cout << CommunicationStringEnum::getString(CommunicationStringID::infoComputingLoDe0) << std::endl;
+	std::cout << "\tprocessing IFC objects\n";
+
 	auto startTime = std::chrono::steady_clock::now();
 	finishedLoDe0_ = true;
 
@@ -4189,14 +4194,21 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 	auto spatialIndx = h->getIndexPointer();
 
 	std::vector<TopoDS_Shape> collectionShape;
-	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++ it)
+
+	int counter = 0;
+	for (auto it = spatialIndx->begin(); it != spatialIndx->end(); ++ it) //TODO: multithread this
 	{
+		counter++;
+
+		std::cout.flush();
+		std::cout << "\t" << counter << " of " << spatialIndx->size() << "\r";
+
 		Value test = *it;
 		std::shared_ptr<IfcProductSpatialData> lookup = h->getLookup(test.second);
 		TopoDS_Shape currentShape = lookup->getProductShape();
 		if (currentShape.IsNull()) { continue; }
 
-		TopoDS_Shape cleanShape = helperFunctions::TesselateShape(currentShape);
+		TopoDS_Shape cleanShape =  helperFunctions::TesselateShape(currentShape);
 		if (cleanShape.IsNull()) {  continue; }
 
 		cleanShape.Move(localRotationTrsf);
@@ -4234,6 +4246,7 @@ std::vector<CJT::GeoObject> CJGeoCreator::makeLoDe0(DataManager* h, CJT::Kernel*
 		helperFunctions::writeToSTEP(collectionShape, settingsCollection.getOutputBasePath() + fileExtensionEnum::getString(fileExtensionID::STEPLoDe0));
 	}
 
+	std::cout << "\t" << std::endl;
 	printTime(startTime, std::chrono::steady_clock::now());
 	garbageCollection();
 	return geoObjectList;

@@ -528,7 +528,10 @@ void SettingsCollection::setMakeOutlines(const nlohmann::json& json)
 		!make12() &&
 		!make13() &&
 		!make22() &&
+		!makeb0() &&
+		!makec1() &&
 		!makec2() &&
+		!maked1() &&
 		!maked2()
 		)
 	{

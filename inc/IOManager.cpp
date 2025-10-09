@@ -833,8 +833,6 @@ void IOManager::processInteriorLod(CJGeoCreator* geoCreator, std::shared_ptr<CJT
 	{
 		roomObjects = geoCreator->makeRoomObjects(internalDataManager_.get(), storeyObjects);
 	}
-	
-	
 
 	// storeys
 	if (settingsCollection.make02())

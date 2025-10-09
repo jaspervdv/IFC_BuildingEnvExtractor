@@ -3,6 +3,7 @@
 #include <STEPControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 #include <BRepTools_WireExplorer.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
 
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepCheck_Face.hxx>
@@ -89,12 +90,16 @@ std::string DebugUtils::faceToString(const TopoDS_Face& currentFace)
 		TopoDS_Wire currentWire = TopoDS::Wire(WireExpl.Current());
 		for (BRepTools_WireExplorer expl(currentWire); expl.More(); expl.Next()) {
 			TopoDS_Edge currentEdge = TopoDS::Edge(expl.Current());
-
-			for (TopExp_Explorer expl(currentEdge, TopAbs_VERTEX); expl.More(); expl.Next())
+			
+			if (currentEdge.Orientation() == TopAbs_REVERSED)
 			{
-				TopoDS_Vertex vertex = TopoDS::Vertex(expl.Current());
-				gp_Pnt p = BRep_Tool::Pnt(vertex);
-				currentString += pointToString3D(p);
+				currentString += pointToString3D(helperFunctions::getLastPointShape(currentEdge));
+				currentString += pointToString3D(helperFunctions::getFirstPointShape(currentEdge));
+			}
+			else
+			{
+				currentString += pointToString3D(helperFunctions::getFirstPointShape(currentEdge));
+				currentString += pointToString3D(helperFunctions::getLastPointShape(currentEdge));
 			}
 		}
 	}
@@ -355,9 +360,17 @@ void DebugUtils::WriteToSTEP(const T& shape, const std::string& targetPath) {
 
 template<typename T>
 void DebugUtils::WriteToSTEP(const std::vector<T>& shapeList, const std::string& targetPath) {
+	TopoDS_Compound compound;
+	BRep_Builder builder;
+	builder.MakeCompound(compound);
+	for (const T& shape : shapeList)
+	{
+		builder.Add(compound, shape);
+	}
 	STEPControl_Writer writer;
-	for (const T& shape : shapeList) { writer.Transfer(shape, STEPControl_AsIs); }
+	writer.Transfer(compound, STEPControl_AsIs);
 	IFSelect_ReturnStatus stat = writer.Write(targetPath.c_str());
+	return;
 }
 
 template<typename T>
